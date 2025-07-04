@@ -3,6 +3,7 @@ package main
 import (
 	"editor/internal/buffer"
 	"editor/internal/config"
+	"editor/internal/widgets"
 	"fmt"
 	"os"
 
@@ -11,12 +12,14 @@ import (
 
 // Editor represents the state of the text editor.
 type Editor struct {
-	screen  tcell.Screen
-	buffer  *buffer.Buffer
-	config  *config.Config
-	cursorX int
-	cursorY int
-	topLine int
+	screen      tcell.Screen
+	buffer      *buffer.Buffer
+	config      *config.Config
+	cursorX     int
+	cursorY     int
+	topLine     int
+	commandMode bool
+	commandLine *widgets.LineEditor
 }
 
 // NewEditor creates a new Editor.
@@ -38,13 +41,20 @@ func NewEditor() (*Editor, error) {
 		longText += fmt.Sprintf("This is line %d\n", i)
 	}
 
+	// Initialize command line widget (will be positioned at bottom of screen)
+	width, height := screen.Size()
+	commandLine := widgets.NewLineEditor(0, height-1, width)
+	commandLine.SetStyle(tcell.StyleDefault.Background(tcell.ColorWhite).Foreground(tcell.ColorBlack))
+
 	return &Editor{
-		screen:  screen,
-		buffer:  buffer.NewBufferFromString(longText),
-		config:  config.New(),
-		cursorX: 0,
-		cursorY: 0,
-		topLine: 0,
+		screen:      screen,
+		buffer:      buffer.NewBufferFromString(longText),
+		config:      config.New(),
+		cursorX:     0,
+		cursorY:     0,
+		topLine:     0,
+		commandMode: false,
+		commandLine: commandLine,
 	}, nil
 }
 
@@ -54,39 +64,32 @@ func (e *Editor) Run() {
 	for {
 		e.drawEditor()
 		e.drawStatusBar()
-		e.screen.ShowCursor(e.cursorX, e.cursorY-e.topLine)
+
+		// Show cursor at appropriate position
+		if e.commandMode {
+			// Show cursor in command line
+			cursorX, cursorY := e.commandLine.GetCursorPosition()
+			e.screen.ShowCursor(cursorX, cursorY)
+		} else {
+			// Show cursor in editor
+			e.screen.ShowCursor(e.cursorX, e.cursorY-e.topLine)
+		}
+
 		e.screen.Show()
 
 		ev := e.screen.PollEvent()
 		switch ev := ev.(type) {
 		case *tcell.EventKey:
-			switch ev.Key() {
-			case tcell.KeyEscape:
-				e.Close()
-				os.Exit(0)
-			case tcell.KeyUp:
-				if e.cursorY > 0 {
-					e.cursorY--
-				}
-			case tcell.KeyDown:
-				if e.cursorY < len(e.buffer.Lines())-1 {
-					e.cursorY++
-				}
-			case tcell.KeyLeft:
-				if e.cursorX > 0 {
-					e.cursorX--
-				}
-			case tcell.KeyRight:
-				line := e.buffer.Line(e.cursorY)
-				// Only allow cursor to move to the last character, not past it
-				maxX := len(line)
-				if maxX > 0 {
-					maxX-- // Don't go past the last character
-				}
-				if e.cursorX < maxX {
-					e.cursorX++
-				}
+			if e.commandMode {
+				// Handle command mode events
+				e.handleCommandMode(ev)
+			} else {
+				// Handle normal mode events
+				e.handleNormalMode(ev)
 			}
+		case *tcell.EventResize:
+			// Handle screen resize events
+			e.handleResize()
 		}
 		e.scroll()
 	}
@@ -123,6 +126,103 @@ func (e *Editor) scroll() {
 	}
 }
 
+// handleNormalMode processes events when in normal editing mode
+func (e *Editor) handleNormalMode(ev *tcell.EventKey) {
+	switch ev.Key() {
+	case tcell.KeyEscape:
+		e.Close()
+		os.Exit(0)
+	case tcell.KeyUp:
+		if e.cursorY > 0 {
+			e.cursorY--
+		}
+	case tcell.KeyDown:
+		if e.cursorY < len(e.buffer.Lines())-1 {
+			e.cursorY++
+		}
+	case tcell.KeyLeft:
+		if e.cursorX > 0 {
+			e.cursorX--
+		}
+	case tcell.KeyRight:
+		line := e.buffer.Line(e.cursorY)
+		// Only allow cursor to move to the last character, not past it
+		maxX := len(line)
+		if maxX > 0 {
+			maxX-- // Don't go past the last character
+		}
+		if e.cursorX < maxX {
+			e.cursorX++
+		}
+	case tcell.KeyRune:
+		// Handle colon to enter command mode
+		if ev.Rune() == ':' {
+			e.enterCommandMode()
+		}
+	}
+}
+
+// handleCommandMode processes events when in command mode
+func (e *Editor) handleCommandMode(ev *tcell.EventKey) {
+	switch ev.Key() {
+	case tcell.KeyEscape:
+		// Exit command mode
+		e.exitCommandMode()
+	case tcell.KeyEnter:
+		// Execute command and exit command mode
+		e.executeCommand()
+		e.exitCommandMode()
+	default:
+		// Pass other keys to the command line widget
+		e.commandLine.HandleKey(ev)
+
+		// Check if the user deleted all text including the colon
+		// If so, exit command mode automatically
+		if e.commandLine.GetText() == "" {
+			e.exitCommandMode()
+		}
+	}
+}
+
+// enterCommandMode switches to command mode and initializes the command line
+func (e *Editor) enterCommandMode() {
+	e.commandMode = true
+	e.commandLine.SetText(":")
+	// Position cursor after the colon
+	e.commandLine.SetCursor(1)
+}
+
+// exitCommandMode switches back to normal mode
+func (e *Editor) exitCommandMode() {
+	e.commandMode = false
+	e.commandLine.SetText("")
+}
+
+// executeCommand processes the command entered in the command line
+func (e *Editor) executeCommand() {
+	command := e.commandLine.GetText()
+	// Remove the leading ":"
+	if len(command) > 1 {
+		command = command[1:]
+	}
+
+	// Handle basic commands
+	switch command {
+	case "q", "quit":
+		e.Close()
+		os.Exit(0)
+	}
+}
+
+// handleResize processes screen resize events
+func (e *Editor) handleResize() {
+	width, height := e.screen.Size()
+
+	// Update the command line widget's dimensions and position
+	e.commandLine.SetWidth(width)
+	e.commandLine.SetPosition(0, height-1)
+}
+
 // Close finalizes the screen.
 func (e *Editor) Close() {
 	e.screen.Fini()
@@ -156,8 +256,14 @@ func (e *Editor) drawStatusBar() {
 		e.screen.SetContent(i, height-1, ' ', nil, statusBarStyle)
 	}
 
-	e.drawText(0, height-2, statusBarStyle, "Press ESC to quit.")
-	e.drawText(0, height-1, statusBarStyle, fmt.Sprintf("Length: %d", e.buffer.Length()))
+	if e.commandMode {
+		// Draw the command line widget
+		e.commandLine.Draw(e.screen)
+		e.drawText(0, height-2, statusBarStyle, "Command mode - Press ESC to cancel, Enter to execute")
+	} else {
+		e.drawText(0, height-2, statusBarStyle, "Press : for command mode, ESC to quit.")
+		e.drawText(0, height-1, statusBarStyle, fmt.Sprintf("Length: %d", e.buffer.Length()))
+	}
 }
 
 func main() {
