@@ -45,7 +45,8 @@ func (le *LineEditor) GetText() string {
 
 // getScrollOffset calculates the horizontal scroll offset for long text
 func (le *LineEditor) getScrollOffset() int {
-	if len(le.text) <= le.width {
+	// If text fits within width, no scrolling needed
+	if len(le.text) < le.width {
 		return 0
 	}
 
@@ -55,22 +56,27 @@ func (le *LineEditor) getScrollOffset() int {
 		margin = le.width / 4
 	}
 
-	// If cursor is near the end, show the end of the text
-	if le.cursor >= len(le.text)-margin {
-		offset := len(le.text) - le.width
-		if offset < 0 {
-			offset = 0
-		}
-		return offset
-	}
-
 	// If cursor is near the beginning, show from the start
 	if le.cursor < margin {
 		return 0
 	}
 
-	// Otherwise, keep cursor at a comfortable position from the left edge
-	return le.cursor - margin
+	// Calculate the desired scroll offset to keep cursor at margin from left edge
+	desiredOffset := le.cursor - margin
+
+	// If the cursor is at or past the end of text, we need to ensure
+	// there's space to show the cursor after the last character
+	maxOffset := len(le.text) - le.width + 1
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+
+	// Use the smaller of desired offset and max offset
+	if desiredOffset > maxOffset {
+		return maxOffset
+	}
+
+	return desiredOffset
 }
 
 // Draw renders the line editor on the screen
