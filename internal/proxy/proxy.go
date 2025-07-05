@@ -112,6 +112,52 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 	return nil, fmt.Errorf("failed to read proxy response")
 }
 
+// ListDirectoryRecursive sends a JSON RPC request to get recursive directory listing
+func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
+	request := JSONRPCRequest{
+		Method: "list_directory_recursive",
+		Params: map[string]interface{}{"path": path},
+		ID:     2,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		var response JSONRPCResponse
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return nil, err
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		var files []FileInfo
+		for _, item := range response.Result {
+			if fileMap, ok := item.(map[string]interface{}); ok {
+				file := FileInfo{
+					Name: fileMap["name"].(string),
+					Type: fileMap["type"].(string),
+					Path: fileMap["path"].(string),
+				}
+				if size, ok := fileMap["size"].(float64); ok {
+					file.Size = int64(size)
+				}
+				files = append(files, file)
+			}
+		}
+		return files, nil
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
 // Close terminates the proxy process
 func (c *Client) Close() error {
 	if c.cmd != nil && c.cmd.Process != nil {

@@ -6,12 +6,11 @@ Communicates via stdin/stdout and can operate locally or remotely via SSH.
 
 import json
 import sys
-import os
 import stat
 import pwd
 import grp
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import logging
 
 # Configure logging to stderr so it doesn't interfere with JSON RPC communication
@@ -29,7 +28,7 @@ class VidyaProxy:
     def __init__(self):
         self.methods = {
             'list_directory': self.list_directory,
-            'get_file_info': self.get_file_info,
+            'list_directory_recursive': self.list_directory_recursive,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -54,14 +53,14 @@ class VidyaProxy:
 
         for entry in directory_path.iterdir():
             try:
-                file_info = self._get_file_info(entry)
+                file_info = self._get_file_info(entry, directory_path)
                 entries.append(file_info)
             except (OSError, PermissionError) as e:
                 logger.warning(f"Could not get info for {entry}: {e}")
                 # Add basic info even if we can't get all details
                 entries.append({
                     'name': entry.name,
-                    'path': str(entry),
+                    'path': entry.name,  # Just the filename for current directory
                     'type': 'unknown',
                     'error': str(e)
                 })
@@ -71,25 +70,67 @@ class VidyaProxy:
 
         return entries
 
-    def get_file_info(self, path: str) -> Dict[str, Any]:
+    def list_directory_recursive(self, path: str) -> List[Dict[str, Any]]:
         """
-        Get detailed information about a specific file or directory.
-
+        Recursively list all files and directories in the specified path and its subdirectories.
+        
         Args:
-            path: File or directory path
-
+            path: Directory path to start from
+            
         Returns:
-            Dictionary with file information
+            List of file/directory information dictionaries with relative paths
         """
-        file_path = Path(path).expanduser().resolve()
-        return self._get_file_info(file_path)
+        directory_path = Path(path).expanduser().resolve()
+        
+        if not directory_path.exists():
+            raise FileNotFoundError(f"Directory does not exist: {path}")
+            
+        if not directory_path.is_dir():
+            raise NotADirectoryError(f"Path is not a directory: {path}")
+            
+        entries = []
+        
+        def _walk_directory(current_path: Path):
+            try:
+                for entry in current_path.iterdir():
+                    try:
+                        # Get relative path from the starting directory
+                        relative_path = entry.relative_to(directory_path)
+                        
+                        # Create simplified file info for fuzzy listing
+                        file_info = {
+                            'name': entry.name,
+                            'path': str(relative_path),
+                            'type': 'directory' if entry.is_dir() else 'file',
+                            'size': entry.stat().st_size if entry.is_file() else 0
+                        }
+                        
+                        entries.append(file_info)
+                        
+                        # Recurse into subdirectories
+                        if entry.is_dir():
+                            _walk_directory(entry)
+                            
+                    except (OSError, PermissionError) as e:
+                        logger.warning(f"Could not access {entry}: {e}")
+                        
+            except (OSError, PermissionError) as e:
+                logger.warning(f"Could not list directory {current_path}: {e}")
+                
+        _walk_directory(directory_path)
+        
+        # Sort by path for better organization
+        entries.sort(key=lambda x: x['path'].lower())
+        
+        return entries
 
-    def _get_file_info(self, path: Path) -> Dict[str, Any]:
+    def _get_file_info(self, path: Path, base_path: Path) -> Dict[str, Any]:
         """
         Internal method to get detailed file information.
 
         Args:
             path: Path object
+            base_path: Base path to calculate relative paths from (required)
 
         Returns:
             Dictionary with file information

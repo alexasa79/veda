@@ -34,8 +34,10 @@ func New() (*Editor, error) {
 		return nil, err
 	}
 
-	defStyle := tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
-	screen.SetStyle(defStyle)
+	// Default style will be set from theme
+	config := config.New()
+	normalStyle := config.Theme.GetStyle(config.Theme.Normal)
+	screen.SetStyle(normalStyle)
 
 	// Create a larger buffer for testing scrolling
 	var longText string
@@ -46,7 +48,7 @@ func New() (*Editor, error) {
 	// Initialize command line widget (will be positioned at bottom of screen)
 	width, height := screen.Size()
 	commandLine := widgets.NewLineEditor(0, height-1, width)
-	commandLine.SetStyle(tcell.StyleDefault.Background(tcell.ColorWhite).Foreground(tcell.ColorBlack))
+	commandLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
 
 	// Start proxy client
 	proxyClient, err := proxy.NewClient()
@@ -57,7 +59,7 @@ func New() (*Editor, error) {
 	return &Editor{
 		screen:      screen,
 		buffer:      buffer.NewBufferFromString(longText),
-		config:      config.New(),
+		config:      config,
 		cursorX:     0,
 		cursorY:     0,
 		topLine:     0,
@@ -253,16 +255,16 @@ func (e *Editor) drawEditor() {
 	width, height := e.screen.Size()
 	for i := 0; i < height-2; i++ {
 		for j := 0; j < width; j++ {
-			e.screen.SetContent(j, i, ' ', nil, tcell.StyleDefault)
+			e.screen.SetContent(j, i, ' ', nil, e.config.Theme.GetStyle(e.config.Theme.Normal))
 		}
 		line := e.buffer.Line(e.topLine + i)
-		e.drawText(0, i, tcell.StyleDefault, line)
+		e.drawText(0, i, e.config.Theme.GetStyle(e.config.Theme.Normal), line)
 	}
 }
 
 func (e *Editor) drawStatusBar() {
 	width, height := e.screen.Size()
-	statusBarStyle := tcell.StyleDefault.Background(tcell.ColorWhite).Foreground(tcell.ColorBlack)
+	statusBarStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBar)
 
 	// Clear the status bar lines
 	for i := 0; i < width; i++ {
@@ -291,8 +293,8 @@ func (e *Editor) showDualPaneWidget() {
 	dualPaneY := (height - dualPaneHeight) / 2
 
 	dualPaneWidget := widgets.NewDualPaneWidget(dualPaneX, dualPaneY, dualPaneWidth, dualPaneHeight)
-	dualPaneWidget.SetBorderStyle(tcell.StyleDefault.Background(tcell.ColorBlue).Foreground(tcell.ColorWhite))
-	dualPaneWidget.SetTopStyle(tcell.StyleDefault.Background(tcell.ColorBlack).Foreground(tcell.ColorWhite))
+	dualPaneWidget.SetBorderStyle(e.config.Theme.GetStyle(e.config.Theme.DualPaneBorder))
+	dualPaneWidget.SetTopStyle(e.config.Theme.GetStyle(e.config.Theme.DualPaneContent))
 
 	// Get directory listing from proxy
 	files, err := e.proxyClient.ListDirectory(".")
