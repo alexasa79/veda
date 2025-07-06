@@ -300,8 +300,9 @@ func (e *Editor) showFuzzyListWidget() {
 	// Get recursive directory listing from proxy
 	files, err := e.proxyClient.ListDirectoryRecursive(".")
 	if err != nil {
-		fuzzyListWidget.AddTopLine("Error: " + err.Error())
+		fuzzyListWidget.SetContent([]string{"Error: " + err.Error()})
 	} else {
+		var lines []string
 		for _, file := range files {
 			// Filter out hidden files and directories (starting with .)
 			// Check if any component of the path starts with .
@@ -319,8 +320,9 @@ func (e *Editor) showFuzzyListWidget() {
 			
 			icon := utils.GetFileIcon(file.Name, file.Type)
 			line := fmt.Sprintf("%s %s", icon, file.Path)
-			fuzzyListWidget.AddTopLine(line)
+			lines = append(lines, line)
 		}
+		fuzzyListWidget.SetContent(lines)
 	}
 
 	// Show the widget with a background render function

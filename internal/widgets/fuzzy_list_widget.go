@@ -89,19 +89,14 @@ func (flw *FuzzyListWidget) SetTitle(title string) {
 }
 
 
-// SetTopContent sets the content of the top section
-func (flw *FuzzyListWidget) SetTopContent(lines []string) {
+// SetContent sets the content of the top section
+func (flw *FuzzyListWidget) SetContent(lines []string) {
 	flw.topLines = make([]string, len(lines))
 	copy(flw.topLines, lines)
 }
 
-// AddTopLine adds a line to the top section
-func (flw *FuzzyListWidget) AddTopLine(line string) {
-	flw.topLines = append(flw.topLines, line)
-}
-
-// GetTopContent returns the content of the top section
-func (flw *FuzzyListWidget) GetTopContent() []string {
+// GetContent returns the content of the top section
+func (flw *FuzzyListWidget) GetContent() []string {
 	result := make([]string, len(flw.topLines))
 	copy(result, flw.topLines)
 	return result
