@@ -141,7 +141,7 @@ func (dpw *DualPaneWidget) drawTopSection(screen tcell.Screen) {
 	topHeight := dpw.getTopSectionHeight()
 	contentWidth := dpw.getContentWidth()
 
-	// Draw top border with title
+	// Draw top border with title (using rounded corners)
 	dpw.drawTopBorderWithTitle(screen)
 
 	// Draw content and side borders
@@ -199,8 +199,8 @@ func (dpw *DualPaneWidget) drawBottomSection(screen tcell.Screen) {
 	// Draw the line editor (it will handle its own content area)
 	dpw.bottomEditor.Draw(screen)
 
-	// Draw bottom border
-	dpw.drawHorizontalBorder(screen, bottomY+1, '└', '─', '┘')
+	// Draw bottom border with rounded corners
+	dpw.drawHorizontalBorder(screen, bottomY+1, '╰', '─', '╯')
 }
 
 // drawHorizontalBorder draws a horizontal border line
@@ -218,8 +218,8 @@ func (dpw *DualPaneWidget) drawTopBorderWithTitle(screen tcell.Screen) {
 	borderStyle := dpw.theme.GetStyle(dpw.theme.DualPaneBorder)
 	y := dpw.y
 	
-	// Draw left corner
-	screen.SetContent(dpw.x, y, '┌', nil, borderStyle)
+	// Draw left corner (rounded)
+	screen.SetContent(dpw.x, y, '╭', nil, borderStyle)
 	
 	// Calculate title position and padding
 	titleLen := len(dpw.title)
@@ -252,8 +252,8 @@ func (dpw *DualPaneWidget) drawTopBorderWithTitle(screen tcell.Screen) {
 		}
 	}
 	
-	// Draw right corner
-	screen.SetContent(dpw.x+dpw.width-1, y, '┐', nil, borderStyle)
+	// Draw right corner (rounded)
+	screen.SetContent(dpw.x+dpw.width-1, y, '╮', nil, borderStyle)
 }
 
 // ScrollTop scrolls the top section by the specified number of lines
