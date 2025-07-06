@@ -1,25 +1,42 @@
 package widgets
 
 import (
-	"strings"
+	"vidya/internal/fuzzysearch"
 	"vidya/internal/theme"
+	"vidya/internal/utils"
+	"strings"
 	
 	"github.com/gdamore/tcell/v2"
+)
+
+// DecorationMode defines how items should be decorated in the list
+type DecorationMode int
+
+const (
+	// DecorationNone shows items as-is without any decoration
+	DecorationNone DecorationMode = iota
+	// DecorationFileIcon adds file type icons based on file extension
+	DecorationFileIcon
+	// DecorationSymbol adds symbol icons (for future use with symbol lists)
+	DecorationSymbol
 )
 
 // FuzzyListWidget represents a widget with two bordered sections:
 // - Top section: multi-line text area
 // - Bottom section: single-line text area using LineEditor
 type FuzzyListWidget struct {
-	x, y          int          // Position on screen
-	width, height int          // Total dimensions
-	topLines      []string     // Content of the top section (filtered)
-	allLines      []string     // All content (unfiltered)
-	bottomEditor  *LineEditor  // Line editor for the bottom section
-	theme         *theme.Theme // Theme for styling
-	topScroll     int          // Vertical scroll offset for top section
-	selectedIndex int          // Currently selected line index
-	title         string       // Title to display in the top border
+	x, y           int            // Position on screen
+	width, height  int            // Total dimensions
+	topLines       []string       // Content of the top section (filtered, decorated)
+	allLines       []string       // All content (unfiltered, decorated)
+	rawLines       []string       // Original undecorated lines
+	topIndices     []int          // Indices mapping filtered lines to raw lines
+	bottomEditor   *LineEditor    // Line editor for the bottom section
+	theme          *theme.Theme   // Theme for styling
+	topScroll      int            // Vertical scroll offset for top section
+	selectedIndex  int            // Currently selected line index
+	title          string         // Title to display in the top border
+	decorationMode DecorationMode // How to decorate items
 }
 
 // NewFuzzyListWidget creates a new fuzzy list widget
@@ -31,17 +48,20 @@ func NewFuzzyListWidget(x, y, width, height int, theme *theme.Theme) *FuzzyListW
 	bottomEditor := NewLineEditor(x+1, bottomY, bottomWidth)
 
 	return &FuzzyListWidget{
-		x:             x,
-		y:             y,
-		width:         width,
-		height:        height,
-		topLines:      []string{},
-		allLines:      []string{},
-		bottomEditor:  bottomEditor,
-		theme:         theme,
-		topScroll:     0,
-		selectedIndex: 0,
-		title:         "",
+		x:              x,
+		y:              y,
+		width:          width,
+		height:         height,
+		topLines:       []string{},
+		allLines:       []string{},
+		rawLines:       []string{},
+		topIndices:     []int{},
+		bottomEditor:   bottomEditor,
+		theme:          theme,
+		topScroll:      0,
+		selectedIndex:  0,
+		title:          "",
+		decorationMode: DecorationNone,
 	}
 }
 
@@ -91,13 +111,51 @@ func (flw *FuzzyListWidget) SetTitle(title string) {
 	flw.title = title
 }
 
+// SetDecorationMode sets how items should be decorated
+func (flw *FuzzyListWidget) SetDecorationMode(mode DecorationMode) {
+	flw.decorationMode = mode
+	// Re-apply decorations if we have content
+	if len(flw.rawLines) > 0 {
+		flw.applyDecorations()
+	}
+}
+
+// applyDecorations applies the current decoration mode to raw lines
+func (flw *FuzzyListWidget) applyDecorations() {
+	flw.allLines = make([]string, len(flw.rawLines))
+	
+	for i, line := range flw.rawLines {
+		decorated := line
+		
+		switch flw.decorationMode {
+		case DecorationFileIcon:
+			// Extract filename from path for icon determination
+			parts := strings.Split(line, "/")
+			filename := parts[len(parts)-1]
+			// Assume files for now, could be enhanced to detect directories
+			icon := utils.GetFileIcon(filename, "file")
+			decorated = icon + " " + line
+			
+		case DecorationSymbol:
+			// TODO: Add symbol decoration logic
+			decorated = "◉ " + line
+			
+		case DecorationNone:
+			// Keep as-is
+		}
+		
+		flw.allLines[i] = decorated
+	}
+	
+	// Re-apply filter with new decorations
+	flw.applyFilter()
+}
 
 // SetContent sets the content of the top section
 func (flw *FuzzyListWidget) SetContent(lines []string) {
-	flw.allLines = make([]string, len(lines))
-	copy(flw.allLines, lines)
-	flw.topLines = make([]string, len(lines))
-	copy(flw.topLines, lines)
+	flw.rawLines = make([]string, len(lines))
+	copy(flw.rawLines, lines)
+	flw.applyDecorations()
 	flw.topScroll = 0
 	flw.selectedIndex = 0
 }
@@ -278,6 +336,8 @@ func (flw *FuzzyListWidget) ScrollTop(lines int) {
 func (flw *FuzzyListWidget) ClearTop() {
 	flw.topLines = []string{}
 	flw.allLines = []string{}
+	flw.rawLines = []string{}
+	flw.topIndices = []int{}
 	flw.topScroll = 0
 	flw.selectedIndex = 0
 }
@@ -328,45 +388,19 @@ func (flw *FuzzyListWidget) SetSelectedIndex(index int) {
 	}
 }
 
-// fuzzyMatch checks if a line matches the search criteria
-// The criteria is split by spaces and all words must be found in the line
-func (flw *FuzzyListWidget) fuzzyMatch(line string, criteria string) bool {
-	if criteria == "" {
-		return true
-	}
-	
-	// Convert to lowercase for case-insensitive matching
-	lineLower := strings.ToLower(line)
-	criteriaLower := strings.ToLower(criteria)
-	
-	// Split criteria into words
-	words := strings.Fields(criteriaLower)
-	
-	// Check if all words are present in the line
-	for _, word := range words {
-		if !strings.Contains(lineLower, word) {
-			return false
-		}
-	}
-	
-	return true
-}
-
 // applyFilter filters the content based on the search text
 func (flw *FuzzyListWidget) applyFilter() {
 	searchText := flw.bottomEditor.GetText()
 	
-	// If search is empty, show all lines
-	if searchText == "" {
-		flw.topLines = make([]string, len(flw.allLines))
-		copy(flw.topLines, flw.allLines)
-	} else {
-		// Filter lines based on search criteria
-		flw.topLines = []string{}
-		for _, line := range flw.allLines {
-			if flw.fuzzyMatch(line, searchText) {
-				flw.topLines = append(flw.topLines, line)
-			}
+	// Clear the filtered lists
+	flw.topLines = []string{}
+	flw.topIndices = []int{}
+	
+	// Filter lines and track indices
+	for i, line := range flw.allLines {
+		if fuzzysearch.Match(line, searchText) {
+			flw.topLines = append(flw.topLines, line)
+			flw.topIndices = append(flw.topIndices, i)
 		}
 	}
 	
@@ -376,7 +410,8 @@ func (flw *FuzzyListWidget) applyFilter() {
 }
 
 // Show displays the fuzzy list widget as a modal dialog and handles its own event loop
-func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) {
+// Returns the selected item, or empty string if cancelled
+func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) string {
 	// Event loop
 	for {
 		// Render background (editor and status bar)
@@ -400,12 +435,19 @@ func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) {
 				flw.MoveSelectionUp()
 			case tcell.KeyDown:
 				flw.MoveSelectionDown()
+			case tcell.KeyEnter:
+				// Return the raw (undecorated) selected item
+				if flw.selectedIndex >= 0 && flw.selectedIndex < len(flw.topIndices) {
+					rawIndex := flw.topIndices[flw.selectedIndex]
+					return flw.rawLines[rawIndex]
+				}
+				return ""
 			case tcell.KeyEscape:
-				return
+				return ""
 			case tcell.KeyRune:
 				switch ev.Rune() {
 				case 'A':
-					return
+					return ""
 				default:
 					// Pass the key to the line editor
 					oldText := flw.bottomEditor.GetText()

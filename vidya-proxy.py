@@ -29,6 +29,7 @@ class VidyaProxy:
         self.methods = {
             'list_directory': self.list_directory,
             'list_directory_recursive': self.list_directory_recursive,
+            'get_file': self.get_file,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -123,6 +124,33 @@ class VidyaProxy:
         entries.sort(key=lambda x: x['path'].lower())
         
         return entries
+
+    def get_file(self, path: str) -> Dict[str, str]:
+        """
+        Read the contents of a file.
+        
+        Args:
+            path: File path to read
+            
+        Returns:
+            Dictionary with 'content' key containing the file contents
+        """
+        file_path = Path(path).expanduser().resolve()
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"File does not exist: {path}")
+            
+        if not file_path.is_file():
+            raise ValueError(f"Path is not a file: {path}")
+            
+        try:
+            content = file_path.read_text(encoding='utf-8')
+            return {'content': content}
+        except UnicodeDecodeError:
+            # Try reading as binary and return error
+            raise ValueError(f"File is not a text file: {path}")
+        except PermissionError:
+            raise PermissionError(f"Permission denied: {path}")
 
     def _get_file_info(self, path: Path, base_path: Path) -> Dict[str, Any]:
         """

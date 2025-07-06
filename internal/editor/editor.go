@@ -1,14 +1,13 @@
 package editor
 
 import (
-	"vidya/internal/buffer"
-	"vidya/internal/config"
-	"vidya/internal/proxy"
-	"vidya/internal/utils"
-	"vidya/internal/widgets"
 	"fmt"
 	"os"
 	"strings"
+	"vidya/internal/buffer"
+	"vidya/internal/config"
+	"vidya/internal/proxy"
+	"vidya/internal/widgets"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -41,12 +40,6 @@ func New() (*Editor, error) {
 	normalStyle := config.Theme.GetStyle(config.Theme.Normal)
 	screen.SetStyle(normalStyle)
 
-	// Create a larger buffer for testing scrolling
-	var longText string
-	for i := range 100 {
-		longText += fmt.Sprintf("This is line %d\n", i)
-	}
-
 	// Initialize command line widget (will be positioned at bottom of screen)
 	width, height := screen.Size()
 	commandLine := widgets.NewLineEditor(0, height-1, width)
@@ -60,7 +53,7 @@ func New() (*Editor, error) {
 
 	return &Editor{
 		screen:      screen,
-		buffer:      buffer.NewBufferFromString(longText),
+		buffer:      buffer.NewBufferFromString(""), // Start with empty buffer
 		config:      config,
 		cursorX:     0,
 		cursorY:     0,
@@ -295,14 +288,15 @@ func (e *Editor) showFuzzyListWidget() {
 	fuzzyListY := (height - fuzzyListHeight) / 2
 
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
-	fuzzyListWidget.SetTitle("Files and Directories")
+	fuzzyListWidget.SetTitle("Open File")
+	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 
 	// Get recursive directory listing from proxy
 	files, err := e.proxyClient.ListDirectoryRecursive(".")
 	if err != nil {
 		fuzzyListWidget.SetContent([]string{"Error: " + err.Error()})
 	} else {
-		var lines []string
+		var paths []string
 		for _, file := range files {
 			// Filter out hidden files and directories (starting with .)
 			// Check if any component of the path starts with .
@@ -318,16 +312,42 @@ func (e *Editor) showFuzzyListWidget() {
 				continue
 			}
 			
-			icon := utils.GetFileIcon(file.Name, file.Type)
-			line := fmt.Sprintf("%s %s", icon, file.Path)
-			lines = append(lines, line)
+			// Only include files, not directories
+			if file.Type != "file" {
+				continue
+			}
+			
+			paths = append(paths, file.Path)
 		}
-		fuzzyListWidget.SetContent(lines)
+		fuzzyListWidget.SetContent(paths)
 	}
 
 	// Show the widget with a background render function
-	fuzzyListWidget.Show(e.screen, func() {
+	selection := fuzzyListWidget.Show(e.screen, func() {
 		e.drawEditor()
 		e.drawStatusBar()
 	})
+	
+	// If a file was selected, open it
+	if selection != "" {
+		e.openFile(selection)
+	}
+}
+
+// openFile loads a file's content into the editor buffer
+func (e *Editor) openFile(filePath string) {
+	// Read file content using proxy
+	content, err := e.proxyClient.GetFile(filePath)
+	if err != nil {
+		// TODO: Show error to user
+		return
+	}
+	
+	// Create a new buffer with the file content
+	e.buffer = buffer.NewBufferFromString(content)
+	
+	// Reset cursor and scroll position
+	e.cursorX = 0
+	e.cursorY = 0
+	e.topLine = 0
 }
