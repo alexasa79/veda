@@ -1,6 +1,8 @@
 package widgets
 
 import (
+	"vidya/internal/theme"
+	
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -8,17 +10,17 @@ import (
 // - Top section: multi-line text area
 // - Bottom section: single-line text area using LineEditor
 type DualPaneWidget struct {
-	x, y          int         // Position on screen
-	width, height int         // Total dimensions
-	topLines      []string    // Content of the top section
-	bottomEditor  *LineEditor // Line editor for the bottom section
-	topStyle      tcell.Style // Style for the top section
-	borderStyle   tcell.Style // Style for the borders
-	topScroll     int         // Vertical scroll offset for top section
+	x, y          int          // Position on screen
+	width, height int          // Total dimensions
+	topLines      []string     // Content of the top section
+	bottomEditor  *LineEditor  // Line editor for the bottom section
+	theme         *theme.Theme // Theme for styling
+	topScroll     int          // Vertical scroll offset for top section
+	selectedIndex int          // Currently selected line index
 }
 
 // NewDualPaneWidget creates a new dual pane widget
-func NewDualPaneWidget(x, y, width, height int) *DualPaneWidget {
+func NewDualPaneWidget(x, y, width, height int, theme *theme.Theme) *DualPaneWidget {
 	// Calculate bottom editor position and width
 	bottomY := y + height - 3 // Position for bottom editor (inside bottom border)
 	bottomWidth := width - 2  // Width minus borders
@@ -26,15 +28,15 @@ func NewDualPaneWidget(x, y, width, height int) *DualPaneWidget {
 	bottomEditor := NewLineEditor(x+1, bottomY, bottomWidth)
 
 	return &DualPaneWidget{
-		x:            x,
-		y:            y,
-		width:        width,
-		height:       height,
-		topLines:     []string{},
-		bottomEditor: bottomEditor,
-		topStyle:     tcell.StyleDefault,
-		borderStyle:  tcell.StyleDefault,
-		topScroll:    0,
+		x:             x,
+		y:             y,
+		width:         width,
+		height:        height,
+		topLines:      []string{},
+		bottomEditor:  bottomEditor,
+		theme:         theme,
+		topScroll:     0,
+		selectedIndex:  0,
 	}
 }
 
@@ -79,20 +81,6 @@ func (dpw *DualPaneWidget) GetSize() (int, int) {
 	return dpw.width, dpw.height
 }
 
-// SetTopStyle sets the style for the top section
-func (dpw *DualPaneWidget) SetTopStyle(style tcell.Style) {
-	dpw.topStyle = style
-}
-
-// SetBottomStyle sets the style for the bottom section (line editor)
-func (dpw *DualPaneWidget) SetBottomStyle(style tcell.Style) {
-	dpw.bottomEditor.SetStyle(style)
-}
-
-// SetBorderStyle sets the style for the borders
-func (dpw *DualPaneWidget) SetBorderStyle(style tcell.Style) {
-	dpw.borderStyle = style
-}
 
 // SetTopContent sets the content of the top section
 func (dpw *DualPaneWidget) SetTopContent(lines []string) {
@@ -154,15 +142,22 @@ func (dpw *DualPaneWidget) drawTopSection(screen tcell.Screen) {
 		row := dpw.y + 1 + i
 
 		// Left border
-		screen.SetContent(dpw.x, row, '│', nil, dpw.borderStyle)
-
-		// Clear content area
-		for j := 1; j < dpw.width-1; j++ {
-			screen.SetContent(dpw.x+j, row, ' ', nil, dpw.topStyle)
-		}
+		screen.SetContent(dpw.x, row, '│', nil, dpw.theme.GetStyle(dpw.theme.DualPaneBorder))
 
 		// Draw content if available
 		lineIndex := dpw.topScroll + i
+		
+		// Determine style for this line
+		style := dpw.theme.GetStyle(dpw.theme.DualPaneContent)
+		if lineIndex == dpw.selectedIndex {
+			style = dpw.theme.GetStyle(dpw.theme.DualPaneSelection)
+		}
+		
+		// Clear content area with appropriate style
+		for j := 1; j < dpw.width-1; j++ {
+			screen.SetContent(dpw.x+j, row, ' ', nil, style)
+		}
+		
 		if lineIndex < len(dpw.topLines) {
 			line := dpw.topLines[lineIndex]
 			if len(line) > contentWidth {
@@ -170,13 +165,13 @@ func (dpw *DualPaneWidget) drawTopSection(screen tcell.Screen) {
 			}
 			for j, r := range line {
 				if j < contentWidth {
-					screen.SetContent(dpw.x+1+j, row, r, nil, dpw.topStyle)
+					screen.SetContent(dpw.x+1+j, row, r, nil, style)
 				}
 			}
 		}
 
 		// Right border
-		screen.SetContent(dpw.x+dpw.width-1, row, '│', nil, dpw.borderStyle)
+		screen.SetContent(dpw.x+dpw.width-1, row, '│', nil, dpw.theme.GetStyle(dpw.theme.DualPaneBorder))
 	}
 
 	// Draw separator between top and bottom sections
@@ -190,8 +185,9 @@ func (dpw *DualPaneWidget) drawBottomSection(screen tcell.Screen) {
 	bottomY := dpw.y + 2 + topHeight
 
 	// Left and right borders for the bottom section
-	screen.SetContent(dpw.x, bottomY, '│', nil, dpw.borderStyle)
-	screen.SetContent(dpw.x+dpw.width-1, bottomY, '│', nil, dpw.borderStyle)
+	borderStyle := dpw.theme.GetStyle(dpw.theme.DualPaneBorder)
+	screen.SetContent(dpw.x, bottomY, '│', nil, borderStyle)
+	screen.SetContent(dpw.x+dpw.width-1, bottomY, '│', nil, borderStyle)
 
 	// Draw the line editor (it will handle its own content area)
 	dpw.bottomEditor.Draw(screen)
@@ -202,11 +198,12 @@ func (dpw *DualPaneWidget) drawBottomSection(screen tcell.Screen) {
 
 // drawHorizontalBorder draws a horizontal border line
 func (dpw *DualPaneWidget) drawHorizontalBorder(screen tcell.Screen, y int, left, middle, right rune) {
-	screen.SetContent(dpw.x, y, left, nil, dpw.borderStyle)
+	borderStyle := dpw.theme.GetStyle(dpw.theme.DualPaneBorder)
+	screen.SetContent(dpw.x, y, left, nil, borderStyle)
 	for i := 1; i < dpw.width-1; i++ {
-		screen.SetContent(dpw.x+i, y, middle, nil, dpw.borderStyle)
+		screen.SetContent(dpw.x+i, y, middle, nil, borderStyle)
 	}
-	screen.SetContent(dpw.x+dpw.width-1, y, right, nil, dpw.borderStyle)
+	screen.SetContent(dpw.x+dpw.width-1, y, right, nil, borderStyle)
 }
 
 // ScrollTop scrolls the top section by the specified number of lines
@@ -240,4 +237,39 @@ func (dpw *DualPaneWidget) ClearBottom() {
 func (dpw *DualPaneWidget) Clear() {
 	dpw.ClearTop()
 	dpw.ClearBottom()
+}
+
+// MoveSelectionUp moves the selection up by one line
+func (dpw *DualPaneWidget) MoveSelectionUp() {
+	if dpw.selectedIndex > 0 {
+		dpw.selectedIndex--
+		// Scroll up if selection moves above visible area
+		if dpw.selectedIndex < dpw.topScroll {
+			dpw.topScroll = dpw.selectedIndex
+		}
+	}
+}
+
+// MoveSelectionDown moves the selection down by one line
+func (dpw *DualPaneWidget) MoveSelectionDown() {
+	if dpw.selectedIndex < len(dpw.topLines)-1 {
+		dpw.selectedIndex++
+		// Scroll down if selection moves below visible area
+		topHeight := dpw.getTopSectionHeight()
+		if dpw.selectedIndex >= dpw.topScroll+topHeight {
+			dpw.topScroll = dpw.selectedIndex - topHeight + 1
+		}
+	}
+}
+
+// GetSelectedIndex returns the currently selected index
+func (dpw *DualPaneWidget) GetSelectedIndex() int {
+	return dpw.selectedIndex
+}
+
+// SetSelectedIndex sets the selected index
+func (dpw *DualPaneWidget) SetSelectedIndex(index int) {
+	if index >= 0 && index < len(dpw.topLines) {
+		dpw.selectedIndex = index
+	}
 }

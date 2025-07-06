@@ -1,4 +1,4 @@
-module editor
+module vidya
 
 go 1.24.0
 

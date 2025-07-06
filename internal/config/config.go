@@ -1,6 +1,6 @@
 package config
 
-import "editor/internal/theme"
+import "vidya/internal/theme"
 
 type Config struct {
 	ScrollOffset int

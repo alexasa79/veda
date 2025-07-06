@@ -1,10 +1,11 @@
 package editor
 
 import (
-	"editor/internal/buffer"
-	"editor/internal/config"
-	"editor/internal/proxy"
-	"editor/internal/widgets"
+	"vidya/internal/buffer"
+	"vidya/internal/config"
+	"vidya/internal/proxy"
+	"vidya/internal/utils"
+	"vidya/internal/widgets"
 	"fmt"
 	"os"
 
@@ -292,19 +293,18 @@ func (e *Editor) showDualPaneWidget() {
 	dualPaneX := (width - dualPaneWidth) / 2
 	dualPaneY := (height - dualPaneHeight) / 2
 
-	dualPaneWidget := widgets.NewDualPaneWidget(dualPaneX, dualPaneY, dualPaneWidth, dualPaneHeight)
-	dualPaneWidget.SetBorderStyle(e.config.Theme.GetStyle(e.config.Theme.DualPaneBorder))
-	dualPaneWidget.SetTopStyle(e.config.Theme.GetStyle(e.config.Theme.DualPaneContent))
+	dualPaneWidget := widgets.NewDualPaneWidget(dualPaneX, dualPaneY, dualPaneWidth, dualPaneHeight, e.config.Theme)
 
-	// Get directory listing from proxy
-	files, err := e.proxyClient.ListDirectory(".")
+	// Get recursive directory listing from proxy
+	files, err := e.proxyClient.ListDirectoryRecursive(".")
 	if err != nil {
 		dualPaneWidget.AddTopLine("Error: " + err.Error())
 	} else {
-		dualPaneWidget.AddTopLine("Directory Listing:")
+		dualPaneWidget.AddTopLine("Files and Directories:")
 		dualPaneWidget.AddTopLine("")
 		for _, file := range files {
-			line := fmt.Sprintf("%-20s %8s %10d", file.Name, file.Type, file.Size)
+			icon := utils.GetFileIcon(file.Name, file.Type)
+			line := fmt.Sprintf("%s %s", icon, file.Path)
 			dualPaneWidget.AddTopLine(line)
 		}
 	}
@@ -322,9 +322,17 @@ func (e *Editor) showDualPaneWidget() {
 
 		ev := e.screen.PollEvent()
 		if ev, ok := ev.(*tcell.EventKey); ok {
-			// Exit on 'A' or Escape
-			if (ev.Key() == tcell.KeyRune && ev.Rune() == 'A') || ev.Key() == tcell.KeyEscape {
-				break
+			switch ev.Key() {
+			case tcell.KeyUp:
+				dualPaneWidget.MoveSelectionUp()
+			case tcell.KeyDown:
+				dualPaneWidget.MoveSelectionDown()
+			case tcell.KeyEscape:
+				return
+			case tcell.KeyRune:
+				if ev.Rune() == 'A' {
+					return
+				}
 			}
 		}
 	}

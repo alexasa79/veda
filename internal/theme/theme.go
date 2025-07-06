@@ -15,8 +15,9 @@ type Theme struct {
 	DialogContent StyleDef
 
 	// Widget colors
-	DualPaneBorder  StyleDef
-	DualPaneContent StyleDef
+	DualPaneBorder    StyleDef
+	DualPaneContent   StyleDef
+	DualPaneSelection StyleDef
 
 	// Text editor colors
 	Normal      StyleDef
@@ -68,6 +69,11 @@ func NewTheme() *Theme {
 		DualPaneContent: StyleDef{
 			Foreground: "#fff",
 			Background: "#000",
+		},
+
+		DualPaneSelection: StyleDef{
+			Foreground: "#000",
+			Background: "#0af",
 		},
 
 		Normal: StyleDef{
