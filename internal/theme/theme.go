@@ -15,9 +15,9 @@ type Theme struct {
 	DialogContent StyleDef
 
 	// Widget colors
-	DualPaneBorder    StyleDef
-	DualPaneContent   StyleDef
-	DualPaneSelection StyleDef
+	FuzzyListBorder    StyleDef
+	FuzzyListContent   StyleDef
+	FuzzyListSelection StyleDef
 
 	// Text editor colors
 	Normal      StyleDef
@@ -61,17 +61,17 @@ func NewTheme() *Theme {
 			Background: "#fff",
 		},
 
-		DualPaneBorder: StyleDef{
+		FuzzyListBorder: StyleDef{
 			Foreground: "#b8b9b4",
 			Background: "#26292c",
 		},
 
-		DualPaneContent: StyleDef{
+		FuzzyListContent: StyleDef{
 			Foreground: "#fff",
 			Background: "#000",
 		},
 
-		DualPaneSelection: StyleDef{
+		FuzzyListSelection: StyleDef{
 			Foreground: "#000",
 			Background: "#0af",
 		},

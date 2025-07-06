@@ -172,7 +172,7 @@ func (e *Editor) handleNormalMode(ev *tcell.EventKey) {
 		if ev.Rune() == ':' {
 			e.enterCommandMode()
 		} else if ev.Rune() == 'A' {
-			e.showDualPaneWidget()
+			e.showFuzzyListWidget()
 		}
 	}
 }
@@ -284,23 +284,23 @@ func (e *Editor) drawStatusBar() {
 	}
 }
 
-// showDualPaneWidget creates and displays the dual pane widget with directory listing
-func (e *Editor) showDualPaneWidget() {
+// showFuzzyListWidget creates and displays the fuzzy list widget with directory listing
+func (e *Editor) showFuzzyListWidget() {
 	width, height := e.screen.Size()
 
-	// Create dual pane widget (centered overlay)
-	dualPaneWidth := width * 3 / 5  // 60% of screen width
-	dualPaneHeight := height * 3 / 5 // 60% of screen height
-	dualPaneX := (width - dualPaneWidth) / 2
-	dualPaneY := (height - dualPaneHeight) / 2
+	// Create fuzzy list widget (centered overlay)
+	fuzzyListWidth := width * 3 / 5  // 60% of screen width
+	fuzzyListHeight := height * 3 / 5 // 60% of screen height
+	fuzzyListX := (width - fuzzyListWidth) / 2
+	fuzzyListY := (height - fuzzyListHeight) / 2
 
-	dualPaneWidget := widgets.NewDualPaneWidget(dualPaneX, dualPaneY, dualPaneWidth, dualPaneHeight, e.config.Theme)
-	dualPaneWidget.SetTitle("Files and Directories")
+	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
+	fuzzyListWidget.SetTitle("Files and Directories")
 
 	// Get recursive directory listing from proxy
 	files, err := e.proxyClient.ListDirectoryRecursive(".")
 	if err != nil {
-		dualPaneWidget.AddTopLine("Error: " + err.Error())
+		fuzzyListWidget.AddTopLine("Error: " + err.Error())
 	} else {
 		for _, file := range files {
 			// Filter out hidden files and directories (starting with .)
@@ -319,12 +319,12 @@ func (e *Editor) showDualPaneWidget() {
 			
 			icon := utils.GetFileIcon(file.Name, file.Type)
 			line := fmt.Sprintf("%s %s", icon, file.Path)
-			dualPaneWidget.AddTopLine(line)
+			fuzzyListWidget.AddTopLine(line)
 		}
 	}
 
 	// Show the widget with a background render function
-	dualPaneWidget.Show(e.screen, func() {
+	fuzzyListWidget.Show(e.screen, func() {
 		e.drawEditor()
 		e.drawStatusBar()
 	})
