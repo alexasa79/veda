@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"strings"
 	"vidya/internal/theme"
 	
 	"github.com/gdamore/tcell/v2"
@@ -12,7 +13,8 @@ import (
 type FuzzyListWidget struct {
 	x, y          int          // Position on screen
 	width, height int          // Total dimensions
-	topLines      []string     // Content of the top section
+	topLines      []string     // Content of the top section (filtered)
+	allLines      []string     // All content (unfiltered)
 	bottomEditor  *LineEditor  // Line editor for the bottom section
 	theme         *theme.Theme // Theme for styling
 	topScroll     int          // Vertical scroll offset for top section
@@ -34,6 +36,7 @@ func NewFuzzyListWidget(x, y, width, height int, theme *theme.Theme) *FuzzyListW
 		width:         width,
 		height:        height,
 		topLines:      []string{},
+		allLines:      []string{},
 		bottomEditor:  bottomEditor,
 		theme:         theme,
 		topScroll:     0,
@@ -91,8 +94,12 @@ func (flw *FuzzyListWidget) SetTitle(title string) {
 
 // SetContent sets the content of the top section
 func (flw *FuzzyListWidget) SetContent(lines []string) {
+	flw.allLines = make([]string, len(lines))
+	copy(flw.allLines, lines)
 	flw.topLines = make([]string, len(lines))
 	copy(flw.topLines, lines)
+	flw.topScroll = 0
+	flw.selectedIndex = 0
 }
 
 // GetContent returns the content of the top section
@@ -270,7 +277,9 @@ func (flw *FuzzyListWidget) ScrollTop(lines int) {
 // ClearTop clears the content of the top section
 func (flw *FuzzyListWidget) ClearTop() {
 	flw.topLines = []string{}
+	flw.allLines = []string{}
 	flw.topScroll = 0
+	flw.selectedIndex = 0
 }
 
 // ClearBottom clears the content of the bottom section
@@ -319,6 +328,53 @@ func (flw *FuzzyListWidget) SetSelectedIndex(index int) {
 	}
 }
 
+// fuzzyMatch checks if a line matches the search criteria
+// The criteria is split by spaces and all words must be found in the line
+func (flw *FuzzyListWidget) fuzzyMatch(line string, criteria string) bool {
+	if criteria == "" {
+		return true
+	}
+	
+	// Convert to lowercase for case-insensitive matching
+	lineLower := strings.ToLower(line)
+	criteriaLower := strings.ToLower(criteria)
+	
+	// Split criteria into words
+	words := strings.Fields(criteriaLower)
+	
+	// Check if all words are present in the line
+	for _, word := range words {
+		if !strings.Contains(lineLower, word) {
+			return false
+		}
+	}
+	
+	return true
+}
+
+// applyFilter filters the content based on the search text
+func (flw *FuzzyListWidget) applyFilter() {
+	searchText := flw.bottomEditor.GetText()
+	
+	// If search is empty, show all lines
+	if searchText == "" {
+		flw.topLines = make([]string, len(flw.allLines))
+		copy(flw.topLines, flw.allLines)
+	} else {
+		// Filter lines based on search criteria
+		flw.topLines = []string{}
+		for _, line := range flw.allLines {
+			if flw.fuzzyMatch(line, searchText) {
+				flw.topLines = append(flw.topLines, line)
+			}
+		}
+	}
+	
+	// Reset scroll and selection
+	flw.topScroll = 0
+	flw.selectedIndex = 0
+}
+
 // Show displays the fuzzy list widget as a modal dialog and handles its own event loop
 func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) {
 	// Event loop
@@ -328,6 +384,10 @@ func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) {
 		
 		// Draw widget on top
 		flw.Draw(screen)
+		
+		// Show cursor in the search box
+		cursorX, cursorY := flw.bottomEditor.GetCursorPosition()
+		screen.ShowCursor(cursorX, cursorY)
 		
 		// Update screen
 		screen.Show()
@@ -346,6 +406,24 @@ func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) {
 				switch ev.Rune() {
 				case 'A':
 					return
+				default:
+					// Pass the key to the line editor
+					oldText := flw.bottomEditor.GetText()
+					flw.bottomEditor.HandleKey(ev)
+					newText := flw.bottomEditor.GetText()
+					// If text changed, apply filter
+					if oldText != newText {
+						flw.applyFilter()
+					}
+				}
+			default:
+				// Handle other keys for the line editor (like backspace)
+				oldText := flw.bottomEditor.GetText()
+				flw.bottomEditor.HandleKey(ev)
+				newText := flw.bottomEditor.GetText()
+				// If text changed, apply filter
+				if oldText != newText {
+					flw.applyFilter()
 				}
 			}
 		}
