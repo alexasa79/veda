@@ -8,6 +8,7 @@ import (
 	"vidya/internal/widgets"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -302,6 +303,20 @@ func (e *Editor) showDualPaneWidget() {
 		dualPaneWidget.AddTopLine("Error: " + err.Error())
 	} else {
 		for _, file := range files {
+			// Filter out hidden files and directories (starting with .)
+			// Check if any component of the path starts with .
+			skipFile := false
+			pathComponents := strings.Split(file.Path, "/")
+			for _, component := range pathComponents {
+				if len(component) > 0 && component[0] == '.' {
+					skipFile = true
+					break
+				}
+			}
+			if skipFile {
+				continue
+			}
+			
 			icon := utils.GetFileIcon(file.Name, file.Type)
 			line := fmt.Sprintf("%s %s", icon, file.Path)
 			dualPaneWidget.AddTopLine(line)

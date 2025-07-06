@@ -62,8 +62,8 @@ func NewTheme() *Theme {
 		},
 
 		DualPaneBorder: StyleDef{
-			Foreground: "#fff",
-			Background: "#00f",
+			Foreground: "#b8b9b4",
+			Background: "#26292c",
 		},
 
 		DualPaneContent: StyleDef{
