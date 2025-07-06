@@ -17,6 +17,7 @@ type DualPaneWidget struct {
 	theme         *theme.Theme // Theme for styling
 	topScroll     int          // Vertical scroll offset for top section
 	selectedIndex int          // Currently selected line index
+	title         string       // Title to display in the top border
 }
 
 // NewDualPaneWidget creates a new dual pane widget
@@ -36,7 +37,8 @@ func NewDualPaneWidget(x, y, width, height int, theme *theme.Theme) *DualPaneWid
 		bottomEditor:  bottomEditor,
 		theme:         theme,
 		topScroll:     0,
-		selectedIndex:  0,
+		selectedIndex: 0,
+		title:         "",
 	}
 }
 
@@ -79,6 +81,11 @@ func (dpw *DualPaneWidget) GetPosition() (int, int) {
 // GetSize returns the current dimensions
 func (dpw *DualPaneWidget) GetSize() (int, int) {
 	return dpw.width, dpw.height
+}
+
+// SetTitle sets the title displayed in the top border
+func (dpw *DualPaneWidget) SetTitle(title string) {
+	dpw.title = title
 }
 
 
@@ -134,8 +141,8 @@ func (dpw *DualPaneWidget) drawTopSection(screen tcell.Screen) {
 	topHeight := dpw.getTopSectionHeight()
 	contentWidth := dpw.getContentWidth()
 
-	// Draw top border
-	dpw.drawHorizontalBorder(screen, dpw.y, '┌', '─', '┐')
+	// Draw top border with title
+	dpw.drawTopBorderWithTitle(screen)
 
 	// Draw content and side borders
 	for i := 0; i < topHeight; i++ {
@@ -206,6 +213,49 @@ func (dpw *DualPaneWidget) drawHorizontalBorder(screen tcell.Screen, y int, left
 	screen.SetContent(dpw.x+dpw.width-1, y, right, nil, borderStyle)
 }
 
+// drawTopBorderWithTitle draws the top border with an optional title
+func (dpw *DualPaneWidget) drawTopBorderWithTitle(screen tcell.Screen) {
+	borderStyle := dpw.theme.GetStyle(dpw.theme.DualPaneBorder)
+	y := dpw.y
+	
+	// Draw left corner
+	screen.SetContent(dpw.x, y, '┌', nil, borderStyle)
+	
+	// Calculate title position and padding
+	titleLen := len(dpw.title)
+	borderWidth := dpw.width - 2 // excluding corners
+	
+	if titleLen > 0 && titleLen < borderWidth-4 { // Need at least 2 chars padding on each side
+		// Center the title
+		leftPadding := (borderWidth - titleLen - 2) / 2 // -2 for the brackets
+		
+		// Draw left border
+		for i := 1; i <= leftPadding; i++ {
+			screen.SetContent(dpw.x+i, y, '─', nil, borderStyle)
+		}
+		
+		// Draw title with brackets
+		screen.SetContent(dpw.x+leftPadding+1, y, '┤', nil, borderStyle)
+		for i, r := range dpw.title {
+			screen.SetContent(dpw.x+leftPadding+2+i, y, r, nil, borderStyle)
+		}
+		screen.SetContent(dpw.x+leftPadding+2+titleLen, y, '├', nil, borderStyle)
+		
+		// Draw right border
+		for i := dpw.x + leftPadding + titleLen + 3; i < dpw.x+dpw.width-1; i++ {
+			screen.SetContent(i, y, '─', nil, borderStyle)
+		}
+	} else {
+		// No title or title too long, just draw border
+		for i := 1; i < dpw.width-1; i++ {
+			screen.SetContent(dpw.x+i, y, '─', nil, borderStyle)
+		}
+	}
+	
+	// Draw right corner
+	screen.SetContent(dpw.x+dpw.width-1, y, '┐', nil, borderStyle)
+}
+
 // ScrollTop scrolls the top section by the specified number of lines
 func (dpw *DualPaneWidget) ScrollTop(lines int) {
 	dpw.topScroll += lines
@@ -271,5 +321,38 @@ func (dpw *DualPaneWidget) GetSelectedIndex() int {
 func (dpw *DualPaneWidget) SetSelectedIndex(index int) {
 	if index >= 0 && index < len(dpw.topLines) {
 		dpw.selectedIndex = index
+	}
+}
+
+// Show displays the dual pane widget as a modal dialog and handles its own event loop
+func (dpw *DualPaneWidget) Show(screen tcell.Screen, backgroundRender func()) {
+	// Event loop
+	for {
+		// Render background (editor and status bar)
+		backgroundRender()
+		
+		// Draw widget on top
+		dpw.Draw(screen)
+		
+		// Update screen
+		screen.Show()
+		
+		// Handle events
+		ev := screen.PollEvent()
+		if ev, ok := ev.(*tcell.EventKey); ok {
+			switch ev.Key() {
+			case tcell.KeyUp:
+				dpw.MoveSelectionUp()
+			case tcell.KeyDown:
+				dpw.MoveSelectionDown()
+			case tcell.KeyEscape:
+				return
+			case tcell.KeyRune:
+				switch ev.Rune() {
+				case 'A':
+					return
+				}
+			}
+		}
 	}
 }

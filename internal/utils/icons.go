@@ -7,30 +7,30 @@ import (
 
 // Common unicode symbols for files and directories
 const (
-	// Directory symbols
-	IconDirectory     = "📁" // U+1F4C1
-	IconDirectoryOpen = "📂" // U+1F4C2
+	// Directory symbols (Nerd Font)
+	IconDirectory     = "" // nf-fa-folder
+	IconDirectoryOpen = "" // nf-fa-folder_open
 	
-	// Programming language symbols
-	IconGo         = "\ue627" // Go gopher icon
-	IconPython     = "🐍"     // U+1F40D
-	IconJavaScript = "📜"     // U+1F4DC
-	IconRust       = "🦀"     // U+1F980
-	IconC          = "Ⓒ"      // U+24B8
-	IconCpp        = "C++"
+	// Programming language symbols (Nerd Font)
+	IconGo         = "\ue627" // nf-dev-go (Go gopher)
+	IconPython     = ""      // nf-dev-python
+	IconJavaScript = ""      // nf-dev-javascript
+	IconRust       = ""      // nf-dev-rust
+	IconC          = ""      // nf-custom-c
+	IconCpp        = ""      // nf-custom-cpp
 	
-	// File type symbols
-	IconText       = "📄"  // U+1F4C4
-	IconMarkdown   = "📝"  // U+1F4DD
-	IconJSON       = "{ }"
-	IconYAML       = "📋"  // U+1F4CB
-	IconConfig     = "⚙️"  // U+2699
-	IconImage      = "🖼️"  // U+1F5BC
-	IconVideo      = "🎬"  // U+1F3AC
-	IconAudio      = "🎵"  // U+1F3B5
-	IconArchive    = "📦"  // U+1F4E6
-	IconExecutable = "⚡"  // U+26A1
-	IconDefault    = "📄"  // U+1F4C4
+	// File type symbols (Nerd Font)
+	IconText       = ""  // nf-fa-file_text
+	IconMarkdown   = ""  // nf-dev-markdown
+	IconJSON       = ""  // nf-seti-json
+	IconYAML       = ""  // nf-seti-yml
+	IconConfig     = ""  // nf-fa-cog
+	IconImage      = ""  // nf-fa-file_image_o
+	IconVideo      = ""  // nf-fa-file_video_o
+	IconAudio      = ""  // nf-fa-file_audio_o
+	IconArchive    = ""  // nf-fa-file_archive_o
+	IconExecutable = ""  // nf-oct-zap
+	IconDefault    = ""  // nf-fa-file
 )
 
 // GetFileIcon returns the appropriate unicode symbol for a file based on its name and type
@@ -104,14 +104,24 @@ func GetFileIcon(name string, fileType string) string {
 		return IconExecutable
 	}
 	
-	// Special file names
+	// Special file names with specific icons
 	switch strings.ToLower(name) {
-	case "makefile", "dockerfile", "docker-compose.yml", "docker-compose.yaml":
-		return IconConfig
+	case "makefile":
+		return "" // nf-seti-makefile
+	case "dockerfile":
+		return "" // nf-seti-docker
+	case "docker-compose.yml", "docker-compose.yaml":
+		return "" // nf-seti-docker
 	case "readme", "readme.md", "readme.txt":
-		return IconMarkdown
-	case ".gitignore", ".dockerignore":
-		return IconConfig
+		return "" // nf-seti-readme
+	case ".gitignore":
+		return "" // nf-dev-git
+	case ".dockerignore":
+		return "" // nf-seti-docker
+	case "package.json":
+		return "" // nf-seti-npm
+	case "go.mod", "go.sum":
+		return "\ue627" // Go gopher
 	}
 	
 	// Check if it's a script without extension

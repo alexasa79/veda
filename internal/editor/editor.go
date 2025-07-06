@@ -294,14 +294,13 @@ func (e *Editor) showDualPaneWidget() {
 	dualPaneY := (height - dualPaneHeight) / 2
 
 	dualPaneWidget := widgets.NewDualPaneWidget(dualPaneX, dualPaneY, dualPaneWidth, dualPaneHeight, e.config.Theme)
+	dualPaneWidget.SetTitle("Files and Directories")
 
 	// Get recursive directory listing from proxy
 	files, err := e.proxyClient.ListDirectoryRecursive(".")
 	if err != nil {
 		dualPaneWidget.AddTopLine("Error: " + err.Error())
 	} else {
-		dualPaneWidget.AddTopLine("Files and Directories:")
-		dualPaneWidget.AddTopLine("")
 		for _, file := range files {
 			icon := utils.GetFileIcon(file.Name, file.Type)
 			line := fmt.Sprintf("%s %s", icon, file.Path)
@@ -309,31 +308,9 @@ func (e *Editor) showDualPaneWidget() {
 		}
 	}
 
-	// Event loop for dual pane widget
-	for {
-		// Clear screen and redraw editor
+	// Show the widget with a background render function
+	dualPaneWidget.Show(e.screen, func() {
 		e.drawEditor()
 		e.drawStatusBar()
-
-		// Draw dual pane widget on top
-		dualPaneWidget.Draw(e.screen)
-
-		e.screen.Show()
-
-		ev := e.screen.PollEvent()
-		if ev, ok := ev.(*tcell.EventKey); ok {
-			switch ev.Key() {
-			case tcell.KeyUp:
-				dualPaneWidget.MoveSelectionUp()
-			case tcell.KeyDown:
-				dualPaneWidget.MoveSelectionDown()
-			case tcell.KeyEscape:
-				return
-			case tcell.KeyRune:
-				if ev.Rune() == 'A' {
-					return
-				}
-			}
-		}
-	}
+	})
 }
