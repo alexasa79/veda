@@ -87,8 +87,8 @@ func NewTheme() *Theme {
 		},
 
 		LineNumber: StyleDef{
-			Foreground: "#888",
-			Background: "#fff",
+			Foreground: "#75715e",
+			Background: "#26292c",
 		},
 
 		CurrentLine: StyleDef{

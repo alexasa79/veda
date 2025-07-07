@@ -28,11 +28,11 @@ func ParseKey(s string) (Key, error) {
 	var result Key
 	
 	// Split by + to handle modifiers
-	parts := strings.Split(strings.ToLower(s), "+")
+	parts := strings.Split(s, "+")
 	
-	// Process modifiers
+	// Process modifiers (convert to lowercase for comparison)
 	for i := 0; i < len(parts)-1; i++ {
-		switch parts[i] {
+		switch strings.ToLower(parts[i]) {
 		case "ctrl", "control":
 			result.Mod |= tcell.ModCtrl
 		case "alt", "meta":
@@ -45,8 +45,8 @@ func ParseKey(s string) (Key, error) {
 	// Process the key itself (last part)
 	keyName := parts[len(parts)-1]
 	
-	// Check special key names
-	switch keyName {
+	// Check special key names (convert to lowercase for comparison)
+	switch strings.ToLower(keyName) {
 	case "space":
 		result.Key = tcell.KeyRune
 		result.Rune = ' '
@@ -101,7 +101,7 @@ func ParseKey(s string) (Key, error) {
 	case "f12":
 		result.Key = tcell.KeyF12
 	default:
-		// Single character
+		// Single character - preserve case
 		if len(keyName) == 1 {
 			result.Key = tcell.KeyRune
 			result.Rune = rune(keyName[0])

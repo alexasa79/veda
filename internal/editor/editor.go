@@ -67,13 +67,13 @@ func New() (*Editor, error) {
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
 	}
-	
+
 	// Register commands
 	editor.registerCommands()
-	
+
 	// Set up default key bindings
 	editor.setupDefaultBindings()
-	
+
 	return editor, nil
 }
 
@@ -91,7 +91,12 @@ func (e *Editor) Run() {
 			e.screen.ShowCursor(cursorX, cursorY)
 		} else {
 			// Show cursor in editor
-			e.screen.ShowCursor(e.cursorX, e.cursorY-e.topLine)
+			// Calculate line number width based on visible lines
+			_, height := e.screen.Size()
+			visibleLines := height - 2
+			lastVisibleLine := e.topLine + visibleLines
+			lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1
+			e.screen.ShowCursor(e.cursorX+lineNumberWidth, e.cursorY-e.topLine)
 		}
 
 		e.screen.Show()
@@ -180,13 +185,13 @@ func (e *Editor) handleNormalMode(ev *tcell.EventKey) {
 	case tcell.KeyPgUp:
 		_, height := e.screen.Size()
 		visibleLines := height - 2 // Subtract status bar lines
-		
+
 		// Move cursor up by visible height
 		e.cursorY -= visibleLines
 		if e.cursorY < 0 {
 			e.cursorY = 0
 		}
-		
+
 		// Adjust cursor X if needed
 		line := e.buffer.Line(e.cursorY)
 		if e.cursorX > len(line) {
@@ -198,14 +203,14 @@ func (e *Editor) handleNormalMode(ev *tcell.EventKey) {
 	case tcell.KeyPgDn:
 		_, height := e.screen.Size()
 		visibleLines := height - 2 // Subtract status bar lines
-		
+
 		// Move cursor down by visible height
 		e.cursorY += visibleLines
 		maxY := len(e.buffer.Lines()) - 1
 		if e.cursorY > maxY {
 			e.cursorY = maxY
 		}
-		
+
 		// Adjust cursor X if needed
 		line := e.buffer.Line(e.cursorY)
 		if e.cursorX > len(line) {
@@ -302,12 +307,34 @@ func (e *Editor) drawText(x, y int, style tcell.Style, text string) {
 
 func (e *Editor) drawEditor() {
 	width, height := e.screen.Size()
+	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
+	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+	totalLines := len(e.buffer.Lines())
+
+	// Calculate line number width based on visible lines
+	visibleLines := height - 2
+	lastVisibleLine := e.topLine + visibleLines
+	lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1 // +1 for padding
+
 	for i := 0; i < height-2; i++ {
+		// Clear the entire line
 		for j := 0; j < width; j++ {
-			e.screen.SetContent(j, i, ' ', nil, e.config.Theme.GetStyle(e.config.Theme.Normal))
+			e.screen.SetContent(j, i, ' ', nil, normalStyle)
 		}
-		line := e.buffer.Line(e.topLine + i)
-		e.drawText(0, i, e.config.Theme.GetStyle(e.config.Theme.Normal), line)
+
+		// Draw line number
+		lineNum := e.topLine + i + 1 // Line numbers start at 1
+		if lineNum <= totalLines {
+			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
+			e.drawText(0, i, lineNumberStyle, lineNumStr)
+
+			// Draw separator after line number
+			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
+
+			// Draw the actual line content
+			line := e.buffer.Line(e.topLine + i)
+			e.drawText(lineNumberWidth, i, normalStyle, line)
+		}
 	}
 }
 
@@ -365,12 +392,12 @@ func (e *Editor) showFuzzyListWidget() {
 			if skipFile {
 				continue
 			}
-			
+
 			// Only include files, not directories
 			if file.Type != "file" {
 				continue
 			}
-			
+
 			paths = append(paths, file.Path)
 		}
 		fuzzyListWidget.SetContent(paths)
@@ -381,7 +408,7 @@ func (e *Editor) showFuzzyListWidget() {
 		e.drawEditor()
 		e.drawStatusBar()
 	})
-	
+
 	// If a file was selected, open it
 	if selection != "" {
 		e.openFile(selection)
@@ -396,10 +423,10 @@ func (e *Editor) openFile(filePath string) {
 		// TODO: Show error to user
 		return
 	}
-	
+
 	// Create a new buffer with the file content
 	e.buffer = buffer.NewBufferFromString(content)
-	
+
 	// Reset cursor and scroll position
 	e.cursorX = 0
 	e.cursorY = 0
@@ -443,12 +470,12 @@ func (e *Editor) moveRight() error {
 func (e *Editor) pageUp() error {
 	_, height := e.screen.Size()
 	visibleLines := height - 2 // Subtract status bar lines
-	
+
 	e.cursorY -= visibleLines
 	if e.cursorY < 0 {
 		e.cursorY = 0
 	}
-	
+
 	// Adjust cursor X if needed
 	line := e.buffer.Line(e.cursorY)
 	if e.cursorX > len(line) {
@@ -463,13 +490,13 @@ func (e *Editor) pageUp() error {
 func (e *Editor) pageDown() error {
 	_, height := e.screen.Size()
 	visibleLines := height - 2 // Subtract status bar lines
-	
+
 	e.cursorY += visibleLines
 	maxY := len(e.buffer.Lines()) - 1
 	if e.cursorY > maxY {
 		e.cursorY = maxY
 	}
-	
+
 	// Adjust cursor X if needed
 	line := e.buffer.Line(e.cursorY)
 	if e.cursorX > len(line) {
@@ -503,7 +530,7 @@ func (e *Editor) registerKeyBinding(mode commands.Mode, keys string, command str
 	if err != nil {
 		panic(fmt.Sprintf("Invalid key sequence: %s", keys))
 	}
-	
+
 	e.keyMapper.AddBinding(commands.Binding{
 		Keys:    keySeq,
 		Command: command,
@@ -520,10 +547,10 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("right", e.moveRight)
 	e.commandRegistry.Register("page-up", e.pageUp)
 	e.commandRegistry.Register("page-down", e.pageDown)
-	
+
 	// Mode commands
 	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd)
-	
+
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd)
 	e.commandRegistry.Register("quit", e.quit)
@@ -538,13 +565,13 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "right", "right")
 	e.registerKeyBinding(commands.NormalMode, "pageup", "page-up")
 	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
-	
+
 	// Command mode
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
-	
+
 	// File operations
-	e.registerKeyBinding(commands.NormalMode, "shift+a", "open-file")
-	
+	e.registerKeyBinding(commands.NormalMode, "space f", "open-file")
+
 	// Quit
 	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
 }
