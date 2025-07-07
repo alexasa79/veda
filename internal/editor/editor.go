@@ -160,6 +160,43 @@ func (e *Editor) handleNormalMode(ev *tcell.EventKey) {
 		if e.cursorX < maxX {
 			e.cursorX++
 		}
+	case tcell.KeyPgUp:
+		_, height := e.screen.Size()
+		visibleLines := height - 2 // Subtract status bar lines
+		
+		// Move cursor up by visible height
+		e.cursorY -= visibleLines
+		if e.cursorY < 0 {
+			e.cursorY = 0
+		}
+		
+		// Adjust cursor X if needed
+		line := e.buffer.Line(e.cursorY)
+		if e.cursorX > len(line) {
+			e.cursorX = len(line)
+			if e.cursorX > 0 {
+				e.cursorX--
+			}
+		}
+	case tcell.KeyPgDn:
+		_, height := e.screen.Size()
+		visibleLines := height - 2 // Subtract status bar lines
+		
+		// Move cursor down by visible height
+		e.cursorY += visibleLines
+		maxY := len(e.buffer.Lines()) - 1
+		if e.cursorY > maxY {
+			e.cursorY = maxY
+		}
+		
+		// Adjust cursor X if needed
+		line := e.buffer.Line(e.cursorY)
+		if e.cursorX > len(line) {
+			e.cursorX = len(line)
+			if e.cursorX > 0 {
+				e.cursorX--
+			}
+		}
 	case tcell.KeyRune:
 		// Handle colon to enter command mode
 		if ev.Rune() == ':' {
