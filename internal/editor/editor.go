@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"vidya/internal/buffer"
+	"vidya/internal/commands"
 	"vidya/internal/config"
 	"vidya/internal/proxy"
 	"vidya/internal/widgets"
@@ -14,15 +15,17 @@ import (
 
 // Editor represents the state of the text editor.
 type Editor struct {
-	screen      tcell.Screen
-	buffer      *buffer.Buffer
-	config      *config.Config
-	cursorX     int
-	cursorY     int
-	topLine     int
-	commandMode bool
-	commandLine *widgets.LineEditor
-	proxyClient *proxy.Client
+	screen          tcell.Screen
+	buffer          *buffer.Buffer
+	config          *config.Config
+	cursorX         int
+	cursorY         int
+	topLine         int
+	mode            commands.Mode
+	commandLine     *widgets.LineEditor
+	proxyClient     *proxy.Client
+	commandRegistry *commands.CommandRegistry
+	keyMapper       *commands.KeyMapper
 }
 
 // New creates a new Editor.
@@ -51,17 +54,27 @@ func New() (*Editor, error) {
 		return nil, fmt.Errorf("failed to start proxy client: %v", err)
 	}
 
-	return &Editor{
-		screen:      screen,
-		buffer:      buffer.NewBufferFromString(""), // Start with empty buffer
-		config:      config,
-		cursorX:     0,
-		cursorY:     0,
-		topLine:     0,
-		commandMode: false,
-		commandLine: commandLine,
-		proxyClient: proxyClient,
-	}, nil
+	editor := &Editor{
+		screen:          screen,
+		buffer:          buffer.NewBufferFromString(""), // Start with empty buffer
+		config:          config,
+		cursorX:         0,
+		cursorY:         0,
+		topLine:         0,
+		mode:            commands.NormalMode,
+		commandLine:     commandLine,
+		proxyClient:     proxyClient,
+		commandRegistry: commands.NewCommandRegistry(),
+		keyMapper:       commands.NewKeyMapper(),
+	}
+	
+	// Register commands
+	editor.registerCommands()
+	
+	// Set up default key bindings
+	editor.setupDefaultBindings()
+	
+	return editor, nil
 }
 
 // Run starts the editor's main event loop.
@@ -72,7 +85,7 @@ func (e *Editor) Run() {
 		e.drawStatusBar()
 
 		// Show cursor at appropriate position
-		if e.commandMode {
+		if e.mode == commands.CommandMode {
 			// Show cursor in command line
 			cursorX, cursorY := e.commandLine.GetCursorPosition()
 			e.screen.ShowCursor(cursorX, cursorY)
@@ -86,12 +99,16 @@ func (e *Editor) Run() {
 		ev := e.screen.PollEvent()
 		switch ev := ev.(type) {
 		case *tcell.EventKey:
-			if e.commandMode {
-				// Handle command mode events
+			if e.mode == commands.CommandMode {
+				// In command mode, handle keys directly (no key mapping)
 				e.handleCommandMode(ev)
 			} else {
-				// Handle normal mode events
-				e.handleNormalMode(ev)
+				// In normal mode, use key mapper for commands
+				if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+					if err := e.commandRegistry.Execute(command); err != nil {
+						// TODO: Show error to user
+					}
+				}
 			}
 		case *tcell.EventResize:
 			// Handle screen resize events
@@ -231,7 +248,7 @@ func (e *Editor) handleCommandMode(ev *tcell.EventKey) {
 
 // enterCommandMode switches to command mode and initializes the command line
 func (e *Editor) enterCommandMode() {
-	e.commandMode = true
+	e.mode = commands.CommandMode
 	e.commandLine.SetText(":")
 	// Position cursor after the colon
 	e.commandLine.SetCursor(1)
@@ -239,7 +256,7 @@ func (e *Editor) enterCommandMode() {
 
 // exitCommandMode switches back to normal mode
 func (e *Editor) exitCommandMode() {
-	e.commandMode = false
+	e.mode = commands.NormalMode
 	e.commandLine.SetText("")
 }
 
@@ -304,7 +321,7 @@ func (e *Editor) drawStatusBar() {
 		e.screen.SetContent(i, height-1, ' ', nil, statusBarStyle)
 	}
 
-	if e.commandMode {
+	if e.mode == commands.CommandMode {
 		// Draw the command line widget
 		e.commandLine.Draw(e.screen)
 		e.drawText(0, height-2, statusBarStyle, "Command mode - Press ESC to cancel, Enter to execute")
@@ -387,4 +404,147 @@ func (e *Editor) openFile(filePath string) {
 	e.cursorX = 0
 	e.cursorY = 0
 	e.topLine = 0
+}
+
+// Movement commands
+func (e *Editor) moveUp() error {
+	if e.cursorY > 0 {
+		e.cursorY--
+	}
+	return nil
+}
+
+func (e *Editor) moveDown() error {
+	if e.cursorY < len(e.buffer.Lines())-1 {
+		e.cursorY++
+	}
+	return nil
+}
+
+func (e *Editor) moveLeft() error {
+	if e.cursorX > 0 {
+		e.cursorX--
+	}
+	return nil
+}
+
+func (e *Editor) moveRight() error {
+	line := e.buffer.Line(e.cursorY)
+	maxX := len(line)
+	if maxX > 0 {
+		maxX-- // Don't go past the last character
+	}
+	if e.cursorX < maxX {
+		e.cursorX++
+	}
+	return nil
+}
+
+func (e *Editor) pageUp() error {
+	_, height := e.screen.Size()
+	visibleLines := height - 2 // Subtract status bar lines
+	
+	e.cursorY -= visibleLines
+	if e.cursorY < 0 {
+		e.cursorY = 0
+	}
+	
+	// Adjust cursor X if needed
+	line := e.buffer.Line(e.cursorY)
+	if e.cursorX > len(line) {
+		e.cursorX = len(line)
+		if e.cursorX > 0 {
+			e.cursorX--
+		}
+	}
+	return nil
+}
+
+func (e *Editor) pageDown() error {
+	_, height := e.screen.Size()
+	visibleLines := height - 2 // Subtract status bar lines
+	
+	e.cursorY += visibleLines
+	maxY := len(e.buffer.Lines()) - 1
+	if e.cursorY > maxY {
+		e.cursorY = maxY
+	}
+	
+	// Adjust cursor X if needed
+	line := e.buffer.Line(e.cursorY)
+	if e.cursorX > len(line) {
+		e.cursorX = len(line)
+		if e.cursorX > 0 {
+			e.cursorX--
+		}
+	}
+	return nil
+}
+
+func (e *Editor) quit() error {
+	e.Close()
+	os.Exit(0)
+	return nil
+}
+
+func (e *Editor) enterCommandModeCmd() error {
+	e.enterCommandMode()
+	return nil
+}
+
+func (e *Editor) openFileCmd() error {
+	e.showFuzzyListWidget()
+	return nil
+}
+
+// registerKeyBinding registers a key binding with a command
+func (e *Editor) registerKeyBinding(mode commands.Mode, keys string, command string) {
+	keySeq, err := commands.ParseKeySequence(keys)
+	if err != nil {
+		panic(fmt.Sprintf("Invalid key sequence: %s", keys))
+	}
+	
+	e.keyMapper.AddBinding(commands.Binding{
+		Keys:    keySeq,
+		Command: command,
+		Modes:   []commands.Mode{mode},
+	})
+}
+
+// registerCommands registers all command handlers
+func (e *Editor) registerCommands() {
+	// Movement commands
+	e.commandRegistry.Register("up", e.moveUp)
+	e.commandRegistry.Register("down", e.moveDown)
+	e.commandRegistry.Register("left", e.moveLeft)
+	e.commandRegistry.Register("right", e.moveRight)
+	e.commandRegistry.Register("page-up", e.pageUp)
+	e.commandRegistry.Register("page-down", e.pageDown)
+	
+	// Mode commands
+	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd)
+	
+	// File commands
+	e.commandRegistry.Register("open-file", e.openFileCmd)
+	e.commandRegistry.Register("quit", e.quit)
+}
+
+// setupDefaultBindings sets up the default key bindings
+func (e *Editor) setupDefaultBindings() {
+	// Movement keys
+	e.registerKeyBinding(commands.NormalMode, "up", "up")
+	e.registerKeyBinding(commands.NormalMode, "down", "down")
+	e.registerKeyBinding(commands.NormalMode, "left", "left")
+	e.registerKeyBinding(commands.NormalMode, "right", "right")
+	e.registerKeyBinding(commands.NormalMode, "pageup", "page-up")
+	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
+	
+	// Command mode
+	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
+	
+	// File operations
+	e.registerKeyBinding(commands.NormalMode, "shift+a", "open-file")
+	
+	// Quit
+	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
 }
