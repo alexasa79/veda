@@ -8,6 +8,7 @@ import (
 	"vidya/internal/commands"
 	"vidya/internal/config"
 	"vidya/internal/proxy"
+	"vidya/internal/syntax"
 	"vidya/internal/widgets"
 
 	"github.com/gdamore/tcell/v2"
@@ -26,6 +27,8 @@ type Editor struct {
 	proxyClient     *proxy.Client
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
+	highlighter     *syntax.Highlighter
+	currentFile     string
 }
 
 // New creates a new Editor.
@@ -66,6 +69,7 @@ func New() (*Editor, error) {
 		proxyClient:     proxyClient,
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
+		highlighter:     syntax.NewHighlighter(),
 	}
 
 	// Register commands
@@ -305,6 +309,71 @@ func (e *Editor) drawText(x, y int, style tcell.Style, text string) {
 	}
 }
 
+// drawLine draws a single line with syntax highlighting
+func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
+	if lineIndex < 0 || lineIndex >= len(e.buffer.Lines()) {
+		return
+	}
+
+	line := e.buffer.Line(lineIndex)
+	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+
+	// If no highlighter is set up, just draw normally
+	if e.highlighter == nil || e.currentFile == "" {
+		e.drawText(startX, screenY, normalStyle, line)
+		return
+	}
+
+	// Get syntax tokens for this line
+	tokens := e.getLineTokens(lineIndex)
+	
+	if len(tokens) == 0 {
+		// No tokens, draw with normal style
+		e.drawText(startX, screenY, normalStyle, line)
+		return
+	}
+
+	// Draw with syntax highlighting
+	x := startX
+	lastEnd := 0
+	
+	for _, token := range tokens {
+		// Draw any text before this token with normal style
+		if token.Start > lastEnd {
+			prefix := line[lastEnd:token.Start]
+			e.drawText(x, screenY, normalStyle, prefix)
+			x += len(prefix)
+		}
+		
+		// Draw the token with its specific style
+		if token.End <= len(line) {
+			tokenText := line[token.Start:token.End]
+			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+			e.drawText(x, screenY, tokenStyle, tokenText)
+			x += len(tokenText)
+			lastEnd = token.End
+		}
+	}
+	
+	// Draw any remaining text with normal style
+	if lastEnd < len(line) {
+		suffix := line[lastEnd:]
+		e.drawText(x, screenY, normalStyle, suffix)
+	}
+}
+
+// getLineTokens returns syntax tokens for a specific line
+func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
+	// Calculate byte offsets for this line
+	lineStart := 0
+	for i := 0; i < lineIndex; i++ {
+		lineStart += len(e.buffer.Line(i)) + 1 // +1 for newline
+	}
+	lineEnd := lineStart + len(e.buffer.Line(lineIndex))
+	
+	return e.highlighter.GetTokensForLine(lineIndex, lineStart, lineEnd)
+}
+
 func (e *Editor) drawEditor() {
 	width, height := e.screen.Size()
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
@@ -332,8 +401,7 @@ func (e *Editor) drawEditor() {
 			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
 
 			// Draw the actual line content
-			line := e.buffer.Line(e.topLine + i)
-			e.drawText(lineNumberWidth, i, normalStyle, line)
+			e.drawLine(e.topLine + i, lineNumberWidth, i)
 		}
 	}
 }
@@ -426,6 +494,15 @@ func (e *Editor) openFile(filePath string) {
 
 	// Create a new buffer with the file content
 	e.buffer = buffer.NewBufferFromString(content)
+	
+	// Store the current file path
+	e.currentFile = filePath
+	
+	// Set up syntax highlighting
+	if e.highlighter != nil {
+		e.highlighter.SetLanguageFromFile(filePath)
+		e.highlighter.Parse([]byte(content))
+	}
 
 	// Reset cursor and scroll position
 	e.cursorX = 0
