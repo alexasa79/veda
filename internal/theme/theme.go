@@ -24,6 +24,7 @@ type Theme struct {
 	Selection   StyleDef
 	LineNumber  StyleDef
 	CurrentLine StyleDef
+	LineColumn  StyleDef // Line and column display in status bar
 
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
@@ -108,8 +109,13 @@ func NewTheme() *Theme {
 		},
 
 		CurrentLine: StyleDef{
-			Foreground: "#000",
-			Background: "#eee",
+			Foreground: "#f8f8f2",
+			Background: "#3e3d32", // Slightly brighter than #272822
+		},
+
+		LineColumn: StyleDef{
+			Foreground: "#0088ff[B]",
+			Background: "#fff",
 		},
 
 		// Monokai syntax highlighting colors

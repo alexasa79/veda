@@ -333,6 +333,15 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 
 	line := e.buffer.Line(lineIndex)
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+	isCurrentLine := lineIndex == e.cursorY
+	
+	// If current line, we'll need to override background colors
+	var currentLineBg tcell.Color
+	if isCurrentLine {
+		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
+		_, currentLineBg, _ = currentLineStyle.Decompose()
+		normalStyle = normalStyle.Background(currentLineBg)
+	}
 
 	// If no highlighter is set up, just draw normally
 	if e.highlighter == nil || e.currentFile == "" {
@@ -365,6 +374,12 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 		if token.End <= len(line) {
 			tokenText := line[token.Start:token.End]
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+			
+			// Override background for current line
+			if isCurrentLine {
+				tokenStyle = tokenStyle.Background(currentLineBg)
+			}
+			
 			width := e.drawText(x, screenY, tokenStyle, tokenText)
 			x += width
 			lastEnd = token.End
@@ -435,8 +450,9 @@ func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
 }
 
 func (e *Editor) drawEditor() {
-	_, height := e.screen.Size()
+	width, height := e.screen.Size()
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
+	currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 	totalLines := len(e.buffer.Lines())
 
 	// Calculate line number width based on visible lines
@@ -448,8 +464,18 @@ func (e *Editor) drawEditor() {
 	e.screen.Clear()
 
 	for i := 0; i < height-2; i++ {
+		lineIndex := e.topLine + i
+		isCurrentLine := lineIndex == e.cursorY
+		
+		// Fill current line background
+		if isCurrentLine {
+			for j := 0; j < width; j++ {
+				e.screen.SetContent(j, i, ' ', nil, currentLineStyle)
+			}
+		}
+		
 		// Draw line number
-		lineNum := e.topLine + i + 1 // Line numbers start at 1
+		lineNum := lineIndex + 1 // Line numbers start at 1
 		if lineNum <= totalLines {
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
 			e.drawText(0, i, lineNumberStyle, lineNumStr)
@@ -458,7 +484,7 @@ func (e *Editor) drawEditor() {
 			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
 
 			// Draw the actual line content
-			e.drawLine(e.topLine + i, lineNumberWidth, i)
+			e.drawLine(lineIndex, lineNumberWidth, i)
 		}
 	}
 }
@@ -466,6 +492,7 @@ func (e *Editor) drawEditor() {
 func (e *Editor) drawStatusBar() {
 	width, height := e.screen.Size()
 	statusBarStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBar)
+	lineColStyle := e.config.Theme.GetStyle(e.config.Theme.LineColumn)
 
 	// Fill status bar background
 	for i := 0; i < width; i++ {
@@ -476,10 +503,53 @@ func (e *Editor) drawStatusBar() {
 	if e.mode == commands.CommandMode {
 		// Draw the command line widget
 		e.commandLine.Draw(e.screen)
-		e.drawText(0, height-2, statusBarStyle, "Command mode - Press ESC to cancel, Enter to execute")
+		// Left side: mode
+		e.drawText(0, height-2, statusBarStyle, "COMMAND")
 	} else {
-		e.drawText(0, height-2, statusBarStyle, "Press : for command mode, ESC to quit.")
-		e.drawText(0, height-1, statusBarStyle, fmt.Sprintf("Length: %d", e.buffer.Length()))
+		// First line of status bar
+		// Left side: mode and filename
+		x := 0
+		x += e.drawText(x, height-2, statusBarStyle, "NORMAL  ")
+		
+		filename := e.currentFile
+		if filename == "" {
+			filename = "[No Name]"
+		}
+		x += e.drawText(x, height-2, statusBarStyle, filename)
+		
+		// Right side: file size, lines, line:col
+		lines := e.buffer.Lines()
+		totalLines := len(lines)
+		
+		// Calculate file size in bytes
+		fileSize := 0
+		for _, line := range lines {
+			fileSize += len(line) + 1 // +1 for newline
+		}
+		if totalLines > 0 {
+			fileSize-- // Remove last newline
+		}
+		
+		// Format right side info
+		rightInfo := fmt.Sprintf("%d bytes  %d lines  ", fileSize, totalLines)
+		// Use visual column position for display (accounting for tabs)
+		visualCol := 1
+		if e.cursorY < len(lines) {
+			line := e.buffer.Line(e.cursorY)
+			if e.cursorX <= len(line) {
+				visualCol = e.visualWidth(line[:e.cursorX]) + 1
+			}
+		}
+		lineColInfo := fmt.Sprintf("%d:%d", e.cursorY+1, visualCol)
+		
+		// Calculate position for right-aligned text
+		rightWidth := len(rightInfo) + len(lineColInfo)
+		rightX := width - rightWidth
+		
+		if rightX > x { // Only draw if there's space
+			e.drawText(rightX, height-2, statusBarStyle, rightInfo)
+			e.drawText(rightX+len(rightInfo), height-2, lineColStyle, lineColInfo)
+		}
 	}
 }
 
