@@ -103,7 +103,8 @@ func (e *Editor) Run() {
 			visibleLines := height - 2
 			lastVisibleLine := e.topLine + visibleLines
 			lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1
-			e.screen.ShowCursor(e.cursorX+lineNumberWidth, e.cursorY-e.topLine)
+			visualCursorX := e.getVisualCursorX()
+			e.screen.ShowCursor(visualCursorX+lineNumberWidth, e.cursorY-e.topLine)
 		}
 
 		e.screen.Show()
@@ -306,10 +307,22 @@ func (e *Editor) Close() {
 }
 
 // drawText is a helper function to draw text on the screen.
-func (e *Editor) drawText(x, y int, style tcell.Style, text string) {
-	for i, r := range text {
-		e.screen.SetContent(x+i, y, r, nil, style)
+// Returns the number of screen columns used.
+func (e *Editor) drawText(x, y int, style tcell.Style, text string) int {
+	screenX := x
+	for _, r := range text {
+		if r == '\t' {
+			// Render tab as 4 spaces
+			for i := 0; i < 4; i++ {
+				e.screen.SetContent(screenX, y, ' ', nil, style)
+				screenX++
+			}
+		} else {
+			e.screen.SetContent(screenX, y, r, nil, style)
+			screenX++
+		}
 	}
+	return screenX - x
 }
 
 // drawLine draws a single line with syntax highlighting
@@ -344,16 +357,16 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 		// Draw any text before this token with normal style
 		if token.Start > lastEnd {
 			prefix := line[lastEnd:token.Start]
-			e.drawText(x, screenY, normalStyle, prefix)
-			x += len(prefix)
+			width := e.drawText(x, screenY, normalStyle, prefix)
+			x += width
 		}
 
 		// Draw the token with its specific style
 		if token.End <= len(line) {
 			tokenText := line[token.Start:token.End]
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-			e.drawText(x, screenY, tokenStyle, tokenText)
-			x += len(tokenText)
+			width := e.drawText(x, screenY, tokenStyle, tokenText)
+			x += width
 			lastEnd = token.End
 		}
 	}
@@ -363,6 +376,31 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 		suffix := line[lastEnd:]
 		e.drawText(x, screenY, normalStyle, suffix)
 	}
+}
+
+// visualWidth calculates the visual width of a string accounting for tabs
+func (e *Editor) visualWidth(text string) int {
+	width := 0
+	for _, r := range text {
+		if r == '\t' {
+			width += 4
+		} else {
+			width++
+		}
+	}
+	return width
+}
+
+// getVisualCursorX calculates the visual cursor position accounting for tabs
+func (e *Editor) getVisualCursorX() int {
+	if e.cursorY >= len(e.buffer.Lines()) {
+		return 0
+	}
+	line := e.buffer.Line(e.cursorY)
+	if e.cursorX >= len(line) {
+		return e.visualWidth(line)
+	}
+	return e.visualWidth(line[:e.cursorX])
 }
 
 // updateLineOffsets recalculates the byte offset cache for all lines
