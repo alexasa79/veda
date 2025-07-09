@@ -326,7 +326,7 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 
 	// Get syntax tokens for this line
 	tokens := e.getLineTokens(lineIndex)
-	
+
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
 		e.drawText(startX, screenY, normalStyle, line)
@@ -336,7 +336,7 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 	// Draw with syntax highlighting
 	x := startX
 	lastEnd := 0
-	
+
 	for _, token := range tokens {
 		// Draw any text before this token with normal style
 		if token.Start > lastEnd {
@@ -344,7 +344,7 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 			e.drawText(x, screenY, normalStyle, prefix)
 			x += len(prefix)
 		}
-		
+
 		// Draw the token with its specific style
 		if token.End <= len(line) {
 			tokenText := line[token.Start:token.End]
@@ -354,7 +354,7 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 			lastEnd = token.End
 		}
 	}
-	
+
 	// Draw any remaining text with normal style
 	if lastEnd < len(line) {
 		suffix := line[lastEnd:]
@@ -370,14 +370,13 @@ func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
 		lineStart += len(e.buffer.Line(i)) + 1 // +1 for newline
 	}
 	lineEnd := lineStart + len(e.buffer.Line(lineIndex))
-	
+
 	return e.highlighter.GetTokensForLine(lineIndex, lineStart, lineEnd)
 }
 
 func (e *Editor) drawEditor() {
-	width, height := e.screen.Size()
+	_, height := e.screen.Size()
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
-	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	totalLines := len(e.buffer.Lines())
 
 	// Calculate line number width based on visible lines
@@ -385,12 +384,10 @@ func (e *Editor) drawEditor() {
 	lastVisibleLine := e.topLine + visibleLines
 	lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1 // +1 for padding
 
-	for i := 0; i < height-2; i++ {
-		// Clear the entire line
-		for j := 0; j < width; j++ {
-			e.screen.SetContent(j, i, ' ', nil, normalStyle)
-		}
+	// Clear the entire screen once
+	e.screen.Clear()
 
+	for i := 0; i < height-2; i++ {
 		// Draw line number
 		lineNum := e.topLine + i + 1 // Line numbers start at 1
 		if lineNum <= totalLines {
@@ -410,7 +407,7 @@ func (e *Editor) drawStatusBar() {
 	width, height := e.screen.Size()
 	statusBarStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBar)
 
-	// Clear the status bar lines
+	// Fill status bar background
 	for i := 0; i < width; i++ {
 		e.screen.SetContent(i, height-2, ' ', nil, statusBarStyle)
 		e.screen.SetContent(i, height-1, ' ', nil, statusBarStyle)
@@ -494,10 +491,10 @@ func (e *Editor) openFile(filePath string) {
 
 	// Create a new buffer with the file content
 	e.buffer = buffer.NewBufferFromString(content)
-	
+
 	// Store the current file path
 	e.currentFile = filePath
-	
+
 	// Set up syntax highlighting
 	if e.highlighter != nil {
 		e.highlighter.SetLanguageFromFile(filePath)
@@ -647,7 +644,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
 
 	// File operations
-	e.registerKeyBinding(commands.NormalMode, "space f", "open-file")
+	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
 
 	// Quit
 	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
