@@ -29,6 +29,8 @@ type Editor struct {
 	keyMapper       *commands.KeyMapper
 	highlighter     *syntax.Highlighter
 	currentFile     string
+	lineOffsets     []int  // Cache of byte offsets for each line
+	offsetsDirty    bool   // Whether line offsets need recalculation
 }
 
 // New creates a new Editor.
@@ -70,6 +72,7 @@ func New() (*Editor, error) {
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
 		highlighter:     syntax.NewHighlighter(),
+		offsetsDirty:    true, // Need to calculate offsets for initial buffer
 	}
 
 	// Register commands
@@ -362,16 +365,35 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 	}
 }
 
+// updateLineOffsets recalculates the byte offset cache for all lines
+func (e *Editor) updateLineOffsets() {
+	lines := e.buffer.Lines()
+	e.lineOffsets = make([]int, len(lines)+1)
+	
+	offset := 0
+	for i, line := range lines {
+		e.lineOffsets[i] = offset
+		offset += len(line) + 1 // +1 for newline
+	}
+	e.lineOffsets[len(lines)] = offset
+	e.offsetsDirty = false
+}
+
 // getLineTokens returns syntax tokens for a specific line
 func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
-	// Calculate byte offsets for this line
-	lineStart := 0
-	for i := 0; i < lineIndex; i++ {
-		lineStart += len(e.buffer.Line(i)) + 1 // +1 for newline
+	// Update cache if needed
+	if e.offsetsDirty || len(e.lineOffsets) == 0 {
+		e.updateLineOffsets()
 	}
-	lineEnd := lineStart + len(e.buffer.Line(lineIndex))
-
-	return e.highlighter.GetTokensForLine(lineIndex, lineStart, lineEnd)
+	
+	// Use cached offsets
+	if lineIndex >= 0 && lineIndex < len(e.lineOffsets)-1 {
+		lineStart := e.lineOffsets[lineIndex]
+		lineEnd := e.lineOffsets[lineIndex+1] - 1 // -1 to exclude newline
+		return e.highlighter.GetTokensForLine(lineIndex, lineStart, lineEnd)
+	}
+	
+	return nil
 }
 
 func (e *Editor) drawEditor() {
@@ -505,6 +527,9 @@ func (e *Editor) openFile(filePath string) {
 	e.cursorX = 0
 	e.cursorY = 0
 	e.topLine = 0
+	
+	// Mark line offsets as needing recalculation
+	e.offsetsDirty = true
 }
 
 // Movement commands
