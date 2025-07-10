@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Vidya Proxy - A JSON RPC service for various operations including file system access.
+Veda Proxy - A JSON RPC service for various operations including file system access.
 Communicates via stdin/stdout and can operate locally or remotely via SSH.
 """
 
@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class VidyaProxy:
+class VedaProxy:
     """Main proxy class handling JSON RPC requests for various operations."""
 
     def __init__(self):
@@ -235,7 +235,7 @@ class VidyaProxy:
 class JSONRPCHandler:
     """Handles JSON RPC communication over stdin/stdout."""
 
-    def __init__(self, proxy: VidyaProxy):
+    def __init__(self, proxy: VedaProxy):
         self.proxy = proxy
 
     def handle_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -280,7 +280,7 @@ class JSONRPCHandler:
 
     def run(self):
         """Main loop to handle JSON RPC requests from stdin."""
-        logger.info("Vidya Proxy started")
+        logger.info("Veda Proxy started")
 
         for line in sys.stdin:
             line = line.strip()
@@ -298,7 +298,7 @@ class JSONRPCHandler:
 
 def main():
     """Main entry point."""
-    proxy = VidyaProxy()
+    proxy = VedaProxy()
     handler = JSONRPCHandler(proxy)
     handler.run()
 

@@ -1,9 +1,9 @@
 package widgets
 
 import (
-	"vidya/internal/fuzzysearch"
-	"vidya/internal/theme"
-	"vidya/internal/utils"
+	"veda/internal/fuzzysearch"
+	"veda/internal/theme"
+	"veda/internal/utils"
 	"strings"
 	
 	"github.com/gdamore/tcell/v2"

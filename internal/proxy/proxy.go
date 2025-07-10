@@ -39,7 +39,7 @@ type Client struct {
 
 // NewClient creates a new proxy client and starts the proxy process
 func NewClient() (*Client, error) {
-	cmd := exec.Command("python3", "vidya-proxy.py")
+	cmd := exec.Command("python3", "veda-proxy.py")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdinPipe, err := cmd.StdinPipe()

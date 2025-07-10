@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
-Vidya is a terminal-based text editor written in Go with vim-like features. It uses a Python proxy process for file system operations and implements a rope data structure for efficient text manipulation.
+Veda is a terminal-based text editor written in Go with vim-like features. It uses a Python proxy process for file system operations and implements a rope data structure for efficient text manipulation.
 
 ## Commands
 
@@ -13,7 +13,7 @@ Vidya is a terminal-based text editor written in Go with vim-like features. It u
 go run main.go
 
 # Build the editor
-go build -o vidya
+go build -o veda
 
 # Run all tests
 go test ./...
@@ -32,7 +32,7 @@ go vet ./...
 
 ### Core Components
 1. **Go Editor Core** (`main.go`, `internal/editor/editor.go`): Terminal UI using tcell/v2
-2. **Python Proxy** (`vidya-proxy.py`): JSON-RPC service for file operations, automatically started by the editor
+2. **Python Proxy** (`veda-proxy.py`): JSON-RPC service for file operations, automatically started by the editor
 3. **Buffer System** (`internal/buffer/`): Rope data structure for efficient text operations
 4. **Widget System** (`internal/widgets/`): UI components including dual-pane file browser and command line editor
 

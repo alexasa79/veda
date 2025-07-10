@@ -1,6 +1,6 @@
 package config
 
-import "vidya/internal/theme"
+import "veda/internal/theme"
 
 type Config struct {
 	ScrollOffset int

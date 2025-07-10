@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"vidya/internal/buffer"
-	"vidya/internal/commands"
-	"vidya/internal/config"
-	"vidya/internal/proxy"
-	"vidya/internal/syntax"
-	"vidya/internal/widgets"
+	"veda/internal/buffer"
+	"veda/internal/commands"
+	"veda/internal/config"
+	"veda/internal/proxy"
+	"veda/internal/syntax"
+	"veda/internal/widgets"
 
 	"github.com/gdamore/tcell/v2"
 )

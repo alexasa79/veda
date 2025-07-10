@@ -1,7 +1,7 @@
 package main
 
 import (
-	"vidya/internal/editor"
+	"veda/internal/editor"
 	"fmt"
 	"os"
 )

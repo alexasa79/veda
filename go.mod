@@ -1,4 +1,4 @@
-module vidya
+module veda
 
 go 1.24.0
 
