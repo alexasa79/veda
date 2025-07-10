@@ -1,7 +1,7 @@
 # Makefile for veda editor
 
 # Binary name
-BINARY=veda
+BINARY=vv
 
 # Go commands
 GOCMD=go
