@@ -79,8 +79,13 @@ func (le *LineEditor) getScrollOffset() int {
 	return desiredOffset
 }
 
+// ScreenWriter is a minimal interface for drawing to screen
+type ScreenWriter interface {
+	SetContent(x, y int, mainc rune, combc []rune, style tcell.Style)
+}
+
 // Draw renders the line editor on the screen
-func (le *LineEditor) Draw(screen tcell.Screen) {
+func (le *LineEditor) Draw(screen ScreenWriter) {
 	// Clear the line editor area
 	for i := 0; i < le.width; i++ {
 		screen.SetContent(le.x+i, le.y, ' ', nil, le.style)

@@ -16,7 +16,7 @@ import (
 
 // Editor represents the state of the text editor.
 type Editor struct {
-	screen          tcell.Screen
+	screen          Screen
 	buffer          *buffer.Buffer
 	config          *config.Config
 	cursorX         int
@@ -33,16 +33,8 @@ type Editor struct {
 	offsetsDirty    bool   // Whether line offsets need recalculation
 }
 
-// New creates a new Editor.
-func New() (*Editor, error) {
-	screen, err := tcell.NewScreen()
-	if err != nil {
-		return nil, err
-	}
-	if err := screen.Init(); err != nil {
-		return nil, err
-	}
-
+// NewWithScreen creates a new Editor with a custom screen implementation.
+func NewWithScreen(screen Screen) (*Editor, error) {
 	// Default style will be set from theme
 	config := config.New()
 	normalStyle := config.Theme.GetStyle(config.Theme.Normal)
@@ -82,6 +74,19 @@ func New() (*Editor, error) {
 	editor.setupDefaultBindings()
 
 	return editor, nil
+}
+
+// New creates a new Editor with the default tcell screen.
+func New() (*Editor, error) {
+	screen, err := tcell.NewScreen()
+	if err != nil {
+		return nil, err
+	}
+	if err := screen.Init(); err != nil {
+		return nil, err
+	}
+	
+	return NewWithScreen(NewTcellScreen(screen))
 }
 
 // Run starts the editor's main event loop.
@@ -599,7 +604,17 @@ func (e *Editor) showFuzzyListWidget() {
 	}
 
 	// Show the widget with a background render function
-	selection := fuzzyListWidget.Show(e.screen, func() {
+	// The fuzzy list widget needs the full tcell.Screen interface
+	var tcellScreen tcell.Screen
+	if provider, ok := e.screen.(TcellScreenProvider); ok {
+		tcellScreen = provider.GetTcellScreen()
+	} else {
+		// For testing, we'll need to handle this differently
+		// For now, just return empty selection
+		return
+	}
+	
+	selection := fuzzyListWidget.Show(tcellScreen, func() {
 		e.drawEditor()
 		e.drawStatusBar()
 	})
@@ -644,6 +659,15 @@ func (e *Editor) openFile(filePath string) {
 func (e *Editor) moveUp() error {
 	if e.cursorY > 0 {
 		e.cursorY--
+		// Adjust cursor X if the new line is shorter
+		line := e.buffer.Line(e.cursorY)
+		maxX := len(line)
+		if maxX > 0 {
+			maxX-- // Don't go past the last character
+		}
+		if e.cursorX > maxX {
+			e.cursorX = maxX
+		}
 	}
 	return nil
 }
@@ -651,6 +675,15 @@ func (e *Editor) moveUp() error {
 func (e *Editor) moveDown() error {
 	if e.cursorY < len(e.buffer.Lines())-1 {
 		e.cursorY++
+		// Adjust cursor X if the new line is shorter
+		line := e.buffer.Line(e.cursorY)
+		maxX := len(line)
+		if maxX > 0 {
+			maxX-- // Don't go past the last character
+		}
+		if e.cursorX > maxX {
+			e.cursorX = maxX
+		}
 	}
 	return nil
 }
