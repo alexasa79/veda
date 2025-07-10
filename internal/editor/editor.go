@@ -121,6 +121,9 @@ func (e *Editor) Run() {
 			if e.mode == commands.CommandMode {
 				// In command mode, handle keys directly (no key mapping)
 				e.handleCommandMode(ev)
+			} else if e.mode == commands.InsertMode {
+				// In insert mode, handle character insertion
+				e.handleInsertMode(ev)
 			} else {
 				// In normal mode, use key mapper for commands
 				if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
@@ -244,6 +247,21 @@ func (e *Editor) handleNormalMode(ev *tcell.EventKey) {
 }
 
 // handleCommandMode processes events when in command mode
+func (e *Editor) handleInsertMode(ev *tcell.EventKey) {
+	// First check if this is a special key that has a mapping
+	if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+		if err := e.commandRegistry.Execute(command); err != nil {
+			// TODO: Show error to user
+		}
+		return
+	}
+	
+	// Otherwise, insert the character
+	if ev.Key() == tcell.KeyRune {
+		e.insertChar(ev.Rune())
+	}
+}
+
 func (e *Editor) handleCommandMode(ev *tcell.EventKey) {
 	switch ev.Key() {
 	case tcell.KeyEscape:
@@ -515,7 +533,11 @@ func (e *Editor) drawStatusBar() {
 		// First line of status bar
 		// Left side: mode and filename
 		x := 0
-		x += e.drawText(x, height-2, statusBarStyle, "NORMAL  ")
+		modeText := "NORMAL  "
+		if e.mode == commands.InsertMode {
+			modeText = "INSERT  "
+		}
+		x += e.drawText(x, height-2, statusBarStyle, modeText)
 		
 		filename := e.currentFile
 		if filename == "" {
@@ -895,6 +917,120 @@ func (e *Editor) quit() error {
 	return nil
 }
 
+// Insert mode commands
+func (e *Editor) enterInsertMode() error {
+	e.mode = commands.InsertMode
+	return nil
+}
+
+func (e *Editor) exitInsertMode() error {
+	e.mode = commands.NormalMode
+	return nil
+}
+
+func (e *Editor) insertChar(ch rune) error {
+	// Calculate the absolute position in the buffer
+	pos := e.getAbsolutePosition()
+	
+	// Insert the character
+	e.buffer.Insert(pos, string(ch))
+	
+	// Move cursor forward
+	e.cursorX++
+	
+	// Mark offsets as dirty
+	e.offsetsDirty = true
+	
+	return nil
+}
+
+func (e *Editor) insertNewline() error {
+	// Get the absolute position
+	pos := e.getAbsolutePosition()
+	
+	// Insert newline
+	e.buffer.Insert(pos, "\n")
+	
+	// Move cursor to beginning of next line
+	e.cursorY++
+	e.cursorX = 0
+	
+	// Mark offsets as dirty
+	e.offsetsDirty = true
+	
+	return nil
+}
+
+func (e *Editor) backspace() error {
+	// If at beginning of buffer, nothing to delete
+	if e.cursorX == 0 && e.cursorY == 0 {
+		return nil
+	}
+	
+	pos := e.getAbsolutePosition()
+	
+	if e.cursorX == 0 {
+		// At beginning of line, join with previous line
+		if pos > 0 {
+			// Store the length of the previous line before joining
+			lines := e.buffer.Lines()
+			prevLineLen := 0
+			if e.cursorY > 0 && e.cursorY-1 < len(lines) {
+				prevLineLen = len(lines[e.cursorY-1])
+			}
+			
+			// For now, we'll implement a simple delete by recreating the buffer
+			// TODO: Add proper Delete method to buffer
+			content := e.buffer.String()
+			if pos-1 < len(content) {
+				newContent := content[:pos-1] + content[pos:]
+				e.buffer = buffer.NewBufferFromString(newContent)
+				e.cursorY--
+				e.cursorX = prevLineLen
+			}
+		}
+	} else {
+		// Delete character before cursor
+		if pos > 0 {
+			// For now, we'll implement a simple delete by recreating the buffer
+			// TODO: Add proper Delete method to buffer
+			content := e.buffer.String()
+			if pos-1 < len(content) {
+				newContent := content[:pos-1] + content[pos:]
+				e.buffer = buffer.NewBufferFromString(newContent)
+				e.cursorX--
+			}
+		}
+	}
+	
+	// Mark offsets as dirty
+	e.offsetsDirty = true
+	
+	return nil
+}
+
+// getAbsolutePosition returns the absolute position in the buffer for the current cursor
+func (e *Editor) getAbsolutePosition() int {
+	lines := e.buffer.Lines()
+	pos := 0
+	
+	// Add lengths of all previous lines
+	for i := 0; i < e.cursorY && i < len(lines); i++ {
+		pos += len(lines[i]) + 1 // +1 for newline
+	}
+	
+	// Add current X position
+	if e.cursorY < len(lines) {
+		if e.cursorX > len(lines[e.cursorY]) {
+			pos += len(lines[e.cursorY])
+		} else {
+			pos += e.cursorX
+		}
+	}
+	
+	return pos
+}
+
 func (e *Editor) enterCommandModeCmd() error {
 	e.enterCommandMode()
 	return nil
@@ -933,6 +1069,12 @@ func (e *Editor) registerCommands() {
 
 	// Mode commands
 	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd)
+	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode)
+	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode)
+	
+	// Insert mode commands
+	e.commandRegistry.Register("insert-newline", e.insertNewline)
+	e.commandRegistry.Register("backspace", e.backspace)
 
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd)
@@ -951,8 +1093,14 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "w", "word-forward")
 	e.registerKeyBinding(commands.NormalMode, "b", "word-backward")
 
-	// Command mode
+	// Mode switching
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
+	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
+	e.registerKeyBinding(commands.InsertMode, "escape", "exit-insert-mode")
+	
+	// Insert mode keys
+	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
+	e.registerKeyBinding(commands.InsertMode, "backspace", "backspace")
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")

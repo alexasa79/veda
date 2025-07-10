@@ -38,6 +38,11 @@ func (te *TestEditor) ExecuteCommand(command string) error {
 	return te.commandRegistry.Execute(command)
 }
 
+// InsertChar simulates inserting a character in insert mode
+func (te *TestEditor) InsertChar(ch rune) error {
+	return te.insertChar(ch)
+}
+
 // GetCursorPosition returns the current cursor position
 func (te *TestEditor) GetCursorPosition() (x, y int) {
 	return te.cursorX, te.cursorY

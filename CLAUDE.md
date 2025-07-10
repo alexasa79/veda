@@ -37,6 +37,7 @@ make clean
 
 ### Navigation and Commands
 - Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word
+- Insert mode: Press 'i' to enter, 'Escape' to exit. Type to insert text, 'Enter' for newline, 'Backspace' to delete
 - Command mode: Triggered by ':', supports commands like `:q` or `:quit`
 - The editor loads test data (100 lines) on startup for scrolling demonstration
 

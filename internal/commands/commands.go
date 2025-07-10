@@ -10,6 +10,7 @@ type Mode string
 const (
 	NormalMode  Mode = "NORMAL"
 	CommandMode Mode = "COMMAND"
+	InsertMode  Mode = "INSERT"
 )
 
 // Key represents a key with modifiers
