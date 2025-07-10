@@ -308,14 +308,18 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 
 	for _, token := range tokens {
 		// Draw any text before this token with normal style
-		if token.Start > lastEnd {
-			prefix := line[lastEnd:token.Start]
+		if token.Start > lastEnd && token.Start <= len(line) {
+			endPos := token.Start
+			if endPos > len(line) {
+				endPos = len(line)
+			}
+			prefix := line[lastEnd:endPos]
 			width := e.drawText(x, screenY, normalStyle, prefix)
 			x += width
 		}
 
 		// Draw the token with its specific style
-		if token.End <= len(line) {
+		if token.Start < len(line) && token.End <= len(line) {
 			tokenText := line[token.Start:token.End]
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 
@@ -885,6 +889,9 @@ func (e *Editor) insertChar(ch rune) error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+
 	return nil
 }
 
@@ -901,6 +908,9 @@ func (e *Editor) insertNewline() error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
+
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 
 	return nil
 }
@@ -931,6 +941,8 @@ func (e *Editor) backspace() error {
 				e.buffer = buffer.NewBufferFromString(newContent)
 				e.cursorY--
 				e.cursorX = prevLineLen
+				// Update syntax highlighting
+				e.updateSyntaxHighlighting()
 			}
 		}
 	} else {
@@ -943,6 +955,8 @@ func (e *Editor) backspace() error {
 				newContent := content[:pos-1] + content[pos:]
 				e.buffer = buffer.NewBufferFromString(newContent)
 				e.cursorX--
+				// Update syntax highlighting
+				e.updateSyntaxHighlighting()
 			}
 		}
 	}
@@ -994,6 +1008,14 @@ func (e *Editor) getAbsolutePosition() int {
 	}
 
 	return pos
+}
+
+// updateSyntaxHighlighting re-parses the buffer for syntax highlighting
+func (e *Editor) updateSyntaxHighlighting() {
+	if e.highlighter != nil && e.currentFile != "" {
+		content := e.buffer.String()
+		e.highlighter.Parse([]byte(content))
+	}
 }
 
 func (e *Editor) enterCommandModeCmd() error {
