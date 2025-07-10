@@ -37,8 +37,8 @@ make clean
 - **Single-Line Status Bar**: Minimal status bar showing mode, filename, and cursor position
 
 ### Navigation and Commands
-- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word. Block cursor.
-- Insert mode: Press 'i' to enter, 'Escape' to exit. Type to insert text, 'Enter' for newline, 'Backspace' to delete. Arrow keys work for cursor movement while staying in insert mode. Bar cursor.
+- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word, '0' or Home moves to beginning of line, '$' or End moves to end of line. Block cursor.
+- Insert mode: Press 'i' to enter, 'Escape' to exit. Type to insert text, 'Enter' for newline, 'Backspace' to delete. Arrow keys work for cursor movement while staying in insert mode. Home/End keys move to beginning/end of line. Bar cursor.
 - Command mode: Triggered by ':', supports commands like `:q` or `:quit`. Block cursor.
 - The editor loads test data (100 lines) on startup for scrolling demonstration
 

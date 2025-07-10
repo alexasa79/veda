@@ -820,6 +820,40 @@ func (e *Editor) wordBackward() error {
 	return nil
 }
 
+// beginningOfLine moves cursor to the beginning of the current line
+func (e *Editor) beginningOfLine() error {
+	e.cursorX = 0
+	return nil
+}
+
+// endOfLine moves cursor to the end of the current line
+func (e *Editor) endOfLine() error {
+	lines := e.buffer.Lines()
+	if e.cursorY < len(lines) {
+		lineLen := len(lines[e.cursorY])
+		if lineLen > 0 {
+			e.cursorX = lineLen - 1
+		} else {
+			e.cursorX = 0
+		}
+	}
+	return nil
+}
+
+// beginningOfLineInsert is the same as beginningOfLine but for insert mode
+func (e *Editor) beginningOfLineInsert() error {
+	return e.beginningOfLine()
+}
+
+// endOfLineInsert moves cursor past the end of line for insert mode
+func (e *Editor) endOfLineInsert() error {
+	lines := e.buffer.Lines()
+	if e.cursorY < len(lines) {
+		e.cursorX = len(lines[e.cursorY])
+	}
+	return nil
+}
+
 func (e *Editor) pageUp() error {
 	visibleLines := e.getVisibleLines()
 
@@ -1052,6 +1086,10 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("right", e.moveRight)
 	e.commandRegistry.Register("word-forward", e.wordForward)
 	e.commandRegistry.Register("word-backward", e.wordBackward)
+	e.commandRegistry.Register("beginning-of-line", e.beginningOfLine)
+	e.commandRegistry.Register("end-of-line", e.endOfLine)
+	e.commandRegistry.Register("beginning-of-line-insert", e.beginningOfLineInsert)
+	e.commandRegistry.Register("end-of-line-insert", e.endOfLineInsert)
 	e.commandRegistry.Register("page-up", e.pageUp)
 	e.commandRegistry.Register("page-down", e.pageDown)
 
@@ -1086,6 +1124,10 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
 	e.registerKeyBinding(commands.NormalMode, "w", "word-forward")
 	e.registerKeyBinding(commands.NormalMode, "b", "word-backward")
+	e.registerKeyBinding(commands.NormalMode, "0", "beginning-of-line")
+	e.registerKeyBinding(commands.NormalMode, "$", "end-of-line")
+	e.registerKeyBinding(commands.NormalMode, "home", "beginning-of-line")
+	e.registerKeyBinding(commands.NormalMode, "end", "end-of-line")
 
 	// Mode switching
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
@@ -1101,6 +1143,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "down", "down-insert")
 	e.registerKeyBinding(commands.InsertMode, "left", "left-insert")
 	e.registerKeyBinding(commands.InsertMode, "right", "right-insert")
+	e.registerKeyBinding(commands.InsertMode, "home", "beginning-of-line-insert")
+	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
