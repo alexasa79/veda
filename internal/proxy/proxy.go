@@ -58,6 +58,12 @@ func NewClient() (*Client, error) {
 
 	stdin := bufio.NewWriter(stdinPipe)
 	stdout := bufio.NewScanner(stdoutPipe)
+	
+	// Increase scanner buffer size to handle large responses
+	// Default is 64KB, we'll set it to 1MB
+	const maxScanTokenSize = 1024 * 1024 // 1MB
+	buf := make([]byte, 0, maxScanTokenSize)
+	stdout.Buffer(buf, maxScanTokenSize)
 
 	return &Client{
 		cmd:    cmd,
@@ -85,7 +91,7 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 	if c.stdout.Scan() {
 		var response JSONRPCResponse
 		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
 		}
 
 		if response.Error != "" {
@@ -95,21 +101,37 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 		var files []FileInfo
 		for _, item := range response.Result {
 			if fileMap, ok := item.(map[string]interface{}); ok {
-				file := FileInfo{
-					Name: fileMap["name"].(string),
-					Type: fileMap["type"].(string),
-					Path: fileMap["path"].(string),
+				file := FileInfo{}
+				
+				// Safely extract fields with type checking
+				if name, ok := fileMap["name"].(string); ok {
+					file.Name = name
+				}
+				if fileType, ok := fileMap["type"].(string); ok {
+					file.Type = fileType
+				}
+				if path, ok := fileMap["path"].(string); ok {
+					file.Path = path
 				}
 				if size, ok := fileMap["size"].(float64); ok {
 					file.Size = int64(size)
 				}
-				files = append(files, file)
+				
+				// Skip entries with missing required fields
+				if file.Name != "" && file.Type != "" {
+					files = append(files, file)
+				}
 			}
 		}
 		return files, nil
 	}
 
-	return nil, fmt.Errorf("failed to read proxy response")
+	// Check for scanner error
+	if err := c.stdout.Err(); err != nil {
+		return nil, fmt.Errorf("scanner error: %v", err)
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response: no data received")
 }
 
 // ListDirectoryRecursive sends a JSON RPC request to get recursive directory listing
@@ -131,7 +153,7 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 	if c.stdout.Scan() {
 		var response JSONRPCResponse
 		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
 		}
 
 		if response.Error != "" {
@@ -141,21 +163,37 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 		var files []FileInfo
 		for _, item := range response.Result {
 			if fileMap, ok := item.(map[string]interface{}); ok {
-				file := FileInfo{
-					Name: fileMap["name"].(string),
-					Type: fileMap["type"].(string),
-					Path: fileMap["path"].(string),
+				file := FileInfo{}
+				
+				// Safely extract fields with type checking
+				if name, ok := fileMap["name"].(string); ok {
+					file.Name = name
+				}
+				if fileType, ok := fileMap["type"].(string); ok {
+					file.Type = fileType
+				}
+				if path, ok := fileMap["path"].(string); ok {
+					file.Path = path
 				}
 				if size, ok := fileMap["size"].(float64); ok {
 					file.Size = int64(size)
 				}
-				files = append(files, file)
+				
+				// Skip entries with missing required fields
+				if file.Name != "" && file.Type != "" {
+					files = append(files, file)
+				}
 			}
 		}
 		return files, nil
 	}
 
-	return nil, fmt.Errorf("failed to read proxy response")
+	// Check for scanner error
+	if err := c.stdout.Err(); err != nil {
+		return nil, fmt.Errorf("scanner error: %v", err)
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response: no data received")
 }
 
 // GetFile reads the contents of a file
