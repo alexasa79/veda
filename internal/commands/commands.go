@@ -59,6 +59,12 @@ func (cr *CommandRegistry) Execute(command string) error {
 	return handler()
 }
 
+// Has checks if a command exists in the registry
+func (cr *CommandRegistry) Has(command string) bool {
+	_, exists := cr.handlers[command]
+	return exists
+}
+
 // KeyMapper manages key bindings
 type KeyMapper struct {
 	bindings []Binding

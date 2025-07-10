@@ -454,6 +454,98 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 	return nil, fmt.Errorf("failed to read proxy response")
 }
 
+// GetLSPMessages gets all LSP messages for a specific language
+func (c *Client) GetLSPMessages(language string) ([]interface{}, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_lsp_messages",
+		Params: map[string]interface{}{"language": language},
+		ID:     c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if messages, ok := response.Result["messages"].([]interface{}); ok {
+				return messages, nil
+			}
+		}
+
+		return nil, fmt.Errorf("failed to get LSP messages")
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
+// GetLSPNotifications gets pending showMessage notifications for a language
+func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{}, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_lsp_notifications", 
+		Params: map[string]interface{}{"language": language},
+		ID:     c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if notifications, ok := response.Result["notifications"].([]interface{}); ok {
+				var result []map[string]interface{}
+				for _, n := range notifications {
+					if notif, ok := n.(map[string]interface{}); ok {
+						result = append(result, notif)
+					}
+				}
+				return result, nil
+			}
+		}
+
+		return nil, fmt.Errorf("failed to get LSP notifications")
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
 // Close terminates the proxy process
 func (c *Client) Close() error {
 	if c.cmd != nil && c.cmd.Process != nil {

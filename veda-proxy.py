@@ -32,6 +32,9 @@ class LSPManager:
     
     def __init__(self):
         self.servers = {}  # language -> {'process': process, 'request_id': int}
+        self.message_buffers = {}  # language -> list of all LSP messages
+        self.pending_requests = {}  # language -> {request_id: threading.Event}
+        self.response_cache = {}  # language -> {request_id: response}
         self.language_servers = {
             'go': {
                 'command': ['gopls', '-logfile=/tmp/gopls.log', '-rpc.trace'],
@@ -79,19 +82,10 @@ class LSPManager:
                 cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,  # Discard stderr since gopls logs to file
                 text=True,
                 bufsize=0  # Unbuffered
             )
-            
-            # Start a thread to log stderr
-            def log_stderr():
-                for line in process.stderr:
-                    logger.debug(f"{cmd[0]} stderr: {line.strip()}")
-            
-            import threading
-            stderr_thread = threading.Thread(target=log_stderr, daemon=True)
-            stderr_thread.start()
             
             self.servers[language] = {
                 'process': process,
@@ -99,6 +93,35 @@ class LSPManager:
                 'initialized': False,
                 'open_files': set()
             }
+            
+            # Initialize message buffer for this language
+            self.message_buffers[language] = []
+            self.pending_requests[language] = {}
+            self.response_cache[language] = {}
+            
+            # Start a thread to continuously read messages from the LSP server
+            def read_messages():
+                while language in self.servers:
+                    try:
+                        msg = self._read_lsp_message(language)
+                        if msg:
+                            # Add to message buffer
+                            self.message_buffers[language].append(msg)
+                            
+                            # Handle the message
+                            if 'id' in msg and msg.get('id') in self.pending_requests[language]:
+                                # This is a response to one of our requests
+                                self.response_cache[language][msg['id']] = msg
+                                self.pending_requests[language][msg['id']].set()
+                            elif 'method' in msg:
+                                # This is a notification or server request
+                                self._handle_server_message(language, msg)
+                    except Exception as e:
+                        logger.error(f"Error reading LSP message: {e}")
+                        break
+            
+            reader_thread = threading.Thread(target=read_messages, daemon=True)
+            reader_thread.start()
             
             # Initialize the LSP connection
             if self._send_initialize(language):
@@ -169,13 +192,13 @@ class LSPManager:
     
     def _wait_for_initialize(self, language: str):
         """Wait for the initialize response and send initialized notification."""
-        # Read the initialize response
-        response = self._read_response(language)
+        # Wait for the initialize response
+        server = self.servers[language]
+        response = self._wait_for_response(language, server['request_id'])
         if response and "result" in response:
             logger.info(f"LSP server for {language} initialized successfully")
             
             # Send the initialized notification
-            server = self.servers[language]
             server['initialized'] = True
             
             notification = {
@@ -201,7 +224,7 @@ class LSPManager:
         except Exception as e:
             logger.error(f"Failed to send message to {language} LSP server: {e}")
     
-    def get_definition(self, file_path: str, line: int, character: int) -> Optional[Dict[str, Any]]:
+    def get_definition(self, file_path: str, line: int, character: int) -> Optional[List[Dict[str, Any]]]:
         """Get the definition location for a symbol at the given position."""
         # Determine language from file extension
         language = self.get_language_for_file(file_path)
@@ -219,10 +242,11 @@ class LSPManager:
         file_uri = f"file://{Path(file_path).absolute()}"
         
         server['request_id'] += 1
+        request_id = server['request_id']
         
         request = {
             "jsonrpc": "2.0",
-            "id": server['request_id'],
+            "id": request_id,
             "method": "textDocument/definition",
             "params": {
                 "textDocument": {
@@ -238,8 +262,8 @@ class LSPManager:
         logger.info(f"Sending textDocument/definition request for {file_uri} at {line}:{character}")
         self._send_message(language, request)
         
-        # Read the response
-        response = self._read_response(language)
+        # Wait for the response with our specific request ID
+        response = self._wait_for_response(language, request_id)
         logger.info(f"Received response: {response}")
         if response and "result" in response:
             result = response["result"]
@@ -299,8 +323,8 @@ class LSPManager:
         
         self._send_message(language, notification)
     
-    def _read_response(self, language: str) -> Optional[Dict[str, Any]]:
-        """Read a response from an LSP server."""
+    def _read_lsp_message(self, language: str) -> Optional[Dict[str, Any]]:
+        """Read a single LSP message from the server."""
         if language not in self.servers:
             return None
             
@@ -324,9 +348,67 @@ class LSPManager:
                 return json.loads(content)
                 
         except Exception as e:
-            logger.error(f"Failed to read response from {language} LSP server: {e}")
+            logger.error(f"Failed to read message from {language} LSP server: {e}")
             
         return None
+    
+    def _handle_server_message(self, language: str, message: Dict[str, Any]):
+        """Handle notifications and requests from the LSP server."""
+        method = message.get('method', '')
+        
+        if method == 'window/showMessage':
+            # This message should be shown to the user
+            params = message.get('params', {})
+            logger.info(f"LSP {language} showMessage: {params.get('message', '')}")
+            # The editor will poll for these messages
+        elif method == 'window/logMessage':
+            # Just log these
+            params = message.get('params', {})
+            logger.debug(f"LSP {language}: {params.get('message', '')}")
+        elif method == 'textDocument/publishDiagnostics':
+            # Diagnostics - we'll handle these later
+            pass
+    
+    def _wait_for_response(self, language: str, request_id: int, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
+        """Wait for a response with a specific request ID."""
+        if language not in self.pending_requests:
+            return None
+            
+        event = threading.Event()
+        self.pending_requests[language][request_id] = event
+        
+        # Wait for the response
+        if event.wait(timeout):
+            # Response received
+            response = self.response_cache[language].pop(request_id, None)
+            del self.pending_requests[language][request_id]
+            return response
+        else:
+            # Timeout
+            del self.pending_requests[language][request_id]
+            logger.error(f"Timeout waiting for response to request {request_id}")
+            return None
+    
+    def _read_response(self, language: str) -> Optional[Dict[str, Any]]:
+        """Read a response from an LSP server (legacy method for compatibility)."""
+        # This is now just a wrapper that reads one message
+        return self._read_lsp_message(language)
+    
+    def get_message_buffer(self, language: str) -> List[Dict[str, Any]]:
+        """Get all LSP messages for a specific language."""
+        return self.message_buffers.get(language, [])
+    
+    def get_pending_notifications(self, language: str) -> List[Dict[str, Any]]:
+        """Get pending showMessage notifications for a language."""
+        notifications = []
+        messages = self.message_buffers.get(language, [])
+        
+        for msg in messages:
+            if msg.get('method') == 'window/showMessage' and not msg.get('shown', False):
+                msg['shown'] = True  # Mark as shown
+                notifications.append(msg)
+        
+        return notifications
     
     def stop_all_servers(self):
         """Stop all running LSP servers."""
@@ -347,6 +429,8 @@ class VedaProxy:
             'start_lsp_server': self.start_lsp_server,
             'stop_lsp_server': self.stop_lsp_server,
             'go_to_definition': self.go_to_definition,
+            'get_lsp_messages': self.get_lsp_messages,
+            'get_lsp_notifications': self.get_lsp_notifications,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -579,6 +663,16 @@ class VedaProxy:
         except Exception as e:
             logger.error(f"Error in go_to_definition: {e}")
             return {'success': False, 'error': str(e)}
+    
+    def get_lsp_messages(self, language: str) -> Dict[str, Any]:
+        """Get all LSP messages for a specific language."""
+        messages = self.lsp.get_message_buffer(language)
+        return {'success': True, 'messages': messages}
+    
+    def get_lsp_notifications(self, language: str) -> Dict[str, Any]:
+        """Get pending showMessage notifications for a language."""
+        notifications = self.lsp.get_pending_notifications(language)
+        return {'success': True, 'notifications': notifications}
 
 
 class JSONRPCHandler:

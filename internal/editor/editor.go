@@ -228,7 +228,15 @@ func (e *Editor) executeCommand() {
 		command = command[1:]
 	}
 
-	// Handle basic commands
+	// First try to execute from the command registry
+	if e.commandRegistry.Has(command) {
+		if err := e.commandRegistry.Execute(command); err != nil {
+			LL.Debug("Command execution failed: %v", err)
+		}
+		return
+	}
+
+	// Handle basic commands that aren't in the registry
 	switch command {
 	case "q", "quit":
 		e.Close()
@@ -1067,6 +1075,54 @@ func (e *Editor) openFileCmd() error {
 }
 
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
+func (e *Editor) showLSPBufferGo() error {
+	// Get LSP messages for Go
+	messages, err := e.proxyClient.GetLSPMessages("go")
+	if err != nil {
+		LL.Debug("Failed to get LSP messages: %v", err)
+		return err
+	}
+
+	// Format messages as a string buffer
+	var content strings.Builder
+	content.WriteString("=== LSP Messages for Go ===\n\n")
+	
+	for _, msg := range messages {
+		if msgMap, ok := msg.(map[string]interface{}); ok {
+			// Format the message nicely
+			if method, ok := msgMap["method"].(string); ok {
+				content.WriteString(fmt.Sprintf("Method: %s\n", method))
+			}
+			if id, ok := msgMap["id"]; ok {
+				content.WriteString(fmt.Sprintf("ID: %v\n", id))
+			}
+			if params, ok := msgMap["params"]; ok {
+				content.WriteString(fmt.Sprintf("Params: %v\n", params))
+			}
+			if result, ok := msgMap["result"]; ok {
+				content.WriteString(fmt.Sprintf("Result: %v\n", result))
+			}
+			if error, ok := msgMap["error"]; ok {
+				content.WriteString(fmt.Sprintf("Error: %v\n", error))
+			}
+			content.WriteString("\n---\n\n")
+		}
+	}
+
+	// Create a new buffer with the LSP messages
+	e.buffer = buffer.NewBufferFromString(content.String())
+	e.currentFile = "*LSP Messages - Go*"
+	e.cursorX = 0
+	e.cursorY = 0
+	e.topLine = 0
+	e.offsetsDirty = true
+
+	// Reset syntax highlighting
+	e.highlighter = syntax.NewHighlighter()
+
+	return nil
+}
+
 func (e *Editor) goToDefinition() error {
 	// Only works if we have a file open
 	if e.currentFile == "" {
@@ -1187,6 +1243,7 @@ func (e *Editor) registerCommands() {
 
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition)
+	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo)
 }
 
 // setupDefaultBindings sets up the default key bindings
