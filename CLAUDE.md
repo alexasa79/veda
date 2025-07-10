@@ -7,25 +7,18 @@ Veda is a terminal-based text editor written in Go with vim-like features. It us
 
 ## Commands
 
-### Development
+### Makefile Targets
 ```bash
-# Run the editor
-go run main.go
-
-# Build the editor
-go build -o veda
+# Build the editor (default target)
+make
+# or
+make all
 
 # Run all tests
-go test ./...
+make test
 
-# Run specific package tests (e.g., buffer tests)
-go test ./internal/buffer
-
-# Format code
-go fmt ./...
-
-# Check for issues
-go vet ./...
+# Clean build artifacts
+make clean
 ```
 
 ## Architecture
@@ -43,12 +36,31 @@ go vet ./...
 - **Component-Based UI**: Widgets manage their own rendering and input handling
 
 ### Navigation and Commands
-- Normal mode: Arrow keys for navigation, 'A' opens file browser
+- Normal mode: Arrow keys for navigation, 'A' opens file browser, 'w' moves to next word
 - Command mode: Triggered by ':', supports commands like `:q` or `:quit`
 - The editor loads test data (100 lines) on startup for scrolling demonstration
 
+### Known Issues and Workarounds
+- 'A' no longer opens file browser. To open file browser type 'space s f'.
+
+### Testing Framework
+The project includes a comprehensive unit testing framework:
+- **Screen Abstraction**: `Screen` interface allows swapping between real terminal and mock implementation
+- **MockScreen**: Test implementation that captures rendered output and cursor position
+- **TestEditor**: Wrapper providing test-friendly methods like `ExecuteCommand()` and `GetCursorPosition()`
+- **Assertion Helpers**: Functions like `AssertCursorAt()` and `AssertBufferEquals()` for verifying editor state
+
+Example test:
+```go
+te := NewTestEditorWithContent(80, 24, "Hello, World!")
+te.ExecuteCommand("right")
+AssertCursorAt(t, te, 1, 0)
+```
+
 ### Testing Strategy
-Currently only the buffer package has tests. When adding new functionality:
+Currently the buffer package and editor package have tests. When adding new functionality:
 - Unit tests go in `*_test.go` files in the same package
 - Use standard Go testing conventions
-- Run tests with `go test ./internal/package_name`
+- Run tests with `go test ./internal/package_name` or use `make test` to run all tests
+- Use the testing framework for editor behavior tests (cursor movement, editing operations, etc.)
+```

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
@@ -707,6 +708,58 @@ func (e *Editor) moveRight() error {
 	return nil
 }
 
+// wordForward moves the cursor to the beginning of the next word
+func (e *Editor) wordForward() error {
+	lines := e.buffer.Lines()
+	if len(lines) == 0 {
+		return nil
+	}
+	
+	// Start from current position
+	y := e.cursorY
+	x := e.cursorX + 1 // Start searching from next character
+	
+	// Track if we've seen a non-alphanumeric character
+	seenNonAlnum := false
+	
+	// If we start on a non-alphanumeric character, we're ready to find the next word
+	if e.cursorX < len(lines[e.cursorY]) {
+		ch := rune(lines[e.cursorY][e.cursorX])
+		seenNonAlnum = !unicode.IsLetter(ch) && !unicode.IsDigit(ch)
+	}
+	
+	// Loop through characters until we find a transition from non-alnum to alnum
+	for y < len(lines) {
+		line := lines[y]
+		
+		for x < len(line) {
+			ch := rune(line[x])
+			isAlnum := unicode.IsLetter(ch) || unicode.IsDigit(ch)
+			
+			if seenNonAlnum && isAlnum {
+				// Found transition from non-alnum to alnum
+				e.cursorX = x
+				e.cursorY = y
+				return nil
+			}
+			
+			if !isAlnum {
+				seenNonAlnum = true
+			}
+			
+			x++
+		}
+		
+		// Move to next line
+		y++
+		x = 0
+		seenNonAlnum = true // Line break counts as non-alnum
+	}
+	
+	// No more words found, stay at current position
+	return nil
+}
+
 func (e *Editor) pageUp() error {
 	_, height := e.screen.Size()
 	visibleLines := height - 2 // Subtract status bar lines
@@ -785,6 +838,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("down", e.moveDown)
 	e.commandRegistry.Register("left", e.moveLeft)
 	e.commandRegistry.Register("right", e.moveRight)
+	e.commandRegistry.Register("word-forward", e.wordForward)
 	e.commandRegistry.Register("page-up", e.pageUp)
 	e.commandRegistry.Register("page-down", e.pageDown)
 
@@ -805,6 +859,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "right", "right")
 	e.registerKeyBinding(commands.NormalMode, "pageup", "page-up")
 	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
+	e.registerKeyBinding(commands.NormalMode, "w", "word-forward")
 
 	// Command mode
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
