@@ -60,9 +60,9 @@ func (te *TestEditor) GetScreenContent() []string {
 	te.drawStatusBar()
 	
 	lines := make([]string, 0)
-	height := te.mockScreen.height
-	// Get all lines except the status bar (last 2 lines)
-	for y := 0; y < height-2; y++ {
+	visibleHeight := te.getVisibleHeight()
+	// Get all lines in the visible area
+	for y := 0; y < visibleHeight; y++ {
 		lines = append(lines, te.mockScreen.GetLine(y))
 	}
 	return lines

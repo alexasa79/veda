@@ -34,6 +34,7 @@ make clean
 - **Event-Driven UI**: tcell event loop handles keyboard/mouse input
 - **IPC Communication**: JSON-RPC between Go and Python over stdin/stdout
 - **Component-Based UI**: Widgets manage their own rendering and input handling
+- **Single-Line Status Bar**: Minimal status bar showing mode, filename, and cursor position
 
 ### Navigation and Commands
 - Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word. Block cursor.

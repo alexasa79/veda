@@ -43,7 +43,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 
 	// Initialize command line widget (will be positioned at bottom of screen)
 	width, height := screen.Size()
-	commandLine := widgets.NewLineEditor(0, height-1, width)
+	statusBarY := height - 1 // Status bar is always on the last line
+	commandLine := widgets.NewLineEditor(0, statusBarY, width)
 	commandLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
 
 	// Start proxy client
@@ -114,8 +115,7 @@ func (e *Editor) Run() {
 		} else {
 			// Show cursor in editor
 			// Calculate line number width based on visible lines
-			_, height := e.screen.Size()
-			visibleLines := height - 2
+			visibleLines := e.getVisibleLines()
 			lastVisibleLine := e.topLine + visibleLines
 			lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1
 			visualCursorX := e.getVisualCursorX()
@@ -150,7 +150,7 @@ func (e *Editor) Run() {
 }
 
 func (e *Editor) scroll() {
-	_, height := e.screen.Size()
+	visibleHeight := e.getVisibleHeight()
 	bufferLines := len(e.buffer.Lines())
 
 	// Scroll up when cursor is too close to top
@@ -160,14 +160,14 @@ func (e *Editor) scroll() {
 
 	// Scroll down when cursor is too close to bottom, but allow cursor to reach
 	// the bottom of the screen when at the end of the buffer
-	if e.cursorY >= e.topLine+height-1-e.config.ScrollOffset {
+	if e.cursorY >= e.topLine+visibleHeight-e.config.ScrollOffset {
 		// If we're near the end of the buffer, allow the last line to be at the bottom
-		maxTopLine := bufferLines - (height - 2)
+		maxTopLine := bufferLines - visibleHeight
 		if maxTopLine < 0 {
 			maxTopLine = 0
 		}
 
-		desiredTopLine := e.cursorY - height + 2 + e.config.ScrollOffset
+		desiredTopLine := e.cursorY - visibleHeight + e.config.ScrollOffset
 		if desiredTopLine > maxTopLine {
 			e.topLine = maxTopLine
 		} else {
@@ -235,11 +235,11 @@ func (e *Editor) executeCommand() {
 
 // handleResize processes screen resize events
 func (e *Editor) handleResize() {
-	width, height := e.screen.Size()
+	width, _ := e.screen.Size()
 
 	// Update the command line widget's dimensions and position
 	e.commandLine.SetWidth(width)
-	e.commandLine.SetPosition(0, height-1)
+	e.commandLine.SetPosition(0, e.getStatusBarY())
 }
 
 // Close finalizes the screen and proxy client.
@@ -394,20 +394,21 @@ func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
 }
 
 func (e *Editor) drawEditor() {
-	width, height := e.screen.Size()
+	width, _ := e.screen.Size()
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 	totalLines := len(e.buffer.Lines())
 
 	// Calculate line number width based on visible lines
-	visibleLines := height - 2
+	visibleLines := e.getVisibleLines()
 	lastVisibleLine := e.topLine + visibleLines
 	lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1 // +1 for padding
 
 	// Clear the entire screen once
 	e.screen.Clear()
 
-	for i := 0; i < height-2; i++ {
+	visibleHeight := e.getVisibleHeight()
+	for i := 0; i < visibleHeight; i++ {
 		lineIndex := e.topLine + i
 		isCurrentLine := lineIndex == e.cursorY
 
@@ -434,52 +435,38 @@ func (e *Editor) drawEditor() {
 }
 
 func (e *Editor) drawStatusBar() {
-	width, height := e.screen.Size()
+	width, _ := e.screen.Size()
 	statusBarStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBar)
 	lineColStyle := e.config.Theme.GetStyle(e.config.Theme.LineColumn)
+	statusBarY := e.getStatusBarY()
 
 	// Fill status bar background
 	for i := 0; i < width; i++ {
-		e.screen.SetContent(i, height-2, ' ', nil, statusBarStyle)
-		e.screen.SetContent(i, height-1, ' ', nil, statusBarStyle)
+		e.screen.SetContent(i, statusBarY, ' ', nil, statusBarStyle)
 	}
 
 	if e.mode == commands.CommandMode {
 		// Draw the command line widget
 		e.commandLine.Draw(e.screen)
-		// Left side: mode
-		e.drawText(0, height-2, statusBarStyle, "COMMAND")
 	} else {
-		// First line of status bar
+		// Status bar content
 		// Left side: mode and filename
 		x := 0
 		modeText := "NORMAL  "
 		if e.mode == commands.InsertMode {
 			modeText = "INSERT  "
 		}
-		x += e.drawText(x, height-2, statusBarStyle, modeText)
+		x += e.drawText(x, statusBarY, statusBarStyle, modeText)
 
 		filename := e.currentFile
 		if filename == "" {
 			filename = "[No Name]"
 		}
-		x += e.drawText(x, height-2, statusBarStyle, filename)
+		x += e.drawText(x, statusBarY, statusBarStyle, filename)
 
-		// Right side: file size, lines, line:col
+		// Right side: line:col
 		lines := e.buffer.Lines()
-		totalLines := len(lines)
-
-		// Calculate file size in bytes
-		fileSize := 0
-		for _, line := range lines {
-			fileSize += len(line) + 1 // +1 for newline
-		}
-		if totalLines > 0 {
-			fileSize-- // Remove last newline
-		}
-
-		// Format right side info
-		rightInfo := fmt.Sprintf("%d bytes  %d lines  ", fileSize, totalLines)
+		
 		// Use visual column position for display (accounting for tabs)
 		visualCol := 1
 		if e.cursorY < len(lines) {
@@ -491,12 +478,10 @@ func (e *Editor) drawStatusBar() {
 		lineColInfo := fmt.Sprintf("%d:%d", e.cursorY+1, visualCol)
 
 		// Calculate position for right-aligned text
-		rightWidth := len(rightInfo) + len(lineColInfo)
-		rightX := width - rightWidth
+		rightX := width - len(lineColInfo)
 
 		if rightX > x { // Only draw if there's space
-			e.drawText(rightX, height-2, statusBarStyle, rightInfo)
-			e.drawText(rightX+len(rightInfo), height-2, lineColStyle, lineColInfo)
+			e.drawText(rightX, statusBarY, lineColStyle, lineColInfo)
 		}
 	}
 }
@@ -832,8 +817,7 @@ func (e *Editor) wordBackward() error {
 }
 
 func (e *Editor) pageUp() error {
-	_, height := e.screen.Size()
-	visibleLines := height - 2 // Subtract status bar lines
+	visibleLines := e.getVisibleLines()
 
 	e.cursorY -= visibleLines
 	if e.cursorY < 0 {
@@ -852,8 +836,7 @@ func (e *Editor) pageUp() error {
 }
 
 func (e *Editor) pageDown() error {
-	_, height := e.screen.Size()
-	visibleLines := height - 2 // Subtract status bar lines
+	visibleLines := e.getVisibleLines()
 
 	e.cursorY += visibleLines
 	maxY := len(e.buffer.Lines()) - 1
@@ -968,6 +951,27 @@ func (e *Editor) backspace() error {
 	e.offsetsDirty = true
 
 	return nil
+}
+
+// Layout calculation methods
+// These methods centralize the calculation of screen areas, making it easy to change
+// the layout (e.g., status bar height) without modifying code throughout the editor.
+
+// getVisibleHeight returns the height of the visible editing area (excluding status bar)
+func (e *Editor) getVisibleHeight() int {
+	_, height := e.screen.Size()
+	return height - 1 // Reserve 1 line for status bar
+}
+
+// getStatusBarY returns the Y position of the status bar
+func (e *Editor) getStatusBarY() int {
+	_, height := e.screen.Size()
+	return height - 1
+}
+
+// getVisibleLines returns the number of lines that can be displayed in the editor
+func (e *Editor) getVisibleLines() int {
+	return e.getVisibleHeight()
 }
 
 // getAbsolutePosition returns the absolute position in the buffer for the current cursor
