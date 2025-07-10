@@ -1014,7 +1014,8 @@ func (e *Editor) getAbsolutePosition() int {
 func (e *Editor) updateSyntaxHighlighting() {
 	if e.highlighter != nil && e.currentFile != "" {
 		content := e.buffer.String()
-		e.highlighter.Parse([]byte(content))
+		// Force a full reparse by not reusing the old tree
+		e.highlighter.ParseFull([]byte(content))
 	}
 }
 

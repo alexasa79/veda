@@ -103,6 +103,25 @@ func (h *Highlighter) Parse(source []byte) error {
 	return nil
 }
 
+// ParseFull forces a full reparse without using the old tree
+func (h *Highlighter) ParseFull(source []byte) error {
+	if h.currentLang == "" {
+		return nil // No language set, nothing to parse
+	}
+	
+	// Parse without old tree to force full reparse
+	tree, err := h.parser.ParseCtx(context.Background(), nil, source)
+	if err != nil {
+		return fmt.Errorf("failed to parse source: %w", err)
+	}
+	
+	h.currentTree = tree
+	h.currentSource = source
+	// Clear the token cache when source changes
+	h.tokenCache = make(map[int][]Token)
+	return nil
+}
+
 // GetTokensForLine returns syntax tokens for a specific line
 func (h *Highlighter) GetTokensForLine(lineNumber int, lineStart, lineEnd int) []Token {
 	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
