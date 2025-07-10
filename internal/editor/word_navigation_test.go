@@ -115,4 +115,19 @@ func TestWordNavigation(t *testing.T) {
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 14, 0)
 	})
+	
+	t.Run("word forward with underscores", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "foo_bar baz_qux some_long_variable_name")
+		
+		// Start at beginning
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Jump to "baz_qux" (skipping foo_bar as one word)
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 8, 0)
+		
+		// Jump to "some_long_variable_name"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 16, 0)
+	})
 }

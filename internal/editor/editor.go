@@ -725,7 +725,7 @@ func (e *Editor) wordForward() error {
 	// If we start on a non-alphanumeric character, we're ready to find the next word
 	if e.cursorX < len(lines[e.cursorY]) {
 		ch := rune(lines[e.cursorY][e.cursorX])
-		seenNonAlnum = !unicode.IsLetter(ch) && !unicode.IsDigit(ch)
+		seenNonAlnum = !unicode.IsLetter(ch) && !unicode.IsDigit(ch) && ch != '_'
 	}
 	
 	// Loop through characters until we find a transition from non-alnum to alnum
@@ -734,7 +734,7 @@ func (e *Editor) wordForward() error {
 		
 		for x < len(line) {
 			ch := rune(line[x])
-			isAlnum := unicode.IsLetter(ch) || unicode.IsDigit(ch)
+			isAlnum := unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_'
 			
 			if seenNonAlnum && isAlnum {
 				// Found transition from non-alnum to alnum
