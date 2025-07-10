@@ -18,6 +18,7 @@ type MockScreen struct {
 	cursorX       int
 	cursorY       int
 	cursorVisible bool
+	cursorStyle   tcell.CursorStyle
 	events        []tcell.Event
 	eventIndex    int
 	defaultStyle  tcell.Style
@@ -87,6 +88,11 @@ func (s *MockScreen) ShowCursor(x, y int) {
 	s.cursorVisible = true
 }
 
+// SetCursorStyle sets the cursor style
+func (s *MockScreen) SetCursorStyle(style tcell.CursorStyle) {
+	s.cursorStyle = style
+}
+
 // PollEvent returns the next event in the queue
 func (s *MockScreen) PollEvent() tcell.Event {
 	if s.eventIndex >= len(s.events) {
@@ -109,6 +115,11 @@ func (s *MockScreen) GetCursorPosition() (x, y int) {
 // IsCursorVisible returns whether the cursor is visible
 func (s *MockScreen) IsCursorVisible() bool {
 	return s.cursorVisible
+}
+
+// GetCursorStyle returns the current cursor style
+func (s *MockScreen) GetCursorStyle() tcell.CursorStyle {
+	return s.cursorStyle
 }
 
 // GetCell returns the content at a specific position

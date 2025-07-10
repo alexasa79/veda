@@ -86,7 +86,7 @@ func New() (*Editor, error) {
 	if err := screen.Init(); err != nil {
 		return nil, err
 	}
-	
+
 	return NewWithScreen(NewTcellScreen(screen))
 }
 
@@ -96,6 +96,15 @@ func (e *Editor) Run() {
 	for {
 		e.drawEditor()
 		e.drawStatusBar()
+
+		// Set cursor style based on mode
+		if e.mode == commands.InsertMode {
+			// Use a bar cursor in insert mode
+			e.screen.SetCursorStyle(tcell.CursorStyleSteadyBar)
+		} else {
+			// Use a block cursor in normal and command modes
+			e.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock)
+		}
 
 		// Show cursor at appropriate position
 		if e.mode == commands.CommandMode {
@@ -119,17 +128,17 @@ func (e *Editor) Run() {
 		switch ev := ev.(type) {
 		case *tcell.EventKey:
 			if e.mode == commands.CommandMode {
-				// In command mode, handle keys directly (no key mapping)
+				// Command mode is special - it's a line editor
 				e.handleCommandMode(ev)
-			} else if e.mode == commands.InsertMode {
-				// In insert mode, handle character insertion
-				e.handleInsertMode(ev)
 			} else {
-				// In normal mode, use key mapper for commands
+				// Normal and Insert modes both use key mapping
 				if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 					if err := e.commandRegistry.Execute(command); err != nil {
 						// TODO: Show error to user
 					}
+				} else if e.mode == commands.InsertMode && ev.Key() == tcell.KeyRune {
+					// In insert mode, insert unmapped rune keys
+					e.insertChar(ev.Rune())
 				}
 			}
 		case *tcell.EventResize:
@@ -171,96 +180,7 @@ func (e *Editor) scroll() {
 	}
 }
 
-// handleNormalMode processes events when in normal editing mode
-func (e *Editor) handleNormalMode(ev *tcell.EventKey) {
-	switch ev.Key() {
-	case tcell.KeyEscape:
-		e.Close()
-		os.Exit(0)
-	case tcell.KeyUp:
-		if e.cursorY > 0 {
-			e.cursorY--
-		}
-	case tcell.KeyDown:
-		if e.cursorY < len(e.buffer.Lines())-1 {
-			e.cursorY++
-		}
-	case tcell.KeyLeft:
-		if e.cursorX > 0 {
-			e.cursorX--
-		}
-	case tcell.KeyRight:
-		line := e.buffer.Line(e.cursorY)
-		// Only allow cursor to move to the last character, not past it
-		maxX := len(line)
-		if maxX > 0 {
-			maxX-- // Don't go past the last character
-		}
-		if e.cursorX < maxX {
-			e.cursorX++
-		}
-	case tcell.KeyPgUp:
-		_, height := e.screen.Size()
-		visibleLines := height - 2 // Subtract status bar lines
 
-		// Move cursor up by visible height
-		e.cursorY -= visibleLines
-		if e.cursorY < 0 {
-			e.cursorY = 0
-		}
-
-		// Adjust cursor X if needed
-		line := e.buffer.Line(e.cursorY)
-		if e.cursorX > len(line) {
-			e.cursorX = len(line)
-			if e.cursorX > 0 {
-				e.cursorX--
-			}
-		}
-	case tcell.KeyPgDn:
-		_, height := e.screen.Size()
-		visibleLines := height - 2 // Subtract status bar lines
-
-		// Move cursor down by visible height
-		e.cursorY += visibleLines
-		maxY := len(e.buffer.Lines()) - 1
-		if e.cursorY > maxY {
-			e.cursorY = maxY
-		}
-
-		// Adjust cursor X if needed
-		line := e.buffer.Line(e.cursorY)
-		if e.cursorX > len(line) {
-			e.cursorX = len(line)
-			if e.cursorX > 0 {
-				e.cursorX--
-			}
-		}
-	case tcell.KeyRune:
-		// Handle colon to enter command mode
-		if ev.Rune() == ':' {
-			e.enterCommandMode()
-		} else if ev.Rune() == 'A' {
-			e.showFuzzyListWidget()
-		}
-	}
-}
-
-// handleCommandMode processes events when in command mode
-func (e *Editor) handleInsertMode(ev *tcell.EventKey) {
-	// First check if this is a special key that has a mapping
-	if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
-		if err := e.commandRegistry.Execute(command); err != nil {
-			// TODO: Show error to user
-		}
-		return
-	}
-	
-	// Otherwise, insert the character
-	if ev.Key() == tcell.KeyRune {
-		e.insertChar(ev.Rune())
-	}
-}
 
 func (e *Editor) handleCommandMode(ev *tcell.EventKey) {
 	switch ev.Key() {
@@ -358,7 +278,7 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 	line := e.buffer.Line(lineIndex)
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	isCurrentLine := lineIndex == e.cursorY
-	
+
 	// If current line, we'll need to override background colors
 	var currentLineBg tcell.Color
 	if isCurrentLine {
@@ -398,12 +318,12 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 		if token.End <= len(line) {
 			tokenText := line[token.Start:token.End]
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-			
+
 			// Override background for current line
 			if isCurrentLine {
 				tokenStyle = tokenStyle.Background(currentLineBg)
 			}
-			
+
 			width := e.drawText(x, screenY, tokenStyle, tokenText)
 			x += width
 			lastEnd = token.End
@@ -446,7 +366,7 @@ func (e *Editor) getVisualCursorX() int {
 func (e *Editor) updateLineOffsets() {
 	lines := e.buffer.Lines()
 	e.lineOffsets = make([]int, len(lines)+1)
-	
+
 	offset := 0
 	for i, line := range lines {
 		e.lineOffsets[i] = offset
@@ -462,14 +382,14 @@ func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
 	if e.offsetsDirty || len(e.lineOffsets) == 0 {
 		e.updateLineOffsets()
 	}
-	
+
 	// Use cached offsets
 	if lineIndex >= 0 && lineIndex < len(e.lineOffsets)-1 {
 		lineStart := e.lineOffsets[lineIndex]
 		lineEnd := e.lineOffsets[lineIndex+1] - 1 // -1 to exclude newline
 		return e.highlighter.GetTokensForLine(lineIndex, lineStart, lineEnd)
 	}
-	
+
 	return nil
 }
 
@@ -490,14 +410,14 @@ func (e *Editor) drawEditor() {
 	for i := 0; i < height-2; i++ {
 		lineIndex := e.topLine + i
 		isCurrentLine := lineIndex == e.cursorY
-		
+
 		// Fill current line background
 		if isCurrentLine {
 			for j := 0; j < width; j++ {
 				e.screen.SetContent(j, i, ' ', nil, currentLineStyle)
 			}
 		}
-		
+
 		// Draw line number
 		lineNum := lineIndex + 1 // Line numbers start at 1
 		if lineNum <= totalLines {
@@ -538,17 +458,17 @@ func (e *Editor) drawStatusBar() {
 			modeText = "INSERT  "
 		}
 		x += e.drawText(x, height-2, statusBarStyle, modeText)
-		
+
 		filename := e.currentFile
 		if filename == "" {
 			filename = "[No Name]"
 		}
 		x += e.drawText(x, height-2, statusBarStyle, filename)
-		
+
 		// Right side: file size, lines, line:col
 		lines := e.buffer.Lines()
 		totalLines := len(lines)
-		
+
 		// Calculate file size in bytes
 		fileSize := 0
 		for _, line := range lines {
@@ -557,7 +477,7 @@ func (e *Editor) drawStatusBar() {
 		if totalLines > 0 {
 			fileSize-- // Remove last newline
 		}
-		
+
 		// Format right side info
 		rightInfo := fmt.Sprintf("%d bytes  %d lines  ", fileSize, totalLines)
 		// Use visual column position for display (accounting for tabs)
@@ -569,11 +489,11 @@ func (e *Editor) drawStatusBar() {
 			}
 		}
 		lineColInfo := fmt.Sprintf("%d:%d", e.cursorY+1, visualCol)
-		
+
 		// Calculate position for right-aligned text
 		rightWidth := len(rightInfo) + len(lineColInfo)
 		rightX := width - rightWidth
-		
+
 		if rightX > x { // Only draw if there's space
 			e.drawText(rightX, height-2, statusBarStyle, rightInfo)
 			e.drawText(rightX+len(rightInfo), height-2, lineColStyle, lineColInfo)
@@ -636,7 +556,7 @@ func (e *Editor) showFuzzyListWidget() {
 		// For now, just return empty selection
 		return
 	}
-	
+
 	selection := fuzzyListWidget.Show(tcellScreen, func() {
 		e.drawEditor()
 		e.drawStatusBar()
@@ -673,7 +593,7 @@ func (e *Editor) openFile(filePath string) {
 	e.cursorX = 0
 	e.cursorY = 0
 	e.topLine = 0
-	
+
 	// Mark line offsets as needing recalculation
 	e.offsetsDirty = true
 }
@@ -730,54 +650,95 @@ func (e *Editor) moveRight() error {
 	return nil
 }
 
+// Insert mode movement commands - allow cursor to go past last character
+func (e *Editor) moveUpInsert() error {
+	if e.cursorY > 0 {
+		e.cursorY--
+		// Adjust cursor X if the new line is shorter
+		line := e.buffer.Line(e.cursorY)
+		if e.cursorX > len(line) {
+			e.cursorX = len(line)
+		}
+	}
+	return nil
+}
+
+func (e *Editor) moveDownInsert() error {
+	if e.cursorY < len(e.buffer.Lines())-1 {
+		e.cursorY++
+		// Adjust cursor X if the new line is shorter
+		line := e.buffer.Line(e.cursorY)
+		if e.cursorX > len(line) {
+			e.cursorX = len(line)
+		}
+	}
+	return nil
+}
+
+func (e *Editor) moveLeftInsert() error {
+	if e.cursorX > 0 {
+		e.cursorX--
+	}
+	return nil
+}
+
+func (e *Editor) moveRightInsert() error {
+	line := e.buffer.Line(e.cursorY)
+	// In insert mode, allow cursor to go past the last character
+	if e.cursorX < len(line) {
+		e.cursorX++
+	}
+	return nil
+}
+
 // wordForward moves the cursor to the beginning of the next word
 func (e *Editor) wordForward() error {
 	lines := e.buffer.Lines()
 	if len(lines) == 0 {
 		return nil
 	}
-	
+
 	// Start from current position
 	y := e.cursorY
 	x := e.cursorX + 1 // Start searching from next character
-	
+
 	// Track if we've seen a non-alphanumeric character
 	seenNonAlnum := false
-	
+
 	// If we start on a non-alphanumeric character, we're ready to find the next word
 	if e.cursorX < len(lines[e.cursorY]) {
 		ch := rune(lines[e.cursorY][e.cursorX])
 		seenNonAlnum = !unicode.IsLetter(ch) && !unicode.IsDigit(ch) && ch != '_'
 	}
-	
+
 	// Loop through characters until we find a transition from non-alnum to alnum
 	for y < len(lines) {
 		line := lines[y]
-		
+
 		for x < len(line) {
 			ch := rune(line[x])
 			isAlnum := unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_'
-			
+
 			if seenNonAlnum && isAlnum {
 				// Found transition from non-alnum to alnum
 				e.cursorX = x
 				e.cursorY = y
 				return nil
 			}
-			
+
 			if !isAlnum {
 				seenNonAlnum = true
 			}
-			
+
 			x++
 		}
-		
+
 		// Move to next line
 		y++
 		x = 0
 		seenNonAlnum = true // Line break counts as non-alnum
 	}
-	
+
 	// No more words found, stay at current position
 	return nil
 }
@@ -788,21 +749,21 @@ func (e *Editor) wordBackward() error {
 	if len(lines) == 0 {
 		return nil
 	}
-	
+
 	// If we're at the very beginning, can't go back
 	if e.cursorY == 0 && e.cursorX == 0 {
 		return nil
 	}
-	
+
 	// Start from current position
 	y := e.cursorY
 	x := e.cursorX
-	
+
 	// Helper to check if character is word character
 	isWordChar := func(ch rune) bool {
 		return unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_'
 	}
-	
+
 	// Move left one position
 	x--
 	if x < 0 {
@@ -815,19 +776,19 @@ func (e *Editor) wordBackward() error {
 			x = 0
 		}
 	}
-	
+
 	// State: are we looking for a word start?
 	lookingForWord := true
-	
+
 	// If we're on a word character, we need to skip to the beginning of this word
 	if y >= 0 && x < len(lines[y]) && isWordChar(rune(lines[y][x])) {
 		lookingForWord = false
 	}
-	
+
 	// Search backwards
 	for y >= 0 {
 		line := lines[y]
-		
+
 		for x >= 0 {
 			if x < len(line) {
 				ch := rune(line[x])
@@ -847,17 +808,17 @@ func (e *Editor) wordBackward() error {
 					}
 				}
 			}
-			
+
 			x--
 		}
-		
+
 		// If we were in a word and reached beginning of line
 		if !lookingForWord {
 			e.cursorX = 0
 			e.cursorY = y
 			return nil
 		}
-		
+
 		// Move to previous line
 		y--
 		if y >= 0 {
@@ -865,7 +826,7 @@ func (e *Editor) wordBackward() error {
 			lookingForWord = true // Line break is a word boundary
 		}
 	}
-	
+
 	// Reached beginning of buffer
 	return nil
 }
@@ -931,33 +892,33 @@ func (e *Editor) exitInsertMode() error {
 func (e *Editor) insertChar(ch rune) error {
 	// Calculate the absolute position in the buffer
 	pos := e.getAbsolutePosition()
-	
+
 	// Insert the character
 	e.buffer.Insert(pos, string(ch))
-	
+
 	// Move cursor forward
 	e.cursorX++
-	
+
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	return nil
 }
 
 func (e *Editor) insertNewline() error {
 	// Get the absolute position
 	pos := e.getAbsolutePosition()
-	
+
 	// Insert newline
 	e.buffer.Insert(pos, "\n")
-	
+
 	// Move cursor to beginning of next line
 	e.cursorY++
 	e.cursorX = 0
-	
+
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	return nil
 }
 
@@ -966,9 +927,9 @@ func (e *Editor) backspace() error {
 	if e.cursorX == 0 && e.cursorY == 0 {
 		return nil
 	}
-	
+
 	pos := e.getAbsolutePosition()
-	
+
 	if e.cursorX == 0 {
 		// At beginning of line, join with previous line
 		if pos > 0 {
@@ -978,7 +939,7 @@ func (e *Editor) backspace() error {
 			if e.cursorY > 0 && e.cursorY-1 < len(lines) {
 				prevLineLen = len(lines[e.cursorY-1])
 			}
-			
+
 			// For now, we'll implement a simple delete by recreating the buffer
 			// TODO: Add proper Delete method to buffer
 			content := e.buffer.String()
@@ -1002,10 +963,10 @@ func (e *Editor) backspace() error {
 			}
 		}
 	}
-	
+
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	return nil
 }
 
@@ -1013,12 +974,12 @@ func (e *Editor) backspace() error {
 func (e *Editor) getAbsolutePosition() int {
 	lines := e.buffer.Lines()
 	pos := 0
-	
+
 	// Add lengths of all previous lines
 	for i := 0; i < e.cursorY && i < len(lines); i++ {
 		pos += len(lines[i]) + 1 // +1 for newline
 	}
-	
+
 	// Add current X position
 	if e.cursorY < len(lines) {
 		if e.cursorX > len(lines[e.cursorY]) {
@@ -1027,7 +988,7 @@ func (e *Editor) getAbsolutePosition() int {
 			pos += e.cursorX
 		}
 	}
-	
+
 	return pos
 }
 
@@ -1067,11 +1028,17 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("page-up", e.pageUp)
 	e.commandRegistry.Register("page-down", e.pageDown)
 
+	// Insert mode movement commands
+	e.commandRegistry.Register("up-insert", e.moveUpInsert)
+	e.commandRegistry.Register("down-insert", e.moveDownInsert)
+	e.commandRegistry.Register("left-insert", e.moveLeftInsert)
+	e.commandRegistry.Register("right-insert", e.moveRightInsert)
+
 	// Mode commands
 	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd)
 	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode)
 	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode)
-	
+
 	// Insert mode commands
 	e.commandRegistry.Register("insert-newline", e.insertNewline)
 	e.commandRegistry.Register("backspace", e.backspace)
@@ -1097,10 +1064,16 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
 	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
 	e.registerKeyBinding(commands.InsertMode, "escape", "exit-insert-mode")
-	
+
 	// Insert mode keys
 	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
 	e.registerKeyBinding(commands.InsertMode, "backspace", "backspace")
+
+	// Cursor movement in insert mode
+	e.registerKeyBinding(commands.InsertMode, "up", "up-insert")
+	e.registerKeyBinding(commands.InsertMode, "down", "down-insert")
+	e.registerKeyBinding(commands.InsertMode, "left", "left-insert")
+	e.registerKeyBinding(commands.InsertMode, "right", "right-insert")
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")

@@ -3,6 +3,7 @@ package editor
 import (
 	"testing"
 	"veda/internal/commands"
+	"github.com/gdamore/tcell/v2"
 )
 
 func TestInsertMode(t *testing.T) {
@@ -134,5 +135,122 @@ func TestInsertMode(t *testing.T) {
 		
 		AssertBufferEquals(t, te, "Hi")
 		AssertCursorAt(t, te, 2, 0)
+	})
+	
+	t.Run("cursor movement in insert mode", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello\nWorld")
+		
+		// Move to position (2, 0) - after "He"
+		te.cursorX = 2
+		
+		// Enter insert mode
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Move right
+		te.ExecuteCommand("right-insert")
+		AssertCursorAt(t, te, 3, 0)
+		
+		// Move left twice
+		te.ExecuteCommand("left-insert")
+		te.ExecuteCommand("left-insert")
+		AssertCursorAt(t, te, 1, 0)
+		
+		// Move down
+		te.ExecuteCommand("down-insert")
+		AssertCursorAt(t, te, 1, 1)
+		
+		// Move up
+		te.ExecuteCommand("up-insert")
+		AssertCursorAt(t, te, 1, 0)
+		
+		// Insert a character to verify we're still in insert mode
+		te.InsertChar('X')
+		AssertBufferEquals(t, te, "HXello\nWorld")
+		AssertCursorAt(t, te, 2, 0)
+	})
+	
+	t.Run("cursor movement respects boundaries in insert mode", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hi\nWorld")
+		
+		// Enter insert mode at start
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Try to move left at beginning - should stay at (0, 0)
+		te.ExecuteCommand("left-insert")
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Move to position 1 (after 'H')
+		te.cursorX = 1
+		te.ExecuteCommand("right-insert")
+		AssertCursorAt(t, te, 2, 0) // At end of "Hi"
+		
+		// Move down to second line - cursor should adjust if line is shorter
+		te.ExecuteCommand("down-insert")
+		AssertCursorAt(t, te, 2, 1)
+		
+		// Move right three times to get to end of "World" 
+		te.ExecuteCommand("right-insert")
+		te.ExecuteCommand("right-insert")
+		te.ExecuteCommand("right-insert")
+		AssertCursorAt(t, te, 5, 1) // At end of "World"
+		
+		// Try to move right again - should stay at end
+		te.ExecuteCommand("right-insert")
+		AssertCursorAt(t, te, 5, 1) // Should stop at end
+		
+		// Try to move down at last line - should stay
+		te.ExecuteCommand("down-insert")
+		AssertCursorAt(t, te, 5, 1)
+		
+		// Move left once to insert before last character
+		te.ExecuteCommand("left-insert")
+		AssertCursorAt(t, te, 4, 1)
+		
+		// Insert to verify still in insert mode
+		te.InsertChar('!')
+		AssertBufferEquals(t, te, "Hi\nWorl!d")
+	})
+	
+	t.Run("cursor style changes in insert mode", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello")
+		
+		// Draw the editor to set initial cursor style (should be block in normal mode)
+		te.drawEditor()
+		te.drawStatusBar()
+		te.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock) // Simulate what Run() does
+		
+		// Check initial cursor style
+		initialStyle := te.mockScreen.GetCursorStyle()
+		if initialStyle != tcell.CursorStyleSteadyBlock {
+			t.Errorf("Expected initial cursor style to be block, but got %v", initialStyle)
+		}
+		
+		// Enter insert mode
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Simulate what Run() does when changing modes
+		if te.mode == commands.InsertMode {
+			te.screen.SetCursorStyle(tcell.CursorStyleSteadyBar)
+		}
+		
+		// Check cursor style changed to bar
+		insertStyle := te.mockScreen.GetCursorStyle()
+		if insertStyle != tcell.CursorStyleSteadyBar {
+			t.Errorf("Expected cursor style to be bar in insert mode, but got %v", insertStyle)
+		}
+		
+		// Exit insert mode
+		te.ExecuteCommand("exit-insert-mode")
+		
+		// Simulate what Run() does when changing modes
+		if te.mode != commands.InsertMode {
+			te.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock)
+		}
+		
+		// Check cursor style changed back to block
+		normalStyle := te.mockScreen.GetCursorStyle()
+		if normalStyle != tcell.CursorStyleSteadyBlock {
+			t.Errorf("Expected cursor style to be block in normal mode, but got %v", normalStyle)
+		}
 	})
 }

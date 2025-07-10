@@ -30,15 +30,15 @@ make clean
 4. **Widget System** (`internal/widgets/`): UI components including dual-pane file browser and command line editor
 
 ### Key Design Patterns
-- **Modal Editing**: Vim-like modes (Normal, Command)
+- **Modal Editing**: Vim-like modes (Normal, Insert, Command)
 - **Event-Driven UI**: tcell event loop handles keyboard/mouse input
 - **IPC Communication**: JSON-RPC between Go and Python over stdin/stdout
 - **Component-Based UI**: Widgets manage their own rendering and input handling
 
 ### Navigation and Commands
-- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word
-- Insert mode: Press 'i' to enter, 'Escape' to exit. Type to insert text, 'Enter' for newline, 'Backspace' to delete
-- Command mode: Triggered by ':', supports commands like `:q` or `:quit`
+- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word. Block cursor.
+- Insert mode: Press 'i' to enter, 'Escape' to exit. Type to insert text, 'Enter' for newline, 'Backspace' to delete. Arrow keys work for cursor movement while staying in insert mode. Bar cursor.
+- Command mode: Triggered by ':', supports commands like `:q` or `:quit`. Block cursor.
 - The editor loads test data (100 lines) on startup for scrolling demonstration
 
 ### Known Issues and Workarounds

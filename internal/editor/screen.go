@@ -19,6 +19,7 @@ type Screen interface {
 	// Content rendering
 	SetContent(x, y int, mainc rune, combc []rune, style tcell.Style)
 	ShowCursor(x, y int)
+	SetCursorStyle(style tcell.CursorStyle)
 	
 	// Event handling
 	PollEvent() tcell.Event
