@@ -36,7 +36,7 @@ make clean
 - **Component-Based UI**: Widgets manage their own rendering and input handling
 
 ### Navigation and Commands
-- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word
+- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word
 - Command mode: Triggered by ':', supports commands like `:q` or `:quit`
 - The editor loads test data (100 lines) on startup for scrolling demonstration
 

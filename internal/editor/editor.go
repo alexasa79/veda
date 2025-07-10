@@ -760,6 +760,94 @@ func (e *Editor) wordForward() error {
 	return nil
 }
 
+// wordBackward moves the cursor to the beginning of the previous word
+func (e *Editor) wordBackward() error {
+	lines := e.buffer.Lines()
+	if len(lines) == 0 {
+		return nil
+	}
+	
+	// If we're at the very beginning, can't go back
+	if e.cursorY == 0 && e.cursorX == 0 {
+		return nil
+	}
+	
+	// Start from current position
+	y := e.cursorY
+	x := e.cursorX
+	
+	// Helper to check if character is word character
+	isWordChar := func(ch rune) bool {
+		return unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_'
+	}
+	
+	// Move left one position
+	x--
+	if x < 0 {
+		y--
+		if y < 0 {
+			return nil
+		}
+		x = len(lines[y]) - 1
+		if x < 0 {
+			x = 0
+		}
+	}
+	
+	// State: are we looking for a word start?
+	lookingForWord := true
+	
+	// If we're on a word character, we need to skip to the beginning of this word
+	if y >= 0 && x < len(lines[y]) && isWordChar(rune(lines[y][x])) {
+		lookingForWord = false
+	}
+	
+	// Search backwards
+	for y >= 0 {
+		line := lines[y]
+		
+		for x >= 0 {
+			if x < len(line) {
+				ch := rune(line[x])
+				if lookingForWord {
+					// Looking for a word character
+					if isWordChar(ch) {
+						// Found end of a word, now find its beginning
+						lookingForWord = false
+					}
+				} else {
+					// In a word, looking for its beginning
+					if !isWordChar(ch) {
+						// Found non-word character, word starts at x+1
+						e.cursorX = x + 1
+						e.cursorY = y
+						return nil
+					}
+				}
+			}
+			
+			x--
+		}
+		
+		// If we were in a word and reached beginning of line
+		if !lookingForWord {
+			e.cursorX = 0
+			e.cursorY = y
+			return nil
+		}
+		
+		// Move to previous line
+		y--
+		if y >= 0 {
+			x = len(lines[y]) - 1
+			lookingForWord = true // Line break is a word boundary
+		}
+	}
+	
+	// Reached beginning of buffer
+	return nil
+}
+
 func (e *Editor) pageUp() error {
 	_, height := e.screen.Size()
 	visibleLines := height - 2 // Subtract status bar lines
@@ -839,6 +927,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("left", e.moveLeft)
 	e.commandRegistry.Register("right", e.moveRight)
 	e.commandRegistry.Register("word-forward", e.wordForward)
+	e.commandRegistry.Register("word-backward", e.wordBackward)
 	e.commandRegistry.Register("page-up", e.pageUp)
 	e.commandRegistry.Register("page-down", e.pageDown)
 
@@ -860,6 +949,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "pageup", "page-up")
 	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
 	e.registerKeyBinding(commands.NormalMode, "w", "word-forward")
+	e.registerKeyBinding(commands.NormalMode, "b", "word-backward")
 
 	// Command mode
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
