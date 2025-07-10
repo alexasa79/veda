@@ -8,12 +8,15 @@ import (
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
+	"veda/internal/log"
 	"veda/internal/proxy"
 	"veda/internal/syntax"
 	"veda/internal/widgets"
 
 	"github.com/gdamore/tcell/v2"
 )
+
+var LL *log.Logger = log.NewLogger("EDITOR")
 
 // Editor represents the state of the text editor.
 type Editor struct {
@@ -470,7 +473,7 @@ func (e *Editor) drawStatusBar() {
 
 		// Right side: line:col
 		lines := e.buffer.Lines()
-		
+
 		// Use visual column position for display (accounting for tabs)
 		visualCol := 1
 		if e.cursorY < len(lines) {
@@ -569,13 +572,13 @@ func (e *Editor) openFile(filePath string) {
 	// Create a new buffer with the file content
 	e.buffer = buffer.NewBufferFromString(content)
 
-	// Store the current file path
+	// Store the current file path as provided
 	e.currentFile = filePath
 
 	// Set up syntax highlighting
 	if e.highlighter != nil {
 		e.highlighter.SetLanguageFromFile(filePath)
-		e.highlighter.Parse([]byte(content))
+		e.highlighter.ParseFull([]byte(content))
 	}
 
 	// Reset cursor and scroll position
@@ -1063,6 +1066,76 @@ func (e *Editor) openFileCmd() error {
 	return nil
 }
 
+// goToDefinition uses LSP to navigate to the definition of the symbol under cursor
+func (e *Editor) goToDefinition() error {
+	// Only works if we have a file open
+	if e.currentFile == "" {
+		// TODO: Show error to user
+		return fmt.Errorf("no file open")
+	}
+
+	// Get cursor position (LSP uses 0-based line numbers)
+	line := e.cursorY
+	character := e.cursorX
+
+	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.currentFile, line, character)
+
+	// Get definition location from LSP
+	locations, err := e.proxyClient.GoToDefinition(e.currentFile, line, character)
+	if err != nil {
+		// TODO: Show error to user
+		LL.Debug("goToDefinition failed: %v", err)
+		return err
+	}
+
+	LL.Trace("goToDefinition: got %d locations", len(locations))
+
+	// If no locations found, nothing to do
+	if len(locations) == 0 {
+		// TODO: Show message to user
+		return nil
+	}
+
+	// Use the first location
+	location := locations[0]
+
+	// Parse the file URI
+	if !strings.HasPrefix(location.URI, "file://") {
+		return fmt.Errorf("unsupported URI scheme: %s", location.URI)
+	}
+
+	filePath := strings.TrimPrefix(location.URI, "file://")
+
+	// If it's a different file, open it
+	if filePath != e.currentFile {
+		e.openFile(filePath)
+	}
+
+	// Jump to the location
+	e.cursorY = location.Range.Start.Line
+	e.cursorX = location.Range.Start.Character
+
+	// Ensure cursor is within bounds
+	lines := e.buffer.Lines()
+	if e.cursorY >= len(lines) {
+		e.cursorY = len(lines) - 1
+	}
+	if e.cursorY >= 0 && e.cursorY < len(lines) {
+		line := lines[e.cursorY]
+		if e.cursorX > len(line) {
+			e.cursorX = len(line)
+			if e.cursorX > 0 {
+				e.cursorX-- // Don't go past last character in normal mode
+			}
+		}
+	}
+
+	// Ensure the cursor is visible
+	e.scroll()
+
+	return nil
+}
+
 // registerKeyBinding registers a key binding with a command
 func (e *Editor) registerKeyBinding(mode commands.Mode, keys string, command string) {
 	keySeq, err := commands.ParseKeySequence(keys)
@@ -1111,6 +1184,9 @@ func (e *Editor) registerCommands() {
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd)
 	e.commandRegistry.Register("quit", e.quit)
+
+	// LSP commands
+	e.commandRegistry.Register("go-to-definition", e.goToDefinition)
 }
 
 // setupDefaultBindings sets up the default key bindings
@@ -1148,6 +1224,9 @@ func (e *Editor) setupDefaultBindings() {
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
+
+	// LSP operations
+	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
 
 	// Quit
 	e.registerKeyBinding(commands.NormalMode, "escape", "quit")

@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"os/exec"
 	"syscall"
+	"veda/internal/log"
 )
+
+var LL *log.Logger = log.NewLogger("PROXY")
 
 // JSONRPCRequest represents a JSON RPC request
 type JSONRPCRequest struct {
@@ -30,11 +33,30 @@ type FileInfo struct {
 	Path string `json:"path"`
 }
 
+// Location represents a file location (used for LSP responses)
+type Location struct {
+	URI   string `json:"uri"`
+	Range Range  `json:"range"`
+}
+
+// Range represents a text range in a file
+type Range struct {
+	Start Position `json:"start"`
+	End   Position `json:"end"`
+}
+
+// Position represents a position in a text document
+type Position struct {
+	Line      int `json:"line"`
+	Character int `json:"character"`
+}
+
 // Client represents a proxy client
 type Client struct {
-	cmd    *exec.Cmd
-	stdin  *bufio.Writer
-	stdout *bufio.Scanner
+	cmd       *exec.Cmd
+	stdin     *bufio.Writer
+	stdout    *bufio.Scanner
+	requestID int
 }
 
 // NewClient creates a new proxy client and starts the proxy process
@@ -66,18 +88,20 @@ func NewClient() (*Client, error) {
 	stdout.Buffer(buf, maxScanTokenSize)
 
 	return &Client{
-		cmd:    cmd,
-		stdin:  stdin,
-		stdout: stdout,
+		cmd:       cmd,
+		stdin:     stdin,
+		stdout:    stdout,
+		requestID: 0,
 	}, nil
 }
 
 // ListDirectory sends a JSON RPC request to get directory listing
 func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
+	c.requestID++
 	request := JSONRPCRequest{
 		Method: "list_directory",
 		Params: map[string]interface{}{"path": path},
-		ID:     1,
+		ID:     c.requestID,
 	}
 
 	requestBytes, err := json.Marshal(request)
@@ -234,6 +258,200 @@ func (c *Client) GetFile(path string) (string, error) {
 	}
 
 	return "", fmt.Errorf("failed to read proxy response")
+}
+
+// StartLSPServer starts an LSP server for the specified language
+func (c *Client) StartLSPServer(language string) error {
+	request := JSONRPCRequest{
+		Method: "start_lsp_server",
+		Params: map[string]interface{}{"language": language},
+		ID:     4,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Error != "" {
+			return fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && success {
+			return nil
+		}
+
+		return fmt.Errorf("failed to start LSP server for %s", language)
+	}
+
+	return fmt.Errorf("failed to read proxy response")
+}
+
+// StopLSPServer stops the LSP server for the specified language
+func (c *Client) StopLSPServer(language string) error {
+	request := JSONRPCRequest{
+		Method: "stop_lsp_server",
+		Params: map[string]interface{}{"language": language},
+		ID:     5,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Error != "" {
+			return fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && success {
+			return nil
+		}
+
+		return fmt.Errorf("failed to stop LSP server for %s", language)
+	}
+
+	return fmt.Errorf("failed to read proxy response")
+}
+
+// GoToDefinition gets the definition location for a symbol at the given position
+func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Location, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "go_to_definition",
+		Params: map[string]interface{}{
+			"file_path": filePath,
+			"line":      line,
+			"character": character,
+		},
+		ID: c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Log the request for debugging
+	LL.Trace("GoToDefinition request: %s", string(requestBytes))
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && !success {
+			if errMsg, ok := response.Result["error"].(string); ok {
+				return nil, fmt.Errorf("LSP error: %s", errMsg)
+			}
+			return nil, fmt.Errorf("failed to get definition")
+		}
+
+		// Parse the LSP result
+		var locations []Location
+		if result, ok := response.Result["result"].([]interface{}); ok {
+			for _, item := range result {
+				if locMap, ok := item.(map[string]interface{}); ok {
+					loc := Location{}
+					if uri, ok := locMap["uri"].(string); ok {
+						loc.URI = uri
+					}
+					if rangeMap, ok := locMap["range"].(map[string]interface{}); ok {
+						if startMap, ok := rangeMap["start"].(map[string]interface{}); ok {
+							if line, ok := startMap["line"].(float64); ok {
+								loc.Range.Start.Line = int(line)
+							}
+							if char, ok := startMap["character"].(float64); ok {
+								loc.Range.Start.Character = int(char)
+							}
+						}
+						if endMap, ok := rangeMap["end"].(map[string]interface{}); ok {
+							if line, ok := endMap["line"].(float64); ok {
+								loc.Range.End.Line = int(line)
+							}
+							if char, ok := endMap["character"].(float64); ok {
+								loc.Range.End.Character = int(char)
+							}
+						}
+					}
+					locations = append(locations, loc)
+				}
+			}
+		} else if locMap, ok := response.Result["result"].(map[string]interface{}); ok {
+			// Single location response
+			loc := Location{}
+			if uri, ok := locMap["uri"].(string); ok {
+				loc.URI = uri
+			}
+			if rangeMap, ok := locMap["range"].(map[string]interface{}); ok {
+				if startMap, ok := rangeMap["start"].(map[string]interface{}); ok {
+					if line, ok := startMap["line"].(float64); ok {
+						loc.Range.Start.Line = int(line)
+					}
+					if char, ok := startMap["character"].(float64); ok {
+						loc.Range.Start.Character = int(char)
+					}
+				}
+				if endMap, ok := rangeMap["end"].(map[string]interface{}); ok {
+					if line, ok := endMap["line"].(float64); ok {
+						loc.Range.End.Line = int(line)
+					}
+					if char, ok := endMap["character"].(float64); ok {
+						loc.Range.End.Character = int(char)
+					}
+				}
+			}
+			if loc.URI != "" {
+				locations = append(locations, loc)
+			}
+		}
+
+		return locations, nil
+	}
+
+	if err := c.stdout.Err(); err != nil {
+		return nil, fmt.Errorf("scanner error: %v", err)
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response")
 }
 
 // Close terminates the proxy process

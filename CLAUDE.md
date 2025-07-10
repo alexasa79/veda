@@ -25,9 +25,10 @@ make clean
 
 ### Core Components
 1. **Go Editor Core** (`main.go`, `internal/editor/editor.go`): Terminal UI using tcell/v2
-2. **Python Proxy** (`veda-proxy.py`): JSON-RPC service for file operations, automatically started by the editor
+2. **Python Proxy** (`veda-proxy.py`): JSON-RPC service for file operations and LSP server management, automatically started by the editor
 3. **Buffer System** (`internal/buffer/`): Rope data structure for efficient text operations
 4. **Widget System** (`internal/widgets/`): UI components including dual-pane file browser and command line editor
+5. **LSP Integration** (`LSPManager` in proxy): Manages language servers for code intelligence features
 
 ### Key Design Patterns
 - **Modal Editing**: Vim-like modes (Normal, Insert, Command)
@@ -37,10 +38,17 @@ make clean
 - **Single-Line Status Bar**: Minimal status bar showing mode, filename, and cursor position
 
 ### Navigation and Commands
-- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word, '0' or Home moves to beginning of line, '$' or End moves to end of line. Block cursor.
+- Normal mode: Arrow keys for navigation, 'space s f' opens file browser, 'w' moves to next word, 'b' moves to previous word, '0' or Home moves to beginning of line, '$' or End moves to end of line, 'g d' goes to definition (LSP). Block cursor.
 - Insert mode: Press 'i' to enter, 'Escape' to exit. Type to insert text, 'Enter' for newline, 'Backspace' to delete. Arrow keys work for cursor movement while staying in insert mode. Home/End keys move to beginning/end of line. Bar cursor.
 - Command mode: Triggered by ':', supports commands like `:q` or `:quit`. Block cursor.
 - The editor loads test data (100 lines) on startup for scrolling demonstration
+
+### Language Server Protocol (LSP) Support
+- **Go to Definition**: Press 'g d' in normal mode to navigate to the definition of the symbol under the cursor
+- **Supported Languages**: 
+  - Go (requires `gopls` - install with `go install golang.org/x/tools/gopls@latest`)
+  - C/C++ (requires `clangd` - install from your package manager or https://clangd.llvm.org/)
+- **Automatic Server Management**: LSP servers start automatically when needed and stop when the editor exits
 
 ### Known Issues and Workarounds
 - 'A' no longer opens file browser. To open file browser type 'space s f'.

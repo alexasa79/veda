@@ -9,27 +9,344 @@ import sys
 import stat
 import pwd
 import grp
+import os
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import logging
+import subprocess
+import threading
+import queue
 
-# Configure logging to stderr so it doesn't interfere with JSON RPC communication
+# Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    stream=sys.stderr
+    filename='veda-proxy.log',
+    filemode='a'
 )
 logger = logging.getLogger(__name__)
+
+
+class LSPManager:
+    """Manages Language Server Protocol servers for different languages."""
+    
+    def __init__(self):
+        self.servers = {}  # language -> {'process': process, 'request_id': int}
+        self.language_servers = {
+            'go': {
+                'command': ['gopls', '-logfile=/tmp/gopls.log', '-rpc.trace'],
+                'extensions': ['.go'],
+                'install_hint': 'go install golang.org/x/tools/gopls@latest'
+            },
+            'c': {
+                'command': ['clangd'],
+                'extensions': ['.c', '.h'],
+                'install_hint': 'Install clangd from your package manager or https://clangd.llvm.org/'
+            },
+            'cpp': {
+                'command': ['clangd'],
+                'extensions': ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'],
+                'install_hint': 'Install clangd from your package manager or https://clangd.llvm.org/'
+            }
+        }
+        
+    def get_language_for_file(self, file_path: str) -> Optional[str]:
+        """Determine the language based on file extension."""
+        path = Path(file_path)
+        ext = path.suffix.lower()
+        
+        for language, config in self.language_servers.items():
+            if ext in config['extensions']:
+                return language
+        return None
+        
+    def start_server(self, language: str) -> bool:
+        """Start the LSP server for the specified language."""
+        if language in self.servers:
+            logger.info(f"LSP server for {language} is already running")
+            return True
+            
+        if language not in self.language_servers:
+            logger.error(f"No LSP server configured for language: {language}")
+            return False
+            
+        config = self.language_servers[language]
+        cmd = config['command']
+        
+        try:
+            logger.info(f"Starting {cmd[0]} for {language}")
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=0  # Unbuffered
+            )
+            
+            # Start a thread to log stderr
+            def log_stderr():
+                for line in process.stderr:
+                    logger.debug(f"{cmd[0]} stderr: {line.strip()}")
+            
+            import threading
+            stderr_thread = threading.Thread(target=log_stderr, daemon=True)
+            stderr_thread.start()
+            
+            self.servers[language] = {
+                'process': process,
+                'request_id': 0,
+                'initialized': False,
+                'open_files': set()
+            }
+            
+            # Initialize the LSP connection
+            if self._send_initialize(language):
+                # Wait for initialization to complete
+                self._wait_for_initialize(language)
+                return True
+            return False
+            
+        except FileNotFoundError:
+            logger.error(f"{cmd[0]} not found. {config['install_hint']}")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to start {cmd[0]} for {language}: {e}")
+            return False
+    
+    def stop_server(self, language: str) -> bool:
+        """Stop the LSP server for the specified language."""
+        if language not in self.servers:
+            logger.warning(f"No LSP server running for language: {language}")
+            return False
+            
+        server = self.servers[language]
+        process = server['process']
+        
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            logger.warning(f"LSP server for {language} did not terminate, killing it")
+            process.kill()
+            
+        del self.servers[language]
+        logger.info(f"LSP server for {language} stopped")
+        return True
+    
+    def _send_initialize(self, language: str) -> bool:
+        """Send the initialize request to the LSP server."""
+        if language not in self.servers:
+            return False
+            
+        server = self.servers[language]
+        server['request_id'] += 1
+        
+        request = {
+            "jsonrpc": "2.0",
+            "id": server['request_id'],
+            "method": "initialize",
+            "params": {
+                "processId": os.getpid(),
+                "rootUri": f"file://{Path.cwd().absolute()}",
+                "capabilities": {
+                    "textDocument": {
+                        "definition": {
+                            "dynamicRegistration": False
+                        },
+                        "synchronization": {
+                            "dynamicRegistration": False,
+                            "willSave": False,
+                            "didSave": False,
+                            "willSaveWaitUntil": False
+                        }
+                    }
+                }
+            }
+        }
+        self._send_message(language, request)
+        return True
+    
+    def _wait_for_initialize(self, language: str):
+        """Wait for the initialize response and send initialized notification."""
+        # Read the initialize response
+        response = self._read_response(language)
+        if response and "result" in response:
+            logger.info(f"LSP server for {language} initialized successfully")
+            
+            # Send the initialized notification
+            server = self.servers[language]
+            server['initialized'] = True
+            
+            notification = {
+                "jsonrpc": "2.0",
+                "method": "initialized",
+                "params": {}
+            }
+            self._send_message(language, notification)
+    
+    def _send_message(self, language: str, message: Dict[str, Any]):
+        """Send a message to an LSP server with proper LSP headers."""
+        if language not in self.servers:
+            return
+            
+        process = self.servers[language]['process']
+        content = json.dumps(message)
+        header = f"Content-Length: {len(content)}\r\n\r\n"
+        full_message = header + content
+        
+        try:
+            process.stdin.write(full_message)
+            process.stdin.flush()
+        except Exception as e:
+            logger.error(f"Failed to send message to {language} LSP server: {e}")
+    
+    def get_definition(self, file_path: str, line: int, character: int) -> Optional[Dict[str, Any]]:
+        """Get the definition location for a symbol at the given position."""
+        # Determine language from file extension
+        language = self.get_language_for_file(file_path)
+        if not language:
+            logger.error(f"No language server configured for file: {file_path}")
+            return None
+            
+        # Start server if not running (this shouldn't happen anymore since get_file starts it)
+        if language not in self.servers:
+            logger.warning(f"LSP server not running for {language}, starting it now")
+            if not self.start_server(language):
+                return None
+                
+        server = self.servers[language]
+        file_uri = f"file://{Path(file_path).absolute()}"
+        
+        server['request_id'] += 1
+        
+        request = {
+            "jsonrpc": "2.0",
+            "id": server['request_id'],
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri
+                },
+                "position": {
+                    "line": line,
+                    "character": character
+                }
+            }
+        }
+        
+        logger.info(f"Sending textDocument/definition request for {file_uri} at {line}:{character}")
+        self._send_message(language, request)
+        
+        # Read the response
+        response = self._read_response(language)
+        logger.info(f"Received response: {response}")
+        if response and "result" in response:
+            result = response["result"]
+            # Normalize result to always be a list
+            if isinstance(result, dict):
+                return [result]
+            elif isinstance(result, list):
+                return result
+            elif result is None:
+                return []
+            return result
+        elif response and "error" in response:
+            logger.error(f"LSP error: {response['error']}")
+        return None
+    
+    def _open_file(self, language: str, file_path: str):
+        """Notify LSP server that a file has been opened."""
+        if language not in self.servers:
+            return
+            
+        # Read file content
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            logger.error(f"Failed to read file {file_path}: {e}")
+            return
+            
+        file_uri = f"file://{Path(file_path).absolute()}"
+        
+        # Detect language ID based on extension
+        ext = Path(file_path).suffix.lower()
+        language_id = {
+            '.go': 'go',
+            '.c': 'c',
+            '.h': 'c',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.hpp': 'cpp',
+            '.hh': 'cpp',
+            '.hxx': 'cpp'
+        }.get(ext, 'plaintext')
+        
+        notification = {
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri,
+                    "languageId": language_id,
+                    "version": 1,
+                    "text": content
+                }
+            }
+        }
+        
+        self._send_message(language, notification)
+    
+    def _read_response(self, language: str) -> Optional[Dict[str, Any]]:
+        """Read a response from an LSP server."""
+        if language not in self.servers:
+            return None
+            
+        process = self.servers[language]['process']
+        
+        try:
+            # Read headers
+            headers = {}
+            while True:
+                line = process.stdout.readline()
+                if line == '\r\n' or line == '\n':
+                    break
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    headers[key.strip()] = value.strip()
+            
+            # Read content
+            if 'Content-Length' in headers:
+                content_length = int(headers['Content-Length'])
+                content = process.stdout.read(content_length)
+                return json.loads(content)
+                
+        except Exception as e:
+            logger.error(f"Failed to read response from {language} LSP server: {e}")
+            
+        return None
+    
+    def stop_all_servers(self):
+        """Stop all running LSP servers."""
+        languages = list(self.servers.keys())
+        for language in languages:
+            self.stop_server(language)
 
 
 class VedaProxy:
     """Main proxy class handling JSON RPC requests for various operations."""
 
     def __init__(self):
+        self.lsp = LSPManager()
         self.methods = {
             'list_directory': self.list_directory,
             'list_directory_recursive': self.list_directory_recursive,
             'get_file': self.get_file,
+            'start_lsp_server': self.start_lsp_server,
+            'stop_lsp_server': self.stop_lsp_server,
+            'go_to_definition': self.go_to_definition,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -61,7 +378,7 @@ class VedaProxy:
                 # Add basic info even if we can't get all details
                 entries.append({
                     'name': entry.name,
-                    'path': entry.name,  # Just the filename for current directory
+                    'path': str(entry.absolute()),
                     'type': 'unknown',
                     'error': str(e)
                 })
@@ -79,7 +396,7 @@ class VedaProxy:
             path: Directory path to start from
             
         Returns:
-            List of file/directory information dictionaries with relative paths
+            List of file/directory information dictionaries with absolute paths
         """
         directory_path = Path(path).expanduser().resolve()
         
@@ -95,13 +412,10 @@ class VedaProxy:
             try:
                 for entry in current_path.iterdir():
                     try:
-                        # Get relative path from the starting directory
-                        relative_path = entry.relative_to(directory_path)
-                        
                         # Create simplified file info for fuzzy listing
                         file_info = {
                             'name': entry.name,
-                            'path': str(relative_path),
+                            'path': str(entry.absolute()),
                             'type': 'directory' if entry.is_dir() else 'file',
                             'size': entry.stat().st_size if entry.is_file() else 0
                         }
@@ -130,7 +444,7 @@ class VedaProxy:
         Read the contents of a file.
         
         Args:
-            path: File path to read
+            path: Absolute file path to read
             
         Returns:
             Dictionary with 'content' key containing the file contents
@@ -145,6 +459,20 @@ class VedaProxy:
             
         try:
             content = file_path.read_text(encoding='utf-8')
+            
+            # Notify LSP server about the opened file
+            language = self.lsp.get_language_for_file(str(file_path))
+            if language:
+                # Start LSP server if needed
+                if language not in self.lsp.servers:
+                    logger.info(f"Starting LSP server for {language} when opening {path}")
+                    self.lsp.start_server(language)
+                
+                # Notify LSP about the opened file
+                if language in self.lsp.servers:
+                    self.lsp._open_file(language, str(file_path))
+                    logger.info(f"Notified LSP server about opened file: {path}")
+            
             return {'content': content}
         except UnicodeDecodeError:
             # Try reading as binary and return error
@@ -208,7 +536,7 @@ class VedaProxy:
 
         return {
             'name': path.name,
-            'path': str(path),
+            'path': str(path.absolute()),
             'type': file_type,
             'size': stat_info.st_size,
             'permissions': {
@@ -230,6 +558,27 @@ class VedaProxy:
             },
             'symlink_target': symlink_target
         }
+    
+    def start_lsp_server(self, language: str) -> Dict[str, Any]:
+        """Start the LSP server for the specified language."""
+        success = self.lsp.start_server(language)
+        return {'success': success}
+    
+    def stop_lsp_server(self, language: str) -> Dict[str, Any]:
+        """Stop the LSP server for the specified language."""
+        success = self.lsp.stop_server(language)
+        return {'success': success}
+    
+    def go_to_definition(self, file_path: str, line: int, character: int) -> Dict[str, Any]:
+        """Get the definition location for a symbol at the given position."""
+        try:
+            result = self.lsp.get_definition(file_path, line, character)
+            if result is not None:
+                return {'success': True, 'result': result}
+            return {'success': False, 'error': 'No definition found'}
+        except Exception as e:
+            logger.error(f"Error in go_to_definition: {e}")
+            return {'success': False, 'error': str(e)}
 
 
 class JSONRPCHandler:
@@ -300,7 +649,14 @@ def main():
     """Main entry point."""
     proxy = VedaProxy()
     handler = JSONRPCHandler(proxy)
-    handler.run()
+    
+    try:
+        handler.run()
+    except KeyboardInterrupt:
+        logger.info("Shutting down")
+    finally:
+        # Clean up all LSP servers
+        proxy.lsp.stop_all_servers()
 
 
 if __name__ == '__main__':
