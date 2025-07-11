@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"unicode"
 	"veda/internal/buffer"
@@ -43,6 +44,9 @@ type Editor struct {
 	// Navigation history
 	navHistory      []NavigationEntry       // Stack of previous positions
 	maxNavHistory   int                     // Maximum number of entries to keep
+	
+	// Indentation settings
+	indentation     IndentationInfo         // Current indentation settings
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -85,6 +89,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		bufferOrder:     []string{},
 		navHistory:      []NavigationEntry{},
 		maxNavHistory:   50, // Keep last 50 navigation entries
+		indentation:     IndentationInfo{Type: IndentSpaces, Width: 4}, // Default to 4 spaces
 	}
 
 	// Add the initial empty buffer
@@ -288,6 +293,12 @@ func (e *Editor) executeCommand() {
 		return
 	}
 
+	// Handle set commands
+	if strings.HasPrefix(command, "set ") {
+		e.handleSetCommand(command[4:])
+		return
+	}
+
 	// Handle basic commands that aren't in the registry
 	switch command {
 	case "q", "quit":
@@ -295,6 +306,47 @@ func (e *Editor) executeCommand() {
 		os.Exit(0)
 	}
 }
+
+// handleSetCommand processes :set commands
+func (e *Editor) handleSetCommand(args string) {
+	// Handle formats like "tabstop=4" and "tabstop 4"
+	parts := strings.Fields(args)
+	if len(parts) == 0 {
+		return
+	}
+	
+	// Check if first part contains '='
+	if strings.Contains(parts[0], "=") {
+		eqParts := strings.SplitN(parts[0], "=", 2)
+		if len(eqParts) == 2 {
+			parts = []string{eqParts[0], eqParts[1]}
+		}
+	}
+
+	switch parts[0] {
+	case "expandtab":
+		// Use spaces instead of tabs
+		e.setIndentationType(IndentSpaces)
+	case "noexpandtab":
+		// Use tabs instead of spaces
+		e.setIndentationType(IndentTabs)
+	case "tabstop", "ts":
+		// Set tab width
+		if len(parts) >= 2 {
+			if width, err := strconv.Atoi(parts[1]); err == nil && width > 0 && width <= 8 {
+				e.setIndentationWidth(width)
+			}
+		}
+	case "shiftwidth", "sw":
+		// Set indent width (same as tabstop for now)
+		if len(parts) >= 2 {
+			if width, err := strconv.Atoi(parts[1]); err == nil && width > 0 && width <= 8 {
+				e.setIndentationWidth(width)
+			}
+		}
+	}
+}
+
 
 // handleResize processes screen resize events
 func (e *Editor) handleResize() {
@@ -531,7 +583,7 @@ func (e *Editor) drawStatusBar() {
 		}
 		x += e.drawText(x, statusBarY, statusBarStyle, filename)
 
-		// Right side: line:col
+		// Right side: indentation and line:col
 		lines := e.buffer.Lines()
 
 		// Use visual column position for display (accounting for tabs)
@@ -542,12 +594,21 @@ func (e *Editor) drawStatusBar() {
 				visualCol = e.visualWidth(line[:e.cursorX]) + 1
 			}
 		}
+		
+		// Combine indentation info and line:col
+		indentInfo := e.indentation.String()
 		lineColInfo := fmt.Sprintf("%d:%d", e.cursorY+1, visualCol)
+		rightInfo := fmt.Sprintf("%s  %s", indentInfo, lineColInfo)
 
 		// Calculate position for right-aligned text
-		rightX := width - len(lineColInfo)
+		rightX := width - len(rightInfo)
 
 		if rightX > x { // Only draw if there's space
+			// Draw indentation info
+			rightX += e.drawText(rightX, statusBarY, statusBarStyle, indentInfo)
+			// Add spacing
+			rightX += e.drawText(rightX, statusBarY, statusBarStyle, "  ")
+			// Draw line:col with different style
 			e.drawText(rightX, statusBarY, lineColStyle, lineColInfo)
 		}
 	}
@@ -897,6 +958,7 @@ func (e *Editor) quit() error {
 	os.Exit(0)
 	return nil
 }
+
 
 // Insert mode commands
 func (e *Editor) enterInsertMode() error {

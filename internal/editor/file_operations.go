@@ -134,6 +134,9 @@ func (e *Editor) openFile(filePath string) {
 	
 	// Switch to the new buffer
 	e.switchToBuffer(bufferInfo)
+	
+	// Detect indentation for the new file
+	e.indentation = e.detectIndentation()
 }
 
 // openFileCmd implements the open-file command
