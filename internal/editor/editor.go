@@ -859,6 +859,39 @@ func (e *Editor) pageDown() error {
 	return nil
 }
 
+// goToBeginning moves the cursor to the beginning of the file
+func (e *Editor) goToBeginning() error {
+	e.cursorY = 0
+	e.cursorX = 0
+	e.topLine = 0
+	return nil
+}
+
+// goToEnd moves the cursor to the end of the file
+func (e *Editor) goToEnd() error {
+	lines := e.buffer.Lines()
+	if len(lines) == 0 {
+		e.cursorY = 0
+		e.cursorX = 0
+		return nil
+	}
+
+	// Move to last line
+	e.cursorY = len(lines) - 1
+	
+	// Move to end of last line (but stay on last character in normal mode)
+	lastLine := lines[e.cursorY]
+	e.cursorX = len(lastLine)
+	if e.cursorX > 0 && e.mode == commands.NormalMode {
+		e.cursorX--
+	}
+	
+	// Scroll to show the cursor
+	e.scroll()
+	
+	return nil
+}
+
 func (e *Editor) quit() error {
 	e.Close()
 	os.Exit(0)

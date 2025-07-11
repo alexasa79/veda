@@ -15,6 +15,8 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("end-of-line-insert", e.endOfLineInsert)
 	e.commandRegistry.Register("page-up", e.pageUp)
 	e.commandRegistry.Register("page-down", e.pageDown)
+	e.commandRegistry.Register("go-to-beginning", e.goToBeginning)
+	e.commandRegistry.Register("go-to-end", e.goToEnd)
 
 	// Insert mode movement commands
 	e.commandRegistry.Register("up-insert", e.moveUpInsert)

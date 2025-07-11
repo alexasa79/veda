@@ -62,6 +62,8 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
+	e.registerKeyBinding(commands.NormalMode, "g g", "go-to-beginning")
+	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
 
 	// Quit
 	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
