@@ -408,12 +408,21 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	isCurrentLine := lineIndex == e.cursorY
 
-	// If current line, we'll need to override background colors
+	// If current line, we'll need to override background colors and pad the line
 	var currentLineBg tcell.Color
 	if isCurrentLine {
 		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 		_, currentLineBg, _ = currentLineStyle.Decompose()
 		normalStyle = normalStyle.Background(currentLineBg)
+		
+		// Calculate how many spaces we need to fill the screen width
+		width, _ := e.screen.Size()
+		lineVisualWidth := e.visualWidth(line)
+		remainingWidth := width - startX - lineVisualWidth
+		if remainingWidth > 0 {
+			// Append spaces to fill the width
+			line = line + strings.Repeat(" ", remainingWidth)
+		}
 	}
 
 	// If no highlighter is set up, just draw normally
@@ -527,9 +536,7 @@ func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
 }
 
 func (e *Editor) drawEditor() {
-	width, _ := e.screen.Size()
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
-	currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 	totalLines := e.buffer.LineCount
 
 	// Use cached line number width from buffer
@@ -541,14 +548,6 @@ func (e *Editor) drawEditor() {
 	visibleHeight := e.getVisibleHeight()
 	for i := 0; i < visibleHeight; i++ {
 		lineIndex := e.topLine + i
-		isCurrentLine := lineIndex == e.cursorY
-
-		// Fill current line background
-		if isCurrentLine {
-			for j := 0; j < width; j++ {
-				e.screen.SetContent(j, i, ' ', nil, currentLineStyle)
-			}
-		}
 
 		// Draw line number
 		lineNum := lineIndex + 1 // Line numbers start at 1
