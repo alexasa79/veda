@@ -28,6 +28,8 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd)
 	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode)
 	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode)
+	e.commandRegistry.Register("open-line-below", e.openLineBelow)
+	e.commandRegistry.Register("open-line-above", e.openLineAbove)
 
 	// Insert mode commands
 	e.commandRegistry.Register("insert-newline", e.insertNewline)

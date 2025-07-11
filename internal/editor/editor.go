@@ -909,6 +909,63 @@ func (e *Editor) exitInsertMode() error {
 	return nil
 }
 
+// openLineBelow opens a new line below the current line and enters insert mode
+func (e *Editor) openLineBelow() error {
+	// Move to end of current line
+	lines := e.buffer.Lines()
+	if e.cursorY < len(lines) {
+		e.cursorX = len(lines[e.cursorY])
+	}
+	
+	// Get absolute position at end of line
+	pos := e.getAbsolutePosition()
+	
+	// Insert newline
+	e.buffer.Insert(pos, "\n")
+	
+	// Move cursor to beginning of new line
+	e.cursorY++
+	e.cursorX = 0
+	
+	// Enter insert mode
+	e.mode = commands.InsertMode
+	
+	// Mark offsets as dirty
+	e.offsetsDirty = true
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
+	return nil
+}
+
+// openLineAbove opens a new line above the current line and enters insert mode
+func (e *Editor) openLineAbove() error {
+	// Move to beginning of current line
+	e.cursorX = 0
+	
+	// Get absolute position
+	pos := e.getAbsolutePosition()
+	
+	// Insert newline before current position
+	e.buffer.Insert(pos, "\n")
+	
+	// Move cursor to the newly created line above
+	// (cursor stays at same Y position, which is now the new empty line)
+	e.cursorX = 0
+	
+	// Enter insert mode
+	e.mode = commands.InsertMode
+	
+	// Mark offsets as dirty
+	e.offsetsDirty = true
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
+	return nil
+}
+
 func (e *Editor) insertChar(ch rune) error {
 	// Calculate the absolute position in the buffer
 	pos := e.getAbsolutePosition()

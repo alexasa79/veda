@@ -38,10 +38,13 @@ func (e *Editor) setupDefaultBindings() {
 	// Mode switching
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
 	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
+	e.registerKeyBinding(commands.NormalMode, "o", "open-line-below")
+	e.registerKeyBinding(commands.NormalMode, "O", "open-line-above")
 
 	// Insert mode keys
 	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
 	e.registerKeyBinding(commands.InsertMode, "backspace", "backspace")
+	e.registerKeyBinding(commands.InsertMode, "escape", "exit-insert-mode")
 
 	// Cursor movement in insert mode
 	e.registerKeyBinding(commands.InsertMode, "up", "up-insert")
@@ -64,7 +67,4 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
 	e.registerKeyBinding(commands.NormalMode, "g g", "go-to-beginning")
 	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
-
-	// Quit
-	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
 }
