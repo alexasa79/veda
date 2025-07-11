@@ -534,10 +534,8 @@ func (e *Editor) drawEditor() {
 	currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 	totalLines := len(e.buffer.Lines())
 
-	// Calculate line number width based on visible lines
-	visibleLines := e.getVisibleLines()
-	lastVisibleLine := e.topLine + visibleLines
-	lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1 // +1 for padding
+	// Use cached line number width from buffer
+	lineNumberWidth := e.buffer.LineNumberWidth
 
 	// Clear the entire screen once
 	e.screen.Clear()

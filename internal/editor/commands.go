@@ -2,9 +2,9 @@ package editor
 
 // registerCommands registers all command handlers
 func (e *Editor) registerCommands() {
-	// Movement commands - these don't need full redraw unless they cause scrolling
-	e.commandRegistry.Register("up", e.moveUp, false)
-	e.commandRegistry.Register("down", e.moveDown, false)
+	// Movement commands - up/down need redraw for current line highlighting
+	e.commandRegistry.Register("up", e.moveUp, true)
+	e.commandRegistry.Register("down", e.moveDown, true)
 	e.commandRegistry.Register("left", e.moveLeft, false)
 	e.commandRegistry.Register("right", e.moveRight, false)
 	e.commandRegistry.Register("word-forward", e.wordForward, false)
@@ -18,9 +18,9 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("go-to-beginning", e.goToBeginning, true) // May scroll
 	e.commandRegistry.Register("go-to-end", e.goToEnd, true) // May scroll
 
-	// Insert mode movement commands - these don't need full redraw unless they cause scrolling
-	e.commandRegistry.Register("up-insert", e.moveUpInsert, false)
-	e.commandRegistry.Register("down-insert", e.moveDownInsert, false)
+	// Insert mode movement commands - up/down need redraw for current line highlighting
+	e.commandRegistry.Register("up-insert", e.moveUpInsert, true)
+	e.commandRegistry.Register("down-insert", e.moveDownInsert, true)
 	e.commandRegistry.Register("left-insert", e.moveLeftInsert, false)
 	e.commandRegistry.Register("right-insert", e.moveRightInsert, false)
 

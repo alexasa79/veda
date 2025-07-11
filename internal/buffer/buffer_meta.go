@@ -25,6 +25,9 @@ type Buffer struct {
 	
 	// Indentation settings for this buffer
 	Indentation  IndentationInfo
+	
+	// Line number display width (e.g., 4 for files with 1000-9999 lines)
+	LineNumberWidth int
 }
 
 // IndentationInfo holds information about file indentation
@@ -43,7 +46,7 @@ func (i *IndentationInfo) String() string {
 
 // NewBuffer creates a new buffer with default settings
 func NewBuffer(content string, filePath string, defaultIndentType config.IndentationType, defaultIndentWidth int) *Buffer {
-	return &Buffer{
+	b := &Buffer{
 		Rope:         NewRopeFromString(content),
 		FilePath:     filePath,
 		IsModified:   false,
@@ -57,6 +60,8 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 			Width: defaultIndentWidth,
 		},
 	}
+	b.UpdateLineNumberWidth()
+	return b
 }
 
 // SaveCursorState saves the current cursor and view position
@@ -75,6 +80,7 @@ func (b *Buffer) RestoreCursorState() (x, y, topLine int) {
 func (b *Buffer) MarkModified() {
 	b.IsModified = true
 	b.OffsetsDirty = true
+	b.UpdateLineNumberWidth()
 }
 
 // MarkSaved marks the buffer as saved (not modified)
@@ -185,4 +191,16 @@ func (b *Buffer) GetCurrentLineIndentInfo(lineIndex int) LineIndentInfo {
 	}
 	
 	return b.GetLineIndentInfo(lines[lineIndex])
+}
+
+// UpdateLineNumberWidth calculates and caches the width needed for line numbers
+func (b *Buffer) UpdateLineNumberWidth() {
+	lineCount := len(b.Lines())
+	if lineCount == 0 {
+		b.LineNumberWidth = 2 // Minimum width for "1 "
+	} else {
+		// Calculate the width needed for the largest line number
+		width := len(fmt.Sprintf("%d", lineCount))
+		b.LineNumberWidth = width + 1 // +1 for padding space
+	}
 }
