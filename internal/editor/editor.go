@@ -203,7 +203,7 @@ func (e *Editor) updateCursor() {
 
 func (e *Editor) scroll() {
 	visibleHeight := e.getVisibleHeight()
-	bufferLines := len(e.buffer.Lines())
+	bufferLines := e.buffer.LineCount
 
 	// Scroll up when cursor is too close to top
 	if e.cursorY < e.topLine+e.config.ScrollOffset {
@@ -235,7 +235,7 @@ func (e *Editor) scroll() {
 // scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top
 func (e *Editor) scrollToShowAtTop() {
 	visibleHeight := e.getVisibleHeight()
-	bufferLines := len(e.buffer.Lines())
+	bufferLines := e.buffer.LineCount
 
 	// Position cursor at ScrollOffset from the top
 	e.topLine = e.cursorY - e.config.ScrollOffset
@@ -402,7 +402,7 @@ func (e *Editor) drawText(x, y int, style tcell.Style, text string) int {
 
 // drawLine draws a single line with syntax highlighting
 func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
-	if lineIndex < 0 || lineIndex >= len(e.buffer.Lines()) {
+	if lineIndex < 0 || lineIndex >= e.buffer.LineCount {
 		return
 	}
 
@@ -487,7 +487,7 @@ func (e *Editor) visualWidth(text string) int {
 
 // getVisualCursorX calculates the visual cursor position accounting for tabs
 func (e *Editor) getVisualCursorX() int {
-	if e.cursorY >= len(e.buffer.Lines()) {
+	if e.cursorY >= e.buffer.LineCount {
 		return 0
 	}
 	line := e.buffer.Line(e.cursorY)
@@ -532,7 +532,7 @@ func (e *Editor) drawEditor() {
 	width, _ := e.screen.Size()
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
-	totalLines := len(e.buffer.Lines())
+	totalLines := e.buffer.LineCount
 
 	// Use cached line number width from buffer
 	lineNumberWidth := e.buffer.LineNumberWidth
@@ -665,7 +665,7 @@ func (e *Editor) moveUp() error {
 }
 
 func (e *Editor) moveDown() error {
-	if e.cursorY < len(e.buffer.Lines())-1 {
+	if e.cursorY < e.buffer.LineCount-1 {
 		e.cursorY++
 		// Adjust cursor X if the new line is shorter
 		line := e.buffer.Line(e.cursorY)
@@ -713,7 +713,7 @@ func (e *Editor) moveUpInsert() error {
 }
 
 func (e *Editor) moveDownInsert() error {
-	if e.cursorY < len(e.buffer.Lines())-1 {
+	if e.cursorY < e.buffer.LineCount-1 {
 		e.cursorY++
 		// Adjust cursor X if the new line is shorter
 		line := e.buffer.Line(e.cursorY)
@@ -937,7 +937,7 @@ func (e *Editor) pageDown() error {
 	visibleLines := e.getVisibleLines()
 
 	e.cursorY += visibleLines
-	maxY := len(e.buffer.Lines()) - 1
+	maxY := e.buffer.LineCount - 1
 	if e.cursorY > maxY {
 		e.cursorY = maxY
 	}
@@ -1025,6 +1025,9 @@ func (e *Editor) openLineBelow() error {
 	// Enter insert mode
 	e.mode = commands.InsertMode
 
+	// Mark buffer as modified (also updates line count)
+	e.buffer.MarkModified()
+
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
@@ -1052,6 +1055,9 @@ func (e *Editor) openLineAbove() error {
 	// Enter insert mode
 	e.mode = commands.InsertMode
 
+	// Mark buffer as modified (also updates line count)
+	e.buffer.MarkModified()
+
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
@@ -1070,6 +1076,9 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Move cursor forward
 	e.cursorX++
+
+	// Mark buffer as modified (also updates line count)
+	e.buffer.MarkModified()
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
@@ -1090,6 +1099,9 @@ func (e *Editor) insertNewline() error {
 	// Move cursor to beginning of next line
 	e.cursorY++
 	e.cursorX = 0
+
+	// Mark buffer as modified (also updates line count)
+	e.buffer.MarkModified()
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
@@ -1126,6 +1138,8 @@ func (e *Editor) backspace() error {
 				e.buffer.Rope = buffer.NewRopeFromString(newContent)
 				e.cursorY--
 				e.cursorX = prevLineLen
+				// Mark buffer as modified (also updates line count)
+				e.buffer.MarkModified()
 				// Update syntax highlighting
 				e.updateSyntaxHighlighting()
 			}
@@ -1140,6 +1154,8 @@ func (e *Editor) backspace() error {
 				newContent := content[:pos-1] + content[pos:]
 				e.buffer.Rope = buffer.NewRopeFromString(newContent)
 				e.cursorX--
+				// Mark buffer as modified (also updates line count)
+				e.buffer.MarkModified()
 				// Update syntax highlighting
 				e.updateSyntaxHighlighting()
 			}

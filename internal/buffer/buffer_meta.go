@@ -22,6 +22,7 @@ type Buffer struct {
 	// Caching
 	LineOffsets  []int  // Cache of byte offsets for each line
 	OffsetsDirty bool   // Whether line offsets need recalculation
+	LineCount    int    // Cache of the number of lines
 	
 	// Indentation settings for this buffer
 	Indentation  IndentationInfo
@@ -46,8 +47,9 @@ func (i *IndentationInfo) String() string {
 
 // NewBuffer creates a new buffer with default settings
 func NewBuffer(content string, filePath string, defaultIndentType config.IndentationType, defaultIndentWidth int) *Buffer {
+	rope := NewRopeFromString(content)
 	b := &Buffer{
-		Rope:         NewRopeFromString(content),
+		Rope:         rope,
 		FilePath:     filePath,
 		IsModified:   false,
 		CursorX:      0,
@@ -55,6 +57,7 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		TopLine:      0,
 		LineOffsets:  []int{},
 		OffsetsDirty: true,
+		LineCount:    len(rope.Lines()),
 		Indentation: IndentationInfo{
 			Type:  defaultIndentType,
 			Width: defaultIndentWidth,
@@ -80,6 +83,7 @@ func (b *Buffer) RestoreCursorState() (x, y, topLine int) {
 func (b *Buffer) MarkModified() {
 	b.IsModified = true
 	b.OffsetsDirty = true
+	b.LineCount = len(b.Lines())
 	b.UpdateLineNumberWidth()
 }
 
@@ -195,12 +199,11 @@ func (b *Buffer) GetCurrentLineIndentInfo(lineIndex int) LineIndentInfo {
 
 // UpdateLineNumberWidth calculates and caches the width needed for line numbers
 func (b *Buffer) UpdateLineNumberWidth() {
-	lineCount := len(b.Lines())
-	if lineCount == 0 {
+	if b.LineCount == 0 {
 		b.LineNumberWidth = 2 // Minimum width for "1 "
 	} else {
 		// Calculate the width needed for the largest line number
-		width := len(fmt.Sprintf("%d", lineCount))
+		width := len(fmt.Sprintf("%d", b.LineCount))
 		b.LineNumberWidth = width + 1 // +1 for padding space
 	}
 }
