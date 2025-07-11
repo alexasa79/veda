@@ -192,10 +192,8 @@ func (e *Editor) updateCursor() {
 		e.screen.ShowCursor(cursorX, cursorY)
 	} else {
 		// Show cursor in editor
-		// Calculate line number width based on visible lines
-		visibleLines := e.getVisibleLines()
-		lastVisibleLine := e.topLine + visibleLines
-		lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1
+		// Use cached line number width from buffer
+		lineNumberWidth := e.buffer.LineNumberWidth
 		visualCursorX := e.getVisualCursorX()
 		e.screen.ShowCursor(visualCursorX+lineNumberWidth, e.cursorY-e.topLine)
 	}
