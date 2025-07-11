@@ -11,7 +11,7 @@ func TestNavigationHistory(t *testing.T) {
 	// Set initial position
 	te.cursorX = 5
 	te.cursorY = 10
-	te.currentFile = "test.go"
+	te.buffer.FilePath = "test.go"
 	
 	// Push to navigation history
 	te.pushNavigationHistory()
@@ -35,7 +35,7 @@ func TestNavigationHistory(t *testing.T) {
 
 func TestNavigationHistoryMaxSize(t *testing.T) {
 	te := NewTestEditor(80, 24)
-	te.currentFile = "test.go"
+	te.buffer.FilePath = "test.go"
 	
 	// Push more entries than maxNavHistory
 	for i := 0; i < 60; i++ {
@@ -63,11 +63,8 @@ func TestGoBack(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, content)
 	
 	// Set up initial state with a buffer
-	te.currentFile = "test1.go"
-	te.buffers["test1.go"] = &BufferInfo{
-		buffer:   te.buffer,
-		filePath: "test1.go",
-	}
+	te.buffer.FilePath = "test1.go"
+	te.buffers["test1.go"] = te.buffer
 	
 	// Push a few positions to history
 	te.cursorX = 5

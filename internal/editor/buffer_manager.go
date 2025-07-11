@@ -9,47 +9,31 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// BufferInfo holds information about an open buffer
-type BufferInfo struct {
-	buffer       *buffer.Buffer
-	filePath     string
-	cursorX      int
-	cursorY      int
-	topLine      int
-	lineOffsets  []int  // Cache of byte offsets for each line
-	offsetsDirty bool   // Whether line offsets need recalculation
-}
-
 // saveCurrentBufferState saves the current buffer's state before switching
 func (e *Editor) saveCurrentBufferState() {
-	if e.currentFile != "" {
-		if bufferInfo, exists := e.buffers[e.currentFile]; exists {
-			bufferInfo.cursorX = e.cursorX
-			bufferInfo.cursorY = e.cursorY
-			bufferInfo.topLine = e.topLine
-			bufferInfo.lineOffsets = e.lineOffsets
-			bufferInfo.offsetsDirty = e.offsetsDirty
-		}
+	if e.buffer != nil {
+		e.buffer.SaveCursorState(e.cursorX, e.cursorY, e.topLine)
+		e.buffer.LineOffsets = e.lineOffsets
+		e.buffer.OffsetsDirty = e.offsetsDirty
 	}
 }
 
 // switchToBuffer switches to a different buffer
-func (e *Editor) switchToBuffer(bufferInfo *BufferInfo) {
-	// Set the buffer and related fields
-	e.buffer = bufferInfo.buffer
-	e.currentFile = bufferInfo.filePath
-	e.cursorX = bufferInfo.cursorX
-	e.cursorY = bufferInfo.cursorY
-	e.topLine = bufferInfo.topLine
-	e.lineOffsets = bufferInfo.lineOffsets
-	e.offsetsDirty = bufferInfo.offsetsDirty
+func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
+	// Set the buffer
+	e.buffer = buf
+	
+	// Restore cursor and view state
+	e.cursorX, e.cursorY, e.topLine = buf.RestoreCursorState()
+	e.lineOffsets = buf.LineOffsets
+	e.offsetsDirty = buf.OffsetsDirty
 	
 	// Set up syntax highlighting
-	if e.highlighter != nil && bufferInfo.filePath != "[No Name]" {
-		e.highlighter.SetLanguageFromFile(bufferInfo.filePath)
-		e.highlighter.ParseFull([]byte(e.buffer.String()))
+	if e.highlighter != nil && buf.HasFile() {
+		e.highlighter.SetLanguageFromFile(buf.FilePath)
+		e.highlighter.ParseFull([]byte(buf.String()))
 	} else {
-		// Reset syntax highlighting for empty buffer
+		// Reset syntax highlighting for unnamed buffer
 		e.highlighter = syntax.NewHighlighter()
 	}
 }
@@ -72,18 +56,24 @@ func (e *Editor) showBuffers() error {
 	fuzzyListWidget.SetTitle("Open Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 	
-	// Create list of buffer paths
-	var bufferPaths []string
+	// Create list of buffer display names
+	var bufferDisplays []string
+	pathToDisplay := make(map[string]string)
+	
 	for _, path := range e.bufferOrder {
-		if path == e.currentFile {
-			// Mark current buffer
-			bufferPaths = append(bufferPaths, path + " [current]")
-		} else {
-			bufferPaths = append(bufferPaths, path)
+		if buf, exists := e.buffers[path]; exists {
+			displayName := buf.DisplayName()
+			if path == e.buffer.FilePath {
+				// Mark current buffer
+				bufferDisplays = append(bufferDisplays, displayName + " [current]")
+			} else {
+				bufferDisplays = append(bufferDisplays, displayName)
+			}
+			pathToDisplay[displayName] = path
 		}
 	}
 	
-	fuzzyListWidget.SetContent(bufferPaths)
+	fuzzyListWidget.SetContent(bufferDisplays)
 	
 	// Show the widget with a background render function
 	var tcellScreen tcell.Screen
@@ -107,9 +97,12 @@ func (e *Editor) showBuffers() error {
 		// Save current buffer state before switching
 		e.saveCurrentBufferState()
 		
-		// Switch to selected buffer
-		if bufferInfo, exists := e.buffers[selection]; exists {
-			e.switchToBuffer(bufferInfo)
+		// Look up the actual path from the display name
+		if path, ok := pathToDisplay[selection]; ok {
+			// Switch to selected buffer
+			if buf, exists := e.buffers[path]; exists {
+				e.switchToBuffer(buf)
+			}
 		}
 	}
 	

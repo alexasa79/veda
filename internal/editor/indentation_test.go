@@ -3,6 +3,7 @@ package editor
 import (
 	"strings"
 	"testing"
+	"veda/internal/config"
 )
 
 func TestIndentationDetection(t *testing.T) {
@@ -18,7 +19,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentTabs {
+		if info.Type != config.IndentTabs {
 			t.Errorf("Expected IndentTabs, got %v", info.Type)
 		}
 	})
@@ -35,7 +36,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		if info.Width != 2 {
@@ -54,7 +55,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		if info.Width != 4 {
@@ -66,7 +67,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "")
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces for empty file, got %v", info.Type)
 		}
 		if info.Width != 4 {
@@ -97,7 +98,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		if info.Width != 4 {
@@ -126,7 +127,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		if info.Width != 2 {
@@ -154,7 +155,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentTabs {
+		if info.Type != config.IndentTabs {
 			t.Errorf("Expected IndentTabs, got %v", info.Type)
 		}
 	})
@@ -186,7 +187,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentTabs {
+		if info.Type != config.IndentTabs {
 			t.Errorf("Expected IndentTabs for Go code, got %v", info.Type)
 		}
 	})
@@ -208,7 +209,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentTabs {
+		if info.Type != config.IndentTabs {
 			t.Errorf("Expected IndentTabs when mixed, got %v", info.Type)
 		}
 	})
@@ -227,7 +228,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		// Should default to a reasonable width when single spaces are detected
@@ -252,7 +253,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		// Should find GCD of 2, 4, 6 which is 2
@@ -286,7 +287,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		if info.Width != 4 {
@@ -311,7 +312,7 @@ func TestIndentationDetection(t *testing.T) {
 		info := te.detectIndentation()
 		
 		// Should use default when no indentation is found
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces for unindented file, got %v", info.Type)
 		}
 		if info.Width != 4 {
@@ -350,7 +351,7 @@ func TestIndentationDetection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		info := te.detectIndentation()
 		
-		if info.Type != IndentSpaces {
+		if info.Type != config.IndentSpaces {
 			t.Errorf("Expected IndentSpaces, got %v", info.Type)
 		}
 		if info.Width != 4 {
@@ -364,7 +365,7 @@ func TestIndentationCommands(t *testing.T) {
 		te := NewTestEditor(80, 24)
 		
 		// Start with default (4 spaces)
-		if te.indentation.Type != IndentSpaces || te.indentation.Width != 4 {
+		if te.buffer.Indentation.Type != config.IndentSpaces || te.buffer.Indentation.Width != 4 {
 			t.Fatalf("Expected default to be 4 spaces")
 		}
 		
@@ -373,8 +374,8 @@ func TestIndentationCommands(t *testing.T) {
 		te.commandLine.SetText(":set noexpandtab")
 		te.executeCommand()
 		
-		if te.indentation.Type != IndentTabs {
-			t.Errorf("Expected IndentTabs, got %v", te.indentation.Type)
+		if te.buffer.Indentation.Type != config.IndentTabs {
+			t.Errorf("Expected IndentTabs, got %v", te.buffer.Indentation.Type)
 		}
 	})
 	
@@ -386,11 +387,11 @@ func TestIndentationCommands(t *testing.T) {
 		te.commandLine.SetText(":set tabstop 2")
 		te.executeCommand()
 		
-		if te.indentation.Type != IndentSpaces {
-			t.Errorf("Expected IndentSpaces, got %v", te.indentation.Type)
+		if te.buffer.Indentation.Type != config.IndentSpaces {
+			t.Errorf("Expected IndentSpaces, got %v", te.buffer.Indentation.Type)
 		}
-		if te.indentation.Width != 2 {
-			t.Errorf("Expected width 2, got %d", te.indentation.Width)
+		if te.buffer.Indentation.Width != 2 {
+			t.Errorf("Expected width 2, got %d", te.buffer.Indentation.Width)
 		}
 	})
 	
@@ -402,8 +403,8 @@ func TestIndentationCommands(t *testing.T) {
 		te.commandLine.SetText(":set tabstop=8")
 		te.executeCommand()
 		
-		if te.indentation.Width != 8 {
-			t.Errorf("Expected width 8, got %d", te.indentation.Width)
+		if te.buffer.Indentation.Width != 8 {
+			t.Errorf("Expected width 8, got %d", te.buffer.Indentation.Width)
 		}
 	})
 	
@@ -411,15 +412,15 @@ func TestIndentationCommands(t *testing.T) {
 		te := NewTestEditor(80, 24)
 		
 		// First set to tabs
-		te.setIndentationType(IndentTabs)
+		te.buffer.SetIndentationType(config.IndentTabs)
 		
 		// Then use :set expandtab
 		te.enterCommandMode()
 		te.commandLine.SetText(":set expandtab")
 		te.executeCommand()
 		
-		if te.indentation.Type != IndentSpaces {
-			t.Errorf("Expected IndentSpaces after expandtab, got %v", te.indentation.Type)
+		if te.buffer.Indentation.Type != config.IndentSpaces {
+			t.Errorf("Expected IndentSpaces after expandtab, got %v", te.buffer.Indentation.Type)
 		}
 	})
 }

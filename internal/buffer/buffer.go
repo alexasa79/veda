@@ -61,54 +61,55 @@ func (n *ConcatNode) String() string {
 	return sb.String()
 }
 
-// Buffer is the main data structure for the editor's text.
-type Buffer struct {
+// Rope is the main data structure for the editor's text content.
+// It implements a rope data structure for efficient text manipulation.
+type Rope struct {
 	root Node
 }
 
-// NewBufferFromString creates a new buffer from a string.
+// NewRopeFromString creates a new rope from a string.
 // This is a simple implementation that doesn't create a balanced tree yet.
-func NewBufferFromString(text string) *Buffer {
-	return &Buffer{
+func NewRopeFromString(text string) *Rope {
+	return &Rope{
 		root: NewLeaf(text),
 	}
 }
 
-func (b *Buffer) String() string {
-	if b.root == nil {
+func (r *Rope) String() string {
+	if r.root == nil {
 		return ""
 	}
-	return b.root.String()
+	return r.root.String()
 }
 
-func (b *Buffer) Length() int {
-	if b.root == nil {
+func (r *Rope) Length() int {
+	if r.root == nil {
 		return 0
 	}
-	return b.root.Length()
+	return r.root.Length()
 }
 
-// Lines returns all lines in the buffer.
-func (b *Buffer) Lines() []string {
-	return strings.Split(b.String(), "\n")
+// Lines returns all lines in the rope.
+func (r *Rope) Lines() []string {
+	return strings.Split(r.String(), "\n")
 }
 
 // Line returns the line at the given index.
-func (b *Buffer) Line(i int) string {
-	lines := b.Lines()
+func (r *Rope) Line(i int) string {
+	lines := r.Lines()
 	if i < 0 || i >= len(lines) {
 		return ""
 	}
 	return lines[i]
 }
 
-// Insert inserts text at a given position in the buffer.
-func (b *Buffer) Insert(pos int, text string) {
-	if b.root == nil {
-		b.root = NewLeaf(text)
+// Insert inserts text at a given position in the rope.
+func (r *Rope) Insert(pos int, text string) {
+	if r.root == nil {
+		r.root = NewLeaf(text)
 		return
 	}
-	b.root = b.root.insert(pos, text)
+	r.root = r.root.insert(pos, text)
 }
 
 // insert is the recursive helper for the Insert method.

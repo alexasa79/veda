@@ -10,7 +10,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "")
 		
 		// Set up a Go file to enable syntax highlighting
-		te.currentFile = "test.go"
+		te.buffer.FilePath = "test.go"
 		te.highlighter.SetLanguageFromFile("test.go")
 		
 		// Enter insert mode
@@ -60,7 +60,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "func main() { fmt.Println(\"Hello\") }")
 		
 		// Set up Go file
-		te.currentFile = "test.go"
+		te.buffer.FilePath = "test.go"
 		te.highlighter.SetLanguageFromFile("test.go")
 		te.highlighter.Parse([]byte(te.buffer.String()))
 		
@@ -94,7 +94,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "var x = 10")
 		
 		// Enable Go syntax highlighting
-		te.currentFile = "test.go"
+		te.buffer.FilePath = "test.go"
 		te.highlighter.SetLanguageFromFile("test.go")
 		te.highlighter.Parse([]byte(te.buffer.String()))
 		
@@ -144,7 +144,7 @@ func TestEmptyBufferWithSyntaxHighlighting(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "")
 		
 		// Enable syntax highlighting on empty buffer
-		te.currentFile = "test.go"
+		te.buffer.FilePath = "test.go"
 		te.highlighter.SetLanguageFromFile("test.go")
 		
 		// Should not crash when rendering empty buffer

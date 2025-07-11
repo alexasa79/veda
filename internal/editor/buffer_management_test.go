@@ -13,8 +13,8 @@ func TestBufferManagement(t *testing.T) {
 		t.Errorf("Expected 1 buffer, got %d", len(te.buffers))
 	}
 	
-	if te.currentFile != "[No Name]" {
-		t.Errorf("Expected current file to be '[No Name]', got %s", te.currentFile)
+	if te.buffer.HasFile() {
+		t.Errorf("Expected initial buffer to have no file, but it has: %s", te.buffer.FilePath)
 	}
 }
 
@@ -30,43 +30,39 @@ func TestSaveCurrentBufferState(t *testing.T) {
 	te.saveCurrentBufferState()
 	
 	// Check that it was saved
-	bufferInfo := te.buffers[te.currentFile]
-	if bufferInfo.cursorX != 5 {
-		t.Errorf("Expected cursorX to be 5, got %d", bufferInfo.cursorX)
+	buf := te.buffers[te.buffer.FilePath]
+	if buf.CursorX != 5 {
+		t.Errorf("Expected cursorX to be 5, got %d", buf.CursorX)
 	}
-	if bufferInfo.cursorY != 10 {
-		t.Errorf("Expected cursorY to be 10, got %d", bufferInfo.cursorY)
+	if buf.CursorY != 10 {
+		t.Errorf("Expected cursorY to be 10, got %d", buf.CursorY)
 	}
-	if bufferInfo.topLine != 3 {
-		t.Errorf("Expected topLine to be 3, got %d", bufferInfo.topLine)
+	if buf.TopLine != 3 {
+		t.Errorf("Expected topLine to be 3, got %d", buf.TopLine)
 	}
 }
 
 func TestSwitchToBuffer(t *testing.T) {
 	te := NewTestEditor(80, 24)
 	
-	// Create a new buffer info
-	newBuffer := buffer.NewBufferFromString("Hello, World!")
-	bufferInfo := &BufferInfo{
-		buffer:       newBuffer,
-		filePath:     "test.txt",
-		cursorX:      3,
-		cursorY:      0,
-		topLine:      0,
-		lineOffsets:  []int{},
-		offsetsDirty: true,
-	}
+	// Create a new buffer
+	newBuffer := buffer.NewBuffer("Hello, World!", "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	newBuffer.CursorX = 3
+	newBuffer.CursorY = 0
+	newBuffer.TopLine = 0
+	newBuffer.LineOffsets = []int{}
+	newBuffer.OffsetsDirty = true
 	
 	// Add to buffers
-	te.buffers["test.txt"] = bufferInfo
+	te.buffers["test.txt"] = newBuffer
 	te.bufferOrder = append(te.bufferOrder, "test.txt")
 	
 	// Switch to it
-	te.switchToBuffer(bufferInfo)
+	te.switchToBuffer(newBuffer)
 	
 	// Check that the editor state was updated
-	if te.currentFile != "test.txt" {
-		t.Errorf("Expected current file to be 'test.txt', got %s", te.currentFile)
+	if te.buffer.FilePath != "test.txt" {
+		t.Errorf("Expected current file to be 'test.txt', got %s", te.buffer.FilePath)
 	}
 	if te.cursorX != 3 {
 		t.Errorf("Expected cursorX to be 3, got %d", te.cursorX)
@@ -80,14 +76,8 @@ func TestMultipleBuffers(t *testing.T) {
 	te := NewTestEditor(80, 24)
 	
 	// Create multiple buffers
-	buffer1 := &BufferInfo{
-		buffer:   buffer.NewBufferFromString("Buffer 1"),
-		filePath: "file1.txt",
-	}
-	buffer2 := &BufferInfo{
-		buffer:   buffer.NewBufferFromString("Buffer 2"),
-		filePath: "file2.txt",
-	}
+	buffer1 := buffer.NewBuffer("Buffer 1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buffer2 := buffer.NewBuffer("Buffer 2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	
 	te.buffers["file1.txt"] = buffer1
 	te.buffers["file2.txt"] = buffer2

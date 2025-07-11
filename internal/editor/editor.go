@@ -22,7 +22,7 @@ var LL *log.Logger = log.NewLogger("EDITOR")
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen          Screen
-	buffer          *buffer.Buffer
+	buffer          *buffer.Buffer          // Current buffer
 	config          *config.Config
 	cursorX         int
 	cursorY         int
@@ -33,20 +33,16 @@ type Editor struct {
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
 	highlighter     *syntax.Highlighter
-	currentFile     string
 	lineOffsets     []int  // Cache of byte offsets for each line
 	offsetsDirty    bool   // Whether line offsets need recalculation
 
 	// Buffer management
-	buffers         map[string]*BufferInfo  // Map of file path to buffer info
-	bufferOrder     []string                // Order of buffers for cycling
+	buffers         map[string]*buffer.Buffer  // Map of file path to buffer
+	bufferOrder     []string                   // Order of buffers for cycling
 
 	// Navigation history
 	navHistory      []NavigationEntry       // Stack of previous positions
 	maxNavHistory   int                     // Maximum number of entries to keep
-	
-	// Indentation settings
-	indentation     IndentationInfo         // Current indentation settings
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -69,7 +65,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	}
 
 	// Create initial empty buffer
-	initialBuffer := buffer.NewBufferFromString("")
+	initialBuffer := buffer.NewBuffer("", "", config.DefaultIndentType, config.DefaultIndentWidth)
 
 	editor := &Editor{
 		screen:          screen,
@@ -85,26 +81,16 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		keyMapper:       commands.NewKeyMapper(),
 		highlighter:     syntax.NewHighlighter(),
 		offsetsDirty:    true, // Need to calculate offsets for initial buffer
-		buffers:         make(map[string]*BufferInfo),
+		buffers:         make(map[string]*buffer.Buffer),
 		bufferOrder:     []string{},
 		navHistory:      []NavigationEntry{},
 		maxNavHistory:   50, // Keep last 50 navigation entries
-		indentation:     IndentationInfo{Type: IndentSpaces, Width: 4}, // Default to 4 spaces
 	}
 
-	// Add the initial empty buffer
-	emptyBufferInfo := &BufferInfo{
-		buffer:       initialBuffer,
-		filePath:     "[No Name]",
-		cursorX:      0,
-		cursorY:      0,
-		topLine:      0,
-		lineOffsets:  []int{},
-		offsetsDirty: true,
-	}
-	editor.buffers["[No Name]"] = emptyBufferInfo
-	editor.bufferOrder = append(editor.bufferOrder, "[No Name]")
-	editor.currentFile = "[No Name]"
+	// Add the initial empty buffer to the buffers map
+	// Use empty string as the key for unnamed buffers
+	editor.buffers[""] = initialBuffer
+	editor.bufferOrder = append(editor.bufferOrder, "")
 
 	// Register commands
 	editor.registerCommands()
@@ -135,15 +121,15 @@ func (e *Editor) Run() {
 	e.drawStatusBar()
 	e.updateCursor()
 	e.screen.Show()
-	
+
 	// Event loop
 	for {
 		ev := e.screen.PollEvent()
-		
+
 		// Track if we need a full redraw
 		needsRedraw := false
 		oldTopLine := e.topLine
-		
+
 		switch ev := ev.(type) {
 		case *tcell.EventKey:
 			if e.mode == commands.CommandMode {
@@ -169,19 +155,19 @@ func (e *Editor) Run() {
 			e.handleResize()
 			needsRedraw = true
 		}
-		
+
 		// Check if scrolling occurred
 		e.scroll()
 		if oldTopLine != e.topLine {
 			needsRedraw = true
 		}
-		
+
 		// Redraw if needed
 		if needsRedraw {
 			e.drawEditor()
 			e.drawStatusBar()
 		}
-		
+
 		// Always update cursor position and show
 		e.updateCursor()
 		e.screen.Show()
@@ -250,15 +236,15 @@ func (e *Editor) scroll() {
 func (e *Editor) scrollToShowAtTop() {
 	visibleHeight := e.getVisibleHeight()
 	bufferLines := len(e.buffer.Lines())
-	
+
 	// Position cursor at ScrollOffset from the top
 	e.topLine = e.cursorY - e.config.ScrollOffset
-	
+
 	// Make sure we don't scroll past the beginning
 	if e.topLine < 0 {
 		e.topLine = 0
 	}
-	
+
 	// Make sure we don't scroll past the end
 	maxTopLine := bufferLines - visibleHeight
 	if maxTopLine < 0 {
@@ -344,7 +330,7 @@ func (e *Editor) handleSetCommand(args string) {
 	if len(parts) == 0 {
 		return
 	}
-	
+
 	// Check if first part contains '='
 	if strings.Contains(parts[0], "=") {
 		eqParts := strings.SplitN(parts[0], "=", 2)
@@ -356,22 +342,22 @@ func (e *Editor) handleSetCommand(args string) {
 	switch parts[0] {
 	case "expandtab":
 		// Use spaces instead of tabs
-		e.setIndentationType(IndentSpaces)
+		e.buffer.SetIndentationType(config.IndentSpaces)
 	case "noexpandtab":
 		// Use tabs instead of spaces
-		e.setIndentationType(IndentTabs)
+		e.buffer.SetIndentationType(config.IndentTabs)
 	case "tabstop", "ts":
 		// Set tab width
 		if len(parts) >= 2 {
 			if width, err := strconv.Atoi(parts[1]); err == nil && width > 0 && width <= 8 {
-				e.setIndentationWidth(width)
+				e.buffer.SetIndentationWidth(width)
 			}
 		}
 	case "shiftwidth", "sw":
 		// Set indent width (same as tabstop for now)
 		if len(parts) >= 2 {
 			if width, err := strconv.Atoi(parts[1]); err == nil && width > 0 && width <= 8 {
-				e.setIndentationWidth(width)
+				e.buffer.SetIndentationWidth(width)
 			}
 		}
 	}
@@ -433,7 +419,7 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 	}
 
 	// If no highlighter is set up, just draw normally
-	if e.highlighter == nil || e.currentFile == "" {
+	if e.highlighter == nil || !e.buffer.HasFile() {
 		e.drawText(startX, screenY, normalStyle, line)
 		return
 	}
@@ -607,10 +593,7 @@ func (e *Editor) drawStatusBar() {
 		}
 		x += e.drawText(x, statusBarY, statusBarStyle, modeText)
 
-		filename := e.currentFile
-		if filename == "" {
-			filename = "[No Name]"
-		}
+		filename := e.buffer.DisplayName()
 		x += e.drawText(x, statusBarY, statusBarStyle, filename)
 
 		// Right side: indentation and line:col
@@ -624,11 +607,29 @@ func (e *Editor) drawStatusBar() {
 				visualCol = e.visualWidth(line[:e.cursorX]) + 1
 			}
 		}
-		
+
 		// Combine indentation info and line:col
-		indentInfo := e.indentation.String()
+		var indentInfo string
+		if e.buffer.Indentation.Type == config.IndentTabs {
+			indentInfo = "Tabs"
+		} else {
+			indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
+		}
+		
+		// Get current line indentation info
+		lineIndent := e.getCurrentLineIndentInfo()
+		var lineIndentDisplay string
+		if lineIndent.Level > 0 {
+			lineIndentDisplay = fmt.Sprintf("L%d", lineIndent.Level)
+			if lineIndent.IsContinuation {
+				lineIndentDisplay += "+C"
+			}
+		} else {
+			lineIndentDisplay = "L0"
+		}
+		
 		lineColInfo := fmt.Sprintf("%d:%d", e.cursorY+1, visualCol)
-		rightInfo := fmt.Sprintf("%s  %s", indentInfo, lineColInfo)
+		rightInfo := fmt.Sprintf("%s  %s  %s", indentInfo, lineIndentDisplay, lineColInfo)
 
 		// Calculate position for right-aligned text
 		rightX := width - len(rightInfo)
@@ -636,6 +637,10 @@ func (e *Editor) drawStatusBar() {
 		if rightX > x { // Only draw if there's space
 			// Draw indentation info
 			rightX += e.drawText(rightX, statusBarY, statusBarStyle, indentInfo)
+			// Add spacing
+			rightX += e.drawText(rightX, statusBarY, statusBarStyle, "  ")
+			// Draw line indentation level
+			rightX += e.drawText(rightX, statusBarY, statusBarStyle, lineIndentDisplay)
 			// Add spacing
 			rightX += e.drawText(rightX, statusBarY, statusBarStyle, "  ")
 			// Draw line:col with different style
@@ -969,17 +974,17 @@ func (e *Editor) goToEnd() error {
 
 	// Move to last line
 	e.cursorY = len(lines) - 1
-	
+
 	// Move to end of last line (but stay on last character in normal mode)
 	lastLine := lines[e.cursorY]
 	e.cursorX = len(lastLine)
 	if e.cursorX > 0 && e.mode == commands.NormalMode {
 		e.cursorX--
 	}
-	
+
 	// Scroll to show the cursor
 	e.scroll()
-	
+
 	return nil
 }
 
@@ -1008,26 +1013,26 @@ func (e *Editor) openLineBelow() error {
 	if e.cursorY < len(lines) {
 		e.cursorX = len(lines[e.cursorY])
 	}
-	
+
 	// Get absolute position at end of line
 	pos := e.getAbsolutePosition()
-	
+
 	// Insert newline
 	e.buffer.Insert(pos, "\n")
-	
+
 	// Move cursor to beginning of new line
 	e.cursorY++
 	e.cursorX = 0
-	
+
 	// Enter insert mode
 	e.mode = commands.InsertMode
-	
+
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -1035,26 +1040,26 @@ func (e *Editor) openLineBelow() error {
 func (e *Editor) openLineAbove() error {
 	// Move to beginning of current line
 	e.cursorX = 0
-	
+
 	// Get absolute position
 	pos := e.getAbsolutePosition()
-	
+
 	// Insert newline before current position
 	e.buffer.Insert(pos, "\n")
-	
+
 	// Move cursor to the newly created line above
 	// (cursor stays at same Y position, which is now the new empty line)
 	e.cursorX = 0
-	
+
 	// Enter insert mode
 	e.mode = commands.InsertMode
-	
+
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -1120,7 +1125,7 @@ func (e *Editor) backspace() error {
 			content := e.buffer.String()
 			if pos-1 < len(content) {
 				newContent := content[:pos-1] + content[pos:]
-				e.buffer = buffer.NewBufferFromString(newContent)
+				e.buffer.Rope = buffer.NewRopeFromString(newContent)
 				e.cursorY--
 				e.cursorX = prevLineLen
 				// Update syntax highlighting
@@ -1135,7 +1140,7 @@ func (e *Editor) backspace() error {
 			content := e.buffer.String()
 			if pos-1 < len(content) {
 				newContent := content[:pos-1] + content[pos:]
-				e.buffer = buffer.NewBufferFromString(newContent)
+				e.buffer.Rope = buffer.NewRopeFromString(newContent)
 				e.cursorX--
 				// Update syntax highlighting
 				e.updateSyntaxHighlighting()
@@ -1194,7 +1199,7 @@ func (e *Editor) getAbsolutePosition() int {
 
 // updateSyntaxHighlighting re-parses the buffer for syntax highlighting
 func (e *Editor) updateSyntaxHighlighting() {
-	if e.highlighter != nil && e.currentFile != "" {
+	if e.highlighter != nil && e.buffer.HasFile() {
 		content := e.buffer.String()
 		// Force a full reparse by not reusing the old tree
 		e.highlighter.ParseFull([]byte(content))
@@ -1247,28 +1252,19 @@ func (e *Editor) showLSPBufferGo() error {
 	// Check if LSP buffer already exists
 	lspBufferName := "*LSP Messages - Go*"
 	if bufferInfo, exists := e.buffers[lspBufferName]; exists {
-		// Update existing buffer
-		bufferInfo.buffer = buffer.NewBufferFromString(content.String())
-		bufferInfo.cursorX = 0
-		bufferInfo.cursorY = 0
-		bufferInfo.topLine = 0
-		bufferInfo.offsetsDirty = true
+		// Update existing buffer's content
+		bufferInfo.Rope = buffer.NewRopeFromString(content.String())
+		bufferInfo.CursorX = 0
+		bufferInfo.CursorY = 0
+		bufferInfo.TopLine = 0
+		bufferInfo.OffsetsDirty = true
 		e.switchToBuffer(bufferInfo)
 	} else {
 		// Create new buffer
-		newBuffer := buffer.NewBufferFromString(content.String())
-		bufferInfo := &BufferInfo{
-			buffer:       newBuffer,
-			filePath:     lspBufferName,
-			cursorX:      0,
-			cursorY:      0,
-			topLine:      0,
-			lineOffsets:  []int{},
-			offsetsDirty: true,
-		}
-		e.buffers[lspBufferName] = bufferInfo
+		newBuffer := buffer.NewBuffer(content.String(), lspBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		e.buffers[lspBufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, lspBufferName)
-		e.switchToBuffer(bufferInfo)
+		e.switchToBuffer(newBuffer)
 	}
 
 	return nil
@@ -1276,7 +1272,7 @@ func (e *Editor) showLSPBufferGo() error {
 
 func (e *Editor) goToDefinition() error {
 	// Only works if we have a file open
-	if e.currentFile == "" {
+	if !e.buffer.HasFile() {
 		// TODO: Show error to user
 		return fmt.Errorf("no file open")
 	}
@@ -1285,10 +1281,10 @@ func (e *Editor) goToDefinition() error {
 	line := e.cursorY
 	character := e.cursorX
 
-	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.currentFile, line, character)
+	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
 
 	// Get definition location from LSP
-	locations, err := e.proxyClient.GoToDefinition(e.currentFile, line, character)
+	locations, err := e.proxyClient.GoToDefinition(e.buffer.FilePath, line, character)
 	if err != nil {
 		// TODO: Show error to user
 		LL.Debug("goToDefinition failed: %v", err)
@@ -1317,7 +1313,7 @@ func (e *Editor) goToDefinition() error {
 	e.pushNavigationHistory()
 
 	// If it's a different file, open it
-	if filePath != e.currentFile {
+	if filePath != e.buffer.FilePath {
 		e.openFile(filePath)
 	}
 

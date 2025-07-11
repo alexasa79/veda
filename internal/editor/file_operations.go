@@ -77,14 +77,12 @@ func (e *Editor) showFuzzyListWidget() {
 // openFile loads a file's content into the editor buffer
 func (e *Editor) openFile(filePath string) {
 	// First save the current buffer state
-	if e.currentFile != "" {
-		e.saveCurrentBufferState()
-	}
+	e.saveCurrentBufferState()
 	
 	// Check if this file is already open
-	if bufferInfo, exists := e.buffers[filePath]; exists {
+	if buf, exists := e.buffers[filePath]; exists {
 		// Switch to existing buffer
-		e.switchToBuffer(bufferInfo)
+		e.switchToBuffer(buf)
 		return
 	}
 
@@ -96,31 +94,20 @@ func (e *Editor) openFile(filePath string) {
 	}
 
 	// Create a new buffer with the file content
-	newBuffer := buffer.NewBufferFromString(content)
-	
-	// Create buffer info
-	bufferInfo := &BufferInfo{
-		buffer:       newBuffer,
-		filePath:     filePath,
-		cursorX:      0,
-		cursorY:      0,
-		topLine:      0,
-		lineOffsets:  []int{},
-		offsetsDirty: true,
-	}
+	newBuffer := buffer.NewBuffer(content, filePath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 	
 	// Add to buffers map and order
-	e.buffers[filePath] = bufferInfo
+	e.buffers[filePath] = newBuffer
 	
 	// If this is replacing the empty buffer AND it's still empty, remove it
-	// We should keep the [No Name] buffer if the user has typed anything into it
-	if e.currentFile == "[No Name]" {
-		if noNameBuffer, exists := e.buffers["[No Name]"]; exists {
+	// We should keep the unnamed buffer if the user has typed anything into it
+	if !e.buffer.HasFile() {
+		if unnamedBuffer, exists := e.buffers[""]; exists {
 			// Only remove if the buffer is truly empty
-			if noNameBuffer.buffer.String() == "" {
-				delete(e.buffers, "[No Name]")
+			if unnamedBuffer.String() == "" {
+				delete(e.buffers, "")
 				for i, path := range e.bufferOrder {
-					if path == "[No Name]" {
+					if path == "" {
 						e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
 						break
 					}
@@ -133,10 +120,10 @@ func (e *Editor) openFile(filePath string) {
 	e.bufferOrder = append(e.bufferOrder, filePath)
 	
 	// Switch to the new buffer
-	e.switchToBuffer(bufferInfo)
+	e.switchToBuffer(newBuffer)
 	
 	// Detect indentation for the new file
-	e.indentation = e.detectIndentation()
+	newBuffer.Indentation = e.detectIndentation()
 }
 
 // openFileCmd implements the open-file command

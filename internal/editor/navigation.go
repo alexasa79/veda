@@ -14,12 +14,12 @@ type NavigationEntry struct {
 
 // pushNavigationHistory saves the current position to navigation history
 func (e *Editor) pushNavigationHistory() {
-	if e.currentFile == "" {
+	if !e.buffer.HasFile() {
 		return
 	}
 	
 	entry := NavigationEntry{
-		filePath: e.currentFile,
+		filePath: e.buffer.FilePath,
 		cursorX:  e.cursorX,
 		cursorY:  e.cursorY,
 		topLine:  e.topLine,
@@ -50,10 +50,10 @@ func (e *Editor) goBack() error {
 	e.saveCurrentBufferState()
 	
 	// Check if we need to switch files
-	if entry.filePath != e.currentFile {
+	if entry.filePath != e.buffer.FilePath {
 		// Check if the file is already open
-		if bufferInfo, exists := e.buffers[entry.filePath]; exists {
-			e.switchToBuffer(bufferInfo)
+		if buf, exists := e.buffers[entry.filePath]; exists {
+			e.switchToBuffer(buf)
 		} else {
 			// File is not open, open it
 			e.openFile(entry.filePath)

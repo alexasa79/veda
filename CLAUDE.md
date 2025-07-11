@@ -73,4 +73,6 @@ Currently the buffer package and editor package have tests. When adding new func
 - Use standard Go testing conventions
 - Run tests with `go test ./internal/package_name` or use `make test` to run all tests
 - Use the testing framework for editor behavior tests (cursor movement, editing operations, etc.)
-```
+
+## Memory Notes
+- When working with the Editor's buffer, assert that the buffer field is always initialized and populated. No need to add extra null checks.

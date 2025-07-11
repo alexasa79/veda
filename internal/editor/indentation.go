@@ -1,31 +1,10 @@
 package editor
 
 import (
-	"fmt"
 	"strings"
+	"veda/internal/buffer"
+	"veda/internal/config"
 )
-
-// IndentationType represents the type of indentation used
-type IndentationType int
-
-const (
-	IndentSpaces IndentationType = iota
-	IndentTabs
-)
-
-// IndentationInfo holds information about file indentation
-type IndentationInfo struct {
-	Type  IndentationType
-	Width int // Number of spaces per indent level (for spaces) or 1 for tabs
-}
-
-// String returns a string representation for the status bar
-func (i *IndentationInfo) String() string {
-	if i.Type == IndentTabs {
-		return "Tabs"
-	}
-	return fmt.Sprintf("Spaces:%d", i.Width)
-}
 
 // gcd calculates the greatest common divisor
 func gcd(a, b int) int {
@@ -114,7 +93,7 @@ func isReliableIndentLine(line string) bool {
 }
 
 // detectIndentation analyzes the buffer to determine indentation style
-func (e *Editor) detectIndentation() IndentationInfo {
+func (e *Editor) detectIndentation() buffer.IndentationInfo {
 	lines := e.buffer.Lines()
 
 	// Count occurrences of different indentation patterns
@@ -156,12 +135,12 @@ func (e *Editor) detectIndentation() IndentationInfo {
 	// Determine the most common indentation
 	if tabCount > 0 {
 		// If any tabs are found, assume tab indentation
-		return IndentationInfo{Type: IndentTabs, Width: 1}
+		return buffer.IndentationInfo{Type: config.IndentTabs, Width: 1}
 	}
 
-	// If no reliable indented lines, use default
+	// If no reliable indented lines, use default from config
 	if len(spaceCounts) == 0 {
-		return IndentationInfo{Type: IndentSpaces, Width: 4}
+		return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
 	}
 
 	// Count frequency of each indentation level
@@ -180,7 +159,7 @@ func (e *Editor) detectIndentation() IndentationInfo {
 
 	// If the minimum indentation is a standard width, use it
 	if minIndent == 2 || minIndent == 4 || minIndent == 8 {
-		return IndentationInfo{Type: IndentSpaces, Width: minIndent}
+		return buffer.IndentationInfo{Type: config.IndentSpaces, Width: minIndent}
 	}
 
 	// Otherwise, find GCD of all indentation levels
@@ -192,7 +171,7 @@ func (e *Editor) detectIndentation() IndentationInfo {
 		
 		// Ensure it's a reasonable width
 		if indentWidth == 2 || indentWidth == 4 || indentWidth == 8 {
-			return IndentationInfo{Type: IndentSpaces, Width: indentWidth}
+			return buffer.IndentationInfo{Type: config.IndentSpaces, Width: indentWidth}
 		}
 		
 		// If GCD gives an odd result, check which standard width fits best
@@ -212,86 +191,17 @@ func (e *Editor) detectIndentation() IndentationInfo {
 			}
 		}
 		
-		return IndentationInfo{Type: IndentSpaces, Width: bestWidth}
+		return buffer.IndentationInfo{Type: config.IndentSpaces, Width: bestWidth}
 	}
 
 	// Default fallback
-	return IndentationInfo{Type: IndentSpaces, Width: 4}
+	return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
 }
 
-// setIndentationType sets the indentation type for the current buffer
-func (e *Editor) setIndentationType(indentType IndentationType) {
-	e.indentation.Type = indentType
-	if indentType == IndentTabs {
-		e.indentation.Width = 1
-	}
-}
 
-// setIndentationWidth sets the indentation width (for spaces)
-func (e *Editor) setIndentationWidth(width int) {
-	if width > 0 && width <= 8 {
-		e.indentation.Width = width
-		if e.indentation.Type == IndentTabs {
-			e.indentation.Type = IndentSpaces
-		}
-	}
-}
 
-// getIndentationString returns the string to use for one level of indentation
-func (e *Editor) getIndentationString() string {
-	if e.indentation.Type == IndentTabs {
-		return "\t"
-	}
-	return strings.Repeat(" ", e.indentation.Width)
-}
 
-// getLineIndentation returns the indentation string of a given line
-func getLineIndentation(line string) string {
-	indentEnd := 0
-	for i, ch := range line {
-		if ch != ' ' && ch != '\t' {
-			indentEnd = i
-			break
-		}
-	}
-
-	if indentEnd == 0 && len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
-		// Entire line is whitespace
-		return line
-	}
-
-	return line[:indentEnd]
-}
-
-// getLineIndentLevel calculates the indent level of a line
-func (e *Editor) getLineIndentLevel(line string) int {
-	level := 0
-	for _, ch := range line {
-		if ch == '\t' {
-			level++
-		} else if ch == ' ' {
-			if e.indentation.Type == IndentSpaces && e.indentation.Width > 0 {
-				// For spaces, we'll count later
-			} else {
-				break
-			}
-		} else {
-			break
-		}
-	}
-
-	// If using spaces, count space groups
-	if e.indentation.Type == IndentSpaces && e.indentation.Width > 0 {
-		spaceCount := 0
-		for _, ch := range line {
-			if ch == ' ' {
-				spaceCount++
-			} else if ch != '\t' {
-				break
-			}
-		}
-		level += spaceCount / e.indentation.Width
-	}
-
-	return level
+// getCurrentLineIndentInfo returns detailed indentation info for the current line
+func (e *Editor) getCurrentLineIndentInfo() buffer.LineIndentInfo {
+	return e.buffer.GetCurrentLineIndentInfo(e.cursorY)
 }

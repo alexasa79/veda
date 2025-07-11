@@ -28,7 +28,7 @@ func NewTestEditor(width, height int) *TestEditor {
 // NewTestEditorWithContent creates a test editor with initial content
 func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	te := NewTestEditor(width, height)
-	te.buffer = buffer.NewBufferFromString(content)
+	te.buffer = buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	te.updateLineOffsets()
 	return te
 }
