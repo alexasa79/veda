@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -54,7 +55,12 @@ func TestNavigationHistoryMaxSize(t *testing.T) {
 }
 
 func TestGoBack(t *testing.T) {
-	te := NewTestEditor(80, 24)
+	// Create a test editor with enough content for the cursor positions
+	content := ""
+	for i := 0; i < 35; i++ {
+		content += fmt.Sprintf("Line %d with some text to make it long enough\n", i)
+	}
+	te := NewTestEditorWithContent(80, 24, content)
 	
 	// Set up initial state with a buffer
 	te.currentFile = "test1.go"

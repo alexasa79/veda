@@ -212,6 +212,29 @@ func (e *Editor) scroll() {
 	}
 }
 
+// scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top
+func (e *Editor) scrollToShowAtTop() {
+	visibleHeight := e.getVisibleHeight()
+	bufferLines := len(e.buffer.Lines())
+	
+	// Position cursor at ScrollOffset from the top
+	e.topLine = e.cursorY - e.config.ScrollOffset
+	
+	// Make sure we don't scroll past the beginning
+	if e.topLine < 0 {
+		e.topLine = 0
+	}
+	
+	// Make sure we don't scroll past the end
+	maxTopLine := bufferLines - visibleHeight
+	if maxTopLine < 0 {
+		maxTopLine = 0
+	}
+	if e.topLine > maxTopLine {
+		e.topLine = maxTopLine
+	}
+}
+
 
 
 func (e *Editor) handleCommandMode(ev *tcell.EventKey) {
@@ -1135,8 +1158,8 @@ func (e *Editor) goToDefinition() error {
 		}
 	}
 
-	// Ensure the cursor is visible
-	e.scroll()
+	// Position the definition at ScrollOffset from the top of the screen
+	e.scrollToShowAtTop()
 
 	return nil
 }

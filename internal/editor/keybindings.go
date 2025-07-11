@@ -38,7 +38,6 @@ func (e *Editor) setupDefaultBindings() {
 	// Mode switching
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
 	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
-	e.registerKeyBinding(commands.InsertMode, "escape", "exit-insert-mode")
 
 	// Insert mode keys
 	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
@@ -54,13 +53,13 @@ func (e *Editor) setupDefaultBindings() {
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
-	
+
 	// Buffer operations
 	e.registerKeyBinding(commands.NormalMode, "space s b", "show-buffers")
 
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
-	
+
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
 

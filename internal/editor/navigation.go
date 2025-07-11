@@ -60,10 +60,11 @@ func (e *Editor) goBack() error {
 		}
 	}
 	
-	// Restore cursor position
+	// Always restore cursor position from navigation entry
+	// This overrides any position from switchToBuffer
 	e.cursorX = entry.cursorX
 	e.cursorY = entry.cursorY
-	e.topLine = entry.topLine
+	// Don't restore topLine here - let scrollToShowAtTop handle it
 	
 	// Ensure cursor is within bounds
 	lines := e.buffer.Lines()
@@ -80,8 +81,8 @@ func (e *Editor) goBack() error {
 		}
 	}
 	
-	// Ensure the cursor is visible
-	e.scroll()
+	// Position at ScrollOffset from the top for better visibility
+	e.scrollToShowAtTop()
 	
 	return nil
 }
