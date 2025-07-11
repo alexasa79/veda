@@ -18,6 +18,17 @@ import (
 
 var LL *log.Logger = log.NewLogger("EDITOR")
 
+// BufferInfo holds information about an open buffer
+type BufferInfo struct {
+	buffer       *buffer.Buffer
+	filePath     string
+	cursorX      int
+	cursorY      int
+	topLine      int
+	lineOffsets  []int  // Cache of byte offsets for each line
+	offsetsDirty bool   // Whether line offsets need recalculation
+}
+
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen          Screen
@@ -35,6 +46,10 @@ type Editor struct {
 	currentFile     string
 	lineOffsets     []int  // Cache of byte offsets for each line
 	offsetsDirty    bool   // Whether line offsets need recalculation
+	
+	// Buffer management
+	buffers         map[string]*BufferInfo  // Map of file path to buffer info
+	bufferOrder     []string                // Order of buffers for cycling
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -56,9 +71,12 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		return nil, fmt.Errorf("failed to start proxy client: %v", err)
 	}
 
+	// Create initial empty buffer
+	initialBuffer := buffer.NewBufferFromString("")
+	
 	editor := &Editor{
 		screen:          screen,
-		buffer:          buffer.NewBufferFromString(""), // Start with empty buffer
+		buffer:          initialBuffer,
 		config:          config,
 		cursorX:         0,
 		cursorY:         0,
@@ -70,7 +88,23 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		keyMapper:       commands.NewKeyMapper(),
 		highlighter:     syntax.NewHighlighter(),
 		offsetsDirty:    true, // Need to calculate offsets for initial buffer
+		buffers:         make(map[string]*BufferInfo),
+		bufferOrder:     []string{},
 	}
+	
+	// Add the initial empty buffer
+	emptyBufferInfo := &BufferInfo{
+		buffer:       initialBuffer,
+		filePath:     "[No Name]",
+		cursorX:      0,
+		cursorY:      0,
+		topLine:      0,
+		lineOffsets:  []int{},
+		offsetsDirty: true,
+	}
+	editor.buffers["[No Name]"] = emptyBufferInfo
+	editor.bufferOrder = append(editor.bufferOrder, "[No Name]")
+	editor.currentFile = "[No Name]"
 
 	// Register commands
 	editor.registerCommands()
@@ -506,8 +540,8 @@ func (e *Editor) showFuzzyListWidget() {
 	width, height := e.screen.Size()
 
 	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 3 / 5  // 60% of screen width
-	fuzzyListHeight := height * 3 / 5 // 60% of screen height
+	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListHeight := height * 7 / 10 // 70% of screen height
 	fuzzyListX := (width - fuzzyListWidth) / 2
 	fuzzyListY := (height - fuzzyListHeight) / 2
 
@@ -570,6 +604,18 @@ func (e *Editor) showFuzzyListWidget() {
 
 // openFile loads a file's content into the editor buffer
 func (e *Editor) openFile(filePath string) {
+	// First save the current buffer state
+	if e.currentFile != "" {
+		e.saveCurrentBufferState()
+	}
+	
+	// Check if this file is already open
+	if bufferInfo, exists := e.buffers[filePath]; exists {
+		// Switch to existing buffer
+		e.switchToBuffer(bufferInfo)
+		return
+	}
+
 	// Read file content using proxy
 	content, err := e.proxyClient.GetFile(filePath)
 	if err != nil {
@@ -578,24 +624,44 @@ func (e *Editor) openFile(filePath string) {
 	}
 
 	// Create a new buffer with the file content
-	e.buffer = buffer.NewBufferFromString(content)
-
-	// Store the current file path as provided
-	e.currentFile = filePath
-
-	// Set up syntax highlighting
-	if e.highlighter != nil {
-		e.highlighter.SetLanguageFromFile(filePath)
-		e.highlighter.ParseFull([]byte(content))
+	newBuffer := buffer.NewBufferFromString(content)
+	
+	// Create buffer info
+	bufferInfo := &BufferInfo{
+		buffer:       newBuffer,
+		filePath:     filePath,
+		cursorX:      0,
+		cursorY:      0,
+		topLine:      0,
+		lineOffsets:  []int{},
+		offsetsDirty: true,
 	}
-
-	// Reset cursor and scroll position
-	e.cursorX = 0
-	e.cursorY = 0
-	e.topLine = 0
-
-	// Mark line offsets as needing recalculation
-	e.offsetsDirty = true
+	
+	// Add to buffers map and order
+	e.buffers[filePath] = bufferInfo
+	
+	// If this is replacing the empty buffer AND it's still empty, remove it
+	// We should keep the [No Name] buffer if the user has typed anything into it
+	if e.currentFile == "[No Name]" {
+		if noNameBuffer, exists := e.buffers["[No Name]"]; exists {
+			// Only remove if the buffer is truly empty
+			if noNameBuffer.buffer.String() == "" {
+				delete(e.buffers, "[No Name]")
+				for i, path := range e.bufferOrder {
+					if path == "[No Name]" {
+						e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
+						break
+					}
+				}
+			}
+		}
+	}
+	
+	// Add new buffer to order
+	e.bufferOrder = append(e.bufferOrder, filePath)
+	
+	// Switch to the new buffer
+	e.switchToBuffer(bufferInfo)
 }
 
 // Movement commands
@@ -1076,6 +1142,9 @@ func (e *Editor) openFileCmd() error {
 
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
 func (e *Editor) showLSPBufferGo() error {
+	// Save current buffer state first
+	e.saveCurrentBufferState()
+	
 	// Get LSP messages for Go
 	messages, err := e.proxyClient.GetLSPMessages("go")
 	if err != nil {
@@ -1109,16 +1178,32 @@ func (e *Editor) showLSPBufferGo() error {
 		}
 	}
 
-	// Create a new buffer with the LSP messages
-	e.buffer = buffer.NewBufferFromString(content.String())
-	e.currentFile = "*LSP Messages - Go*"
-	e.cursorX = 0
-	e.cursorY = 0
-	e.topLine = 0
-	e.offsetsDirty = true
-
-	// Reset syntax highlighting
-	e.highlighter = syntax.NewHighlighter()
+	// Check if LSP buffer already exists
+	lspBufferName := "*LSP Messages - Go*"
+	if bufferInfo, exists := e.buffers[lspBufferName]; exists {
+		// Update existing buffer
+		bufferInfo.buffer = buffer.NewBufferFromString(content.String())
+		bufferInfo.cursorX = 0
+		bufferInfo.cursorY = 0
+		bufferInfo.topLine = 0
+		bufferInfo.offsetsDirty = true
+		e.switchToBuffer(bufferInfo)
+	} else {
+		// Create new buffer
+		newBuffer := buffer.NewBufferFromString(content.String())
+		bufferInfo := &BufferInfo{
+			buffer:       newBuffer,
+			filePath:     lspBufferName,
+			cursorX:      0,
+			cursorY:      0,
+			topLine:      0,
+			lineOffsets:  []int{},
+			offsetsDirty: true,
+		}
+		e.buffers[lspBufferName] = bufferInfo
+		e.bufferOrder = append(e.bufferOrder, lspBufferName)
+		e.switchToBuffer(bufferInfo)
+	}
 
 	return nil
 }
@@ -1244,6 +1329,9 @@ func (e *Editor) registerCommands() {
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition)
 	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo)
+	
+	// Buffer commands
+	e.commandRegistry.Register("show-buffers", e.showBuffers)
 }
 
 // setupDefaultBindings sets up the default key bindings
@@ -1281,10 +1369,111 @@ func (e *Editor) setupDefaultBindings() {
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
+	
+	// Buffer operations
+	e.registerKeyBinding(commands.NormalMode, "space s b", "show-buffers")
 
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
 
 	// Quit
 	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
+}
+
+// saveCurrentBufferState saves the current buffer's state before switching
+func (e *Editor) saveCurrentBufferState() {
+	if e.currentFile != "" {
+		if bufferInfo, exists := e.buffers[e.currentFile]; exists {
+			bufferInfo.cursorX = e.cursorX
+			bufferInfo.cursorY = e.cursorY
+			bufferInfo.topLine = e.topLine
+			bufferInfo.lineOffsets = e.lineOffsets
+			bufferInfo.offsetsDirty = e.offsetsDirty
+		}
+	}
+}
+
+// switchToBuffer switches to a different buffer
+func (e *Editor) switchToBuffer(bufferInfo *BufferInfo) {
+	// Set the buffer and related fields
+	e.buffer = bufferInfo.buffer
+	e.currentFile = bufferInfo.filePath
+	e.cursorX = bufferInfo.cursorX
+	e.cursorY = bufferInfo.cursorY
+	e.topLine = bufferInfo.topLine
+	e.lineOffsets = bufferInfo.lineOffsets
+	e.offsetsDirty = bufferInfo.offsetsDirty
+	
+	// Set up syntax highlighting
+	if e.highlighter != nil && bufferInfo.filePath != "[No Name]" {
+		e.highlighter.SetLanguageFromFile(bufferInfo.filePath)
+		e.highlighter.ParseFull([]byte(e.buffer.String()))
+	} else {
+		// Reset syntax highlighting for empty buffer
+		e.highlighter = syntax.NewHighlighter()
+	}
+}
+
+// showBuffers shows the buffer list using the fuzzy list widget
+func (e *Editor) showBuffers() error {
+	if len(e.buffers) == 0 {
+		return nil
+	}
+	
+	width, height := e.screen.Size()
+	
+	// Create fuzzy list widget (centered overlay)
+	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListHeight := height * 7 / 10 // 70% of screen height
+	fuzzyListX := (width - fuzzyListWidth) / 2
+	fuzzyListY := (height - fuzzyListHeight) / 2
+	
+	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
+	fuzzyListWidget.SetTitle("Open Buffers")
+	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
+	
+	// Create list of buffer paths
+	var bufferPaths []string
+	for _, path := range e.bufferOrder {
+		if path == e.currentFile {
+			// Mark current buffer
+			bufferPaths = append(bufferPaths, path + " [current]")
+		} else {
+			bufferPaths = append(bufferPaths, path)
+		}
+	}
+	
+	fuzzyListWidget.SetContent(bufferPaths)
+	
+	// Show the widget with a background render function
+	var tcellScreen tcell.Screen
+	if provider, ok := e.screen.(TcellScreenProvider); ok {
+		tcellScreen = provider.GetTcellScreen()
+	} else {
+		// For testing, we'll need to handle this differently
+		return nil
+	}
+	
+	selection := fuzzyListWidget.Show(tcellScreen, func() {
+		e.drawEditor()
+		e.drawStatusBar()
+	})
+	
+	// If a buffer was selected, switch to it
+	if selection != "" {
+		// Remove the " [current]" suffix if present
+		if strings.HasSuffix(selection, " [current]") {
+			selection = strings.TrimSuffix(selection, " [current]")
+		}
+		
+		// Save current buffer state before switching
+		e.saveCurrentBufferState()
+		
+		// Switch to selected buffer
+		if bufferInfo, exists := e.buffers[selection]; exists {
+			e.switchToBuffer(bufferInfo)
+		}
+	}
+	
+	return nil
 }
