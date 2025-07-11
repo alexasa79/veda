@@ -1,0 +1,69 @@
+package editor
+
+import (
+	"fmt"
+	"veda/internal/commands"
+)
+
+// registerKeyBinding registers a key binding with a command
+func (e *Editor) registerKeyBinding(mode commands.Mode, keys string, command string) {
+	keySeq, err := commands.ParseKeySequence(keys)
+	if err != nil {
+		panic(fmt.Sprintf("Invalid key sequence: %s", keys))
+	}
+
+	e.keyMapper.AddBinding(commands.Binding{
+		Keys:    keySeq,
+		Command: command,
+		Modes:   []commands.Mode{mode},
+	})
+}
+
+// setupDefaultBindings sets up the default key bindings
+func (e *Editor) setupDefaultBindings() {
+	// Movement keys
+	e.registerKeyBinding(commands.NormalMode, "up", "up")
+	e.registerKeyBinding(commands.NormalMode, "down", "down")
+	e.registerKeyBinding(commands.NormalMode, "left", "left")
+	e.registerKeyBinding(commands.NormalMode, "right", "right")
+	e.registerKeyBinding(commands.NormalMode, "pageup", "page-up")
+	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
+	e.registerKeyBinding(commands.NormalMode, "w", "word-forward")
+	e.registerKeyBinding(commands.NormalMode, "b", "word-backward")
+	e.registerKeyBinding(commands.NormalMode, "0", "beginning-of-line")
+	e.registerKeyBinding(commands.NormalMode, "$", "end-of-line")
+	e.registerKeyBinding(commands.NormalMode, "home", "beginning-of-line")
+	e.registerKeyBinding(commands.NormalMode, "end", "end-of-line")
+
+	// Mode switching
+	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
+	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
+	e.registerKeyBinding(commands.InsertMode, "escape", "exit-insert-mode")
+
+	// Insert mode keys
+	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
+	e.registerKeyBinding(commands.InsertMode, "backspace", "backspace")
+
+	// Cursor movement in insert mode
+	e.registerKeyBinding(commands.InsertMode, "up", "up-insert")
+	e.registerKeyBinding(commands.InsertMode, "down", "down-insert")
+	e.registerKeyBinding(commands.InsertMode, "left", "left-insert")
+	e.registerKeyBinding(commands.InsertMode, "right", "right-insert")
+	e.registerKeyBinding(commands.InsertMode, "home", "beginning-of-line-insert")
+	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
+
+	// File operations
+	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
+	
+	// Buffer operations
+	e.registerKeyBinding(commands.NormalMode, "space s b", "show-buffers")
+
+	// LSP operations
+	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
+	
+	// Navigation operations
+	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
+
+	// Quit
+	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
+}

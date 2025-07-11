@@ -18,17 +18,6 @@ import (
 
 var LL *log.Logger = log.NewLogger("EDITOR")
 
-// BufferInfo holds information about an open buffer
-type BufferInfo struct {
-	buffer       *buffer.Buffer
-	filePath     string
-	cursorX      int
-	cursorY      int
-	topLine      int
-	lineOffsets  []int  // Cache of byte offsets for each line
-	offsetsDirty bool   // Whether line offsets need recalculation
-}
-
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen          Screen
@@ -46,10 +35,14 @@ type Editor struct {
 	currentFile     string
 	lineOffsets     []int  // Cache of byte offsets for each line
 	offsetsDirty    bool   // Whether line offsets need recalculation
-	
+
 	// Buffer management
 	buffers         map[string]*BufferInfo  // Map of file path to buffer info
 	bufferOrder     []string                // Order of buffers for cycling
+
+	// Navigation history
+	navHistory      []NavigationEntry       // Stack of previous positions
+	maxNavHistory   int                     // Maximum number of entries to keep
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -73,7 +66,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 
 	// Create initial empty buffer
 	initialBuffer := buffer.NewBufferFromString("")
-	
+
 	editor := &Editor{
 		screen:          screen,
 		buffer:          initialBuffer,
@@ -90,8 +83,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		offsetsDirty:    true, // Need to calculate offsets for initial buffer
 		buffers:         make(map[string]*BufferInfo),
 		bufferOrder:     []string{},
+		navHistory:      []NavigationEntry{},
+		maxNavHistory:   50, // Keep last 50 navigation entries
 	}
-	
+
 	// Add the initial empty buffer
 	emptyBufferInfo := &BufferInfo{
 		buffer:       initialBuffer,
@@ -533,135 +528,6 @@ func (e *Editor) drawStatusBar() {
 			e.drawText(rightX, statusBarY, lineColStyle, lineColInfo)
 		}
 	}
-}
-
-// showFuzzyListWidget creates and displays the fuzzy list widget with directory listing
-func (e *Editor) showFuzzyListWidget() {
-	width, height := e.screen.Size()
-
-	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 4 / 5  // 80% of screen width
-	fuzzyListHeight := height * 7 / 10 // 70% of screen height
-	fuzzyListX := (width - fuzzyListWidth) / 2
-	fuzzyListY := (height - fuzzyListHeight) / 2
-
-	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
-	fuzzyListWidget.SetTitle("Open File")
-	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
-
-	// Get recursive directory listing from proxy
-	files, err := e.proxyClient.ListDirectoryRecursive(".")
-	if err != nil {
-		fuzzyListWidget.SetContent([]string{"Error: " + err.Error()})
-	} else {
-		var paths []string
-		for _, file := range files {
-			// Filter out hidden files and directories (starting with .)
-			// Check if any component of the path starts with .
-			skipFile := false
-			pathComponents := strings.Split(file.Path, "/")
-			for _, component := range pathComponents {
-				if len(component) > 0 && component[0] == '.' {
-					skipFile = true
-					break
-				}
-			}
-			if skipFile {
-				continue
-			}
-
-			// Only include files, not directories
-			if file.Type != "file" {
-				continue
-			}
-
-			paths = append(paths, file.Path)
-		}
-		fuzzyListWidget.SetContent(paths)
-	}
-
-	// Show the widget with a background render function
-	// The fuzzy list widget needs the full tcell.Screen interface
-	var tcellScreen tcell.Screen
-	if provider, ok := e.screen.(TcellScreenProvider); ok {
-		tcellScreen = provider.GetTcellScreen()
-	} else {
-		// For testing, we'll need to handle this differently
-		// For now, just return empty selection
-		return
-	}
-
-	selection := fuzzyListWidget.Show(tcellScreen, func() {
-		e.drawEditor()
-		e.drawStatusBar()
-	})
-
-	// If a file was selected, open it
-	if selection != "" {
-		e.openFile(selection)
-	}
-}
-
-// openFile loads a file's content into the editor buffer
-func (e *Editor) openFile(filePath string) {
-	// First save the current buffer state
-	if e.currentFile != "" {
-		e.saveCurrentBufferState()
-	}
-	
-	// Check if this file is already open
-	if bufferInfo, exists := e.buffers[filePath]; exists {
-		// Switch to existing buffer
-		e.switchToBuffer(bufferInfo)
-		return
-	}
-
-	// Read file content using proxy
-	content, err := e.proxyClient.GetFile(filePath)
-	if err != nil {
-		// TODO: Show error to user
-		return
-	}
-
-	// Create a new buffer with the file content
-	newBuffer := buffer.NewBufferFromString(content)
-	
-	// Create buffer info
-	bufferInfo := &BufferInfo{
-		buffer:       newBuffer,
-		filePath:     filePath,
-		cursorX:      0,
-		cursorY:      0,
-		topLine:      0,
-		lineOffsets:  []int{},
-		offsetsDirty: true,
-	}
-	
-	// Add to buffers map and order
-	e.buffers[filePath] = bufferInfo
-	
-	// If this is replacing the empty buffer AND it's still empty, remove it
-	// We should keep the [No Name] buffer if the user has typed anything into it
-	if e.currentFile == "[No Name]" {
-		if noNameBuffer, exists := e.buffers["[No Name]"]; exists {
-			// Only remove if the buffer is truly empty
-			if noNameBuffer.buffer.String() == "" {
-				delete(e.buffers, "[No Name]")
-				for i, path := range e.bufferOrder {
-					if path == "[No Name]" {
-						e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
-						break
-					}
-				}
-			}
-		}
-	}
-	
-	// Add new buffer to order
-	e.bufferOrder = append(e.bufferOrder, filePath)
-	
-	// Switch to the new buffer
-	e.switchToBuffer(bufferInfo)
 }
 
 // Movement commands
@@ -1135,16 +1001,11 @@ func (e *Editor) enterCommandModeCmd() error {
 	return nil
 }
 
-func (e *Editor) openFileCmd() error {
-	e.showFuzzyListWidget()
-	return nil
-}
-
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
 func (e *Editor) showLSPBufferGo() error {
 	// Save current buffer state first
 	e.saveCurrentBufferState()
-	
+
 	// Get LSP messages for Go
 	messages, err := e.proxyClient.GetLSPMessages("go")
 	if err != nil {
@@ -1155,7 +1016,7 @@ func (e *Editor) showLSPBufferGo() error {
 	// Format messages as a string buffer
 	var content strings.Builder
 	content.WriteString("=== LSP Messages for Go ===\n\n")
-	
+
 	for _, msg := range messages {
 		if msgMap, ok := msg.(map[string]interface{}); ok {
 			// Format the message nicely
@@ -1247,6 +1108,9 @@ func (e *Editor) goToDefinition() error {
 
 	filePath := strings.TrimPrefix(location.URI, "file://")
 
+	// Push current position to navigation history before jumping
+	e.pushNavigationHistory()
+
 	// If it's a different file, open it
 	if filePath != e.currentFile {
 		e.openFile(filePath)
@@ -1277,203 +1141,3 @@ func (e *Editor) goToDefinition() error {
 	return nil
 }
 
-// registerKeyBinding registers a key binding with a command
-func (e *Editor) registerKeyBinding(mode commands.Mode, keys string, command string) {
-	keySeq, err := commands.ParseKeySequence(keys)
-	if err != nil {
-		panic(fmt.Sprintf("Invalid key sequence: %s", keys))
-	}
-
-	e.keyMapper.AddBinding(commands.Binding{
-		Keys:    keySeq,
-		Command: command,
-		Modes:   []commands.Mode{mode},
-	})
-}
-
-// registerCommands registers all command handlers
-func (e *Editor) registerCommands() {
-	// Movement commands
-	e.commandRegistry.Register("up", e.moveUp)
-	e.commandRegistry.Register("down", e.moveDown)
-	e.commandRegistry.Register("left", e.moveLeft)
-	e.commandRegistry.Register("right", e.moveRight)
-	e.commandRegistry.Register("word-forward", e.wordForward)
-	e.commandRegistry.Register("word-backward", e.wordBackward)
-	e.commandRegistry.Register("beginning-of-line", e.beginningOfLine)
-	e.commandRegistry.Register("end-of-line", e.endOfLine)
-	e.commandRegistry.Register("beginning-of-line-insert", e.beginningOfLineInsert)
-	e.commandRegistry.Register("end-of-line-insert", e.endOfLineInsert)
-	e.commandRegistry.Register("page-up", e.pageUp)
-	e.commandRegistry.Register("page-down", e.pageDown)
-
-	// Insert mode movement commands
-	e.commandRegistry.Register("up-insert", e.moveUpInsert)
-	e.commandRegistry.Register("down-insert", e.moveDownInsert)
-	e.commandRegistry.Register("left-insert", e.moveLeftInsert)
-	e.commandRegistry.Register("right-insert", e.moveRightInsert)
-
-	// Mode commands
-	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd)
-	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode)
-	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode)
-
-	// Insert mode commands
-	e.commandRegistry.Register("insert-newline", e.insertNewline)
-	e.commandRegistry.Register("backspace", e.backspace)
-
-	// File commands
-	e.commandRegistry.Register("open-file", e.openFileCmd)
-	e.commandRegistry.Register("quit", e.quit)
-
-	// LSP commands
-	e.commandRegistry.Register("go-to-definition", e.goToDefinition)
-	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo)
-	
-	// Buffer commands
-	e.commandRegistry.Register("show-buffers", e.showBuffers)
-}
-
-// setupDefaultBindings sets up the default key bindings
-func (e *Editor) setupDefaultBindings() {
-	// Movement keys
-	e.registerKeyBinding(commands.NormalMode, "up", "up")
-	e.registerKeyBinding(commands.NormalMode, "down", "down")
-	e.registerKeyBinding(commands.NormalMode, "left", "left")
-	e.registerKeyBinding(commands.NormalMode, "right", "right")
-	e.registerKeyBinding(commands.NormalMode, "pageup", "page-up")
-	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
-	e.registerKeyBinding(commands.NormalMode, "w", "word-forward")
-	e.registerKeyBinding(commands.NormalMode, "b", "word-backward")
-	e.registerKeyBinding(commands.NormalMode, "0", "beginning-of-line")
-	e.registerKeyBinding(commands.NormalMode, "$", "end-of-line")
-	e.registerKeyBinding(commands.NormalMode, "home", "beginning-of-line")
-	e.registerKeyBinding(commands.NormalMode, "end", "end-of-line")
-
-	// Mode switching
-	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
-	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
-	e.registerKeyBinding(commands.InsertMode, "escape", "exit-insert-mode")
-
-	// Insert mode keys
-	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
-	e.registerKeyBinding(commands.InsertMode, "backspace", "backspace")
-
-	// Cursor movement in insert mode
-	e.registerKeyBinding(commands.InsertMode, "up", "up-insert")
-	e.registerKeyBinding(commands.InsertMode, "down", "down-insert")
-	e.registerKeyBinding(commands.InsertMode, "left", "left-insert")
-	e.registerKeyBinding(commands.InsertMode, "right", "right-insert")
-	e.registerKeyBinding(commands.InsertMode, "home", "beginning-of-line-insert")
-	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
-
-	// File operations
-	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
-	
-	// Buffer operations
-	e.registerKeyBinding(commands.NormalMode, "space s b", "show-buffers")
-
-	// LSP operations
-	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
-
-	// Quit
-	e.registerKeyBinding(commands.NormalMode, "escape", "quit")
-}
-
-// saveCurrentBufferState saves the current buffer's state before switching
-func (e *Editor) saveCurrentBufferState() {
-	if e.currentFile != "" {
-		if bufferInfo, exists := e.buffers[e.currentFile]; exists {
-			bufferInfo.cursorX = e.cursorX
-			bufferInfo.cursorY = e.cursorY
-			bufferInfo.topLine = e.topLine
-			bufferInfo.lineOffsets = e.lineOffsets
-			bufferInfo.offsetsDirty = e.offsetsDirty
-		}
-	}
-}
-
-// switchToBuffer switches to a different buffer
-func (e *Editor) switchToBuffer(bufferInfo *BufferInfo) {
-	// Set the buffer and related fields
-	e.buffer = bufferInfo.buffer
-	e.currentFile = bufferInfo.filePath
-	e.cursorX = bufferInfo.cursorX
-	e.cursorY = bufferInfo.cursorY
-	e.topLine = bufferInfo.topLine
-	e.lineOffsets = bufferInfo.lineOffsets
-	e.offsetsDirty = bufferInfo.offsetsDirty
-	
-	// Set up syntax highlighting
-	if e.highlighter != nil && bufferInfo.filePath != "[No Name]" {
-		e.highlighter.SetLanguageFromFile(bufferInfo.filePath)
-		e.highlighter.ParseFull([]byte(e.buffer.String()))
-	} else {
-		// Reset syntax highlighting for empty buffer
-		e.highlighter = syntax.NewHighlighter()
-	}
-}
-
-// showBuffers shows the buffer list using the fuzzy list widget
-func (e *Editor) showBuffers() error {
-	if len(e.buffers) == 0 {
-		return nil
-	}
-	
-	width, height := e.screen.Size()
-	
-	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 4 / 5  // 80% of screen width
-	fuzzyListHeight := height * 7 / 10 // 70% of screen height
-	fuzzyListX := (width - fuzzyListWidth) / 2
-	fuzzyListY := (height - fuzzyListHeight) / 2
-	
-	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
-	fuzzyListWidget.SetTitle("Open Buffers")
-	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
-	
-	// Create list of buffer paths
-	var bufferPaths []string
-	for _, path := range e.bufferOrder {
-		if path == e.currentFile {
-			// Mark current buffer
-			bufferPaths = append(bufferPaths, path + " [current]")
-		} else {
-			bufferPaths = append(bufferPaths, path)
-		}
-	}
-	
-	fuzzyListWidget.SetContent(bufferPaths)
-	
-	// Show the widget with a background render function
-	var tcellScreen tcell.Screen
-	if provider, ok := e.screen.(TcellScreenProvider); ok {
-		tcellScreen = provider.GetTcellScreen()
-	} else {
-		// For testing, we'll need to handle this differently
-		return nil
-	}
-	
-	selection := fuzzyListWidget.Show(tcellScreen, func() {
-		e.drawEditor()
-		e.drawStatusBar()
-	})
-	
-	// If a buffer was selected, switch to it
-	if selection != "" {
-		// Remove the " [current]" suffix if present
-		if strings.HasSuffix(selection, " [current]") {
-			selection = strings.TrimSuffix(selection, " [current]")
-		}
-		
-		// Save current buffer state before switching
-		e.saveCurrentBufferState()
-		
-		// Switch to selected buffer
-		if bufferInfo, exists := e.buffers[selection]; exists {
-			e.switchToBuffer(bufferInfo)
-		}
-	}
-	
-	return nil
-}
