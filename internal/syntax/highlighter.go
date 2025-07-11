@@ -248,6 +248,19 @@ func (h *Highlighter) mapGoNodeToTokenType(node *sitter.Node, nodeType string, s
 		}
 		return TokenTypeVariable
 		
+	// Field identifiers (method names in selector expressions like fmt.Println)
+	case "field_identifier":
+		parent := node.Parent()
+		if parent != nil && parent.Type() == "selector_expression" {
+			// Check if the selector expression is used as a function call
+			grandparent := parent.Parent()
+			if grandparent != nil && grandparent.Type() == "call_expression" && 
+				parent == grandparent.ChildByFieldName("function") {
+				return TokenTypeFunction
+			}
+		}
+		return TokenTypeVariable
+		
 	// Punctuation and operators
 	case "(", ")", "[", "]", "{", "}", ",", ";", ".":
 		return TokenTypePunctuation
@@ -368,6 +381,19 @@ func (h *Highlighter) mapCNodeToTokenType(node *sitter.Node, nodeType string, so
 			// Type declaration
 			if parentType == "type_definition" {
 				return TokenTypeType
+			}
+		}
+		return TokenTypeVariable
+		
+	// Field identifiers (struct member function calls like obj->method or obj.method)
+	case "field_identifier":
+		parent := node.Parent()
+		if parent != nil && parent.Type() == "field_expression" {
+			// Check if the field expression is used as a function call
+			grandparent := parent.Parent()
+			if grandparent != nil && grandparent.Type() == "call_expression" && 
+				parent == grandparent.ChildByFieldName("function") {
+				return TokenTypeFunction
 			}
 		}
 		return TokenTypeVariable
