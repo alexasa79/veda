@@ -1,7 +1,7 @@
 package widgets
 
 import (
-	"github.com/gdamore/tcell/v2"
+	"veda/internal/ui"
 )
 
 // LineEditor represents a single-line text input widget
@@ -10,7 +10,7 @@ type LineEditor struct {
 	width  int    // Width of the editor
 	text   string // Current text content
 	cursor int    // Cursor position within the text
-	style  tcell.Style
+	style  ui.Style
 }
 
 // NewLineEditor creates a new single-line editor widget
@@ -21,12 +21,12 @@ func NewLineEditor(x, y, width int) *LineEditor {
 		width: width,
 		text:  "",
 		cursor: 0,
-		style: tcell.StyleDefault,
+		style: ui.StyleDefault,
 	}
 }
 
 // SetStyle sets the display style for the line editor
-func (le *LineEditor) SetStyle(style tcell.Style) {
+func (le *LineEditor) SetStyle(style ui.Style) {
 	le.style = style
 }
 
@@ -81,7 +81,7 @@ func (le *LineEditor) getScrollOffset() int {
 
 // ScreenWriter is a minimal interface for drawing to screen
 type ScreenWriter interface {
-	SetContent(x, y int, mainc rune, combc []rune, style tcell.Style)
+	SetContent(x, y int, mainc rune, combc []rune, style ui.Style)
 }
 
 // Draw renders the line editor on the screen
@@ -127,38 +127,38 @@ func (le *LineEditor) GetCursorPosition() (int, int) {
 }
 
 // HandleKey processes keyboard input for the line editor
-func (le *LineEditor) HandleKey(ev *tcell.EventKey) bool {
-	switch ev.Key() {
-	case tcell.KeyLeft:
+func (le *LineEditor) HandleKey(ev *ui.EventKey) bool {
+	switch ev.Key {
+	case ui.KeyLeft:
 		if le.cursor > 0 {
 			le.cursor--
 		}
 		return true
-	case tcell.KeyRight:
+	case ui.KeyRight:
 		if le.cursor < len(le.text) {
 			le.cursor++
 		}
 		return true
-	case tcell.KeyHome:
+	case ui.KeyHome:
 		le.cursor = 0
 		return true
-	case tcell.KeyEnd:
+	case ui.KeyEnd:
 		le.cursor = len(le.text)
 		return true
-	case tcell.KeyBackspace, tcell.KeyBackspace2:
+	case ui.KeyBackspace, ui.KeyBackspace2:
 		if le.cursor > 0 {
 			le.text = le.text[:le.cursor-1] + le.text[le.cursor:]
 			le.cursor--
 		}
 		return true
-	case tcell.KeyDelete:
+	case ui.KeyDelete:
 		if le.cursor < len(le.text) {
 			le.text = le.text[:le.cursor] + le.text[le.cursor+1:]
 		}
 		return true
-	case tcell.KeyRune:
+	case ui.KeyRune:
 		// Insert the typed character
-		char := ev.Rune()
+		char := ev.Rune
 		le.text = le.text[:le.cursor] + string(char) + le.text[le.cursor:]
 		le.cursor++
 		return true

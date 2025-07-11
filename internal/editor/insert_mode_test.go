@@ -3,7 +3,7 @@ package editor
 import (
 	"testing"
 	"veda/internal/commands"
-	"github.com/gdamore/tcell/v2"
+	"veda/internal/ui"
 )
 
 func TestInsertMode(t *testing.T) {
@@ -217,11 +217,11 @@ func TestInsertMode(t *testing.T) {
 		// Draw the editor to set initial cursor style (should be block in normal mode)
 		te.drawEditor()
 		te.drawStatusBar()
-		te.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock) // Simulate what Run() does
+		te.screen.SetCursorStyle(ui.CursorStyleSteadyBlock) // Simulate what Run() does
 		
 		// Check initial cursor style
 		initialStyle := te.mockScreen.GetCursorStyle()
-		if initialStyle != tcell.CursorStyleSteadyBlock {
+		if initialStyle != ui.CursorStyleSteadyBlock {
 			t.Errorf("Expected initial cursor style to be block, but got %v", initialStyle)
 		}
 		
@@ -230,12 +230,12 @@ func TestInsertMode(t *testing.T) {
 		
 		// Simulate what Run() does when changing modes
 		if te.mode == commands.InsertMode {
-			te.screen.SetCursorStyle(tcell.CursorStyleSteadyBar)
+			te.screen.SetCursorStyle(ui.CursorStyleSteadyBar)
 		}
 		
 		// Check cursor style changed to bar
 		insertStyle := te.mockScreen.GetCursorStyle()
-		if insertStyle != tcell.CursorStyleSteadyBar {
+		if insertStyle != ui.CursorStyleSteadyBar {
 			t.Errorf("Expected cursor style to be bar in insert mode, but got %v", insertStyle)
 		}
 		
@@ -244,12 +244,12 @@ func TestInsertMode(t *testing.T) {
 		
 		// Simulate what Run() does when changing modes
 		if te.mode != commands.InsertMode {
-			te.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock)
+			te.screen.SetCursorStyle(ui.CursorStyleSteadyBlock)
 		}
 		
 		// Check cursor style changed back to block
 		normalStyle := te.mockScreen.GetCursorStyle()
-		if normalStyle != tcell.CursorStyleSteadyBlock {
+		if normalStyle != ui.CursorStyleSteadyBlock {
 			t.Errorf("Expected cursor style to be block in normal mode, but got %v", normalStyle)
 		}
 	})

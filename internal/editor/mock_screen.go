@@ -1,13 +1,13 @@
 package editor
 
 import (
-	"github.com/gdamore/tcell/v2"
+	"veda/internal/ui"
 )
 
 // Cell represents a single cell on the screen
 type Cell struct {
 	Rune  rune
-	Style tcell.Style
+	Style ui.Style
 }
 
 // MockScreen implements Screen interface for testing
@@ -18,10 +18,10 @@ type MockScreen struct {
 	cursorX       int
 	cursorY       int
 	cursorVisible bool
-	cursorStyle   tcell.CursorStyle
-	events        []tcell.Event
+	cursorStyle   ui.CursorStyle
+	events        []ui.Event
 	eventIndex    int
-	defaultStyle  tcell.Style
+	defaultStyle  ui.Style
 }
 
 // NewMockScreen creates a new mock screen with the given dimensions
@@ -30,8 +30,8 @@ func NewMockScreen(width, height int) *MockScreen {
 		width:        width,
 		height:       height,
 		cells:        make(map[int]map[int]Cell),
-		events:       make([]tcell.Event, 0),
-		defaultStyle: tcell.StyleDefault,
+		events:       make([]ui.Event, 0),
+		defaultStyle: ui.StyleDefault,
 	}
 }
 
@@ -61,12 +61,12 @@ func (s *MockScreen) Size() (width, height int) {
 }
 
 // SetStyle sets the default style
-func (s *MockScreen) SetStyle(style tcell.Style) {
+func (s *MockScreen) SetStyle(style ui.Style) {
 	s.defaultStyle = style
 }
 
 // SetContent sets the content at the given position
-func (s *MockScreen) SetContent(x, y int, mainc rune, combc []rune, style tcell.Style) {
+func (s *MockScreen) SetContent(x, y int, mainc rune, combc []rune, style ui.Style) {
 	if x < 0 || x >= s.width || y < 0 || y >= s.height {
 		return
 	}
@@ -89,12 +89,12 @@ func (s *MockScreen) ShowCursor(x, y int) {
 }
 
 // SetCursorStyle sets the cursor style
-func (s *MockScreen) SetCursorStyle(style tcell.CursorStyle) {
+func (s *MockScreen) SetCursorStyle(style ui.CursorStyle) {
 	s.cursorStyle = style
 }
 
 // PollEvent returns the next event in the queue
-func (s *MockScreen) PollEvent() tcell.Event {
+func (s *MockScreen) PollEvent() ui.Event {
 	if s.eventIndex >= len(s.events) {
 		// Return nil to indicate no more events
 		return nil
@@ -118,12 +118,12 @@ func (s *MockScreen) IsCursorVisible() bool {
 }
 
 // GetCursorStyle returns the current cursor style
-func (s *MockScreen) GetCursorStyle() tcell.CursorStyle {
+func (s *MockScreen) GetCursorStyle() ui.CursorStyle {
 	return s.cursorStyle
 }
 
 // GetCell returns the content at a specific position
-func (s *MockScreen) GetCell(x, y int) (rune, tcell.Style) {
+func (s *MockScreen) GetCell(x, y int) (rune, ui.Style) {
 	if row, ok := s.cells[y]; ok {
 		if cell, ok := row[x]; ok {
 			return cell.Rune, cell.Style
@@ -155,12 +155,12 @@ func (s *MockScreen) GetLine(y int) string {
 }
 
 // AddEvent adds an event to the event queue for testing
-func (s *MockScreen) AddEvent(ev tcell.Event) {
+func (s *MockScreen) AddEvent(ev ui.Event) {
 	s.events = append(s.events, ev)
 }
 
 // AddKeyEvent adds a key event to the event queue
-func (s *MockScreen) AddKeyEvent(key tcell.Key, r rune, mod tcell.ModMask) {
-	ev := tcell.NewEventKey(key, r, mod)
+func (s *MockScreen) AddKeyEvent(key ui.Key, r rune, mod ui.ModMask) {
+	ev := ui.NewEventKey(key, r, mod)
 	s.AddEvent(ev)
 }

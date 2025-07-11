@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"github.com/gdamore/tcell/v2"
+	"veda/internal/ui"
 )
 
 // Mode represents an editor mode
@@ -15,9 +15,9 @@ const (
 
 // Key represents a key with modifiers
 type Key struct {
-	Key  tcell.Key
+	Key  ui.Key
 	Rune rune
-	Mod  tcell.ModMask
+	Mod  ui.ModMask
 }
 
 // KeySequence represents a sequence of keys
@@ -94,11 +94,11 @@ func (km *KeyMapper) AddBinding(binding Binding) {
 }
 
 // ProcessKey processes a key event and returns the command if a binding matches
-func (km *KeyMapper) ProcessKey(ev *tcell.EventKey, currentMode Mode) (string, bool) {
+func (km *KeyMapper) ProcessKey(ev *ui.EventKey, currentMode Mode) (string, bool) {
 	key := Key{
-		Key:  ev.Key(),
-		Rune: ev.Rune(),
-		Mod:  ev.Modifiers(),
+		Key:  ev.Key,
+		Rune: ev.Rune,
+		Mod:  ev.Modifiers,
 	}
 	
 	// Add to pending sequence
@@ -179,11 +179,11 @@ func (km *KeyMapper) keyEquals(k1, k2 Key) bool {
 		return false
 	}
 	
-	if k1.Key != tcell.KeyRune && k2.Key != tcell.KeyRune {
+	if k1.Key != ui.KeyRune && k2.Key != ui.KeyRune {
 		return k1.Key == k2.Key
 	}
 	
-	if k1.Key == tcell.KeyRune && k2.Key == tcell.KeyRune {
+	if k1.Key == ui.KeyRune && k2.Key == ui.KeyRune {
 		return k1.Rune == k2.Rune
 	}
 	

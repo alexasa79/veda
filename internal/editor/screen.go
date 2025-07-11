@@ -1,6 +1,6 @@
 package editor
 
-import "github.com/gdamore/tcell/v2"
+import "veda/internal/ui"
 
 // Screen is the minimal interface for screen operations used by the editor
 type Screen interface {
@@ -14,18 +14,13 @@ type Screen interface {
 	
 	// Screen properties
 	Size() (width, height int)
-	SetStyle(style tcell.Style)
+	SetStyle(style ui.Style)
 	
 	// Content rendering
-	SetContent(x, y int, mainc rune, combc []rune, style tcell.Style)
+	SetContent(x, y int, mainc rune, combc []rune, style ui.Style)
 	ShowCursor(x, y int)
-	SetCursorStyle(style tcell.CursorStyle)
+	SetCursorStyle(style ui.CursorStyle)
 	
 	// Event handling
-	PollEvent() tcell.Event
-}
-
-// TcellScreenProvider is an optional interface that allows access to the underlying tcell.Screen
-type TcellScreenProvider interface {
-	GetTcellScreen() tcell.Screen
+	PollEvent() ui.Event
 }

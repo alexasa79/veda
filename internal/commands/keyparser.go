@@ -3,7 +3,7 @@ package commands
 import (
 	"strings"
 
-	"github.com/gdamore/tcell/v2"
+	"veda/internal/ui"
 )
 
 // ParseKeySequence parses a string like "ctrl+w" or "space f" into a KeySequence
@@ -34,11 +34,11 @@ func ParseKey(s string) (Key, error) {
 	for i := 0; i < len(parts)-1; i++ {
 		switch strings.ToLower(parts[i]) {
 		case "ctrl", "control":
-			result.Mod |= tcell.ModCtrl
+			result.Mod |= ui.ModCtrl
 		case "alt", "meta":
-			result.Mod |= tcell.ModAlt
+			result.Mod |= ui.ModAlt
 		case "shift":
-			result.Mod |= tcell.ModShift
+			result.Mod |= ui.ModShift
 		}
 	}
 
@@ -48,66 +48,66 @@ func ParseKey(s string) (Key, error) {
 	// Check special key names (convert to lowercase for comparison)
 	switch strings.ToLower(keyName) {
 	case "space":
-		result.Key = tcell.KeyRune
+		result.Key = ui.KeyRune
 		result.Rune = ' '
 	case "tab":
-		result.Key = tcell.KeyTab
+		result.Key = ui.KeyTab
 	case "enter", "return":
-		result.Key = tcell.KeyEnter
+		result.Key = ui.KeyEnter
 	case "escape", "esc":
-		result.Key = tcell.KeyEscape
+		result.Key = ui.KeyEscape
 	case "backspace", "bs":
-		result.Key = tcell.KeyBackspace2
+		result.Key = ui.KeyBackspace2
 	case "delete", "del":
-		result.Key = tcell.KeyDelete
+		result.Key = ui.KeyDelete
 	case "up":
-		result.Key = tcell.KeyUp
+		result.Key = ui.KeyUp
 	case "down":
-		result.Key = tcell.KeyDown
+		result.Key = ui.KeyDown
 	case "left":
-		result.Key = tcell.KeyLeft
+		result.Key = ui.KeyLeft
 	case "right":
-		result.Key = tcell.KeyRight
+		result.Key = ui.KeyRight
 	case "home":
-		result.Key = tcell.KeyHome
+		result.Key = ui.KeyHome
 	case "end":
-		result.Key = tcell.KeyEnd
+		result.Key = ui.KeyEnd
 	case "pageup", "pgup":
-		result.Key = tcell.KeyPgUp
+		result.Key = ui.KeyPgUp
 	case "pagedown", "pgdn":
-		result.Key = tcell.KeyPgDn
+		result.Key = ui.KeyPgDn
 	case "f1":
-		result.Key = tcell.KeyF1
+		result.Key = ui.KeyF1
 	case "f2":
-		result.Key = tcell.KeyF2
+		result.Key = ui.KeyF2
 	case "f3":
-		result.Key = tcell.KeyF3
+		result.Key = ui.KeyF3
 	case "f4":
-		result.Key = tcell.KeyF4
+		result.Key = ui.KeyF4
 	case "f5":
-		result.Key = tcell.KeyF5
+		result.Key = ui.KeyF5
 	case "f6":
-		result.Key = tcell.KeyF6
+		result.Key = ui.KeyF6
 	case "f7":
-		result.Key = tcell.KeyF7
+		result.Key = ui.KeyF7
 	case "f8":
-		result.Key = tcell.KeyF8
+		result.Key = ui.KeyF8
 	case "f9":
-		result.Key = tcell.KeyF9
+		result.Key = ui.KeyF9
 	case "f10":
-		result.Key = tcell.KeyF10
+		result.Key = ui.KeyF10
 	case "f11":
-		result.Key = tcell.KeyF11
+		result.Key = ui.KeyF11
 	case "f12":
-		result.Key = tcell.KeyF12
+		result.Key = ui.KeyF12
 	default:
 		// Single character - preserve case
 		if len(keyName) == 1 {
-			result.Key = tcell.KeyRune
+			result.Key = ui.KeyRune
 			result.Rune = rune(keyName[0])
 		} else {
 			// Unknown key
-			result.Key = tcell.KeyRune
+			result.Key = ui.KeyRune
 			result.Rune = '?'
 		}
 	}

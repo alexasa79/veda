@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/gdamore/tcell/v2"
+import "veda/internal/ui"
 
 // Theme represents a color theme for the editor
 type Theme struct {
@@ -43,12 +43,12 @@ type Theme struct {
 	SyntaxTag         StyleDef
 }
 
-// GetStyle returns a tcell.Style for the given style definition
-func (t *Theme) GetStyle(def StyleDef) tcell.Style {
+// GetStyle returns a ui.Style for the given style definition
+func (t *Theme) GetStyle(def StyleDef) ui.Style {
 	style, err := ParseStyleDef(def)
 	if err != nil {
 		// Fallback to default style on error
-		return tcell.StyleDefault
+		return ui.StyleDefault
 	}
 	return style
 }

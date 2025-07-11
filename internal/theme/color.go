@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/gdamore/tcell/v2"
+	"veda/internal/ui"
 )
 
 // StyleDef represents a complete style definition including color and attributes
@@ -16,24 +16,31 @@ type StyleDef struct {
 
 // ParsedStyle represents a parsed style with color and attributes
 type ParsedStyle struct {
-	Color      tcell.Color
+	FgColor    ui.Color
+	BgColor    ui.Color
 	Bold       bool
 	Italic     bool
 	Underline  bool
 }
 
-// ToStyle converts ParsedStyle to tcell.Style
-func (ps ParsedStyle) ToStyle() tcell.Style {
-	style := tcell.StyleDefault.Foreground(ps.Color)
+// ToStyle converts ParsedStyle to ui.Style
+func (ps ParsedStyle) ToStyle() ui.Style {
+	style := ui.StyleDefault
+	style.Fg = ps.FgColor
+	style.Bg = ps.BgColor
+	
+	var attrs ui.AttrMask
 	if ps.Bold {
-		style = style.Bold(true)
+		attrs |= ui.AttrBold
 	}
 	if ps.Italic {
-		style = style.Italic(true)
+		attrs |= ui.AttrItalic
 	}
 	if ps.Underline {
-		style = style.Underline(true)
+		attrs |= ui.AttrUnderline
 	}
+	style.Attrs = attrs
+	
 	return style
 }
 
@@ -50,7 +57,7 @@ var colorNotationRegex = regexp.MustCompile(`^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0
 // Examples: "#FFF", "#FFFA", "#FFFFFF", "#FFFFFFAA", "#FFF[B]", "#FFFFFF[BUI]"
 func ParseColorNotation(notation string) (ParsedStyle, error) {
 	result := ParsedStyle{
-		Color: tcell.ColorDefault,
+		FgColor: ui.ColorDefault,
 	}
 
 	// Parse hex notation
@@ -100,8 +107,8 @@ func ParseColorNotation(notation string) (ParsedStyle, error) {
 		b = uint8(bb)
 	}
 
-	// tcell uses RGB values directly
-	result.Color = tcell.NewRGBColor(int32(r), int32(g), int32(b))
+	// Convert RGB values to ui.Color
+	result.FgColor = ui.NewRGBColor(int32(r), int32(g), int32(b))
 
 	// Parse attributes
 	for _, attr := range attributes {
@@ -118,35 +125,43 @@ func ParseColorNotation(notation string) (ParsedStyle, error) {
 	return result, nil
 }
 
-// CombineStyles creates a tcell.Style from foreground and background ParsedStyles
-func CombineStyles(fg, bg ParsedStyle) tcell.Style {
-	style := tcell.StyleDefault.Foreground(fg.Color).Background(bg.Color)
+// CombineStyles creates a ui.Style from foreground and background ParsedStyles
+func CombineStyles(fg, bg ParsedStyle) ui.Style {
+	style := ui.StyleDefault
+	style.Fg = fg.FgColor
+	style.Bg = bg.BgColor
 	
 	// Apply foreground attributes (typically text attributes apply to foreground)
+	var attrs ui.AttrMask
 	if fg.Bold {
-		style = style.Bold(true)
+		attrs |= ui.AttrBold
 	}
 	if fg.Italic {
-		style = style.Italic(true)
+		attrs |= ui.AttrItalic
 	}
 	if fg.Underline {
-		style = style.Underline(true)
+		attrs |= ui.AttrUnderline
 	}
+	style.Attrs = attrs
 	
 	return style
 }
 
-// ParseStyleDef parses a StyleDef and returns a combined tcell.Style
-func ParseStyleDef(def StyleDef) (tcell.Style, error) {
+// ParseStyleDef parses a StyleDef and returns a combined ui.Style
+func ParseStyleDef(def StyleDef) (ui.Style, error) {
 	fg, err := ParseColorNotation(def.Foreground)
 	if err != nil {
-		return tcell.StyleDefault, fmt.Errorf("parsing foreground: %w", err)
+		return ui.StyleDefault, fmt.Errorf("parsing foreground: %w", err)
 	}
 
 	bg, err := ParseColorNotation(def.Background)
 	if err != nil {
-		return tcell.StyleDefault, fmt.Errorf("parsing background: %w", err)
+		return ui.StyleDefault, fmt.Errorf("parsing background: %w", err)
 	}
+
+	// Set the background color from bg notation
+	bg.BgColor = bg.FgColor
+	bg.FgColor = ui.ColorDefault
 
 	return CombineStyles(fg, bg), nil
 }

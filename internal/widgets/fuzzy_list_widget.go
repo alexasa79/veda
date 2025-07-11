@@ -3,11 +3,20 @@ package widgets
 import (
 	"veda/internal/fuzzysearch"
 	"veda/internal/theme"
+	"veda/internal/ui"
 	"veda/internal/utils"
 	"strings"
-	
-	"github.com/gdamore/tcell/v2"
 )
+
+// Screen is the interface for screen operations used by widgets
+type Screen interface {
+	SetContent(x, y int, mainc rune, combc []rune, style ui.Style)
+	Size() (width, height int)
+	Clear()
+	Show()
+	ShowCursor(x, y int)
+	PollEvent() ui.Event
+}
 
 // DecorationMode defines how items should be decorated in the list
 type DecorationMode int
@@ -184,7 +193,7 @@ func (flw *FuzzyListWidget) getContentWidth() int {
 }
 
 // Draw renders the fuzzy list widget on the screen
-func (flw *FuzzyListWidget) Draw(screen tcell.Screen) {
+func (flw *FuzzyListWidget) Draw(screen Screen) {
 	if flw.width < 3 || flw.height < 5 {
 		return // Widget too small to draw meaningfully
 	}
@@ -197,7 +206,7 @@ func (flw *FuzzyListWidget) Draw(screen tcell.Screen) {
 }
 
 // drawTopSection draws the top multi-line section with border
-func (flw *FuzzyListWidget) drawTopSection(screen tcell.Screen) {
+func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 	topHeight := flw.getTopSectionHeight()
 	contentWidth := flw.getContentWidth()
 
@@ -227,10 +236,12 @@ func (flw *FuzzyListWidget) drawTopSection(screen tcell.Screen) {
 		
 		if lineIndex < len(flw.topLines) {
 			line := flw.topLines[lineIndex]
-			if len(line) > contentWidth {
-				line = line[:contentWidth]
+			// Convert to runes to handle multi-byte characters correctly
+			runes := []rune(line)
+			if len(runes) > contentWidth {
+				runes = runes[:contentWidth]
 			}
-			for j, r := range line {
+			for j, r := range runes {
 				if j < contentWidth {
 					screen.SetContent(flw.x+1+j, row, r, nil, style)
 				}
@@ -247,7 +258,7 @@ func (flw *FuzzyListWidget) drawTopSection(screen tcell.Screen) {
 }
 
 // drawBottomSection draws the bottom single-line section with border
-func (flw *FuzzyListWidget) drawBottomSection(screen tcell.Screen) {
+func (flw *FuzzyListWidget) drawBottomSection(screen Screen) {
 	topHeight := flw.getTopSectionHeight()
 	bottomY := flw.y + 2 + topHeight
 
@@ -264,7 +275,7 @@ func (flw *FuzzyListWidget) drawBottomSection(screen tcell.Screen) {
 }
 
 // drawHorizontalBorder draws a horizontal border line
-func (flw *FuzzyListWidget) drawHorizontalBorder(screen tcell.Screen, y int, left, middle, right rune) {
+func (flw *FuzzyListWidget) drawHorizontalBorder(screen Screen, y int, left, middle, right rune) {
 	borderStyle := flw.theme.GetStyle(flw.theme.FuzzyListBorder)
 	screen.SetContent(flw.x, y, left, nil, borderStyle)
 	for i := 1; i < flw.width-1; i++ {
@@ -274,7 +285,7 @@ func (flw *FuzzyListWidget) drawHorizontalBorder(screen tcell.Screen, y int, lef
 }
 
 // drawTopBorderWithTitle draws the top border with an optional title
-func (flw *FuzzyListWidget) drawTopBorderWithTitle(screen tcell.Screen) {
+func (flw *FuzzyListWidget) drawTopBorderWithTitle(screen Screen) {
 	borderStyle := flw.theme.GetStyle(flw.theme.FuzzyListBorder)
 	y := flw.y
 	
@@ -411,7 +422,7 @@ func (flw *FuzzyListWidget) applyFilter() {
 
 // Show displays the fuzzy list widget as a modal dialog and handles its own event loop
 // Returns the selected item, or empty string if cancelled
-func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) string {
+func (flw *FuzzyListWidget) Show(screen Screen, backgroundRender func()) string {
 	// Event loop
 	for {
 		// Render background (editor and status bar)
@@ -429,23 +440,23 @@ func (flw *FuzzyListWidget) Show(screen tcell.Screen, backgroundRender func()) s
 		
 		// Handle events
 		ev := screen.PollEvent()
-		if ev, ok := ev.(*tcell.EventKey); ok {
-			switch ev.Key() {
-			case tcell.KeyUp:
+		if ev, ok := ev.(*ui.EventKey); ok {
+			switch ev.Key {
+			case ui.KeyUp:
 				flw.MoveSelectionUp()
-			case tcell.KeyDown:
+			case ui.KeyDown:
 				flw.MoveSelectionDown()
-			case tcell.KeyEnter:
+			case ui.KeyEnter:
 				// Return the raw (undecorated) selected item
 				if flw.selectedIndex >= 0 && flw.selectedIndex < len(flw.topIndices) {
 					rawIndex := flw.topIndices[flw.selectedIndex]
 					return flw.rawLines[rawIndex]
 				}
 				return ""
-			case tcell.KeyEscape:
+			case ui.KeyEscape:
 				return ""
-			case tcell.KeyRune:
-				switch ev.Rune() {
+			case ui.KeyRune:
+				switch ev.Rune {
 				case 'A':
 					return ""
 				default:

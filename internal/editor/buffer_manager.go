@@ -5,8 +5,6 @@ import (
 	"veda/internal/buffer"
 	"veda/internal/syntax"
 	"veda/internal/widgets"
-
-	"github.com/gdamore/tcell/v2"
 )
 
 // saveCurrentBufferState saves the current buffer's state before switching
@@ -76,35 +74,34 @@ func (e *Editor) showBuffers() error {
 	fuzzyListWidget.SetContent(bufferDisplays)
 	
 	// Show the widget with a background render function
-	var tcellScreen tcell.Screen
-	if provider, ok := e.screen.(TcellScreenProvider); ok {
-		tcellScreen = provider.GetTcellScreen()
-	} else {
-		// For testing, we'll need to handle this differently
+	// Cast our Screen to widgets.Screen interface
+	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
+		selection := fuzzyListWidget.Show(widgetScreen, func() {
+			e.drawEditor()
+			e.drawStatusBar()
+		})
+		
+		// Process selection after the Show method returns
+		// If a buffer was selected, switch to it
+		if selection != "" {
+			// Remove the " [current]" suffix if present
+			selection = strings.TrimSuffix(selection, " [current]")
+			
+			// Save current buffer state before switching
+			e.saveCurrentBufferState()
+			
+			// Look up the actual path from the display name
+			if path, ok := pathToDisplay[selection]; ok {
+				// Switch to selected buffer
+				if buf, exists := e.buffers[path]; exists {
+					e.switchToBuffer(buf)
+				}
+			}
+		}
+		
 		return nil
 	}
 	
-	selection := fuzzyListWidget.Show(tcellScreen, func() {
-		e.drawEditor()
-		e.drawStatusBar()
-	})
-	
-	// If a buffer was selected, switch to it
-	if selection != "" {
-		// Remove the " [current]" suffix if present
-		selection = strings.TrimSuffix(selection, " [current]")
-		
-		// Save current buffer state before switching
-		e.saveCurrentBufferState()
-		
-		// Look up the actual path from the display name
-		if path, ok := pathToDisplay[selection]; ok {
-			// Switch to selected buffer
-			if buf, exists := e.buffers[path]; exists {
-				e.switchToBuffer(buf)
-			}
-		}
-	}
-	
+	// If screen doesn't implement widgets.Screen, return nil
 	return nil
 }

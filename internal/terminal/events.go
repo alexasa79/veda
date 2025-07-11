@@ -1,0 +1,275 @@
+package terminal
+
+// Event represents any terminal event (keyboard, mouse, resize, etc.)
+type Event interface {
+	When() int64 // Unix timestamp in nanoseconds
+}
+
+// EventKey represents a keyboard event
+type EventKey struct {
+	timestamp int64
+	Key       Key
+	Rune      rune
+	Mod       ModMask
+}
+
+func (e *EventKey) When() int64 { return e.timestamp }
+
+// EventResize represents a terminal resize event
+type EventResize struct {
+	timestamp int64
+	Width     int
+	Height    int
+}
+
+func (e *EventResize) When() int64 { return e.timestamp }
+
+// EventMouse represents a mouse event
+type EventMouse struct {
+	timestamp int64
+	X         int
+	Y         int
+	Button    ButtonMask
+	Mod       ModMask
+}
+
+func (e *EventMouse) When() int64 { return e.timestamp }
+
+// Key represents a keyboard key
+type Key int
+
+// Special keys (borrowing from tcell's comprehensive list)
+const (
+	KeyRune Key = iota // Regular character
+
+	// Special keys
+	KeyBackspace
+	KeyBackspace2 // Alternative backspace
+	KeyTab
+	KeyBacktab
+	KeyEnter
+	KeyEscape
+	KeyDelete
+	KeyInsert
+	KeySpace
+
+	// Navigation keys
+	KeyUp
+	KeyDown
+	KeyLeft
+	KeyRight
+	KeyHome
+	KeyEnd
+	KeyPgUp
+	KeyPgDn
+
+	// Function keys
+	KeyF1
+	KeyF2
+	KeyF3
+	KeyF4
+	KeyF5
+	KeyF6
+	KeyF7
+	KeyF8
+	KeyF9
+	KeyF10
+	KeyF11
+	KeyF12
+	KeyF13
+	KeyF14
+	KeyF15
+	KeyF16
+	KeyF17
+	KeyF18
+	KeyF19
+	KeyF20
+	KeyF21
+	KeyF22
+	KeyF23
+	KeyF24
+
+	// Control keys
+	KeyCtrlA
+	KeyCtrlB
+	KeyCtrlC
+	KeyCtrlD
+	KeyCtrlE
+	KeyCtrlF
+	KeyCtrlG
+	KeyCtrlH
+	KeyCtrlI
+	KeyCtrlJ
+	KeyCtrlK
+	KeyCtrlL
+	KeyCtrlM
+	KeyCtrlN
+	KeyCtrlO
+	KeyCtrlP
+	KeyCtrlQ
+	KeyCtrlR
+	KeyCtrlS
+	KeyCtrlT
+	KeyCtrlU
+	KeyCtrlV
+	KeyCtrlW
+	KeyCtrlX
+	KeyCtrlY
+	KeyCtrlZ
+	
+	KeyCtrlSpace
+	KeyCtrlBackslash
+	KeyCtrlRightSq
+	KeyCtrlCarat
+	KeyCtrlUnderscore
+)
+
+// ModMask represents keyboard modifiers
+type ModMask int
+
+const (
+	ModNone  ModMask = 0
+	ModShift ModMask = 1 << iota
+	ModCtrl
+	ModAlt
+	ModMeta
+)
+
+// ButtonMask represents mouse buttons
+type ButtonMask int
+
+const (
+	ButtonNone ButtonMask = 0
+	Button1    ButtonMask = 1 << iota
+	Button2
+	Button3
+	Button4
+	Button5
+	Button6
+	Button7
+	Button8
+	WheelUp    = Button4
+	WheelDown  = Button5
+	WheelLeft  = Button6
+	WheelRight = Button7
+)
+
+// String returns a string representation of the key
+func (k Key) String() string {
+	switch k {
+	case KeyRune:
+		return "Rune"
+	case KeyBackspace, KeyBackspace2:
+		return "Backspace"
+	case KeyTab:
+		return "Tab"
+	case KeyBacktab:
+		return "Backtab"
+	case KeyEnter:
+		return "Enter"
+	case KeyEscape:
+		return "Escape"
+	case KeyDelete:
+		return "Delete"
+	case KeyInsert:
+		return "Insert"
+	case KeySpace:
+		return "Space"
+	case KeyUp:
+		return "Up"
+	case KeyDown:
+		return "Down"
+	case KeyLeft:
+		return "Left"
+	case KeyRight:
+		return "Right"
+	case KeyHome:
+		return "Home"
+	case KeyEnd:
+		return "End"
+	case KeyPgUp:
+		return "PageUp"
+	case KeyPgDn:
+		return "PageDown"
+	case KeyF1:
+		return "F1"
+	case KeyF2:
+		return "F2"
+	case KeyF3:
+		return "F3"
+	case KeyF4:
+		return "F4"
+	case KeyF5:
+		return "F5"
+	case KeyF6:
+		return "F6"
+	case KeyF7:
+		return "F7"
+	case KeyF8:
+		return "F8"
+	case KeyF9:
+		return "F9"
+	case KeyF10:
+		return "F10"
+	case KeyF11:
+		return "F11"
+	case KeyF12:
+		return "F12"
+	case KeyCtrlA:
+		return "Ctrl+A"
+	case KeyCtrlB:
+		return "Ctrl+B"
+	case KeyCtrlC:
+		return "Ctrl+C"
+	case KeyCtrlD:
+		return "Ctrl+D"
+	case KeyCtrlE:
+		return "Ctrl+E"
+	case KeyCtrlF:
+		return "Ctrl+F"
+	case KeyCtrlG:
+		return "Ctrl+G"
+	case KeyCtrlH:
+		return "Ctrl+H"
+	case KeyCtrlI:
+		return "Ctrl+I"
+	case KeyCtrlJ:
+		return "Ctrl+J"
+	case KeyCtrlK:
+		return "Ctrl+K"
+	case KeyCtrlL:
+		return "Ctrl+L"
+	case KeyCtrlM:
+		return "Ctrl+M"
+	case KeyCtrlN:
+		return "Ctrl+N"
+	case KeyCtrlO:
+		return "Ctrl+O"
+	case KeyCtrlP:
+		return "Ctrl+P"
+	case KeyCtrlQ:
+		return "Ctrl+Q"
+	case KeyCtrlR:
+		return "Ctrl+R"
+	case KeyCtrlS:
+		return "Ctrl+S"
+	case KeyCtrlT:
+		return "Ctrl+T"
+	case KeyCtrlU:
+		return "Ctrl+U"
+	case KeyCtrlV:
+		return "Ctrl+V"
+	case KeyCtrlW:
+		return "Ctrl+W"
+	case KeyCtrlX:
+		return "Ctrl+X"
+	case KeyCtrlY:
+		return "Ctrl+Y"
+	case KeyCtrlZ:
+		return "Ctrl+Z"
+	case KeyCtrlSpace:
+		return "Ctrl+Space"
+	default:
+		return "Unknown"
+	}
+}

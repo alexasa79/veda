@@ -12,9 +12,8 @@ import (
 	"veda/internal/log"
 	"veda/internal/proxy"
 	"veda/internal/syntax"
+	"veda/internal/ui"
 	"veda/internal/widgets"
-
-	"github.com/gdamore/tcell/v2"
 )
 
 var LL *log.Logger = log.NewLogger("EDITOR")
@@ -101,21 +100,27 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	return editor, nil
 }
 
-// New creates a new Editor with the default tcell screen.
+// New creates a new Editor with the default terminal screen.
 func New() (*Editor, error) {
-	screen, err := tcell.NewScreen()
+	screen, err := NewTerminalScreen()
 	if err != nil {
 		return nil, err
 	}
-	if err := screen.Init(); err != nil {
-		return nil, err
-	}
 
-	return NewWithScreen(NewTcellScreen(screen))
+	return NewWithScreen(screen)
 }
 
 // Run starts the editor's main event loop.
 func (e *Editor) Run() {
+	// Initialize the screen
+	if err := e.screen.Init(); err != nil {
+		// TODO: Better error handling
+		panic(err)
+	}
+
+	// Force a clear to ensure clean state
+	e.screen.Clear()
+
 	// Initial draw
 	e.drawEditor()
 	e.drawStatusBar()
@@ -131,7 +136,7 @@ func (e *Editor) Run() {
 		oldTopLine := e.topLine
 
 		switch ev := ev.(type) {
-		case *tcell.EventKey:
+		case *ui.EventKey:
 			if e.mode == commands.CommandMode {
 				// Command mode is special - it's a line editor
 				e.handleCommandMode(ev)
@@ -144,13 +149,13 @@ func (e *Editor) Run() {
 						// TODO: Show error to user
 					}
 					needsRedraw = cmdNeedsRedraw
-				} else if e.mode == commands.InsertMode && ev.Key() == tcell.KeyRune {
+				} else if e.mode == commands.InsertMode && ev.Key == ui.KeyRune {
 					// In insert mode, insert unmapped rune keys
-					e.insertChar(ev.Rune())
+					e.insertChar(ev.Rune)
 					needsRedraw = true
 				}
 			}
-		case *tcell.EventResize:
+		case *ui.EventResize:
 			// Handle screen resize events
 			e.handleResize()
 			needsRedraw = true
@@ -179,10 +184,10 @@ func (e *Editor) updateCursor() {
 	// Set cursor style based on mode
 	if e.mode == commands.InsertMode {
 		// Use a bar cursor in insert mode
-		e.screen.SetCursorStyle(tcell.CursorStyleSteadyBar)
+		e.screen.SetCursorStyle(ui.CursorStyleSteadyBar)
 	} else {
 		// Use a block cursor in normal and command modes
-		e.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock)
+		e.screen.SetCursorStyle(ui.CursorStyleSteadyBlock)
 	}
 
 	// Show cursor at appropriate position
@@ -255,12 +260,12 @@ func (e *Editor) scrollToShowAtTop() {
 
 
 
-func (e *Editor) handleCommandMode(ev *tcell.EventKey) {
-	switch ev.Key() {
-	case tcell.KeyEscape:
+func (e *Editor) handleCommandMode(ev *ui.EventKey) {
+	switch ev.Key {
+	case ui.KeyEscape:
 		// Exit command mode
 		e.exitCommandMode()
-	case tcell.KeyEnter:
+	case ui.KeyEnter:
 		// Execute command and exit command mode
 		e.executeCommand()
 		e.exitCommandMode()
@@ -381,7 +386,7 @@ func (e *Editor) Close() {
 
 // drawText is a helper function to draw text on the screen.
 // Returns the number of screen columns used.
-func (e *Editor) drawText(x, y int, style tcell.Style, text string) int {
+func (e *Editor) drawText(x, y int, style ui.Style, text string) int {
 	screenX := x
 	for _, r := range text {
 		if r == '\t' {
@@ -409,12 +414,12 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 	isCurrentLine := lineIndex == e.cursorY
 
 	// If current line, we'll need to override background colors and pad the line
-	var currentLineBg tcell.Color
+	var currentLineBg ui.Color
 	if isCurrentLine {
 		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 		_, currentLineBg, _ = currentLineStyle.Decompose()
 		normalStyle = normalStyle.Background(currentLineBg)
-		
+
 		// Calculate how many spaces we need to fill the screen width
 		width, _ := e.screen.Size()
 		lineVisualWidth := e.visualWidth(line)
@@ -565,10 +570,15 @@ func (e *Editor) drawEditor() {
 }
 
 func (e *Editor) drawStatusBar() {
-	width, _ := e.screen.Size()
+	width, height := e.screen.Size()
 	statusBarStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBar)
 	lineColStyle := e.config.Theme.GetStyle(e.config.Theme.LineColumn)
 	statusBarY := e.getStatusBarY()
+
+	// Debug: ensure statusBarY is valid
+	if statusBarY < 0 || statusBarY >= height {
+		return
+	}
 
 	// Fill status bar background
 	for i := 0; i < width; i++ {
@@ -610,7 +620,7 @@ func (e *Editor) drawStatusBar() {
 		} else {
 			indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
 		}
-		
+
 		// Get current line indentation info
 		lineIndent := e.getCurrentLineIndentInfo()
 		var lineIndentDisplay string
@@ -622,7 +632,7 @@ func (e *Editor) drawStatusBar() {
 		} else {
 			lineIndentDisplay = "L0"
 		}
-		
+
 		lineColInfo := fmt.Sprintf("%d:%d", e.cursorY+1, visualCol)
 		rightInfo := fmt.Sprintf("%s  %s  %s", indentInfo, lineIndentDisplay, lineColInfo)
 

@@ -4,8 +4,6 @@ import (
 	"strings"
 	"veda/internal/buffer"
 	"veda/internal/widgets"
-
-	"github.com/gdamore/tcell/v2"
 )
 
 func (e *Editor) showFuzzyListWidget() {
@@ -53,24 +51,20 @@ func (e *Editor) showFuzzyListWidget() {
 	}
 
 	// Show the widget with a background render function
-	// The fuzzy list widget needs the full tcell.Screen interface
-	var tcellScreen tcell.Screen
-	if provider, ok := e.screen.(TcellScreenProvider); ok {
-		tcellScreen = provider.GetTcellScreen()
+	// Cast our Screen to widgets.Screen interface
+	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
+		selection := fuzzyListWidget.Show(widgetScreen, func() {
+			e.drawEditor()
+			e.drawStatusBar()
+		})
+		
+		// If a file was selected, open it
+		if selection != "" {
+			e.openFile(selection)
+		}
 	} else {
-		// For testing, we'll need to handle this differently
-		// For now, just return empty selection
+		// Screen doesn't implement widgets.Screen, return
 		return
-	}
-
-	selection := fuzzyListWidget.Show(tcellScreen, func() {
-		e.drawEditor()
-		e.drawStatusBar()
-	})
-
-	// If a file was selected, open it
-	if selection != "" {
-		e.openFile(selection)
 	}
 }
 
