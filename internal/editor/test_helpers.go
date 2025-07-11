@@ -35,7 +35,8 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
-	return te.commandRegistry.Execute(command)
+	err, _ := te.commandRegistry.Execute(command)
+	return err
 }
 
 // InsertChar simulates inserting a character in insert mode

@@ -130,59 +130,88 @@ func New() (*Editor, error) {
 
 // Run starts the editor's main event loop.
 func (e *Editor) Run() {
+	// Initial draw
+	e.drawEditor()
+	e.drawStatusBar()
+	e.updateCursor()
+	e.screen.Show()
+	
 	// Event loop
 	for {
-		e.drawEditor()
-		e.drawStatusBar()
-
-		// Set cursor style based on mode
-		if e.mode == commands.InsertMode {
-			// Use a bar cursor in insert mode
-			e.screen.SetCursorStyle(tcell.CursorStyleSteadyBar)
-		} else {
-			// Use a block cursor in normal and command modes
-			e.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock)
-		}
-
-		// Show cursor at appropriate position
-		if e.mode == commands.CommandMode {
-			// Show cursor in command line
-			cursorX, cursorY := e.commandLine.GetCursorPosition()
-			e.screen.ShowCursor(cursorX, cursorY)
-		} else {
-			// Show cursor in editor
-			// Calculate line number width based on visible lines
-			visibleLines := e.getVisibleLines()
-			lastVisibleLine := e.topLine + visibleLines
-			lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1
-			visualCursorX := e.getVisualCursorX()
-			e.screen.ShowCursor(visualCursorX+lineNumberWidth, e.cursorY-e.topLine)
-		}
-
-		e.screen.Show()
-
 		ev := e.screen.PollEvent()
+		
+		// Track if we need a full redraw
+		needsRedraw := false
+		oldTopLine := e.topLine
+		
 		switch ev := ev.(type) {
 		case *tcell.EventKey:
 			if e.mode == commands.CommandMode {
 				// Command mode is special - it's a line editor
 				e.handleCommandMode(ev)
+				needsRedraw = true // Command mode always needs redraw
 			} else {
 				// Normal and Insert modes both use key mapping
 				if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
-					if err := e.commandRegistry.Execute(command); err != nil {
+					err, cmdNeedsRedraw := e.commandRegistry.Execute(command)
+					if err != nil {
 						// TODO: Show error to user
 					}
+					needsRedraw = cmdNeedsRedraw
 				} else if e.mode == commands.InsertMode && ev.Key() == tcell.KeyRune {
 					// In insert mode, insert unmapped rune keys
 					e.insertChar(ev.Rune())
+					needsRedraw = true
 				}
 			}
 		case *tcell.EventResize:
 			// Handle screen resize events
 			e.handleResize()
+			needsRedraw = true
 		}
+		
+		// Check if scrolling occurred
 		e.scroll()
+		if oldTopLine != e.topLine {
+			needsRedraw = true
+		}
+		
+		// Redraw if needed
+		if needsRedraw {
+			e.drawEditor()
+			e.drawStatusBar()
+		}
+		
+		// Always update cursor position and show
+		e.updateCursor()
+		e.screen.Show()
+	}
+}
+
+// updateCursor updates the cursor position and style
+func (e *Editor) updateCursor() {
+	// Set cursor style based on mode
+	if e.mode == commands.InsertMode {
+		// Use a bar cursor in insert mode
+		e.screen.SetCursorStyle(tcell.CursorStyleSteadyBar)
+	} else {
+		// Use a block cursor in normal and command modes
+		e.screen.SetCursorStyle(tcell.CursorStyleSteadyBlock)
+	}
+
+	// Show cursor at appropriate position
+	if e.mode == commands.CommandMode {
+		// Show cursor in command line
+		cursorX, cursorY := e.commandLine.GetCursorPosition()
+		e.screen.ShowCursor(cursorX, cursorY)
+	} else {
+		// Show cursor in editor
+		// Calculate line number width based on visible lines
+		visibleLines := e.getVisibleLines()
+		lastVisibleLine := e.topLine + visibleLines
+		lineNumberWidth := len(fmt.Sprintf("%d", lastVisibleLine)) + 1
+		visualCursorX := e.getVisualCursorX()
+		e.screen.ShowCursor(visualCursorX+lineNumberWidth, e.cursorY-e.topLine)
 	}
 }
 
@@ -287,7 +316,8 @@ func (e *Editor) executeCommand() {
 
 	// First try to execute from the command registry
 	if e.commandRegistry.Has(command) {
-		if err := e.commandRegistry.Execute(command); err != nil {
+		err, _ := e.commandRegistry.Execute(command)
+		if err != nil {
 			LL.Debug("Command execution failed: %v", err)
 		}
 		return

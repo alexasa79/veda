@@ -33,35 +33,44 @@ type Binding struct {
 // HandlerFunc is the type for command handler functions
 type HandlerFunc func() error
 
+// CommandInfo contains metadata about a command
+type CommandInfo struct {
+	Handler       HandlerFunc
+	NeedsRedraw   bool // Whether this command requires a full screen redraw
+}
+
 // CommandRegistry manages commands and their handlers
 type CommandRegistry struct {
-	handlers map[string]HandlerFunc
+	commands map[string]CommandInfo
 }
 
 // NewCommandRegistry creates a new command registry
 func NewCommandRegistry() *CommandRegistry {
 	return &CommandRegistry{
-		handlers: make(map[string]HandlerFunc),
+		commands: make(map[string]CommandInfo),
 	}
 }
 
-// Register registers a command handler
-func (cr *CommandRegistry) Register(command string, handler HandlerFunc) {
-	cr.handlers[command] = handler
+// Register registers a command handler with metadata
+func (cr *CommandRegistry) Register(command string, handler HandlerFunc, needsRedraw bool) {
+	cr.commands[command] = CommandInfo{
+		Handler:     handler,
+		NeedsRedraw: needsRedraw,
+	}
 }
 
-// Execute executes a command by name
-func (cr *CommandRegistry) Execute(command string) error {
-	handler, exists := cr.handlers[command]
+// Execute executes a command by name and returns error and whether it needs redraw
+func (cr *CommandRegistry) Execute(command string) (error, bool) {
+	info, exists := cr.commands[command]
 	if !exists {
-		return nil // Command not found, ignore
+		return nil, false // Command not found, ignore
 	}
-	return handler()
+	return info.Handler(), info.NeedsRedraw
 }
 
 // Has checks if a command exists in the registry
 func (cr *CommandRegistry) Has(command string) bool {
-	_, exists := cr.handlers[command]
+	_, exists := cr.commands[command]
 	return exists
 }
 
