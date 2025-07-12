@@ -9,9 +9,8 @@ func TestNavigationHistory(t *testing.T) {
 	te := NewTestEditor(80, 24)
 	
 	// Set initial position
-	te.cursorX = 5
-	te.cursorY = 10
 	te.buffer.FilePath = "test.go"
+	te.SetCursorPosition(5, 10)
 	
 	// Push to navigation history
 	te.pushNavigationHistory()
@@ -28,8 +27,8 @@ func TestNavigationHistory(t *testing.T) {
 	if entry.cursorX != 5 {
 		t.Errorf("Expected cursorX to be 5, got %d", entry.cursorX)
 	}
-	if entry.cursorY != 10 {
-		t.Errorf("Expected cursorY to be 10, got %d", entry.cursorY)
+	if entry.cursorLineNumber != 10 {
+		t.Errorf("Expected cursorLineNumber to be 10, got %d", entry.cursorLineNumber)
 	}
 }
 
@@ -39,7 +38,7 @@ func TestNavigationHistoryMaxSize(t *testing.T) {
 	
 	// Push more entries than maxNavHistory
 	for i := 0; i < 60; i++ {
-		te.cursorY = i
+		te.SetCursorPosition(0, i)
 		te.pushNavigationHistory()
 	}
 	
@@ -49,8 +48,8 @@ func TestNavigationHistoryMaxSize(t *testing.T) {
 	}
 	
 	// First entry should be from position 10 (0-59, keeping last 50)
-	if te.navHistory[0].cursorY != 10 {
-		t.Errorf("Expected first entry cursorY to be 10, got %d", te.navHistory[0].cursorY)
+	if te.navHistory[0].cursorLineNumber != 10 {
+		t.Errorf("Expected first entry cursorLineNumber to be 10, got %d", te.navHistory[0].cursorLineNumber)
 	}
 }
 
@@ -67,17 +66,14 @@ func TestGoBack(t *testing.T) {
 	te.buffers["test1.go"] = te.buffer
 	
 	// Push a few positions to history
-	te.cursorX = 5
-	te.cursorY = 10
+	te.SetCursorPosition(5, 10)
 	te.pushNavigationHistory()
 	
-	te.cursorX = 15
-	te.cursorY = 20
+	te.SetCursorPosition(15, 20)
 	te.pushNavigationHistory()
 	
 	// Move to a different position
-	te.cursorX = 25
-	te.cursorY = 30
+	te.SetCursorPosition(25, 30)
 	
 	// Go back once
 	err := te.goBack()
@@ -86,8 +82,9 @@ func TestGoBack(t *testing.T) {
 	}
 	
 	// Should be at the second position
-	if te.cursorX != 15 || te.cursorY != 20 {
-		t.Errorf("Expected cursor at (15, 20), got (%d, %d)", te.cursorX, te.cursorY)
+	x, y := te.GetCursorPosition()
+	if x != 15 || y != 20 {
+		t.Errorf("Expected cursor at (15, 20), got (%d, %d)", x, y)
 	}
 	
 	// History should have one entry left
@@ -102,8 +99,9 @@ func TestGoBack(t *testing.T) {
 	}
 	
 	// Should be at the first position
-	if te.cursorX != 5 || te.cursorY != 10 {
-		t.Errorf("Expected cursor at (5, 10), got (%d, %d)", te.cursorX, te.cursorY)
+	x, y = te.GetCursorPosition()
+	if x != 5 || y != 10 {
+		t.Errorf("Expected cursor at (5, 10), got (%d, %d)", x, y)
 	}
 	
 	// History should be empty

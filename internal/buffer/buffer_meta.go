@@ -16,7 +16,6 @@ type Buffer struct {
 	
 	// Cursor and view state
 	CursorX        int
-	CursorY        int
 	ViewIterator   *BufferIterator  // Saved view position iterator
 	CursorIterator *BufferIterator  // Saved cursor position iterator
 	
@@ -54,7 +53,6 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		FilePath:     filePath,
 		IsModified:   false,
 		CursorX:      0,
-		CursorY:      0,
 		ViewIterator: nil,  // Will be created when buffer is first used
 		LineOffsets:  []int{},
 		OffsetsDirty: true,
@@ -71,19 +69,22 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 }
 
 // SaveCursorState saves the current cursor and view position
-func (b *Buffer) SaveCursorState(x, y int, viewIterator *BufferIterator) {
+func (b *Buffer) SaveCursorState(x int, viewIterator *BufferIterator, cursorIterator *BufferIterator) {
 	b.CursorX = x
-	b.CursorY = y
 	b.ViewIterator = viewIterator
+	b.CursorIterator = cursorIterator
 }
 
 // RestoreCursorState returns the saved cursor and view position
-func (b *Buffer) RestoreCursorState() (x, y int, viewIterator *BufferIterator) {
-	// Ensure we have a valid iterator
+func (b *Buffer) RestoreCursorState() (x int, viewIterator *BufferIterator, cursorIterator *BufferIterator) {
+	// Ensure we have valid iterators
 	if b.ViewIterator == nil {
 		b.ViewIterator = NewBufferIterator(b)
 	}
-	return b.CursorX, b.CursorY, b.ViewIterator
+	if b.CursorIterator == nil {
+		b.CursorIterator = NewBufferIterator(b)
+	}
+	return b.CursorX, b.ViewIterator, b.CursorIterator
 }
 
 // MarkModified marks the buffer as modified

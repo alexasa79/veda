@@ -18,9 +18,9 @@ func TestGoToBeginning(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move cursor to middle of file
-		te.cursorX = 5
-		te.cursorY = 2
-		te.topLine = 1
+		te.SetCursorPosition(5, 2)
+		// Note: We can't directly set the view position in tests anymore
+		// The view should adjust automatically when needed
 		AssertCursorAt(t, te, 5, 2)
 		
 		// Execute go-to-beginning
@@ -32,9 +32,11 @@ func TestGoToBeginning(t *testing.T) {
 		// Should be at beginning of file
 		AssertCursorAt(t, te, 0, 0)
 		
-		// topLine should also be reset
-		if te.topLine != 0 {
-			t.Errorf("Expected topLine to be 0, got %d", te.topLine)
+		// View should also be reset to show the beginning
+		// We can verify this by checking that line 0 is visible on screen
+		lines := te.GetScreenContent()
+		if len(lines) > 0 && lines[0] != "First line" {
+			t.Errorf("Expected first line to be visible, but got: %s", lines[0])
 		}
 	})
 	
@@ -48,8 +50,7 @@ func TestGoToBeginning(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to end of file
-		te.cursorY = 2
-		te.cursorX = 6
+		te.SetCursorPosition(6, 2)
 		
 		// Execute go-to-beginning
 		err := te.ExecuteCommand("go-to-beginning")
@@ -156,8 +157,10 @@ func TestGoToEnd(t *testing.T) {
 		
 		// Start at beginning
 		AssertCursorAt(t, te, 0, 0)
-		if te.topLine != 0 {
-			t.Errorf("Expected topLine to start at 0, got %d", te.topLine)
+		// Verify view starts at top
+		screenLines := te.GetScreenContent()
+		if len(screenLines) > 0 && screenLines[0] != "Line 0" {
+			t.Errorf("Expected view to start at line 0, but first visible line is: %s", screenLines[0])
 		}
 		
 		// Execute go-to-end
@@ -169,10 +172,17 @@ func TestGoToEnd(t *testing.T) {
 		// Should be at last line
 		AssertCursorAt(t, te, 5, 49) // "Line 9" has 6 chars, cursor at position 5
 		
-		// topLine should have scrolled to show the cursor
-		// With 24 lines visible and cursor at line 49, topLine should be adjusted
-		if te.topLine <= 0 {
-			t.Errorf("Expected topLine to scroll, but it's still %d", te.topLine)
+		// View should have scrolled to show the cursor
+		// With 24 lines visible and cursor at line 49, view should show lines near the end
+		screenLines = te.GetScreenContent()
+		// The screen has 24 lines, minus 1 for status bar = 23 visible lines
+		// Check if we can see lines near the end
+		if len(screenLines) > 0 {
+			// Just verify that we've scrolled by checking that early lines aren't visible
+			firstLine := screenLines[0]
+			if firstLine == "Line 0" {
+				t.Errorf("Expected view to scroll, but still showing line 0")
+			}
 		}
 	})
 }
@@ -188,8 +198,7 @@ func TestGoToBeginningAndEndKeyBindings(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to middle
-		te.cursorX = 3
-		te.cursorY = 1
+		te.SetCursorPosition(3, 1)
 		
 		// Simulate pressing 'g' twice
 		// The key mapper should handle the sequence "g g"

@@ -65,8 +65,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te.highlighter.Parse([]byte(te.buffer.String()))
 		
 		// Move cursor to middle of line
-		te.cursorX = 13 // After "{"
-		te.cursorY = 0
+		te.SetCursorPosition(13, 0) // After "{"
 		
 		// Enter insert mode and insert newline
 		te.ExecuteCommand("enter-insert-mode")

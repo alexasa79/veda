@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"veda/internal/buffer"
 	"veda/internal/commands"
 )
 
@@ -8,8 +9,8 @@ import (
 type NavigationEntry struct {
 	filePath      string
 	cursorX       int
-	cursorY       int
-	topLineNumber int  // Line number of the top visible line
+	cursorLineNumber int  // Line number of the cursor position
+	topLineNumber int    // Line number of the top visible line
 }
 
 // pushNavigationHistory saves the current position to navigation history
@@ -19,10 +20,10 @@ func (e *Editor) pushNavigationHistory() {
 	}
 	
 	entry := NavigationEntry{
-		filePath:      e.buffer.FilePath,
-		cursorX:       e.cursorX,
-		cursorY:       e.cursorY,
-		topLineNumber: e.viewIterator.LineNumber(),
+		filePath:         e.buffer.FilePath,
+		cursorX:          e.cursorX,
+		cursorLineNumber: e.cursorIterator.LineNumber(),
+		topLineNumber:    e.viewIterator.LineNumber(),
 	}
 	
 	// Add to history
@@ -63,16 +64,16 @@ func (e *Editor) goBack() error {
 	// Always restore cursor position from navigation entry
 	// This overrides any position from switchToBuffer
 	e.cursorX = entry.cursorX
-	e.cursorY = entry.cursorY
-	// Don't restore topLine here - let scrollToShowAtTop handle it
+	
+	// Restore cursor iterator to the saved line number
+	e.cursorIterator = buffer.NewBufferIterator(e.buffer)
+	for i := 0; i < entry.cursorLineNumber && !e.cursorIterator.IsEOF(); i++ {
+		e.cursorIterator = e.cursorIterator.Next()
+	}
 	
 	// Ensure cursor is within bounds
-	lines := e.buffer.Lines()
-	if e.cursorY >= len(lines) {
-		e.cursorY = len(lines) - 1
-	}
-	if e.cursorY >= 0 && e.cursorY < len(lines) {
-		line := lines[e.cursorY]
+	if !e.cursorIterator.IsEOF() {
+		line := e.cursorIterator.Line()
 		if e.cursorX > len(line) {
 			e.cursorX = len(line)
 			if e.cursorX > 0 && e.mode == commands.NormalMode {

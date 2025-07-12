@@ -22,9 +22,11 @@ func TestSaveCurrentBufferState(t *testing.T) {
 	te := NewTestEditor(80, 24)
 	
 	// Set some state
-	te.cursorX = 5
-	te.cursorY = 10
-	te.topLine = 3
+	te.SetCursorPosition(5, 10)
+	// Move view down by 3 lines
+	for i := 0; i < 3; i++ {
+		te.viewIterator = te.viewIterator.Next()
+	}
 	
 	// Save the state
 	te.saveCurrentBufferState()
@@ -34,11 +36,11 @@ func TestSaveCurrentBufferState(t *testing.T) {
 	if buf.CursorX != 5 {
 		t.Errorf("Expected cursorX to be 5, got %d", buf.CursorX)
 	}
-	if buf.CursorY != 10 {
-		t.Errorf("Expected cursorY to be 10, got %d", buf.CursorY)
-	}
-	if buf.TopLine != 3 {
-		t.Errorf("Expected topLine to be 3, got %d", buf.TopLine)
+	// Check view iterator was saved
+	if buf.ViewIterator == nil {
+		t.Errorf("Expected ViewIterator to be saved")
+	} else if buf.ViewIterator.LineNumber() != 3 {
+		t.Errorf("Expected view iterator line to be 3, got %d", buf.ViewIterator.LineNumber())
 	}
 }
 
@@ -48,8 +50,7 @@ func TestSwitchToBuffer(t *testing.T) {
 	// Create a new buffer
 	newBuffer := buffer.NewBuffer("Hello, World!", "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	newBuffer.CursorX = 3
-	newBuffer.CursorY = 0
-	newBuffer.TopLine = 0
+	// CursorIterator and ViewIterator will be created when switching
 	newBuffer.LineOffsets = []int{}
 	newBuffer.OffsetsDirty = true
 	
@@ -64,8 +65,9 @@ func TestSwitchToBuffer(t *testing.T) {
 	if te.buffer.FilePath != "test.txt" {
 		t.Errorf("Expected current file to be 'test.txt', got %s", te.buffer.FilePath)
 	}
-	if te.cursorX != 3 {
-		t.Errorf("Expected cursorX to be 3, got %d", te.cursorX)
+	x, _ := te.GetCursorPosition()
+	if x != 3 {
+		t.Errorf("Expected cursorX to be 3, got %d", x)
 	}
 	if te.buffer.String() != "Hello, World!" {
 		t.Errorf("Expected buffer content to be 'Hello, World!', got %s", te.buffer.String())

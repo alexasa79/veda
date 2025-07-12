@@ -240,7 +240,7 @@ func TestGetCurrentLineIndentInfo(t *testing.T) {
 			// Position cursor on the line to test
 			lines := strings.Split(tt.content, "\n")
 			if tt.cursorLine < len(lines) {
-				te.cursorY = tt.cursorLine
+				te.SetCursorPosition(0, tt.cursorLine)
 			}
 			
 			// Get the line being tested
@@ -309,8 +309,8 @@ func TestGetCurrentLineIndentInfoWithCursor(t *testing.T) {
 	}
 	
 	for _, tc := range testCases {
-		te.cursorY = tc.cursorY
-		info := te.getCurrentLineIndentInfo()
+		te.SetCursorPosition(0, tc.cursorY)
+		info := te.getCurrentLineIndentInfo(te.cursorIterator)
 		
 		if info.Level != tc.expectedLevel {
 			t.Errorf("Line %d: expected level %d, got %d", 

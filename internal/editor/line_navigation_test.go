@@ -41,8 +41,7 @@ func TestLineNavigation(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "First line\nSecond line\nThird")
 		
 		// Start on second line, middle
-		te.cursorY = 1
-		te.cursorX = 6
+		te.SetCursorPosition(6, 1)
 		
 		// Move to beginning of current line
 		te.ExecuteCommand("beginning-of-line")
@@ -69,7 +68,7 @@ func TestLineNavigation(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Line1\n\nLine3")
 		
 		// Move to empty line
-		te.cursorY = 1
+		te.SetCursorPosition(0, 1)
 		
 		// Beginning and end should both be at position 0
 		te.ExecuteCommand("beginning-of-line")

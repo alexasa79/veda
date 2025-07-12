@@ -38,8 +38,7 @@ func TestCursorMovement(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "11111\n222")
 		
 		// Move to last '1' (position 4,0)
-		te.cursorX = 4
-		te.cursorY = 0
+		te.SetCursorPosition(4, 0)
 		AssertCursorAt(t, te, 4, 0)
 		
 		// Move down - cursor should move to end of shorter line

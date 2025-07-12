@@ -10,11 +10,9 @@ import (
 // saveCurrentBufferState saves the current buffer's state before switching
 func (e *Editor) saveCurrentBufferState() {
 	if e.buffer != nil {
-		e.buffer.SaveCursorState(e.cursorX, e.cursorY, e.viewIterator)
+		e.buffer.SaveCursorState(e.cursorX, e.viewIterator, e.cursorIterator)
 		e.buffer.LineOffsets = e.lineOffsets
 		e.buffer.OffsetsDirty = e.offsetsDirty
-		// Also save cursor iterator with the buffer
-		e.buffer.CursorIterator = e.cursorIterator
 	}
 }
 
@@ -24,20 +22,9 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	e.buffer = buf
 	
 	// Restore cursor and view state
-	e.cursorX, e.cursorY, e.viewIterator = buf.RestoreCursorState()
+	e.cursorX, e.viewIterator, e.cursorIterator = buf.RestoreCursorState()
 	e.lineOffsets = buf.LineOffsets
 	e.offsetsDirty = buf.OffsetsDirty
-	
-	// Restore cursor iterator
-	if buf.CursorIterator != nil {
-		e.cursorIterator = buf.CursorIterator
-	} else {
-		// Create new cursor iterator at cursor position
-		e.cursorIterator = buffer.NewBufferIterator(buf)
-		for i := 0; i < e.cursorY && !e.cursorIterator.IsEOF(); i++ {
-			e.cursorIterator = e.cursorIterator.Next()
-		}
-	}
 	
 	// Set up syntax highlighting
 	if e.highlighter != nil && buf.HasFile() {

@@ -52,8 +52,7 @@ func TestWordNavigation(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello world\nfoo bar\nbaz")
 		
 		// Start at "world"
-		te.cursorX = 6
-		te.cursorY = 0
+		te.SetCursorPosition(6, 0)
 		AssertCursorAt(t, te, 6, 0)
 		
 		// Jump to "foo" on next line

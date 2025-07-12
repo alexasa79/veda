@@ -17,8 +17,7 @@ func TestOpenLineBelow(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to second line
-		te.cursorY = 1
-		te.cursorX = 5
+		te.SetCursorPosition(5, 1)
 		
 		// Execute open-line-below
 		err := te.ExecuteCommand("open-line-below")
@@ -53,8 +52,7 @@ func TestOpenLineBelow(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to last line
-		te.cursorY = 1
-		te.cursorX = 3
+		te.SetCursorPosition(3, 1)
 		
 		// Execute open-line-below
 		err := te.ExecuteCommand("open-line-below")
@@ -84,8 +82,7 @@ func TestOpenLineBelow(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to empty line
-		te.cursorY = 1
-		te.cursorX = 0
+		te.SetCursorPosition(0, 1)
 		
 		// Execute open-line-below
 		err := te.ExecuteCommand("open-line-below")
@@ -138,8 +135,7 @@ func TestOpenLineAbove(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to second line
-		te.cursorY = 1
-		te.cursorX = 5
+		te.SetCursorPosition(5, 1)
 		
 		// Execute open-line-above
 		err := te.ExecuteCommand("open-line-above")
@@ -174,8 +170,7 @@ func TestOpenLineAbove(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// At first line
-		te.cursorY = 0
-		te.cursorX = 3
+		te.SetCursorPosition(3, 0)
 		
 		// Execute open-line-above
 		err := te.ExecuteCommand("open-line-above")
@@ -205,8 +200,7 @@ func TestOpenLineAbove(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to empty line
-		te.cursorY = 1
-		te.cursorX = 0
+		te.SetCursorPosition(0, 1)
 		
 		// Execute open-line-above
 		err := te.ExecuteCommand("open-line-above")
@@ -284,7 +278,7 @@ func TestOpenLineKeyBindings(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 		
 		// Move to second line
-		te.cursorY = 1
+		te.SetCursorPosition(0, 1)
 		
 		// Start in normal mode
 		if te.mode != commands.NormalMode {

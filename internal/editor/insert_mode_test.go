@@ -111,8 +111,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Line1\nLine2")
 		
 		// Move to beginning of second line
-		te.cursorX = 0
-		te.cursorY = 1
+		te.SetCursorPosition(0, 1)
 		
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")

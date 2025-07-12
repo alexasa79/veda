@@ -9,8 +9,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello world foo bar")
 		
 		// Start at beginning of "bar"
-		te.cursorX = 16
-		te.cursorY = 0
+		te.SetCursorPosition(16, 0)
 		AssertCursorAt(t, te, 16, 0)
 		
 		// Jump back to "foo"
@@ -54,8 +53,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello world\nfoo bar\nbaz")
 		
 		// Start at "baz"
-		te.cursorX = 0
-		te.cursorY = 2
+		te.SetCursorPosition(0, 2)
 		AssertCursorAt(t, te, 0, 2)
 		
 		// Jump back to "bar" on previous line
@@ -107,8 +105,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello\n\nworld")
 		
 		// Start at "world"
-		te.cursorX = 0
-		te.cursorY = 2
+		te.SetCursorPosition(0, 2)
 		AssertCursorAt(t, te, 0, 2)
 		
 		// Jump back to "hello" (skip empty line)
