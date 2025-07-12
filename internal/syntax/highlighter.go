@@ -59,7 +59,7 @@ func NewHighlighter() *Highlighter {
 // SetLanguageFromFile sets the language based on file extension
 func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	ext := strings.ToLower(filepath.Ext(filename))
-	
+
 	switch ext {
 	case ".go":
 		h.parser.SetLanguage(golang.GetLanguage())
@@ -77,7 +77,7 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 		h.currentSource = nil
 		return nil
 	}
-	
+
 	return nil
 }
 
@@ -86,13 +86,13 @@ func (h *Highlighter) Parse(source []byte) error {
 	if h.currentLang == "" {
 		return nil // No language set, nothing to parse
 	}
-	
+
 	oldTree := h.currentTree
 	tree, err := h.parser.ParseCtx(context.Background(), oldTree, source)
 	if err != nil {
 		return fmt.Errorf("failed to parse source: %w", err)
 	}
-	
+
 	h.currentTree = tree
 	h.currentSource = source
 	return nil
@@ -103,33 +103,33 @@ func (h *Highlighter) ParseFull(source []byte) error {
 	if h.currentLang == "" {
 		return nil // No language set, nothing to parse
 	}
-	
+
 	// Parse without old tree to force full reparse
 	tree, err := h.parser.ParseCtx(context.Background(), nil, source)
 	if err != nil {
 		return fmt.Errorf("failed to parse source: %w", err)
 	}
-	
+
 	h.currentTree = tree
 	h.currentSource = source
 	return nil
 }
 
 // GetTokensForLine returns syntax tokens for a specific line
-func (h *Highlighter) GetTokensForLine(lineNumber int, lineStart, lineEnd int) []Token {
+func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
 		return nil
 	}
-	
+
 	tokens := []Token{}
 	root := h.currentTree.RootNode()
-	
+
 	// Query the tree for nodes in this line
 	h.walkNode(root, lineStart, lineEnd, h.currentSource, &tokens)
-	
+
 	// Sort tokens by start position and merge overlapping
 	tokens = h.mergeOverlappingTokens(tokens)
-	
+
 	return tokens
 }
 
@@ -137,12 +137,12 @@ func (h *Highlighter) GetTokensForLine(lineNumber int, lineStart, lineEnd int) [
 func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source []byte, tokens *[]Token) {
 	nodeStart := int(node.StartByte())
 	nodeEnd := int(node.EndByte())
-	
+
 	// Skip nodes that don't overlap with our line
 	if nodeEnd <= lineStart || nodeStart >= lineEnd {
 		return
 	}
-	
+
 	// Map node type to token type
 	tokenType := h.mapNodeToTokenType(node, source)
 	if tokenType != TokenTypeText {
@@ -155,14 +155,14 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		if tokenEnd > lineEnd {
 			tokenEnd = lineEnd
 		}
-		
+
 		*tokens = append(*tokens, Token{
 			Start:     tokenStart - lineStart, // Make relative to line start
 			End:       tokenEnd - lineStart,
 			TokenType: tokenType,
 		})
 	}
-	
+
 	// Recurse into children
 	childCount := int(node.ChildCount())
 	for i := 0; i < childCount; i++ {
@@ -174,7 +174,7 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 // mapNodeToTokenType maps tree-sitter node types to our token types
 func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) TokenType {
 	nodeType := node.Type()
-	
+
 	switch h.currentLang {
 	case "go":
 		return h.mapGoNodeToTokenType(node, nodeType, source)
@@ -197,23 +197,23 @@ func (h *Highlighter) mapGoNodeToTokenType(node *sitter.Node, nodeType string, s
 		"defer", "go", "select", "chan", "interface", "struct",
 		"map", "make", "new", "nil":
 		return TokenTypeKeyword
-		
+
 	// Comments
 	case "comment":
 		return TokenTypeComment
-		
+
 	// Strings
 	case "interpreted_string_literal", "raw_string_literal", "rune_literal":
 		return TokenTypeString
-		
+
 	// Numbers
 	case "int_literal", "float_literal", "imaginary_literal":
 		return TokenTypeNumber
-		
+
 	// Types
 	case "type_identifier":
 		return TokenTypeType
-		
+
 	// Functions
 	case "identifier":
 		// Check if this identifier is a function name
@@ -232,24 +232,24 @@ func (h *Highlighter) mapGoNodeToTokenType(node *sitter.Node, nodeType string, s
 			}
 		}
 		return TokenTypeVariable
-		
+
 	// Field identifiers (method names in selector expressions like fmt.Println)
 	case "field_identifier":
 		parent := node.Parent()
 		if parent != nil && parent.Type() == "selector_expression" {
 			// Check if the selector expression is used as a function call
 			grandparent := parent.Parent()
-			if grandparent != nil && grandparent.Type() == "call_expression" && 
+			if grandparent != nil && grandparent.Type() == "call_expression" &&
 				parent == grandparent.ChildByFieldName("function") {
 				return TokenTypeFunction
 			}
 		}
 		return TokenTypeVariable
-		
+
 	// Punctuation and operators
 	case "(", ")", "[", "]", "{", "}", ",", ";", ".":
 		return TokenTypePunctuation
-		
+
 	case "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>", "&^",
 		"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "&^=",
 		"&&", "||", "<-", "++", "--",
@@ -257,11 +257,11 @@ func (h *Highlighter) mapGoNodeToTokenType(node *sitter.Node, nodeType string, s
 		"=", ":=",
 		"!", "...", "~":
 		return TokenTypeOperator
-		
+
 	// Package names
 	case "package_identifier":
 		return TokenTypeNamespace
-		
+
 	default:
 		return TokenTypeText
 	}
@@ -272,7 +272,7 @@ func (h *Highlighter) mergeOverlappingTokens(tokens []Token) []Token {
 	if len(tokens) <= 1 {
 		return tokens
 	}
-	
+
 	// Simple insertion sort for small token lists
 	for i := 1; i < len(tokens); i++ {
 		j := i
@@ -281,13 +281,13 @@ func (h *Highlighter) mergeOverlappingTokens(tokens []Token) []Token {
 			j--
 		}
 	}
-	
+
 	// Merge overlapping tokens, preferring more specific types
 	merged := []Token{tokens[0]}
 	for i := 1; i < len(tokens); i++ {
 		last := &merged[len(merged)-1]
 		curr := tokens[i]
-		
+
 		if curr.Start >= last.End {
 			// No overlap
 			merged = append(merged, curr)
@@ -318,7 +318,7 @@ func (h *Highlighter) mergeOverlappingTokens(tokens []Token) []Token {
 			}
 		}
 	}
-	
+
 	return merged
 }
 
@@ -333,23 +333,23 @@ func (h *Highlighter) mapCNodeToTokenType(node *sitter.Node, nodeType string, so
 		"unsigned", "void", "volatile", "while", "_Bool", "_Complex",
 		"_Imaginary", "inline", "restrict":
 		return TokenTypeKeyword
-		
+
 	// Comments
 	case "comment":
 		return TokenTypeComment
-		
+
 	// Strings
 	case "string_literal", "char_literal":
 		return TokenTypeString
-		
+
 	// Numbers
 	case "number_literal":
 		return TokenTypeNumber
-		
+
 	// Types and type identifiers
 	case "type_identifier", "primitive_type", "sized_type_specifier":
 		return TokenTypeType
-		
+
 	// Function and identifier handling
 	case "identifier":
 		parent := node.Parent()
@@ -369,30 +369,30 @@ func (h *Highlighter) mapCNodeToTokenType(node *sitter.Node, nodeType string, so
 			}
 		}
 		return TokenTypeVariable
-		
+
 	// Field identifiers (struct member function calls like obj->method or obj.method)
 	case "field_identifier":
 		parent := node.Parent()
 		if parent != nil && parent.Type() == "field_expression" {
 			// Check if the field expression is used as a function call
 			grandparent := parent.Parent()
-			if grandparent != nil && grandparent.Type() == "call_expression" && 
+			if grandparent != nil && grandparent.Type() == "call_expression" &&
 				parent == grandparent.ChildByFieldName("function") {
 				return TokenTypeFunction
 			}
 		}
 		return TokenTypeVariable
-		
+
 	// Preprocessor directives
 	case "preproc_include", "preproc_def", "preproc_function_def",
 		"preproc_call", "preproc_if", "preproc_ifdef", "preproc_else",
 		"preproc_elif", "preproc_directive":
 		return TokenTypeAttribute
-		
+
 	// Punctuation
 	case "(", ")", "[", "]", "{", "}", ",", ";", ".", "->":
 		return TokenTypePunctuation
-		
+
 	// Operators
 	case "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>",
 		"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
@@ -400,7 +400,7 @@ func (h *Highlighter) mapCNodeToTokenType(node *sitter.Node, nodeType string, so
 		"==", "!=", "<", "<=", ">", ">=",
 		"=", "!", "~", "?", ":":
 		return TokenTypeOperator
-		
+
 	default:
 		return TokenTypeText
 	}
@@ -427,28 +427,28 @@ func (h *Highlighter) mapCppNodeToTokenType(node *sitter.Node, nodeType string, 
 		"try", "typeid", "typename", "using", "virtual",
 		"wchar_t", "xor", "xor_eq", "co_await", "co_return", "co_yield":
 		return TokenTypeKeyword
-		
+
 	// Comments
 	case "comment":
 		return TokenTypeComment
-		
+
 	// Strings
 	case "string_literal", "char_literal", "raw_string_literal":
 		return TokenTypeString
-		
+
 	// Numbers and boolean/null literals
 	case "number_literal", "true", "false", "nullptr":
 		return TokenTypeNumber
-		
+
 	// Types
 	case "type_identifier", "primitive_type", "sized_type_specifier",
 		"auto", "decltype":
 		return TokenTypeType
-		
+
 	// Namespace
 	case "namespace_identifier":
 		return TokenTypeNamespace
-		
+
 	// Function and identifier handling
 	case "identifier", "field_identifier":
 		parent := node.Parent()
@@ -477,17 +477,17 @@ func (h *Highlighter) mapCppNodeToTokenType(node *sitter.Node, nodeType string, 
 			}
 		}
 		return TokenTypeVariable
-		
+
 	// Preprocessor directives
 	case "preproc_include", "preproc_def", "preproc_function_def",
 		"preproc_call", "preproc_if", "preproc_ifdef", "preproc_else",
 		"preproc_elif", "preproc_directive":
 		return TokenTypeAttribute
-		
+
 	// Punctuation
 	case "(", ")", "[", "]", "{", "}", ",", ";", ".", "->", "::", "...":
 		return TokenTypePunctuation
-		
+
 	// Operators
 	case "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>",
 		"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
@@ -495,7 +495,7 @@ func (h *Highlighter) mapCppNodeToTokenType(node *sitter.Node, nodeType string, 
 		"==", "!=", "<", "<=", ">", ">=",
 		"=", "!", "~", "?", ":", ".*", "->*":
 		return TokenTypeOperator
-		
+
 	default:
 		return TokenTypeText
 	}
@@ -520,7 +520,7 @@ func (h *Highlighter) isMoreSpecific(type1, type2 TokenType) bool {
 		TokenTypeString:      12,
 		TokenTypeComment:     13,
 	}
-	
+
 	return specificity[type1] > specificity[type2]
 }
 

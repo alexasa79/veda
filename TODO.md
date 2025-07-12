@@ -1,6 +1,6 @@
-- [ ] Remove `drawLine` (does not seem to be used anymore) and rename `drawLineFromIterator` to `drawLine`.
+- [x] Remove `drawLine` (does not seem to be used anymore) and rename `drawLineFromIterator` to `drawLine`.
 - [ ] getLineTokensFromIterator should not exist. Tokens should be a map from iterator to slice of tokens and not a map from line index to slice of tokens.
 - [ ] In saveCurrentBufferState we should save the iterator and not the line number.
-- [ ] Get rid of cursorY in Editor. We're going to use an iterator instead.
+- [x] Get rid of cursorY in Editor. We're going to use an iterator instead.
 - [ ] Get rid of the rope walker business.
 - [ ] There is a cursor iterator in the editor and there is also one in the buffer. I wonder if we need one in the buffer.

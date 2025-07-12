@@ -94,15 +94,6 @@ func (r *Rope) Lines() []string {
 	return strings.Split(r.String(), "\n")
 }
 
-// Line returns the line at the given index.
-func (r *Rope) Line(i int) string {
-	lines := r.Lines()
-	if i < 0 || i >= len(lines) {
-		return ""
-	}
-	return lines[i]
-}
-
 // Insert inserts text at a given position in the rope.
 func (r *Rope) Insert(pos int, text string) {
 	if r.root == nil {

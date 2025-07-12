@@ -231,12 +231,12 @@ func (e *Editor) scroll() {
 
 		desiredTopLine := cursorLine - visibleHeight + e.config.ScrollOffset
 		linesToMove := desiredTopLine - topLine
-		
+
 		// Don't scroll past the maximum allowed top line
 		if topLine + linesToMove > maxTopLine {
 			linesToMove = maxTopLine - topLine
 		}
-		
+
 		if linesToMove > 0 {
 			for i := 0; i < linesToMove; i++ {
 				e.viewIterator = e.viewIterator.Next()
@@ -249,13 +249,13 @@ func (e *Editor) scroll() {
 func (e *Editor) scrollToShowAtTop() {
 	// Create a new iterator at the beginning
 	e.viewIterator = buffer.NewBufferIterator(e.buffer)
-	
+
 	// Move down to position cursor at ScrollOffset from the top
 	targetLine := e.cursorIterator.LineNumber() - e.config.ScrollOffset
 	if targetLine < 0 {
 		targetLine = 0
 	}
-	
+
 	// Move iterator to target line
 	for i := 0; i < targetLine && !e.viewIterator.IsEOF(); i++ {
 		e.viewIterator = e.viewIterator.Next()
@@ -269,13 +269,13 @@ func (e *Editor) refreshViewIterator() {
 		e.viewIterator = buffer.NewBufferIterator(e.buffer)
 		return
 	}
-	
+
 	// Save current line number
 	currentLine := e.viewIterator.LineNumber()
-	
+
 	// Create new iterator
 	e.viewIterator = buffer.NewBufferIterator(e.buffer)
-	
+
 	// Move to the saved line
 	for i := 0; i < currentLine && !e.viewIterator.IsEOF(); i++ {
 		e.viewIterator = e.viewIterator.Next()
@@ -427,89 +427,8 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string) int {
 	return screenX - x
 }
 
-// drawLine draws a single line with syntax highlighting
-func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
-	if lineIndex < 0 || lineIndex >= e.buffer.LineCount {
-		return
-	}
-
-	line := e.buffer.Line(lineIndex)
-	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-	isCurrentLine := lineIndex == e.cursorIterator.LineNumber()
-
-	// If current line, we'll need to override background colors and pad the line
-	var currentLineBg ui.Color
-	if isCurrentLine {
-		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
-		_, currentLineBg, _ = currentLineStyle.Decompose()
-		normalStyle = normalStyle.Background(currentLineBg)
-
-		// Calculate how many spaces we need to fill the screen width
-		width, _ := e.screen.Size()
-		lineVisualWidth := e.visualWidth(line)
-		remainingWidth := width - startX - lineVisualWidth
-		if remainingWidth > 0 {
-			// Append spaces to fill the width
-			line = line + strings.Repeat(" ", remainingWidth)
-		}
-	}
-
-	// If no highlighter is set up, just draw normally
-	if e.highlighter == nil || !e.buffer.HasFile() {
-		e.drawText(startX, screenY, normalStyle, line)
-		return
-	}
-
-	// Get syntax tokens for this line
-	tokens := e.getLineTokens(lineIndex)
-
-	if len(tokens) == 0 {
-		// No tokens, draw with normal style
-		e.drawText(startX, screenY, normalStyle, line)
-		return
-	}
-
-	// Draw with syntax highlighting
-	x := startX
-	lastEnd := 0
-
-	for _, token := range tokens {
-		// Draw any text before this token with normal style
-		if token.Start > lastEnd && token.Start <= len(line) {
-			endPos := token.Start
-			if endPos > len(line) {
-				endPos = len(line)
-			}
-			prefix := line[lastEnd:endPos]
-			width := e.drawText(x, screenY, normalStyle, prefix)
-			x += width
-		}
-
-		// Draw the token with its specific style
-		if token.Start < len(line) && token.End <= len(line) {
-			tokenText := line[token.Start:token.End]
-			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-
-			// Override background for current line
-			if isCurrentLine {
-				tokenStyle = tokenStyle.Background(currentLineBg)
-			}
-
-			width := e.drawText(x, screenY, tokenStyle, tokenText)
-			x += width
-			lastEnd = token.End
-		}
-	}
-
-	// Draw any remaining text with normal style
-	if lastEnd < len(line) {
-		suffix := line[lastEnd:]
-		e.drawText(x, screenY, normalStyle, suffix)
-	}
-}
-
-// drawLineFromIterator draws a single line using the iterator
-func (e *Editor) drawLineFromIterator(iter *buffer.BufferIterator, startX int, screenY int) {
+// drawLine draws a single line using the iterator
+func (e *Editor) drawLine(iter *buffer.BufferIterator, startX int, screenY int) {
 	line := iter.Line()
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
@@ -539,7 +458,7 @@ func (e *Editor) drawLineFromIterator(iter *buffer.BufferIterator, startX int, s
 	}
 
 	// Get syntax tokens for this line using iterator position
-	tokens := e.getLineTokensFromIterator(iter)
+	tokens := e.getLineTokens(iter)
 
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
@@ -569,13 +488,13 @@ func (e *Editor) drawLineFromIterator(iter *buffer.BufferIterator, startX int, s
 				endPos = len(line)
 			}
 			tokenText := line[token.Start:endPos]
-			
+
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 			if isCurrentLine {
 				// Override background for current line
 				tokenStyle = tokenStyle.Background(currentLineBg)
 			}
-			
+
 			x += e.drawText(x, screenY, tokenStyle, tokenText)
 			lastEnd = endPos
 		}
@@ -618,46 +537,29 @@ func (e *Editor) updateLineOffsets() {
 	// Use walker to build offsets without converting entire buffer to string
 	lineCount := e.buffer.LineCount
 	e.lineOffsets = make([]int, lineCount+1)
-	
+
 	walker := buffer.NewRopeWalker(e.buffer.Rope)
 	i := 0
-	
+
 	for !walker.IsEOF() && i < lineCount {
 		e.lineOffsets[i] = walker.Position()
 		walker = walker.NextLine()
 		i++
 	}
-	
+
 	// Set final offset (end of file)
 	if i < len(e.lineOffsets) {
 		e.lineOffsets[i] = e.buffer.Length()
 	}
-	
+
 	e.offsetsDirty = false
 }
 
-// getLineTokens returns syntax tokens for a specific line
-func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
-	// Update cache if needed
-	if e.offsetsDirty || len(e.lineOffsets) == 0 {
-		e.updateLineOffsets()
-	}
-
-	// Use cached offsets
-	if lineIndex >= 0 && lineIndex < len(e.lineOffsets)-1 {
-		lineStart := e.lineOffsets[lineIndex]
-		lineEnd := e.lineOffsets[lineIndex+1] - 1 // -1 to exclude newline
-		return e.highlighter.GetTokensForLine(lineIndex, lineStart, lineEnd)
-	}
-
-	return nil
-}
-
-// getLineTokensFromIterator returns syntax tokens for a line using iterator position
-func (e *Editor) getLineTokensFromIterator(iter *buffer.BufferIterator) []syntax.Token {
+// getLineTokens returns syntax tokens for a line using iterator position
+func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
 	// Pass the iterator positions directly to the highlighter
 	// This allows future caching based on byte positions rather than line numbers
-	return e.highlighter.GetTokensForLine(iter.LineNumber(), iter.Position(), iter.LineEnd())
+	return e.highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
 }
 
 func (e *Editor) drawEditor() {
@@ -674,7 +576,7 @@ func (e *Editor) drawEditor() {
 	// Get screen dimensions
 	width, _ := e.screen.Size()
 	visibleHeight := e.getVisibleHeight()
-	
+
 	// Start from the view iterator
 	iter := e.viewIterator
 	for i := 0; i < visibleHeight && !iter.IsEOF(); i++ {
@@ -695,14 +597,14 @@ func (e *Editor) drawEditor() {
 			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
 
 			// Draw the actual line content using iterator
-			e.drawLineFromIterator(iter, lineNumberWidth, i)
+			e.drawLine(iter, lineNumberWidth, i)
 		} else {
 			// For lines beyond the buffer, fill line number area
 			for x := 0; x < lineNumberWidth; x++ {
 				e.screen.SetContent(x, i, ' ', nil, lineNumberStyle)
 			}
 		}
-		
+
 		// Move to next line
 		iter = iter.Next()
 	}
@@ -1109,14 +1011,14 @@ func (e *Editor) goToBeginning() error {
 func (e *Editor) goToEnd() error {
 	// Create iterator at EOF
 	endIter := buffer.NewBufferIteratorAtEnd(e.buffer)
-	
+
 	// Go back one line to the last actual line
 	prevIter := endIter.Previous()
-	
+
 	// Check if we actually moved (not empty buffer)
 	if !prevIter.Equals(endIter) {
 		e.cursorIterator = prevIter
-		
+
 		// Move to end of last line (but stay on last character in normal mode)
 		lastLine := e.cursorIterator.Line()
 		e.cursorX = len(lastLine)
@@ -1179,7 +1081,7 @@ func (e *Editor) openLineBelow() error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	// Refresh iterator after buffer modification
 	e.refreshViewIterator()
 
@@ -1212,7 +1114,7 @@ func (e *Editor) openLineAbove() error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	// Refresh iterator after buffer modification
 	e.refreshViewIterator()
 
@@ -1237,7 +1139,7 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	// Refresh iterator after buffer modification
 	e.refreshViewIterator()
 
@@ -1263,7 +1165,7 @@ func (e *Editor) insertNewline() error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
-	
+
 	// Refresh iterator after buffer modification
 	e.refreshViewIterator()
 
@@ -1356,12 +1258,12 @@ func (e *Editor) getAbsolutePosition() int {
 	if e.offsetsDirty || len(e.lineOffsets) == 0 {
 		e.updateLineOffsets()
 	}
-	
+
 	// Use cached offsets for efficiency
 	cursorLine := e.cursorIterator.LineNumber()
 	if cursorLine >= 0 && cursorLine < len(e.lineOffsets) {
 		pos := e.lineOffsets[cursorLine]
-		
+
 		// Add current X position
 		// Need to get current line length to validate cursorX
 		if !e.cursorIterator.IsEOF() {
@@ -1372,10 +1274,10 @@ func (e *Editor) getAbsolutePosition() int {
 				pos += e.cursorX
 			}
 		}
-		
+
 		return pos
 	}
-	
+
 	// Fallback for out of bounds
 	return 0
 }
@@ -1506,12 +1408,12 @@ func (e *Editor) goToDefinition() error {
 
 	// Create iterator and advance to target line
 	e.cursorIterator = buffer.NewBufferIterator(e.buffer)
-	
+
 	// Move iterator to target line
 	for i := 0; i < targetLine && !e.cursorIterator.IsEOF(); i++ {
 		e.cursorIterator = e.cursorIterator.Next()
 	}
-	
+
 	// Ensure cursor X is within bounds
 	currentLine := e.cursorIterator.Line()
 	if e.cursorX > len(currentLine) {
