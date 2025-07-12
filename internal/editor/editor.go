@@ -542,6 +542,7 @@ func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
 
 func (e *Editor) drawEditor() {
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
+	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	totalLines := e.buffer.LineCount
 
 	// Use cached line number width from buffer
@@ -550,9 +551,17 @@ func (e *Editor) drawEditor() {
 	// Clear the entire screen once
 	e.screen.Clear()
 
+	// Get screen dimensions
+	width, _ := e.screen.Size()
 	visibleHeight := e.getVisibleHeight()
+	
 	for i := 0; i < visibleHeight; i++ {
 		lineIndex := e.topLine + i
+
+		// First, fill the entire line with the normal background
+		for x := 0; x < width; x++ {
+			e.screen.SetContent(x, i, ' ', nil, normalStyle)
+		}
 
 		// Draw line number
 		lineNum := lineIndex + 1 // Line numbers start at 1
@@ -565,6 +574,11 @@ func (e *Editor) drawEditor() {
 
 			// Draw the actual line content
 			e.drawLine(lineIndex, lineNumberWidth, i)
+		} else {
+			// For lines beyond the buffer, fill line number area
+			for x := 0; x < lineNumberWidth; x++ {
+				e.screen.SetContent(x, i, ' ', nil, lineNumberStyle)
+			}
 		}
 	}
 }
@@ -575,8 +589,11 @@ func (e *Editor) drawStatusBar() {
 	lineColStyle := e.config.Theme.GetStyle(e.config.Theme.LineColumn)
 	statusBarY := e.getStatusBarY()
 
+	LL.Debug("drawStatusBar: height=%d, statusBarY=%d", height, statusBarY)
+
 	// Debug: ensure statusBarY is valid
 	if statusBarY < 0 || statusBarY >= height {
+		LL.Error("drawStatusBar: Invalid statusBarY=%d (height=%d)", statusBarY, height)
 		return
 	}
 

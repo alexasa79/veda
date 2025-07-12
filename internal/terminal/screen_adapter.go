@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"veda/internal/ui"
 )
@@ -15,6 +16,10 @@ type ScreenAdapter struct {
 	cells           [][]cell
 	defaultStyle    ui.Style
 	needsFullRedraw bool // Track if we need a full redraw
+	
+	// Line rendering cache
+	renderedLines   []string  // Cache of rendered ANSI strings
+	lineHashes      []uint64  // Hash of cell content for change detection
 }
 
 type cell struct {
@@ -34,9 +39,11 @@ func NewScreenAdapter(term *Terminal) *ScreenAdapter {
 	}
 
 	return &ScreenAdapter{
-		term:         term,
-		cells:        cells,
-		defaultStyle: ui.StyleDefault,
+		term:          term,
+		cells:         cells,
+		defaultStyle:  ui.StyleDefault,
+		renderedLines: make([]string, height),
+		lineHashes:    make([]uint64, height),
 	}
 }
 
@@ -48,6 +55,7 @@ func (s *ScreenAdapter) Init() error {
 
 	// Resize cells to match terminal size after init
 	width, height := s.term.Size()
+	LL.Debug("Terminal size is %d:%d", width, height)
 	s.resizeCells(width, height)
 
 	return nil
@@ -62,11 +70,16 @@ func (s *ScreenAdapter) Fini() {
 func (s *ScreenAdapter) Clear() {
 	s.term.Clear()
 
-	// Clear cell buffer
+	// Clear cell buffer and cache
 	width, height := s.term.Size()
 	for y := 0; y < height && y < len(s.cells); y++ {
 		for x := 0; x < width && x < len(s.cells[y]); x++ {
 			s.cells[y][x] = cell{ch: ' ', style: ui.StyleDefault}
+		}
+		// Clear cache for this line
+		if y < len(s.lineHashes) {
+			s.lineHashes[y] = 0
+			s.renderedLines[y] = ""
 		}
 	}
 }
@@ -76,10 +89,52 @@ func (s *ScreenAdapter) Show() {
 	// Convert cell buffer to lines with ANSI escape sequences
 	width, height := s.term.Size()
 
+	// Count non-empty lines
+	nonEmptyCount := 0
+	lastNonEmpty := -1
+
+	cacheHits := 0
+	cacheMisses := 0
+	
 	for y := 0; y < height && y < len(s.cells); y++ {
-		line := s.renderLine(y, width)
+		// Compute hash of current line
+		currentHash := s.hashLine(y, width)
+		
+		// Check if we need to re-render this line
+		var line string
+		if y < len(s.lineHashes) && currentHash == s.lineHashes[y] && y < len(s.renderedLines) {
+			// Use cached rendered line
+			line = s.renderedLines[y]
+			cacheHits++
+		} else {
+			// Re-render the line
+			line = s.renderLine(y, width)
+			cacheMisses++
+			// Update cache
+			if y < len(s.renderedLines) {
+				s.renderedLines[y] = line
+				s.lineHashes[y] = currentHash
+			}
+		}
+		
 		s.term.SetLine(y, line)
+
+		// Check if line has any non-space content
+		hasContent := false
+		for x := 0; x < width && x < len(s.cells[y]); x++ {
+			if s.cells[y][x].ch != ' ' && s.cells[y][x].ch != 0 {
+				hasContent = true
+				break
+			}
+		}
+		if hasContent {
+			nonEmptyCount++
+			lastNonEmpty = y
+		}
 	}
+
+	LL.Debug("ScreenAdapter.Show: height=%d, nonEmptyLines=%d, lastNonEmptyLine=%d, cacheHits=%d, cacheMisses=%d", 
+		height, nonEmptyCount, lastNonEmpty, cacheHits, cacheMisses)
 
 	s.term.Show()
 }
@@ -159,8 +214,16 @@ func (s *ScreenAdapter) renderLine(y int, width int) string {
 	lastStyle := ui.StyleDefault
 	styleApplied := false
 
-	for x := 0; x < width && x < len(s.cells[y]); x++ {
-		cell := s.cells[y][x]
+	// Always render the full width of the terminal
+	for x := 0; x < width; x++ {
+		var cell cell
+		if x < len(s.cells[y]) {
+			cell = s.cells[y][x]
+		} else {
+			// Beyond the cell buffer, use default style with space
+			cell.ch = ' '
+			cell.style = s.defaultStyle
+		}
 
 		// If style changed, apply new style
 		if cell.style != lastStyle || !styleApplied {
@@ -327,7 +390,7 @@ func (s *ScreenAdapter) mapModToEditor(m ModMask) ui.ModMask {
 }
 
 // convertMouseEvent converts our mouse event to editor format
-func (s *ScreenAdapter) convertMouseEvent(e *EventMouse) ui.Event {
+func (s *ScreenAdapter) convertMouseEvent(_ *EventMouse) ui.Event {
 	// For now, we don't have mouse events in editor types
 	// Return nil to ignore mouse events
 	return nil
@@ -336,6 +399,9 @@ func (s *ScreenAdapter) convertMouseEvent(e *EventMouse) ui.Event {
 // resizeCells resizes the cell buffer
 func (s *ScreenAdapter) resizeCells(width, height int) {
 	newCells := make([][]cell, height)
+	newRenderedLines := make([]string, height)
+	newLineHashes := make([]uint64, height)
+	
 	for y := range newCells {
 		newCells[y] = make([]cell, width)
 		for x := range newCells[y] {
@@ -346,6 +412,41 @@ func (s *ScreenAdapter) resizeCells(width, height int) {
 				newCells[y][x] = s.cells[y][x]
 			}
 		}
+		// Copy cached rendered lines if available
+		if y < len(s.renderedLines) {
+			newRenderedLines[y] = s.renderedLines[y]
+			newLineHashes[y] = s.lineHashes[y]
+		}
 	}
 	s.cells = newCells
+	s.renderedLines = newRenderedLines
+	s.lineHashes = newLineHashes
+}
+
+// hashLine computes a hash of the cell content for a line
+func (s *ScreenAdapter) hashLine(y int, width int) uint64 {
+	if y >= len(s.cells) {
+		return 0
+	}
+	
+	h := fnv.New64a()
+	// Hash the full width to detect changes in terminal width or default style
+	for x := 0; x < width; x++ {
+		var cell cell
+		if x < len(s.cells[y]) {
+			cell = s.cells[y][x]
+		} else {
+			// Beyond the cell buffer, use default style with space
+			cell.ch = ' '
+			cell.style = s.defaultStyle
+		}
+		// Hash character
+		h.Write([]byte{byte(cell.ch >> 24), byte(cell.ch >> 16), byte(cell.ch >> 8), byte(cell.ch)})
+		// Hash style components
+		fg, bg, attrs := cell.style.Decompose()
+		h.Write([]byte{byte(fg >> 24), byte(fg >> 16), byte(fg >> 8), byte(fg)})
+		h.Write([]byte{byte(bg >> 24), byte(bg >> 16), byte(bg >> 8), byte(bg)})
+		h.Write([]byte{byte(attrs >> 8), byte(attrs)})
+	}
+	return h.Sum64()
 }

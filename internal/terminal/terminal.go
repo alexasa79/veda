@@ -6,7 +6,10 @@ import (
 	"os"
 	"sync"
 	"golang.org/x/sys/unix"
+	"veda/internal/log"
 )
+
+var LL = log.NewLogger("TERMINAL")
 
 // Terminal provides low-level terminal control with ANSI escape sequences
 // and double buffering for flicker-free rendering.
@@ -29,6 +32,7 @@ type Terminal struct {
 	// Terminal state
 	oldTermios *unix.Termios
 	isRawMode  bool
+	tty        *os.File  // Direct terminal device
 
 	// Input handling
 	inputChan chan Event
@@ -52,15 +56,24 @@ func New() (*Terminal, error) {
 		return nil, fmt.Errorf("failed to get terminal size: %w", err)
 	}
 
+	LL.Debug("Terminal.New: Got terminal size: width=%d, height=%d", width, height)
+
+	// Open the terminal device directly
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open /dev/tty: %w", err)
+	}
+
 	t := &Terminal{
 		width:         width,
-		height:        height,
+		height:        height,  // Use actual height
 		frontBuffer:   make([]string, height),
 		backBuffer:    make([]string, height),
 		cursorVisible: true,
 		cursorStyle:   CursorStyleBlock,
 		inputChan:     make(chan Event, 100),
 		stopChan:      make(chan struct{}),
+		tty:           tty,
 	}
 
 	// Initialize buffers with empty lines
@@ -84,20 +97,23 @@ func (t *Terminal) Init() error {
 	}
 
 	// Switch to alternate screen buffer, clear screen and hide cursor initially
-	fmt.Print("\033[?1049h\033[2J\033[H\033[?25l")
+	fmt.Fprint(t.tty, "\033[?1049h\033[2J\033[H\033[?25l")
 
 	// Update terminal size after switching to alternate screen
 	if width, height, err := getTerminalSize(); err == nil {
+		LL.Debug("Terminal.Init: Got terminal size after alternate screen: width=%d, height=%d", width, height)
 		t.width = width
-		t.height = height
+		t.height = height  // Use actual height
 		// Reinitialize buffers with correct size
-		t.frontBuffer = make([]string, height)
-		t.backBuffer = make([]string, height)
+		t.frontBuffer = make([]string, t.height)
+		t.backBuffer = make([]string, t.height)
 		for i := range t.backBuffer {
 			t.backBuffer[i] = ""
 			// Initialize front buffer with a sentinel value to force initial render
 			t.frontBuffer[i] = "\x00"
 		}
+	} else {
+		LL.Error("Terminal.Init: Failed to get terminal size: %v", err)
 	}
 
 	// Start input handler
@@ -118,14 +134,19 @@ func (t *Terminal) Close() {
 	close(t.stopChan)
 
 	// Show cursor and switch back to main screen buffer
-	fmt.Print("\033[?25h\033[?1049l")
+	fmt.Fprint(t.tty, "\033[?25h\033[?1049l")
 
 	// Clear screen
-	fmt.Print("\033[2J\033[H")
+	fmt.Fprint(t.tty, "\033[2J\033[H")
 
 	// Exit raw mode
 	if t.isRawMode {
 		t.exitRawMode()
+	}
+	
+	// Close tty file
+	if t.tty != nil {
+		t.tty.Close()
 	}
 }
 
@@ -181,27 +202,60 @@ func (t *Terminal) SetCursorStyle(style CursorStyle) {
 	t.cursorStyle = style
 }
 
-// Show renders the entire screen
+// Show renders the screen with minimal updates to prevent flickering
 func (t *Terminal) Show() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
-	var output bytes.Buffer
-	
-	// Clear screen and move to home position
-	output.WriteString("\033[2J\033[H")
-	
-	// Render all lines with newlines
-	for y, line := range t.backBuffer {
-		if y > 0 {
-			output.WriteString("\n")
-		}
-		output.WriteString(line)
+
+	// Log terminal dimensions
+	LL.Trace("Terminal.Show: width=%d, height=%d, bufferLen=%d, cursor=(%d,%d)", t.width, t.height, len(t.backBuffer), t.cursorX, t.cursorY)
+
+	// Don't render if we don't have a valid size
+	if t.width <= 0 || t.height <= 0 {
+		LL.Error("Terminal.Show: Invalid dimensions, skipping render")
+		return
 	}
-	
-	// Single write to stdout
-	os.Stdout.Write(output.Bytes())
-	os.Stdout.Sync() // Force flush
+
+	var output bytes.Buffer
+	hasChanges := false
+
+	// Hide cursor during screen update
+	output.WriteString("\033[?25l")
+
+	// Differential rendering - only update changed lines
+	for y := 0; y < t.height && y < len(t.backBuffer); y++ {
+		if t.backBuffer[y] != t.frontBuffer[y] {
+			// Position cursor at beginning of line
+			fmt.Fprintf(&output, "\033[%d;1H", y+1)
+			output.WriteString(t.backBuffer[y])
+			// Clear to end of line in case the new line is shorter
+			output.WriteString("\033[K")
+			t.frontBuffer[y] = t.backBuffer[y]
+			hasChanges = true
+		}
+	}
+
+	// Always update cursor position and visibility
+	if t.cursorVisible {
+		// Set cursor style
+		switch t.cursorStyle {
+		case CursorStyleBar:
+			output.WriteString("\033[6 q") // Steady bar
+		case CursorStyleUnderline:
+			output.WriteString("\033[4 q") // Steady underline
+		default:
+			output.WriteString("\033[2 q") // Steady block
+		}
+		
+		// Position cursor and make it visible
+		fmt.Fprintf(&output, "\033[%d;%dH\033[?25h", t.cursorY+1, t.cursorX+1)
+	}
+
+	// Only write if there were changes or cursor needs update
+	if hasChanges || t.cursorVisible {
+		t.tty.Write(output.Bytes())
+		t.tty.Sync() // Force flush
+	}
 }
 
 // PollEvent returns the next input event (blocking)
@@ -257,12 +311,15 @@ func getTerminalSize() (width, height int, err error) {
 	return int(ws.Col), int(ws.Row), nil
 }
 
+
 // handleResize updates the terminal dimensions
 func (t *Terminal) handleResize() {
 	width, height, err := getTerminalSize()
 	if err != nil {
 		return
 	}
+
+	LL.Debug("Got resize signal to %d:%d", width, height)
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
