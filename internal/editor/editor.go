@@ -42,6 +42,7 @@ type Editor struct {
 	// Navigation history
 	navHistory      []NavigationEntry       // Stack of previous positions
 	maxNavHistory   int                     // Maximum number of entries to keep
+
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -65,6 +66,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 
 	// Create initial empty buffer
 	initialBuffer := buffer.NewBuffer("", "", config.DefaultIndentType, config.DefaultIndentWidth)
+
 
 	editor := &Editor{
 		screen:          screen,
@@ -145,6 +147,7 @@ func (e *Editor) Run() {
 				// Normal and Insert modes both use key mapping
 				if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 					err, cmdNeedsRedraw := e.commandRegistry.Execute(command)
+
 					if err != nil {
 						// TODO: Show error to user
 					}
@@ -163,6 +166,7 @@ func (e *Editor) Run() {
 
 		// Check if scrolling occurred
 		e.scroll()
+
 		if !oldViewIterator.Equals(e.viewIterator) {
 			needsRedraw = true
 		}
@@ -615,8 +619,6 @@ func (e *Editor) drawStatusBar() {
 	statusBarStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBar)
 	lineColStyle := e.config.Theme.GetStyle(e.config.Theme.LineColumn)
 	statusBarY := e.getStatusBarY()
-
-	LL.Debug("drawStatusBar: height=%d, statusBarY=%d", height, statusBarY)
 
 	// Debug: ensure statusBarY is valid
 	if statusBarY < 0 || statusBarY >= height {

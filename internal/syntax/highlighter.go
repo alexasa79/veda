@@ -46,6 +46,7 @@ type Highlighter struct {
 	currentLang    string
 	currentTree    *sitter.Tree
 	currentSource  []byte
+	tokenCache     map[int][]Token  // Cache key: startByte
 }
 
 // NewHighlighter creates a new syntax highlighter
@@ -53,6 +54,7 @@ func NewHighlighter() *Highlighter {
 	parser := sitter.NewParser()
 	return &Highlighter{
 		parser:     parser,
+		tokenCache: make(map[int][]Token),
 	}
 }
 
@@ -75,6 +77,7 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 		h.currentLang = ""
 		h.currentTree = nil
 		h.currentSource = nil
+		h.tokenCache = make(map[int][]Token)
 		return nil
 	}
 
@@ -95,6 +98,8 @@ func (h *Highlighter) Parse(source []byte) error {
 
 	h.currentTree = tree
 	h.currentSource = source
+	// Clear the token cache when source changes
+	h.tokenCache = make(map[int][]Token)
 	return nil
 }
 
@@ -112,13 +117,25 @@ func (h *Highlighter) ParseFull(source []byte) error {
 
 	h.currentTree = tree
 	h.currentSource = source
+	// Clear the token cache when source changes
+	h.tokenCache = make(map[int][]Token)
 	return nil
+}
+
+// ClearCache clears the token cache
+func (h *Highlighter) ClearCache() {
+	h.tokenCache = make(map[int][]Token)
 }
 
 // GetTokensForLine returns syntax tokens for a specific line
 func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
 		return nil
+	}
+
+	// Check cache first
+	if cached, ok := h.tokenCache[lineStart]; ok {
+		return cached
 	}
 
 	tokens := []Token{}
@@ -129,6 +146,9 @@ func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 
 	// Sort tokens by start position and merge overlapping
 	tokens = h.mergeOverlappingTokens(tokens)
+
+	// Cache the result
+	h.tokenCache[lineStart] = tokens
 
 	return tokens
 }

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"golang.org/x/sys/unix"
 	"veda/internal/log"
+
+	"golang.org/x/sys/unix"
 )
 
 var LL = log.NewLogger("TERMINAL")
@@ -143,7 +144,7 @@ func (t *Terminal) Close() {
 	if t.isRawMode {
 		t.exitRawMode()
 	}
-	
+
 	// Close tty file
 	if t.tty != nil {
 		t.tty.Close()
@@ -207,9 +208,6 @@ func (t *Terminal) Show() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// Log terminal dimensions
-	LL.Trace("Terminal.Show: width=%d, height=%d, bufferLen=%d, cursor=(%d,%d)", t.width, t.height, len(t.backBuffer), t.cursorX, t.cursorY)
-
 	// Don't render if we don't have a valid size
 	if t.width <= 0 || t.height <= 0 {
 		LL.Error("Terminal.Show: Invalid dimensions, skipping render")
@@ -246,7 +244,7 @@ func (t *Terminal) Show() {
 		default:
 			output.WriteString("\033[2 q") // Steady block
 		}
-		
+
 		// Position cursor and make it visible
 		fmt.Fprintf(&output, "\033[%d;%dH\033[?25h", t.cursorY+1, t.cursorX+1)
 	}

@@ -5,19 +5,12 @@ import (
 	"os"
 	"veda/internal/editor"
 	"veda/internal/log"
-	"veda/internal/proxy"
-	"veda/internal/terminal"
 )
 
 func main() {
 	// Set up logging
 	log.SetupLogging("veda.log")
 	defer log.CleanupLogging()
-
-	// Set log level to TRACE for debugging
-	editor.LL.MinLevel = log.TRACE
-	proxy.LL.MinLevel = log.TRACE
-	terminal.LL.MinLevel = log.TRACE
 
 	ed, err := editor.New()
 	if err != nil {

@@ -16,7 +16,7 @@ type ScreenAdapter struct {
 	cells           [][]cell
 	defaultStyle    ui.Style
 	needsFullRedraw bool // Track if we need a full redraw
-	
+
 	// Line rendering cache
 	renderedLines   []string  // Cache of rendered ANSI strings
 	lineHashes      []uint64  // Hash of cell content for change detection
@@ -91,15 +91,14 @@ func (s *ScreenAdapter) Show() {
 
 	// Count non-empty lines
 	nonEmptyCount := 0
-	lastNonEmpty := -1
 
 	cacheHits := 0
 	cacheMisses := 0
-	
+
 	for y := 0; y < height && y < len(s.cells); y++ {
 		// Compute hash of current line
 		currentHash := s.hashLine(y, width)
-		
+
 		// Check if we need to re-render this line
 		var line string
 		if y < len(s.lineHashes) && currentHash == s.lineHashes[y] && y < len(s.renderedLines) {
@@ -116,7 +115,7 @@ func (s *ScreenAdapter) Show() {
 				s.lineHashes[y] = currentHash
 			}
 		}
-		
+
 		s.term.SetLine(y, line)
 
 		// Check if line has any non-space content
@@ -129,12 +128,8 @@ func (s *ScreenAdapter) Show() {
 		}
 		if hasContent {
 			nonEmptyCount++
-			lastNonEmpty = y
 		}
 	}
-
-	LL.Debug("ScreenAdapter.Show: height=%d, nonEmptyLines=%d, lastNonEmptyLine=%d, cacheHits=%d, cacheMisses=%d", 
-		height, nonEmptyCount, lastNonEmpty, cacheHits, cacheMisses)
 
 	s.term.Show()
 }
@@ -401,7 +396,7 @@ func (s *ScreenAdapter) resizeCells(width, height int) {
 	newCells := make([][]cell, height)
 	newRenderedLines := make([]string, height)
 	newLineHashes := make([]uint64, height)
-	
+
 	for y := range newCells {
 		newCells[y] = make([]cell, width)
 		for x := range newCells[y] {
@@ -428,7 +423,7 @@ func (s *ScreenAdapter) hashLine(y int, width int) uint64 {
 	if y >= len(s.cells) {
 		return 0
 	}
-	
+
 	h := fnv.New64a()
 	// Hash the full width to detect changes in terminal width or default style
 	for x := 0; x < width; x++ {
