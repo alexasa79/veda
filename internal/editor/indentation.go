@@ -201,7 +201,7 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 
 
 
-// getCurrentLineIndentInfo returns detailed indentation info for the current line
-func (e *Editor) getCurrentLineIndentInfo() buffer.LineIndentInfo {
-	return e.buffer.GetCurrentLineIndentInfo(e.cursorY)
+// getCurrentLineIndentInfo returns detailed indentation info for the line at the iterator
+func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.LineIndentInfo {
+	return e.buffer.GetCurrentLineIndentInfo(iter)
 }

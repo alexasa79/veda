@@ -6,10 +6,10 @@ import (
 
 // NavigationEntry represents a position in the navigation history
 type NavigationEntry struct {
-	filePath string
-	cursorX  int
-	cursorY  int
-	topLine  int
+	filePath      string
+	cursorX       int
+	cursorY       int
+	topLineNumber int  // Line number of the top visible line
 }
 
 // pushNavigationHistory saves the current position to navigation history
@@ -19,10 +19,10 @@ func (e *Editor) pushNavigationHistory() {
 	}
 	
 	entry := NavigationEntry{
-		filePath: e.buffer.FilePath,
-		cursorX:  e.cursorX,
-		cursorY:  e.cursorY,
-		topLine:  e.topLine,
+		filePath:      e.buffer.FilePath,
+		cursorX:       e.cursorX,
+		cursorY:       e.cursorY,
+		topLineNumber: e.viewIterator.LineNumber(),
 	}
 	
 	// Add to history

@@ -15,9 +15,10 @@ type Buffer struct {
 	IsModified  bool
 	
 	// Cursor and view state
-	CursorX     int
-	CursorY     int
-	TopLine     int
+	CursorX        int
+	CursorY        int
+	ViewIterator   *BufferIterator  // Saved view position iterator
+	CursorIterator *BufferIterator  // Saved cursor position iterator
 	
 	// Caching
 	LineOffsets  []int  // Cache of byte offsets for each line
@@ -54,7 +55,7 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		IsModified:   false,
 		CursorX:      0,
 		CursorY:      0,
-		TopLine:      0,
+		ViewIterator: nil,  // Will be created when buffer is first used
 		LineOffsets:  []int{},
 		OffsetsDirty: true,
 		LineCount:    len(rope.Lines()),
@@ -64,19 +65,25 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		},
 	}
 	b.UpdateLineNumberWidth()
+	// Create initial iterator
+	b.ViewIterator = NewBufferIterator(b)
 	return b
 }
 
 // SaveCursorState saves the current cursor and view position
-func (b *Buffer) SaveCursorState(x, y, topLine int) {
+func (b *Buffer) SaveCursorState(x, y int, viewIterator *BufferIterator) {
 	b.CursorX = x
 	b.CursorY = y
-	b.TopLine = topLine
+	b.ViewIterator = viewIterator
 }
 
 // RestoreCursorState returns the saved cursor and view position
-func (b *Buffer) RestoreCursorState() (x, y, topLine int) {
-	return b.CursorX, b.CursorY, b.TopLine
+func (b *Buffer) RestoreCursorState() (x, y int, viewIterator *BufferIterator) {
+	// Ensure we have a valid iterator
+	if b.ViewIterator == nil {
+		b.ViewIterator = NewBufferIterator(b)
+	}
+	return b.CursorX, b.CursorY, b.ViewIterator
 }
 
 // MarkModified marks the buffer as modified
@@ -187,14 +194,13 @@ func (b *Buffer) GetLineIndentInfo(line string) LineIndentInfo {
 	return info
 }
 
-// GetCurrentLineIndentInfo returns detailed indentation info for a specific line
-func (b *Buffer) GetCurrentLineIndentInfo(lineIndex int) LineIndentInfo {
-	lines := b.Lines()
-	if lineIndex >= len(lines) || lineIndex < 0 {
+// GetCurrentLineIndentInfo returns detailed indentation info for the line at the iterator position
+func (b *Buffer) GetCurrentLineIndentInfo(iter *BufferIterator) LineIndentInfo {
+	if iter.IsEOF() {
 		return LineIndentInfo{}
 	}
 	
-	return b.GetLineIndentInfo(lines[lineIndex])
+	return b.GetLineIndentInfo(iter.Line())
 }
 
 // UpdateLineNumberWidth calculates and caches the width needed for line numbers

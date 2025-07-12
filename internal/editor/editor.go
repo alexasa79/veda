@@ -25,7 +25,8 @@ type Editor struct {
 	config          *config.Config
 	cursorX         int
 	cursorY         int
-	topLine         int
+	viewIterator    *buffer.BufferIterator  // Iterator for the top visible line
+	cursorIterator  *buffer.BufferIterator  // Iterator for the cursor line
 	mode            commands.Mode
 	commandLine     *widgets.LineEditor
 	proxyClient     *proxy.Client
@@ -72,7 +73,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		config:          config,
 		cursorX:         0,
 		cursorY:         0,
-		topLine:         0,
+		viewIterator:    buffer.NewBufferIterator(initialBuffer),
+		cursorIterator:  buffer.NewBufferIterator(initialBuffer),
 		mode:            commands.NormalMode,
 		commandLine:     commandLine,
 		proxyClient:     proxyClient,
@@ -133,7 +135,7 @@ func (e *Editor) Run() {
 
 		// Track if we need a full redraw
 		needsRedraw := false
-		oldTopLine := e.topLine
+		oldViewIterator := e.viewIterator
 
 		switch ev := ev.(type) {
 		case *ui.EventKey:
@@ -163,7 +165,7 @@ func (e *Editor) Run() {
 
 		// Check if scrolling occurred
 		e.scroll()
-		if oldTopLine != e.topLine {
+		if !oldViewIterator.Equals(e.viewIterator) {
 			needsRedraw = true
 		}
 
@@ -200,22 +202,28 @@ func (e *Editor) updateCursor() {
 		// Use cached line number width from buffer
 		lineNumberWidth := e.buffer.LineNumberWidth
 		visualCursorX := e.getVisualCursorX()
-		e.screen.ShowCursor(visualCursorX+lineNumberWidth, e.cursorY-e.topLine)
+		e.screen.ShowCursor(visualCursorX+lineNumberWidth, e.cursorY-e.viewIterator.LineNumber())
 	}
 }
 
 func (e *Editor) scroll() {
 	visibleHeight := e.getVisibleHeight()
 	bufferLines := e.buffer.LineCount
+	topLine := e.viewIterator.LineNumber()
 
 	// Scroll up when cursor is too close to top
-	if e.cursorY < e.topLine+e.config.ScrollOffset {
-		e.topLine = e.cursorY - e.config.ScrollOffset
+	if e.cursorY < topLine+e.config.ScrollOffset {
+		linesToMove := topLine - (e.cursorY - e.config.ScrollOffset)
+		if linesToMove > 0 {
+			for i := 0; i < linesToMove; i++ {
+				e.viewIterator = e.viewIterator.Previous()
+			}
+		}
 	}
 
 	// Scroll down when cursor is too close to bottom, but allow cursor to reach
 	// the bottom of the screen when at the end of the buffer
-	if e.cursorY >= e.topLine+visibleHeight-e.config.ScrollOffset {
+	if e.cursorY >= topLine+visibleHeight-e.config.ScrollOffset {
 		// If we're near the end of the buffer, allow the last line to be at the bottom
 		maxTopLine := bufferLines - visibleHeight
 		if maxTopLine < 0 {
@@ -223,38 +231,55 @@ func (e *Editor) scroll() {
 		}
 
 		desiredTopLine := e.cursorY - visibleHeight + e.config.ScrollOffset
-		if desiredTopLine > maxTopLine {
-			e.topLine = maxTopLine
-		} else {
-			e.topLine = desiredTopLine
+		linesToMove := desiredTopLine - topLine
+		
+		// Don't scroll past the maximum allowed top line
+		if topLine + linesToMove > maxTopLine {
+			linesToMove = maxTopLine - topLine
 		}
-	}
-
-	if e.topLine < 0 {
-		e.topLine = 0
+		
+		if linesToMove > 0 {
+			for i := 0; i < linesToMove; i++ {
+				e.viewIterator = e.viewIterator.Next()
+			}
+		}
 	}
 }
 
 // scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top
 func (e *Editor) scrollToShowAtTop() {
-	visibleHeight := e.getVisibleHeight()
-	bufferLines := e.buffer.LineCount
-
-	// Position cursor at ScrollOffset from the top
-	e.topLine = e.cursorY - e.config.ScrollOffset
-
-	// Make sure we don't scroll past the beginning
-	if e.topLine < 0 {
-		e.topLine = 0
+	// Create a new iterator at the beginning
+	e.viewIterator = buffer.NewBufferIterator(e.buffer)
+	
+	// Move down to position cursor at ScrollOffset from the top
+	targetLine := e.cursorY - e.config.ScrollOffset
+	if targetLine < 0 {
+		targetLine = 0
 	}
-
-	// Make sure we don't scroll past the end
-	maxTopLine := bufferLines - visibleHeight
-	if maxTopLine < 0 {
-		maxTopLine = 0
+	
+	// Move iterator to target line
+	for i := 0; i < targetLine && !e.viewIterator.IsEOF(); i++ {
+		e.viewIterator = e.viewIterator.Next()
 	}
-	if e.topLine > maxTopLine {
-		e.topLine = maxTopLine
+}
+
+// refreshViewIterator recreates the view iterator at the same line position
+// This should be called after buffer modifications
+func (e *Editor) refreshViewIterator() {
+	if e.viewIterator == nil {
+		e.viewIterator = buffer.NewBufferIterator(e.buffer)
+		return
+	}
+	
+	// Save current line number
+	currentLine := e.viewIterator.LineNumber()
+	
+	// Create new iterator
+	e.viewIterator = buffer.NewBufferIterator(e.buffer)
+	
+	// Move to the saved line
+	for i := 0; i < currentLine && !e.viewIterator.IsEOF(); i++ {
+		e.viewIterator = e.viewIterator.Next()
 	}
 }
 
@@ -484,6 +509,86 @@ func (e *Editor) drawLine(lineIndex int, startX int, screenY int) {
 	}
 }
 
+// drawLineFromIterator draws a single line using the iterator
+func (e *Editor) drawLineFromIterator(iter *buffer.BufferIterator, startX int, screenY int) {
+	line := iter.Line()
+	lineIndex := iter.LineNumber()
+	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+	isCurrentLine := lineIndex == e.cursorY
+
+	// If current line, we'll need to override background colors and pad the line
+	var currentLineBg ui.Color
+	if isCurrentLine {
+		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
+		_, currentLineBg, _ = currentLineStyle.Decompose()
+		normalStyle = normalStyle.Background(currentLineBg)
+
+		// Calculate how many spaces we need to fill the screen width
+		width, _ := e.screen.Size()
+		lineVisualWidth := e.visualWidth(line)
+		remainingWidth := width - startX - lineVisualWidth
+		if remainingWidth > 0 {
+			// Append spaces to fill the width
+			line = line + strings.Repeat(" ", remainingWidth)
+		}
+	}
+
+	// If no highlighter is set up, just draw normally
+	if e.highlighter == nil || !e.buffer.HasFile() {
+		e.drawText(startX, screenY, normalStyle, line)
+		return
+	}
+
+	// Get syntax tokens for this line using iterator position
+	tokens := e.getLineTokensFromIterator(iter)
+
+	if len(tokens) == 0 {
+		// No tokens, draw with normal style
+		e.drawText(startX, screenY, normalStyle, line)
+		return
+	}
+
+	// Draw with syntax highlighting
+	x := startX
+	lastEnd := 0
+
+	for _, token := range tokens {
+		// Draw any text before this token with normal style
+		if token.Start > lastEnd && token.Start <= len(line) {
+			endPos := token.Start
+			if endPos > len(line) {
+				endPos = len(line)
+			}
+			prefix := line[lastEnd:endPos]
+			x += e.drawText(x, screenY, normalStyle, prefix)
+		}
+
+		// Draw the token with its style
+		if token.Start < len(line) && token.End > token.Start {
+			endPos := token.End
+			if endPos > len(line) {
+				endPos = len(line)
+			}
+			tokenText := line[token.Start:endPos]
+			
+			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+			if isCurrentLine {
+				// Override background for current line
+				tokenStyle = tokenStyle.Background(currentLineBg)
+			}
+			
+			x += e.drawText(x, screenY, tokenStyle, tokenText)
+			lastEnd = endPos
+		}
+	}
+
+	// Draw any remaining text with normal style
+	if lastEnd < len(line) {
+		suffix := line[lastEnd:]
+		e.drawText(x, screenY, normalStyle, suffix)
+	}
+}
+
 // visualWidth calculates the visual width of a string accounting for tabs
 func (e *Editor) visualWidth(text string) int {
 	width := 0
@@ -511,15 +616,24 @@ func (e *Editor) getVisualCursorX() int {
 
 // updateLineOffsets recalculates the byte offset cache for all lines
 func (e *Editor) updateLineOffsets() {
-	lines := e.buffer.Lines()
-	e.lineOffsets = make([]int, len(lines)+1)
-
-	offset := 0
-	for i, line := range lines {
-		e.lineOffsets[i] = offset
-		offset += len(line) + 1 // +1 for newline
+	// Use walker to build offsets without converting entire buffer to string
+	lineCount := e.buffer.LineCount
+	e.lineOffsets = make([]int, lineCount+1)
+	
+	walker := buffer.NewRopeWalker(e.buffer.Rope)
+	i := 0
+	
+	for !walker.IsEOF() && i < lineCount {
+		e.lineOffsets[i] = walker.Position()
+		walker = walker.NextLine()
+		i++
 	}
-	e.lineOffsets[len(lines)] = offset
+	
+	// Set final offset (end of file)
+	if i < len(e.lineOffsets) {
+		e.lineOffsets[i] = e.buffer.Length()
+	}
+	
 	e.offsetsDirty = false
 }
 
@@ -540,6 +654,13 @@ func (e *Editor) getLineTokens(lineIndex int) []syntax.Token {
 	return nil
 }
 
+// getLineTokensFromIterator returns syntax tokens for a line using iterator position
+func (e *Editor) getLineTokensFromIterator(iter *buffer.BufferIterator) []syntax.Token {
+	// Pass the iterator positions directly to the highlighter
+	// This allows future caching based on byte positions rather than line numbers
+	return e.highlighter.GetTokensForLine(iter.LineNumber(), iter.Position(), iter.LineEnd())
+}
+
 func (e *Editor) drawEditor() {
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
@@ -555,8 +676,10 @@ func (e *Editor) drawEditor() {
 	width, _ := e.screen.Size()
 	visibleHeight := e.getVisibleHeight()
 	
-	for i := 0; i < visibleHeight; i++ {
-		lineIndex := e.topLine + i
+	// Start from the view iterator
+	iter := e.viewIterator
+	for i := 0; i < visibleHeight && !iter.IsEOF(); i++ {
+		lineIndex := iter.LineNumber()
 
 		// First, fill the entire line with the normal background
 		for x := 0; x < width; x++ {
@@ -572,14 +695,17 @@ func (e *Editor) drawEditor() {
 			// Draw separator after line number
 			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
 
-			// Draw the actual line content
-			e.drawLine(lineIndex, lineNumberWidth, i)
+			// Draw the actual line content using iterator
+			e.drawLineFromIterator(iter, lineNumberWidth, i)
 		} else {
 			// For lines beyond the buffer, fill line number area
 			for x := 0; x < lineNumberWidth; x++ {
 				e.screen.SetContent(x, i, ' ', nil, lineNumberStyle)
 			}
 		}
+		
+		// Move to next line
+		iter = iter.Next()
 	}
 }
 
@@ -639,7 +765,7 @@ func (e *Editor) drawStatusBar() {
 		}
 
 		// Get current line indentation info
-		lineIndent := e.getCurrentLineIndentInfo()
+		lineIndent := e.getCurrentLineIndentInfo(e.cursorIterator)
 		var lineIndentDisplay string
 		if lineIndent.Level > 0 {
 			lineIndentDisplay = fmt.Sprintf("L%d", lineIndent.Level)
@@ -675,8 +801,9 @@ func (e *Editor) drawStatusBar() {
 func (e *Editor) moveUp() error {
 	if e.cursorY > 0 {
 		e.cursorY--
+		e.cursorIterator = e.cursorIterator.Previous()
 		// Adjust cursor X if the new line is shorter
-		line := e.buffer.Line(e.cursorY)
+		line := e.cursorIterator.Line()
 		maxX := len(line)
 		if maxX > 0 {
 			maxX-- // Don't go past the last character
@@ -691,8 +818,9 @@ func (e *Editor) moveUp() error {
 func (e *Editor) moveDown() error {
 	if e.cursorY < e.buffer.LineCount-1 {
 		e.cursorY++
+		e.cursorIterator = e.cursorIterator.Next()
 		// Adjust cursor X if the new line is shorter
-		line := e.buffer.Line(e.cursorY)
+		line := e.cursorIterator.Line()
 		maxX := len(line)
 		if maxX > 0 {
 			maxX-- // Don't go past the last character
@@ -727,8 +855,9 @@ func (e *Editor) moveRight() error {
 func (e *Editor) moveUpInsert() error {
 	if e.cursorY > 0 {
 		e.cursorY--
+		e.cursorIterator = e.cursorIterator.Previous()
 		// Adjust cursor X if the new line is shorter
-		line := e.buffer.Line(e.cursorY)
+		line := e.cursorIterator.Line()
 		if e.cursorX > len(line) {
 			e.cursorX = len(line)
 		}
@@ -739,8 +868,9 @@ func (e *Editor) moveUpInsert() error {
 func (e *Editor) moveDownInsert() error {
 	if e.cursorY < e.buffer.LineCount-1 {
 		e.cursorY++
+		e.cursorIterator = e.cursorIterator.Next()
 		// Adjust cursor X if the new line is shorter
-		line := e.buffer.Line(e.cursorY)
+		line := e.cursorIterator.Line()
 		if e.cursorX > len(line) {
 			e.cursorX = len(line)
 		}
@@ -766,27 +896,23 @@ func (e *Editor) moveRightInsert() error {
 
 // wordForward moves the cursor to the beginning of the next word
 func (e *Editor) wordForward() error {
-	lines := e.buffer.Lines()
-	if len(lines) == 0 {
-		return nil
-	}
-
 	// Start from current position
-	y := e.cursorY
+	iter := e.cursorIterator
 	x := e.cursorX + 1 // Start searching from next character
+	currentLine := iter.Line()
 
 	// Track if we've seen a non-alphanumeric character
 	seenNonAlnum := false
 
 	// If we start on a non-alphanumeric character, we're ready to find the next word
-	if e.cursorX < len(lines[e.cursorY]) {
-		ch := rune(lines[e.cursorY][e.cursorX])
+	if e.cursorX < len(currentLine) {
+		ch := rune(currentLine[e.cursorX])
 		seenNonAlnum = !unicode.IsLetter(ch) && !unicode.IsDigit(ch) && ch != '_'
 	}
 
 	// Loop through characters until we find a transition from non-alnum to alnum
-	for y < len(lines) {
-		line := lines[y]
+	for !iter.IsEOF() {
+		line := iter.Line()
 
 		for x < len(line) {
 			ch := rune(line[x])
@@ -795,7 +921,8 @@ func (e *Editor) wordForward() error {
 			if seenNonAlnum && isAlnum {
 				// Found transition from non-alnum to alnum
 				e.cursorX = x
-				e.cursorY = y
+				e.cursorIterator = iter
+				e.cursorY = iter.LineNumber()
 				return nil
 			}
 
@@ -807,9 +934,11 @@ func (e *Editor) wordForward() error {
 		}
 
 		// Move to next line
-		y++
-		x = 0
-		seenNonAlnum = true // Line break counts as non-alnum
+		iter = iter.Next()
+		if !iter.IsEOF() {
+			x = 0
+			seenNonAlnum = true // Line break counts as non-alnum
+		}
 	}
 
 	// No more words found, stay at current position
@@ -818,19 +947,15 @@ func (e *Editor) wordForward() error {
 
 // wordBackward moves the cursor to the beginning of the previous word
 func (e *Editor) wordBackward() error {
-	lines := e.buffer.Lines()
-	if len(lines) == 0 {
-		return nil
-	}
-
 	// If we're at the very beginning, can't go back
 	if e.cursorY == 0 && e.cursorX == 0 {
 		return nil
 	}
 
 	// Start from current position
-	y := e.cursorY
+	iter := e.cursorIterator
 	x := e.cursorX
+	currentLine := iter.Line()
 
 	// Helper to check if character is word character
 	isWordChar := func(ch rune) bool {
@@ -840,11 +965,14 @@ func (e *Editor) wordBackward() error {
 	// Move left one position
 	x--
 	if x < 0 {
-		y--
-		if y < 0 {
+		// Move to previous line
+		iter = iter.Previous()
+		if iter.LineNumber() == e.cursorIterator.LineNumber() {
+			// Couldn't move back, we're at beginning
 			return nil
 		}
-		x = len(lines[y]) - 1
+		currentLine = iter.Line()
+		x = len(currentLine) - 1
 		if x < 0 {
 			x = 0
 		}
@@ -854,13 +982,13 @@ func (e *Editor) wordBackward() error {
 	lookingForWord := true
 
 	// If we're on a word character, we need to skip to the beginning of this word
-	if y >= 0 && x < len(lines[y]) && isWordChar(rune(lines[y][x])) {
+	if x < len(currentLine) && isWordChar(rune(currentLine[x])) {
 		lookingForWord = false
 	}
 
 	// Search backwards
-	for y >= 0 {
-		line := lines[y]
+	for {
+		line := iter.Line()
 
 		for x >= 0 {
 			if x < len(line) {
@@ -876,7 +1004,8 @@ func (e *Editor) wordBackward() error {
 					if !isWordChar(ch) {
 						// Found non-word character, word starts at x+1
 						e.cursorX = x + 1
-						e.cursorY = y
+						e.cursorIterator = iter
+						e.cursorY = iter.LineNumber()
 						return nil
 					}
 				}
@@ -888,16 +1017,20 @@ func (e *Editor) wordBackward() error {
 		// If we were in a word and reached beginning of line
 		if !lookingForWord {
 			e.cursorX = 0
-			e.cursorY = y
+			e.cursorIterator = iter
+			e.cursorY = iter.LineNumber()
 			return nil
 		}
 
 		// Move to previous line
-		y--
-		if y >= 0 {
-			x = len(lines[y]) - 1
-			lookingForWord = true // Line break is a word boundary
+		prevIter := iter.Previous()
+		if prevIter.LineNumber() == iter.LineNumber() {
+			// Can't go back further
+			break
 		}
+		iter = prevIter
+		x = len(iter.Line()) - 1
+		lookingForWord = true // Line break is a word boundary
 	}
 
 	// Reached beginning of buffer
@@ -912,14 +1045,12 @@ func (e *Editor) beginningOfLine() error {
 
 // endOfLine moves cursor to the end of the current line
 func (e *Editor) endOfLine() error {
-	lines := e.buffer.Lines()
-	if e.cursorY < len(lines) {
-		lineLen := len(lines[e.cursorY])
-		if lineLen > 0 {
-			e.cursorX = lineLen - 1
-		} else {
-			e.cursorX = 0
-		}
+	line := e.cursorIterator.Line()
+	lineLen := len(line)
+	if lineLen > 0 {
+		e.cursorX = lineLen - 1
+	} else {
+		e.cursorX = 0
 	}
 	return nil
 }
@@ -931,10 +1062,8 @@ func (e *Editor) beginningOfLineInsert() error {
 
 // endOfLineInsert moves cursor past the end of line for insert mode
 func (e *Editor) endOfLineInsert() error {
-	lines := e.buffer.Lines()
-	if e.cursorY < len(lines) {
-		e.cursorX = len(lines[e.cursorY])
-	}
+	line := e.cursorIterator.Line()
+	e.cursorX = len(line)
 	return nil
 }
 
@@ -981,27 +1110,35 @@ func (e *Editor) pageDown() error {
 func (e *Editor) goToBeginning() error {
 	e.cursorY = 0
 	e.cursorX = 0
-	e.topLine = 0
+	e.viewIterator = buffer.NewBufferIterator(e.buffer)
+	e.cursorIterator = buffer.NewBufferIterator(e.buffer)
 	return nil
 }
 
 // goToEnd moves the cursor to the end of the file
 func (e *Editor) goToEnd() error {
-	lines := e.buffer.Lines()
-	if len(lines) == 0 {
+	// Create iterator at EOF
+	endIter := buffer.NewBufferIteratorAtEnd(e.buffer)
+	
+	// Go back one line to the last actual line
+	prevIter := endIter.Previous()
+	
+	// Check if we actually moved (not empty buffer)
+	if !prevIter.Equals(endIter) {
+		e.cursorIterator = prevIter
+		e.cursorY = e.cursorIterator.LineNumber()
+		
+		// Move to end of last line (but stay on last character in normal mode)
+		lastLine := e.cursorIterator.Line()
+		e.cursorX = len(lastLine)
+		if e.cursorX > 0 && e.mode == commands.NormalMode {
+			e.cursorX--
+		}
+	} else {
+		// Empty buffer
+		e.cursorIterator = buffer.NewBufferIterator(e.buffer)
 		e.cursorY = 0
 		e.cursorX = 0
-		return nil
-	}
-
-	// Move to last line
-	e.cursorY = len(lines) - 1
-
-	// Move to end of last line (but stay on last character in normal mode)
-	lastLine := lines[e.cursorY]
-	e.cursorX = len(lastLine)
-	if e.cursorX > 0 && e.mode == commands.NormalMode {
-		e.cursorX--
 	}
 
 	// Scroll to show the cursor
@@ -1054,6 +1191,9 @@ func (e *Editor) openLineBelow() error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
+	
+	// Refresh iterator after buffer modification
+	e.refreshViewIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1084,6 +1224,9 @@ func (e *Editor) openLineAbove() error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
+	
+	// Refresh iterator after buffer modification
+	e.refreshViewIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1106,6 +1249,9 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
+	
+	// Refresh iterator after buffer modification
+	e.refreshViewIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1129,6 +1275,9 @@ func (e *Editor) insertNewline() error {
 
 	// Mark offsets as dirty
 	e.offsetsDirty = true
+	
+	// Refresh iterator after buffer modification
+	e.refreshViewIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1215,24 +1364,31 @@ func (e *Editor) getVisibleLines() int {
 
 // getAbsolutePosition returns the absolute position in the buffer for the current cursor
 func (e *Editor) getAbsolutePosition() int {
-	lines := e.buffer.Lines()
-	pos := 0
-
-	// Add lengths of all previous lines
-	for i := 0; i < e.cursorY && i < len(lines); i++ {
-		pos += len(lines[i]) + 1 // +1 for newline
+	// Update cache if needed
+	if e.offsetsDirty || len(e.lineOffsets) == 0 {
+		e.updateLineOffsets()
 	}
-
-	// Add current X position
-	if e.cursorY < len(lines) {
-		if e.cursorX > len(lines[e.cursorY]) {
-			pos += len(lines[e.cursorY])
-		} else {
-			pos += e.cursorX
+	
+	// Use cached offsets for efficiency
+	if e.cursorY >= 0 && e.cursorY < len(e.lineOffsets) {
+		pos := e.lineOffsets[e.cursorY]
+		
+		// Add current X position
+		// Need to get current line length to validate cursorX
+		if e.cursorY < e.buffer.LineCount {
+			line := e.buffer.Line(e.cursorY)
+			if e.cursorX > len(line) {
+				pos += len(line)
+			} else {
+				pos += e.cursorX
+			}
 		}
+		
+		return pos
 	}
-
-	return pos
+	
+	// Fallback for out of bounds
+	return 0
 }
 
 // updateSyntaxHighlighting re-parses the buffer for syntax highlighting
@@ -1294,7 +1450,7 @@ func (e *Editor) showLSPBufferGo() error {
 		bufferInfo.Rope = buffer.NewRopeFromString(content.String())
 		bufferInfo.CursorX = 0
 		bufferInfo.CursorY = 0
-		bufferInfo.TopLine = 0
+		bufferInfo.ViewIterator = buffer.NewBufferIterator(bufferInfo)
 		bufferInfo.OffsetsDirty = true
 		e.switchToBuffer(bufferInfo)
 	} else {
@@ -1356,21 +1512,25 @@ func (e *Editor) goToDefinition() error {
 	}
 
 	// Jump to the location
-	e.cursorY = location.Range.Start.Line
+	targetLine := location.Range.Start.Line
 	e.cursorX = location.Range.Start.Character
 
-	// Ensure cursor is within bounds
-	lines := e.buffer.Lines()
-	if e.cursorY >= len(lines) {
-		e.cursorY = len(lines) - 1
+	// Create iterator and advance to target line
+	e.cursorIterator = buffer.NewBufferIterator(e.buffer)
+	e.cursorY = 0
+	
+	// Move iterator to target line
+	for e.cursorY < targetLine && !e.cursorIterator.IsEOF() {
+		e.cursorIterator = e.cursorIterator.Next()
+		e.cursorY++
 	}
-	if e.cursorY >= 0 && e.cursorY < len(lines) {
-		line := lines[e.cursorY]
-		if e.cursorX > len(line) {
-			e.cursorX = len(line)
-			if e.cursorX > 0 {
-				e.cursorX-- // Don't go past last character in normal mode
-			}
+	
+	// Ensure cursor X is within bounds
+	currentLine := e.cursorIterator.Line()
+	if e.cursorX > len(currentLine) {
+		e.cursorX = len(currentLine)
+		if e.cursorX > 0 {
+			e.cursorX-- // Don't go past last character in normal mode
 		}
 	}
 
