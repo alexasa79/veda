@@ -372,3 +372,57 @@ func (it *BufferIterator) String() string {
 	return fmt.Sprintf("BufferIterator(line=%d, eof=%v, pos=%d, start=%d, end=%d)",
 		it.lineNum, it.atEOF, it.currentPos, it.lineStart, it.lineEnd)
 }
+
+// UpdateBuffer updates the iterator's buffer reference after the buffer has been modified
+// This is necessary because the rope structure changes when content is inserted/deleted
+func (it *BufferIterator) UpdateBuffer(buffer *Buffer) {
+	if it == nil || buffer == nil {
+		return
+	}
+	
+	// Update buffer and rope references
+	it.buffer = buffer
+	it.rope = buffer.Rope
+	
+	// If we're at a valid position, rebuild the stack to maintain our position
+	if !it.atEOF && it.currentPos >= 0 && it.currentPos <= it.rope.Length() {
+		// We need to adjust currentPos if content was inserted before our position
+		// For now, we'll recreate the iterator at the same line
+		savedLine := it.lineNum
+		
+		// Reset to beginning
+		it.currentPos = 0
+		it.lineStart = 0
+		it.lineNum = 0
+		it.atEOF = false
+		it.stack = make([]walkFrame, 0, 32)
+		
+		if it.rope.root != nil {
+			it.stack = append(it.stack, walkFrame{node: it.rope.root, nodeStart: 0})
+			it.findLineEnd()
+			
+			// Move to the saved line
+			for i := 0; i < savedLine && !it.atEOF; i++ {
+				// Move past current line end
+				if it.lineEnd < it.rope.Length() {
+					it.currentPos = it.lineEnd + 1 // Skip newline
+					it.lineStart = it.currentPos
+					it.lineNum++
+					it.rebuildStackToPosition(it.currentPos)
+					it.findLineEnd()
+				} else {
+					it.atEOF = true
+					break
+				}
+			}
+		} else {
+			it.atEOF = true
+		}
+	} else if it.currentPos > it.rope.Length() {
+		// Position is beyond the new buffer length, move to EOF
+		it.atEOF = true
+		it.currentPos = it.rope.Length()
+		it.lineStart = it.currentPos
+		it.lineEnd = it.currentPos
+	}
+}

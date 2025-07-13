@@ -33,6 +33,21 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	te.viewIterator = buffer.NewBufferIterator(te.buffer)
 	te.cursorIterator = buffer.NewBufferIterator(te.buffer)
 	te.updateLineOffsets()
+	
+	// Add the buffer to the buffers map so buffer management functions work
+	te.buffers[te.buffer.FilePath] = te.buffer
+	// Update buffer order if the file path isn't already there
+	found := false
+	for _, path := range te.bufferOrder {
+		if path == te.buffer.FilePath {
+			found = true
+			break
+		}
+	}
+	if !found {
+		te.bufferOrder = append(te.bufferOrder, te.buffer.FilePath)
+	}
+	
 	return te
 }
 

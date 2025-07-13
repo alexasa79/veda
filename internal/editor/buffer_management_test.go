@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"testing"
 	"veda/internal/buffer"
 )
@@ -19,7 +20,15 @@ func TestBufferManagement(t *testing.T) {
 }
 
 func TestSaveCurrentBufferState(t *testing.T) {
-	te := NewTestEditor(80, 24)
+	// Create editor with content so we can actually move the iterator
+	content := ""
+	for i := 1; i <= 20; i++ {
+		if i > 1 {
+			content += "\n"
+		}
+		content += fmt.Sprintf("Line %d", i)
+	}
+	te := NewTestEditorWithContent(80, 24, content)
 	
 	// Set some state
 	te.SetCursorPosition(5, 10)

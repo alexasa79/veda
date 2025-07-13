@@ -274,16 +274,20 @@ func (e *Editor) refreshViewIterator() {
 		return
 	}
 
-	// Save current line number
-	currentLine := e.viewIterator.LineNumber()
+	// Update the iterator's buffer reference to see the new content
+	e.viewIterator.UpdateBuffer(e.buffer)
+}
 
-	// Create new iterator
-	e.viewIterator = buffer.NewBufferIterator(e.buffer)
-
-	// Move to the saved line
-	for i := 0; i < currentLine && !e.viewIterator.IsEOF(); i++ {
-		e.viewIterator = e.viewIterator.Next()
+// refreshCursorIterator updates the cursor iterator after buffer modifications
+// This should be called after buffer modifications to ensure the iterator sees the latest content
+func (e *Editor) refreshCursorIterator() {
+	if e.cursorIterator == nil {
+		e.cursorIterator = buffer.NewBufferIterator(e.buffer)
+		return
 	}
+
+	// Update the iterator's buffer reference to see the new content
+	e.cursorIterator.UpdateBuffer(e.buffer)
 }
 
 
@@ -1084,8 +1088,9 @@ func (e *Editor) openLineBelow() error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterator after buffer modification
+	// Refresh iterators after buffer modification
 	e.refreshViewIterator()
+	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1117,8 +1122,9 @@ func (e *Editor) openLineAbove() error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterator after buffer modification
+	// Refresh iterators after buffer modification
 	e.refreshViewIterator()
+	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1142,8 +1148,9 @@ func (e *Editor) insertChar(ch rune) error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterator after buffer modification
+	// Refresh iterators after buffer modification
 	e.refreshViewIterator()
+	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1168,8 +1175,9 @@ func (e *Editor) insertNewline() error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterator after buffer modification
+	// Refresh iterators after buffer modification
 	e.refreshViewIterator()
+	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
