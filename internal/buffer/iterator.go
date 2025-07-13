@@ -29,11 +29,32 @@ func NewBufferIterator(buffer *Buffer) *BufferIterator {
 func NewBufferIteratorAtEnd(buffer *Buffer) *BufferIterator {
 	it := &BufferIterator{
 		buffer: buffer,
+		offset: buffer.Rope.Length(),
+		node:   nil, // EOF has no node
 	}
-	// Set lineNum to the total number of lines, which makes IsEOF() return true
-	it.lineNum = it.countLines()
-	it.offset = it.buffer.Rope.Length()
-	it.node = nil // EOF has no node
+	
+	// Calculate the line number at EOF
+	// The line number at EOF should be the same as the line number
+	// of the last character in the buffer
+	lineNum := 0
+	length := buffer.Rope.Length()
+	
+	// Count newlines up to (but not including) the last character
+	// This gives us the line number of the last character
+	for i := 0; i < length-1; i++ {
+		if buffer.Rope.ByteAt(i) == '\n' {
+			lineNum++
+		}
+	}
+	
+	// Special case: if buffer ends with \n, we need to count it
+	// because EOF is on the empty line after the newline
+	if length > 0 && buffer.Rope.ByteAt(length-1) == '\n' {
+		lineNum++
+	}
+	
+	it.lineNum = lineNum
+	
 	return it
 }
 
@@ -65,28 +86,6 @@ func (it *BufferIterator) findNodeAtOffsetRecursive(node *Node, offset int) *Nod
 		return it.findNodeAtOffsetRecursive(node.left, offset)
 	}
 	return it.findNodeAtOffsetRecursive(node.right, offset-leftWeight)
-}
-
-// countLines returns the total number of lines in the buffer
-func (it *BufferIterator) countLines() int {
-	length := it.buffer.Rope.Length()
-	if length == 0 {
-		return 0
-	}
-
-	// Start with one line
-	lineCount := 1
-
-	// Count newlines
-	for i := 0; i < length; i++ {
-		if it.buffer.Rope.ByteAt(i) == '\n' {
-			lineCount++
-		}
-	}
-
-	// If buffer ends with newline, last line is empty (already counted)
-	// If buffer doesn't end with newline, we already counted it
-	return lineCount
 }
 
 // findLineEnd finds the end of the current line starting from the given offset
