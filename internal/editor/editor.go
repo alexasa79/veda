@@ -23,15 +23,12 @@ type Editor struct {
 	screen          Screen
 	buffer          *buffer.Buffer          // Current buffer
 	config          *config.Config
-	cursorX         int
 	mode            commands.Mode
 	commandLine     *widgets.LineEditor
 	proxyClient     *proxy.Client
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
 	highlighter     *syntax.Highlighter
-	lineOffsets     []int  // Cache of byte offsets for each line
-	offsetsDirty    bool   // Whether line offsets need recalculation
 
 	// Buffer management
 	buffers         map[string]*buffer.Buffer  // Map of file path to buffer
@@ -70,14 +67,12 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		screen:          screen,
 		buffer:          initialBuffer,
 		config:          config,
-		cursorX:         0,
 		mode:            commands.NormalMode,
 		commandLine:     commandLine,
 		proxyClient:     proxyClient,
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
 		highlighter:     syntax.NewHighlighter(),
-		offsetsDirty:    true, // Need to calculate offsets for initial buffer
 		buffers:         make(map[string]*buffer.Buffer),
 		bufferOrder:     []string{},
 		navHistory:      []NavigationEntry{},
@@ -507,33 +502,33 @@ func (e *Editor) getVisualCursorX() int {
 		return 0
 	}
 	line := e.buffer.CursorIterator.Line()
-	if e.cursorX >= len(line) {
+	if e.buffer.CursorX >= len(line) {
 		return e.visualWidth(line)
 	}
-	return e.visualWidth(line[:e.cursorX])
+	return e.visualWidth(line[:e.buffer.CursorX])
 }
 
 // updateLineOffsets recalculates the byte offset cache for all lines
 func (e *Editor) updateLineOffsets() {
 	// Use iterator to build offsets without converting entire buffer to string
 	lineCount := e.buffer.LineCount
-	e.lineOffsets = make([]int, lineCount+1)
+	e.buffer.LineOffsets = make([]int, lineCount+1)
 
 	iter := buffer.NewBufferIterator(e.buffer)
 	i := 0
 
 	for !iter.IsEOF() && i < lineCount {
-		e.lineOffsets[i] = iter.Position()
+		e.buffer.LineOffsets[i] = iter.Position()
 		iter = iter.Next()
 		i++
 	}
 
 	// Set final offset (end of file)
-	if i < len(e.lineOffsets) {
-		e.lineOffsets[i] = e.buffer.Length()
+	if i < len(e.buffer.LineOffsets) {
+		e.buffer.LineOffsets[i] = e.buffer.Length()
 	}
 
-	e.offsetsDirty = false
+	e.buffer.OffsetsDirty = false
 }
 
 // getLineTokens returns syntax tokens for a line using iterator position
@@ -630,8 +625,8 @@ func (e *Editor) drawStatusBar() {
 		visualCol := 1
 		if !e.buffer.CursorIterator.IsEOF() {
 			line := e.buffer.CursorIterator.Line()
-			if e.cursorX <= len(line) {
-				visualCol = e.visualWidth(line[:e.cursorX]) + 1
+			if e.buffer.CursorX <= len(line) {
+				visualCol = e.visualWidth(line[:e.buffer.CursorX]) + 1
 			}
 		}
 
@@ -686,8 +681,8 @@ func (e *Editor) moveUp() error {
 		if maxX > 0 {
 			maxX-- // Don't go past the last character
 		}
-		if e.cursorX > maxX {
-			e.cursorX = maxX
+		if e.buffer.CursorX > maxX {
+			e.buffer.CursorX = maxX
 		}
 	}
 	return nil
@@ -702,16 +697,16 @@ func (e *Editor) moveDown() error {
 		if maxX > 0 {
 			maxX-- // Don't go past the last character
 		}
-		if e.cursorX > maxX {
-			e.cursorX = maxX
+		if e.buffer.CursorX > maxX {
+			e.buffer.CursorX = maxX
 		}
 	}
 	return nil
 }
 
 func (e *Editor) moveLeft() error {
-	if e.cursorX > 0 {
-		e.cursorX--
+	if e.buffer.CursorX > 0 {
+		e.buffer.CursorX--
 	}
 	return nil
 }
@@ -722,8 +717,8 @@ func (e *Editor) moveRight() error {
 	if maxX > 0 {
 		maxX-- // Don't go past the last character
 	}
-	if e.cursorX < maxX {
-		e.cursorX++
+	if e.buffer.CursorX < maxX {
+		e.buffer.CursorX++
 	}
 	return nil
 }
@@ -734,8 +729,8 @@ func (e *Editor) moveUpInsert() error {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
 		// Adjust cursor X if the new line is shorter
 		line := e.buffer.CursorIterator.Line()
-		if e.cursorX > len(line) {
-			e.cursorX = len(line)
+		if e.buffer.CursorX > len(line) {
+			e.buffer.CursorX = len(line)
 		}
 	}
 	return nil
@@ -746,16 +741,16 @@ func (e *Editor) moveDownInsert() error {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
 		// Adjust cursor X if the new line is shorter
 		line := e.buffer.CursorIterator.Line()
-		if e.cursorX > len(line) {
-			e.cursorX = len(line)
+		if e.buffer.CursorX > len(line) {
+			e.buffer.CursorX = len(line)
 		}
 	}
 	return nil
 }
 
 func (e *Editor) moveLeftInsert() error {
-	if e.cursorX > 0 {
-		e.cursorX--
+	if e.buffer.CursorX > 0 {
+		e.buffer.CursorX--
 	}
 	return nil
 }
@@ -763,8 +758,8 @@ func (e *Editor) moveLeftInsert() error {
 func (e *Editor) moveRightInsert() error {
 	line := e.buffer.CursorIterator.Line()
 	// In insert mode, allow cursor to go past the last character
-	if e.cursorX < len(line) {
-		e.cursorX++
+	if e.buffer.CursorX < len(line) {
+		e.buffer.CursorX++
 	}
 	return nil
 }
@@ -773,15 +768,15 @@ func (e *Editor) moveRightInsert() error {
 func (e *Editor) wordForward() error {
 	// Start from current position
 	iter := e.buffer.CursorIterator
-	x := e.cursorX + 1 // Start searching from next character
+	x := e.buffer.CursorX + 1 // Start searching from next character
 	currentLine := iter.Line()
 
 	// Track if we've seen a non-alphanumeric character
 	seenNonAlnum := false
 
 	// If we start on a non-alphanumeric character, we're ready to find the next word
-	if e.cursorX < len(currentLine) {
-		ch := rune(currentLine[e.cursorX])
+	if e.buffer.CursorX < len(currentLine) {
+		ch := rune(currentLine[e.buffer.CursorX])
 		seenNonAlnum = !unicode.IsLetter(ch) && !unicode.IsDigit(ch) && ch != '_'
 	}
 
@@ -795,7 +790,7 @@ func (e *Editor) wordForward() error {
 
 			if seenNonAlnum && isAlnum {
 				// Found transition from non-alnum to alnum
-				e.cursorX = x
+				e.buffer.CursorX = x
 				e.buffer.CursorIterator = iter
 				return nil
 			}
@@ -822,13 +817,13 @@ func (e *Editor) wordForward() error {
 // wordBackward moves the cursor to the beginning of the previous word
 func (e *Editor) wordBackward() error {
 	// If we're at the very beginning, can't go back
-	if e.buffer.CursorIterator.LineNumber() == 0 && e.cursorX == 0 {
+	if e.buffer.CursorIterator.LineNumber() == 0 && e.buffer.CursorX == 0 {
 		return nil
 	}
 
 	// Start from current position
 	iter := e.buffer.CursorIterator
-	x := e.cursorX
+	x := e.buffer.CursorX
 	currentLine := iter.Line()
 
 	// Helper to check if character is word character
@@ -877,7 +872,7 @@ func (e *Editor) wordBackward() error {
 					// In a word, looking for its beginning
 					if !isWordChar(ch) {
 						// Found non-word character, word starts at x+1
-						e.cursorX = x + 1
+						e.buffer.CursorX = x + 1
 						e.buffer.CursorIterator = iter
 						return nil
 					}
@@ -889,7 +884,7 @@ func (e *Editor) wordBackward() error {
 
 		// If we were in a word and reached beginning of line
 		if !lookingForWord {
-			e.cursorX = 0
+			e.buffer.CursorX = 0
 			e.buffer.CursorIterator = iter
 			return nil
 		}
@@ -911,7 +906,7 @@ func (e *Editor) wordBackward() error {
 
 // beginningOfLine moves cursor to the beginning of the current line
 func (e *Editor) beginningOfLine() error {
-	e.cursorX = 0
+	e.buffer.CursorX = 0
 	return nil
 }
 
@@ -920,9 +915,9 @@ func (e *Editor) endOfLine() error {
 	line := e.buffer.CursorIterator.Line()
 	lineLen := len(line)
 	if lineLen > 0 {
-		e.cursorX = lineLen - 1
+		e.buffer.CursorX = lineLen - 1
 	} else {
-		e.cursorX = 0
+		e.buffer.CursorX = 0
 	}
 	return nil
 }
@@ -935,7 +930,7 @@ func (e *Editor) beginningOfLineInsert() error {
 // endOfLineInsert moves cursor past the end of line for insert mode
 func (e *Editor) endOfLineInsert() error {
 	line := e.buffer.CursorIterator.Line()
-	e.cursorX = len(line)
+	e.buffer.CursorX = len(line)
 	return nil
 }
 
@@ -949,10 +944,10 @@ func (e *Editor) pageUp() error {
 
 	// Adjust cursor X if needed
 	line := e.buffer.CursorIterator.Line()
-	if e.cursorX > len(line) {
-		e.cursorX = len(line)
-		if e.cursorX > 0 {
-			e.cursorX--
+	if e.buffer.CursorX > len(line) {
+		e.buffer.CursorX = len(line)
+		if e.buffer.CursorX > 0 {
+			e.buffer.CursorX--
 		}
 	}
 	return nil
@@ -969,10 +964,10 @@ func (e *Editor) pageDown() error {
 
 	// Adjust cursor X if needed
 	line := e.buffer.CursorIterator.Line()
-	if e.cursorX > len(line) {
-		e.cursorX = len(line)
-		if e.cursorX > 0 {
-			e.cursorX--
+	if e.buffer.CursorX > len(line) {
+		e.buffer.CursorX = len(line)
+		if e.buffer.CursorX > 0 {
+			e.buffer.CursorX--
 		}
 	}
 	return nil
@@ -980,7 +975,7 @@ func (e *Editor) pageDown() error {
 
 // goToBeginning moves the cursor to the beginning of the file
 func (e *Editor) goToBeginning() error {
-	e.cursorX = 0
+	e.buffer.CursorX = 0
 	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
 	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
 	return nil
@@ -1000,14 +995,14 @@ func (e *Editor) goToEnd() error {
 
 		// Move to end of last line (but stay on last character in normal mode)
 		lastLine := e.buffer.CursorIterator.Line()
-		e.cursorX = len(lastLine)
-		if e.cursorX > 0 && e.mode == commands.NormalMode {
-			e.cursorX--
+		e.buffer.CursorX = len(lastLine)
+		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+			e.buffer.CursorX--
 		}
 	} else {
 		// Empty buffer
 		e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
-		e.cursorX = 0
+		e.buffer.CursorX = 0
 	}
 
 	// Scroll to show the cursor
@@ -1039,7 +1034,7 @@ func (e *Editor) openLineBelow() error {
 	// Move to end of current line
 	if !e.buffer.CursorIterator.IsEOF() {
 		line := e.buffer.CursorIterator.Line()
-		e.cursorX = len(line)
+		e.buffer.CursorX = len(line)
 	}
 
 	// Get absolute position at end of line
@@ -1050,7 +1045,7 @@ func (e *Editor) openLineBelow() error {
 
 	// Move cursor to beginning of new line
 	e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	e.cursorX = 0
+	e.buffer.CursorX = 0
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
@@ -1059,7 +1054,7 @@ func (e *Editor) openLineBelow() error {
 	e.buffer.MarkModified()
 
 	// Mark offsets as dirty
-	e.offsetsDirty = true
+	e.buffer.OffsetsDirty = true
 
 
 	// Update syntax highlighting
@@ -1071,7 +1066,7 @@ func (e *Editor) openLineBelow() error {
 // openLineAbove opens a new line above the current line and enters insert mode
 func (e *Editor) openLineAbove() error {
 	// Move to beginning of current line
-	e.cursorX = 0
+	e.buffer.CursorX = 0
 
 	// Get absolute position
 	pos := e.getAbsolutePosition()
@@ -1081,7 +1076,7 @@ func (e *Editor) openLineAbove() error {
 
 	// Move cursor to the newly created line above
 	// (cursor stays at same Y position, which is now the new empty line)
-	e.cursorX = 0
+	e.buffer.CursorX = 0
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
@@ -1090,7 +1085,7 @@ func (e *Editor) openLineAbove() error {
 	e.buffer.MarkModified()
 
 	// Mark offsets as dirty
-	e.offsetsDirty = true
+	e.buffer.OffsetsDirty = true
 
 
 	// Update syntax highlighting
@@ -1107,13 +1102,13 @@ func (e *Editor) insertChar(ch rune) error {
 	e.buffer.Insert(pos, string(ch))
 
 	// Move cursor forward
-	e.cursorX++
+	e.buffer.CursorX++
 
 	// Mark buffer as modified (also updates line count)
 	e.buffer.MarkModified()
 
 	// Mark offsets as dirty
-	e.offsetsDirty = true
+	e.buffer.OffsetsDirty = true
 
 
 	// Update syntax highlighting
@@ -1131,13 +1126,13 @@ func (e *Editor) insertNewline() error {
 
 	// Move cursor to beginning of next line
 	e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	e.cursorX = 0
+	e.buffer.CursorX = 0
 
 	// Mark buffer as modified (also updates line count)
 	e.buffer.MarkModified()
 
 	// Mark offsets as dirty
-	e.offsetsDirty = true
+	e.buffer.OffsetsDirty = true
 
 
 	// Update syntax highlighting
@@ -1148,13 +1143,13 @@ func (e *Editor) insertNewline() error {
 
 func (e *Editor) backspace() error {
 	// If at beginning of buffer, nothing to delete
-	if e.cursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
+	if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
 		return nil
 	}
 
 	pos := e.getAbsolutePosition()
 
-	if e.cursorX == 0 {
+	if e.buffer.CursorX == 0 {
 		// At beginning of line, join with previous line
 		if pos > 0 {
 			// Store the length of the previous line before joining
@@ -1171,7 +1166,7 @@ func (e *Editor) backspace() error {
 				newContent := content[:pos-1] + content[pos:]
 				e.buffer.Rope = buffer.NewRopeFromString(newContent)
 				e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
-				e.cursorX = prevLineLen
+				e.buffer.CursorX = prevLineLen
 				// Mark buffer as modified (also updates line count)
 				e.buffer.MarkModified()
 				// Update syntax highlighting
@@ -1187,7 +1182,7 @@ func (e *Editor) backspace() error {
 			if pos-1 < len(content) {
 				newContent := content[:pos-1] + content[pos:]
 				e.buffer.Rope = buffer.NewRopeFromString(newContent)
-				e.cursorX--
+				e.buffer.CursorX--
 				// Mark buffer as modified (also updates line count)
 				e.buffer.MarkModified()
 				// Update syntax highlighting
@@ -1197,7 +1192,7 @@ func (e *Editor) backspace() error {
 	}
 
 	// Mark offsets as dirty
-	e.offsetsDirty = true
+	e.buffer.OffsetsDirty = true
 
 	return nil
 }
@@ -1226,23 +1221,23 @@ func (e *Editor) getVisibleLines() int {
 // getAbsolutePosition returns the absolute position in the buffer for the current cursor
 func (e *Editor) getAbsolutePosition() int {
 	// Update cache if needed
-	if e.offsetsDirty || len(e.lineOffsets) == 0 {
+	if e.buffer.OffsetsDirty || len(e.buffer.LineOffsets) == 0 {
 		e.updateLineOffsets()
 	}
 
 	// Use cached offsets for efficiency
 	cursorLine := e.buffer.CursorIterator.LineNumber()
-	if cursorLine >= 0 && cursorLine < len(e.lineOffsets) {
-		pos := e.lineOffsets[cursorLine]
+	if cursorLine >= 0 && cursorLine < len(e.buffer.LineOffsets) {
+		pos := e.buffer.LineOffsets[cursorLine]
 
 		// Add current X position
 		// Need to get current line length to validate cursorX
 		if !e.buffer.CursorIterator.IsEOF() {
 			line := e.buffer.CursorIterator.Line()
-			if e.cursorX > len(line) {
+			if e.buffer.CursorX > len(line) {
 				pos += len(line)
 			} else {
-				pos += e.cursorX
+				pos += e.buffer.CursorX
 			}
 		}
 
@@ -1335,7 +1330,7 @@ func (e *Editor) goToDefinition() error {
 
 	// Get cursor position (LSP uses 0-based line numbers)
 	line := e.buffer.CursorIterator.LineNumber()
-	character := e.cursorX
+	character := e.buffer.CursorX
 
 	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
 
@@ -1375,7 +1370,7 @@ func (e *Editor) goToDefinition() error {
 
 	// Jump to the location
 	targetLine := location.Range.Start.Line
-	e.cursorX = location.Range.Start.Character
+	e.buffer.CursorX = location.Range.Start.Character
 
 	// Create iterator and advance to target line
 	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
@@ -1387,10 +1382,10 @@ func (e *Editor) goToDefinition() error {
 
 	// Ensure cursor X is within bounds
 	currentLine := e.buffer.CursorIterator.Line()
-	if e.cursorX > len(currentLine) {
-		e.cursorX = len(currentLine)
-		if e.cursorX > 0 {
-			e.cursorX-- // Don't go past last character in normal mode
+	if e.buffer.CursorX > len(currentLine) {
+		e.buffer.CursorX = len(currentLine)
+		if e.buffer.CursorX > 0 {
+			e.buffer.CursorX-- // Don't go past last character in normal mode
 		}
 	}
 

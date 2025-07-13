@@ -98,7 +98,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te.highlighter.Parse([]byte(te.buffer.String()))
 		
 		// Move to end of line
-		te.cursorX = 10
+		te.buffer.CursorX = 10
 		te.ExecuteCommand("enter-insert-mode")
 		
 		// Make several rapid edits

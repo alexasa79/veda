@@ -64,12 +64,12 @@ func (te *TestEditor) InsertChar(ch rune) error {
 
 // GetCursorPosition returns the current cursor position
 func (te *TestEditor) GetCursorPosition() (x, y int) {
-	return te.cursorX, te.buffer.CursorIterator.LineNumber()
+	return te.buffer.CursorX, te.buffer.CursorIterator.LineNumber()
 }
 
 // SetCursorPosition sets the cursor to a specific position
 func (te *TestEditor) SetCursorPosition(x, y int) {
-	te.cursorX = x
+	te.buffer.CursorX = x
 	
 	// Reset cursor iterator to beginning
 	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
@@ -82,8 +82,8 @@ func (te *TestEditor) SetCursorPosition(x, y int) {
 	// Ensure cursor X is within bounds
 	if !te.buffer.CursorIterator.IsEOF() {
 		line := te.buffer.CursorIterator.Line()
-		if te.cursorX > len(line) {
-			te.cursorX = len(line)
+		if te.buffer.CursorX > len(line) {
+			te.buffer.CursorX = len(line)
 		}
 	}
 }

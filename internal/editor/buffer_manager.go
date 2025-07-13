@@ -10,22 +10,15 @@ import (
 // saveCurrentBufferState saves the current buffer's state before switching
 func (e *Editor) saveCurrentBufferState() {
 	if e.buffer != nil {
-		// Save cursorX and line offset cache - iterators stay with the buffer
-		e.buffer.CursorX = e.cursorX
-		e.buffer.LineOffsets = e.lineOffsets
-		e.buffer.OffsetsDirty = e.offsetsDirty
+		// All state (cursorX, iterators, line offset cache) stays with the buffer
+		// No saving needed
 	}
 }
 
 // switchToBuffer switches to a different buffer
 func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
-	// Set the buffer
+	// Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
 	e.buffer = buf
-	
-	// Restore cursor X position and line offset cache - iterators are already in the buffer
-	e.cursorX = buf.CursorX
-	e.lineOffsets = buf.LineOffsets
-	e.offsetsDirty = buf.OffsetsDirty
 	
 	// Set up syntax highlighting
 	if e.highlighter != nil && buf.HasFile() {

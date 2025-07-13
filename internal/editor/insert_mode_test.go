@@ -63,7 +63,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello World")
 		
 		// Move cursor to position 5 (after "Hello")
-		te.cursorX = 5
+		te.buffer.CursorX = 5
 		
 		// Enter insert mode and insert comma
 		te.ExecuteCommand("enter-insert-mode")
@@ -77,7 +77,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello World")
 		
 		// Move cursor to position 5 (after "Hello")
-		te.cursorX = 5
+		te.buffer.CursorX = 5
 		
 		// Enter insert mode and insert newline
 		te.ExecuteCommand("enter-insert-mode")
@@ -91,7 +91,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello")
 		
 		// Move to end of line
-		te.cursorX = 5
+		te.buffer.CursorX = 5
 		
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")
@@ -140,7 +140,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello\nWorld")
 		
 		// Move to position (2, 0) - after "He"
-		te.cursorX = 2
+		te.buffer.CursorX = 2
 		
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")
@@ -179,7 +179,7 @@ func TestInsertMode(t *testing.T) {
 		AssertCursorAt(t, te, 0, 0)
 		
 		// Move to position 1 (after 'H')
-		te.cursorX = 1
+		te.buffer.CursorX = 1
 		te.ExecuteCommand("right-insert")
 		AssertCursorAt(t, te, 2, 0) // At end of "Hi"
 		

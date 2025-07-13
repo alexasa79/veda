@@ -10,7 +10,7 @@ func TestLineNavigation(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello, World!")
 		
 		// Start in middle of line
-		te.cursorX = 7
+		te.buffer.CursorX = 7
 		AssertCursorAt(t, te, 7, 0)
 		
 		// Move to beginning
@@ -85,7 +85,7 @@ func TestLineNavigation(t *testing.T) {
 		te.ExecuteCommand("enter-insert-mode")
 		
 		// Start in middle
-		te.cursorX = 7
+		te.buffer.CursorX = 7
 		
 		// Move to beginning in insert mode
 		te.ExecuteCommand("beginning-of-line-insert")
