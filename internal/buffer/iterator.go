@@ -30,32 +30,51 @@ func NewBufferIteratorAtEnd(buffer *Buffer) *BufferIterator {
 	it := &BufferIterator{
 		buffer: buffer,
 		offset: buffer.Rope.Length(),
-		node:   nil, // EOF has no node
+	}
+	
+	// Find the last leaf node in the rope
+	if buffer.Rope != nil && buffer.Rope.root != nil {
+		it.node = getRightmostLeaf(buffer.Rope.root)
 	}
 	
 	// Calculate the line number at EOF
-	// The line number at EOF should be the same as the line number
-	// of the last character in the buffer
+	// We set the line number to be one more than the actual last line
+	// This way Previous() can always just do lineNum - 1
 	lineNum := 0
 	length := buffer.Rope.Length()
 	
-	// Count newlines up to (but not including) the last character
-	// This gives us the line number of the last character
-	for i := 0; i < length-1; i++ {
+	// Count all newlines in the buffer
+	for i := 0; i < length; i++ {
 		if buffer.Rope.ByteAt(i) == '\n' {
 			lineNum++
 		}
 	}
 	
-	// Special case: if buffer ends with \n, we need to count it
-	// because EOF is on the empty line after the newline
-	if length > 0 && buffer.Rope.ByteAt(length-1) == '\n' {
-		lineNum++
-	}
-	
-	it.lineNum = lineNum
+	// Add 1 to represent being past the last line
+	it.lineNum = lineNum + 1
 	
 	return it
+}
+
+// getRightmostLeaf returns the rightmost leaf node in the subtree
+func getRightmostLeaf(node *Node) *Node {
+	if node == nil {
+		return nil
+	}
+	
+	current := node
+	for !current.IsLeaf() {
+		if current.right != nil {
+			current = current.right
+		} else if current.left != nil {
+			current = current.left
+		} else {
+			// Shouldn't happen in a well-formed tree
+			return nil
+		}
+	}
+	
+	return current
 }
 
 // findNodeAtOffset finds the leaf node containing the given offset
@@ -98,6 +117,93 @@ func (it *BufferIterator) findLineEnd(start int) int {
 	return pos
 }
 
+// getNextLeafNode returns the next leaf node in in-order traversal
+func getNextLeafNode(node *Node) *Node {
+	if node == nil {
+		return nil
+	}
+	
+	// Go up until we find a parent where we came from the left child
+	current := node
+	for current.parent != nil {
+		parent := current.parent
+		if parent.left == current {
+			// We came from left child, go to right subtree
+			return getLeftmostLeaf(parent.right)
+		}
+		// We came from right child, continue going up
+		current = parent
+	}
+	
+	// No more nodes
+	return nil
+}
+
+// getLeftmostLeaf returns the leftmost leaf node in the subtree
+func getLeftmostLeaf(node *Node) *Node {
+	if node == nil {
+		return nil
+	}
+	
+	current := node
+	for !current.IsLeaf() {
+		if current.left != nil {
+			current = current.left
+		} else if current.right != nil {
+			current = current.right
+		} else {
+			// Shouldn't happen in a well-formed tree
+			return nil
+		}
+	}
+	
+	return current
+}
+
+// getPreviousLeafNode returns the previous leaf node in in-order traversal
+func getPreviousLeafNode(node *Node) *Node {
+	if node == nil {
+		return nil
+	}
+	
+	// Go up until we find a parent where we came from the right child
+	current := node
+	for current.parent != nil {
+		parent := current.parent
+		if parent.right == current {
+			// We came from right child, go to left subtree
+			return getRightmostLeaf(parent.left)
+		}
+		// We came from left child, continue going up
+		current = parent
+	}
+	
+	// No more nodes
+	return nil
+}
+
+// calculateNodeOffset calculates the global offset of the start of a node
+func calculateNodeOffset(node *Node) int {
+	if node == nil {
+		return 0
+	}
+	
+	offset := 0
+	current := node
+	
+	// Walk up the tree, adding offsets as we go
+	for current.parent != nil {
+		parent := current.parent
+		if parent.right == current && parent.left != nil {
+			// We came from right child, add left subtree weight
+			offset += parent.left.weight
+		}
+		current = parent
+	}
+	
+	return offset
+}
+
 // Next returns a new iterator pointing to the next line
 func (it *BufferIterator) Next() *BufferIterator {
 	if it.IsEOF() {
@@ -109,32 +215,86 @@ func (it *BufferIterator) Next() *BufferIterator {
 		}
 	}
 
-	// Calculate the offset for the next line
-	end := it.findLineEnd(it.offset)
-	nextOffset := end
-	if nextOffset < it.buffer.Rope.Length() && it.buffer.Rope.ByteAt(nextOffset) == '\n' {
-		nextOffset++ // Skip the newline
+	// An iterator must always have a node (unless at EOF)
+	if it.node == nil {
+		panic("BufferIterator.Next: iterator has nil node but is not at EOF")
 	}
 
-	next := &BufferIterator{
+	// Start from current position
+	currentNode := it.node
+	nodeStartOffset := calculateNodeOffset(currentNode)
+	positionInNode := it.offset - nodeStartOffset
+	currentOffset := it.offset
+
+	// Search for newline character by character
+	for {
+		// If we're at the end of current leaf node
+		if currentNode.IsLeaf() && positionInNode >= len(currentNode.text) {
+			// Move to next node
+			nextNode := getNextLeafNode(currentNode)
+			if nextNode == nil {
+				// Reached end of buffer - stay on last node
+				return &BufferIterator{
+					buffer:  it.buffer,
+					lineNum: it.lineNum + 1,
+					offset:  it.buffer.Rope.Length(),
+					node:    currentNode, // Keep the last node
+				}
+			}
+			currentNode = nextNode
+			nodeStartOffset = calculateNodeOffset(currentNode)
+			positionInNode = 0
+			currentOffset = nodeStartOffset
+		}
+
+		// Check character at current position
+		if currentNode.IsLeaf() && positionInNode < len(currentNode.text) {
+			if currentNode.text[positionInNode] == '\n' {
+				// Move past the newline
+				positionInNode++
+				currentOffset++
+				break
+			}
+			// Move to next character
+			positionInNode++
+			currentOffset++
+		}
+	}
+
+	// Determine the node for the new position
+	var nextNode *Node
+	if positionInNode < len(currentNode.text) {
+		// Still within the same node
+		nextNode = currentNode
+	} else {
+		// Need to move to next node
+		nextNode = getNextLeafNode(currentNode)
+		if nextNode != nil {
+			currentOffset = calculateNodeOffset(nextNode)
+		} else {
+			// At EOF - stay on current (last) node
+			nextNode = currentNode
+		}
+	}
+
+	return &BufferIterator{
 		buffer:  it.buffer,
 		lineNum: it.lineNum + 1,
-		offset:  nextOffset,
+		offset:  currentOffset,
+		node:    nextNode,
 	}
-
-	// Update the node if we need to
-	if nextOffset < it.buffer.Rope.Length() {
-		next.node = next.findNodeAtOffset(nextOffset)
-	} else {
-		next.node = nil // EOF
-	}
-
-	return next
 }
 
 // Previous returns a new iterator pointing to the previous line
 func (it *BufferIterator) Previous() *BufferIterator {
+	// An iterator must always have a node
+	if it.node == nil {
+		panic("BufferIterator.Previous: iterator has nil node")
+	}
+	
+	
 	if it.lineNum == 0 {
+		// Already at beginning, can't go back further
 		return &BufferIterator{
 			buffer:  it.buffer,
 			lineNum: 0,
@@ -143,40 +303,134 @@ func (it *BufferIterator) Previous() *BufferIterator {
 		}
 	}
 
-	newLineNum := it.lineNum - 1
-
-	// Make sure we don't go below 0
-	if newLineNum < 0 {
-		newLineNum = 0
-	}
-
-	prev := &BufferIterator{
-		buffer:  it.buffer,
-		lineNum: newLineNum,
-	}
-
-	// Find the offset for the previous line by searching backwards
-	// We need to find where line (newLineNum) starts
-	pos := 0
-	currentLine := 0
-	length := it.buffer.Rope.Length()
+	// We need to find the start of the previous line
+	// Strategy: search backwards for the start of the current line first,
+	// then continue to find the start of the previous line
 	
-	// Count newlines until we reach the target line
-	for pos < length && currentLine < newLineNum {
-		if it.buffer.Rope.ByteAt(pos) == '\n' {
-			currentLine++
+	currentNode := it.node
+	nodeStartOffset := calculateNodeOffset(currentNode)
+	positionInNode := it.offset - nodeStartOffset
+	currentOffset := it.offset
+	targetLineStart := 0
+	
+	// First, find the start of the current line by searching backwards for a newline
+	// or reaching the beginning of the buffer
+	currentLineStart := it.offset
+	tempNode := currentNode
+	tempNodeStart := nodeStartOffset
+	tempPosInNode := positionInNode
+	tempOffset := currentOffset
+	
+	// Search backwards to find the start of current line
+	for tempOffset > 0 {
+		// Move back one position
+		if tempPosInNode > 0 {
+			tempPosInNode--
+			tempOffset--
+		} else {
+			// Need to move to previous node
+			prevNode := getPreviousLeafNode(tempNode)
+			if prevNode == nil {
+				// Reached beginning of buffer
+				currentLineStart = 0
+				break
+			}
+			tempNode = prevNode
+			tempNodeStart = calculateNodeOffset(tempNode)
+			tempPosInNode = len(tempNode.text) - 1
+			tempOffset = tempNodeStart + tempPosInNode
 		}
-		pos++
+		
+		// Check if we found a newline
+		if tempNode.IsLeaf() && tempPosInNode >= 0 && tempPosInNode < len(tempNode.text) {
+			if tempNode.text[tempPosInNode] == '\n' {
+				// Found newline, current line starts after it
+				currentLineStart = tempOffset + 1
+				break
+			}
+		}
 	}
 	
-	prev.offset = pos
-	if prev.offset < it.buffer.Rope.Length() {
-		prev.node = prev.findNodeAtOffset(prev.offset)
+	// If current line starts at 0, we can't go to previous line
+	if currentLineStart == 0 {
+		targetLineStart = 0
 	} else {
-		prev.node = nil
+		// Now find the start of the previous line
+		// Start from one position before the current line start
+		tempOffset = currentLineStart - 1
+		// We need to recalculate which node this position is in
+		tempNode = getLeftmostLeaf(it.buffer.Rope.root)
+		tempNodeStart = 0
+		
+		// Find the node containing tempOffset
+		for tempNode != nil && tempNodeStart + len(tempNode.text) <= tempOffset {
+			tempNodeStart += len(tempNode.text)
+			tempNode = getNextLeafNode(tempNode)
+		}
+		
+		if tempNode != nil {
+			tempPosInNode = tempOffset - tempNodeStart
+			
+			// Now search backwards for the previous newline
+			targetLineStart = 0
+			for tempOffset > 0 {
+				// Move back one position
+				if tempPosInNode > 0 {
+					tempPosInNode--
+					tempOffset--
+				} else {
+					// Need to move to previous node
+					prevNode := getPreviousLeafNode(tempNode)
+					if prevNode == nil {
+						// Reached beginning of buffer
+						break
+					}
+					tempNode = prevNode
+					tempNodeStart = calculateNodeOffset(tempNode)
+					tempPosInNode = len(tempNode.text) - 1
+					tempOffset = tempNodeStart + tempPosInNode
+				}
+				
+				// Check if we found a newline
+				if tempNode.IsLeaf() && tempPosInNode >= 0 && tempPosInNode < len(tempNode.text) {
+					if tempNode.text[tempPosInNode] == '\n' {
+						// Found newline, previous line starts after it
+						targetLineStart = tempOffset + 1
+						break
+					}
+				}
+			}
+		}
 	}
-
-	return prev
+	
+	// Now we need to find the node containing targetLineStart
+	// We'll start from the beginning and traverse forward
+	var targetNode *Node
+	if targetLineStart == 0 {
+		// At beginning of buffer - get leftmost leaf
+		targetNode = getLeftmostLeaf(it.buffer.Rope.root)
+	} else {
+		// We need to traverse forward from the start to find the node at targetLineStart
+		// Start from the leftmost leaf
+		targetNode = getLeftmostLeaf(it.buffer.Rope.root)
+		targetOffset := 0
+		
+		for targetNode != nil && targetOffset + len(targetNode.text) <= targetLineStart {
+			targetOffset += len(targetNode.text)
+			targetNode = getNextLeafNode(targetNode)
+		}
+	}
+	
+	if targetNode == nil {
+		panic("BufferIterator.Previous: failed to find node for previous line")
+	}
+	
+	return &BufferIterator{
+		buffer:  it.buffer,
+		lineNum: it.lineNum - 1,
+		offset:  targetLineStart,
+		node:    targetNode,
+	}
 }
 
 // Line returns the current line content (without trailing newline)

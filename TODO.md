@@ -9,3 +9,4 @@
   at a specific node, we could calculate the line number from the beginning of the node and not from
   the beginning of the buffer. This is potentially tricky to implement because nodes do not start at
   the beginning of the line. Perhaps we should introduce this invariant as well.
+- [ ] Consider removing ByteAt from buffer.go.
