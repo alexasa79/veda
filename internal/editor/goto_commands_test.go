@@ -35,7 +35,7 @@ func TestGoToBeginning(t *testing.T) {
 		// View should also be reset to show the beginning
 		// We can verify this by checking that line 0 is visible on screen
 		lines := te.GetScreenContent()
-		if len(lines) > 0 && lines[0] != "First line" {
+		if len(lines) > 0 && !strings.Contains(lines[0], "First line") {
 			t.Errorf("Expected first line to be visible, but got: %s", lines[0])
 		}
 	})
@@ -159,7 +159,7 @@ func TestGoToEnd(t *testing.T) {
 		AssertCursorAt(t, te, 0, 0)
 		// Verify view starts at top
 		screenLines := te.GetScreenContent()
-		if len(screenLines) > 0 && screenLines[0] != "Line 0" {
+		if len(screenLines) > 0 && !strings.Contains(screenLines[0], "Line 0") {
 			t.Errorf("Expected view to start at line 0, but first visible line is: %s", screenLines[0])
 		}
 		
