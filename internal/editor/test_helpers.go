@@ -29,6 +29,9 @@ func NewTestEditor(width, height int) *TestEditor {
 func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	te := NewTestEditor(width, height)
 	te.buffer = buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	// Update iterators to point to the new buffer
+	te.viewIterator = buffer.NewBufferIterator(te.buffer)
+	te.cursorIterator = buffer.NewBufferIterator(te.buffer)
 	te.updateLineOffsets()
 	return te
 }
