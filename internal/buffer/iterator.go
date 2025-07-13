@@ -33,17 +33,17 @@ func (it *BufferIterator) countLines() int {
 	if length == 0 {
 		return 0
 	}
-	
+
 	// Start with one line
 	lineCount := 1
-	
+
 	// Count newlines
 	for i := 0; i < length; i++ {
 		if it.buffer.Rope.ByteAt(i) == '\n' {
 			lineCount++
 		}
 	}
-	
+
 	// If buffer ends with newline, last line is empty (already counted)
 	// If buffer doesn't end with newline, we already counted it
 	return lineCount
@@ -56,12 +56,12 @@ func (it *BufferIterator) getLineInfo() (start, end int, exists bool) {
 	if it.lineNum >= totalLines {
 		return 0, 0, false
 	}
-	
+
 	// Find the start of our line by counting newlines
 	pos := 0
 	currentLine := 0
 	length := it.buffer.Rope.Length()
-	
+
 	// Find start of target line
 	for pos < length && currentLine < it.lineNum {
 		if it.buffer.Rope.ByteAt(pos) == '\n' {
@@ -69,15 +69,15 @@ func (it *BufferIterator) getLineInfo() (start, end int, exists bool) {
 		}
 		pos++
 	}
-	
+
 	start = pos
-	
+
 	// Find end of line
 	for pos < length && it.buffer.Rope.ByteAt(pos) != '\n' {
 		pos++
 	}
 	end = pos
-	
+
 	return start, end, true
 }
 
@@ -89,7 +89,7 @@ func (it *BufferIterator) Next() *BufferIterator {
 			lineNum: it.lineNum,
 		}
 	}
-	
+
 	return &BufferIterator{
 		buffer:  it.buffer,
 		lineNum: it.lineNum + 1,
@@ -104,14 +104,14 @@ func (it *BufferIterator) Previous() *BufferIterator {
 			lineNum: 0,
 		}
 	}
-	
+
 	newLineNum := it.lineNum - 1
-	
+
 	// Make sure we don't go below 0
 	if newLineNum < 0 {
 		newLineNum = 0
 	}
-	
+
 	return &BufferIterator{
 		buffer:  it.buffer,
 		lineNum: newLineNum,
@@ -124,18 +124,18 @@ func (it *BufferIterator) Line() string {
 	if !exists {
 		return ""
 	}
-	
+
 	lineLen := end - start
 	if lineLen <= 0 {
 		return ""
 	}
-	
+
 	// Extract line content
 	result := make([]byte, lineLen)
 	for i := 0; i < lineLen; i++ {
 		result[i] = it.buffer.Rope.ByteAt(start + i)
 	}
-	
+
 	return string(result)
 }
 
@@ -194,7 +194,7 @@ func (it *BufferIterator) String() string {
 	if it == nil {
 		return "BufferIterator(nil)"
 	}
-	
+
 	start, end, _ := it.getLineInfo()
 	return fmt.Sprintf("BufferIterator(line=%d, eof=%v, pos=%d, start=%d, end=%d)",
 		it.lineNum, it.IsEOF(), it.Position(), start, end)

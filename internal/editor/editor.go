@@ -144,9 +144,10 @@ func (e *Editor) Run() {
 					}
 					needsRedraw = cmdNeedsRedraw
 				} else if e.mode == commands.InsertMode && ev.Key == ui.KeyRune {
+					// DISABLED FOR REFACTORING
 					// In insert mode, insert unmapped rune keys
-					e.insertChar(ev.Rune)
-					needsRedraw = true
+					// e.insertChar(ev.Rune)
+					// needsRedraw = true
 				}
 			}
 		case *ui.EventResize:
@@ -1031,168 +1032,173 @@ func (e *Editor) exitInsertMode() error {
 
 // openLineBelow opens a new line below the current line and enters insert mode
 func (e *Editor) openLineBelow() error {
-	// Move to end of current line
-	if !e.buffer.CursorIterator.IsEOF() {
-		line := e.buffer.CursorIterator.Line()
-		e.buffer.CursorX = len(line)
-	}
+	// DISABLED FOR REFACTORING
+	// // Move to end of current line
+	// if !e.buffer.CursorIterator.IsEOF() {
+	// 	line := e.buffer.CursorIterator.Line()
+	// 	e.buffer.CursorX = len(line)
+	// }
 
-	// Get absolute position at end of line
-	pos := e.getAbsolutePosition()
+	// // Get absolute position at end of line
+	// pos := e.getAbsolutePosition()
 
-	// Insert newline
-	e.buffer.Insert(pos, "\n")
+	// // Insert newline
+	// e.buffer.Insert(pos, "\n")
 
-	// Move cursor to beginning of new line
-	e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	e.buffer.CursorX = 0
+	// // Move cursor to beginning of new line
+	// e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
+	// e.buffer.CursorX = 0
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
 
-	// Mark buffer as modified (also updates line count)
-	e.buffer.MarkModified()
+	// // Mark buffer as modified (also updates line count)
+	// e.buffer.MarkModified()
 
-	// Mark offsets as dirty
-	e.buffer.OffsetsDirty = true
+	// // Mark offsets as dirty
+	// e.buffer.OffsetsDirty = true
 
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+	// // Update syntax highlighting
+	// e.updateSyntaxHighlighting()
 
 	return nil
 }
 
 // openLineAbove opens a new line above the current line and enters insert mode
 func (e *Editor) openLineAbove() error {
-	// Move to beginning of current line
-	e.buffer.CursorX = 0
+	// DISABLED FOR REFACTORING
+	// // Move to beginning of current line
+	// e.buffer.CursorX = 0
 
-	// Get absolute position
-	pos := e.getAbsolutePosition()
+	// // Get absolute position
+	// pos := e.getAbsolutePosition()
 
-	// Insert newline before current position
-	e.buffer.Insert(pos, "\n")
+	// // Insert newline before current position
+	// e.buffer.Insert(pos, "\n")
 
-	// Move cursor to the newly created line above
-	// (cursor stays at same Y position, which is now the new empty line)
-	e.buffer.CursorX = 0
+	// // Move cursor to the newly created line above
+	// // (cursor stays at same Y position, which is now the new empty line)
+	// e.buffer.CursorX = 0
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
 
-	// Mark buffer as modified (also updates line count)
-	e.buffer.MarkModified()
+	// // Mark buffer as modified (also updates line count)
+	// e.buffer.MarkModified()
 
-	// Mark offsets as dirty
-	e.buffer.OffsetsDirty = true
+	// // Mark offsets as dirty
+	// e.buffer.OffsetsDirty = true
 
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+	// // Update syntax highlighting
+	// e.updateSyntaxHighlighting()
 
 	return nil
 }
 
 func (e *Editor) insertChar(ch rune) error {
-	// Calculate the absolute position in the buffer
-	pos := e.getAbsolutePosition()
+	// DISABLED FOR REFACTORING
+	// // Calculate the absolute position in the buffer
+	// pos := e.getAbsolutePosition()
 
-	// Insert the character
-	e.buffer.Insert(pos, string(ch))
+	// // Insert the character
+	// e.buffer.Insert(pos, string(ch))
 
-	// Move cursor forward
-	e.buffer.CursorX++
+	// // Move cursor forward
+	// e.buffer.CursorX++
 
-	// Mark buffer as modified (also updates line count)
-	e.buffer.MarkModified()
+	// // Mark buffer as modified (also updates line count)
+	// e.buffer.MarkModified()
 
-	// Mark offsets as dirty
-	e.buffer.OffsetsDirty = true
+	// // Mark offsets as dirty
+	// e.buffer.OffsetsDirty = true
 
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+	// // Update syntax highlighting
+	// e.updateSyntaxHighlighting()
 
 	return nil
 }
 
 func (e *Editor) insertNewline() error {
-	// Get the absolute position
-	pos := e.getAbsolutePosition()
+	// DISABLED FOR REFACTORING
+	// // Get the absolute position
+	// pos := e.getAbsolutePosition()
 
-	// Insert newline
-	e.buffer.Insert(pos, "\n")
+	// // Insert newline
+	// e.buffer.Insert(pos, "\n")
 
-	// Move cursor to beginning of next line
-	e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	e.buffer.CursorX = 0
+	// // Move cursor to beginning of next line
+	// e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
+	// e.buffer.CursorX = 0
 
-	// Mark buffer as modified (also updates line count)
-	e.buffer.MarkModified()
+	// // Mark buffer as modified (also updates line count)
+	// e.buffer.MarkModified()
 
-	// Mark offsets as dirty
-	e.buffer.OffsetsDirty = true
+	// // Mark offsets as dirty
+	// e.buffer.OffsetsDirty = true
 
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+	// // Update syntax highlighting
+	// e.updateSyntaxHighlighting()
 
 	return nil
 }
 
 func (e *Editor) backspace() error {
-	// If at beginning of buffer, nothing to delete
-	if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
-		return nil
-	}
+	// DISABLED FOR REFACTORING
+	// // If at beginning of buffer, nothing to delete
+	// if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
+	// 	return nil
+	// }
 
-	pos := e.getAbsolutePosition()
+	// pos := e.getAbsolutePosition()
 
-	if e.buffer.CursorX == 0 {
-		// At beginning of line, join with previous line
-		if pos > 0 {
-			// Store the length of the previous line before joining
-			prevIter := e.buffer.CursorIterator.Previous()
-			prevLineLen := 0
-			if !prevIter.Equals(e.buffer.CursorIterator) {
-				prevLineLen = len(prevIter.Line())
-			}
+	// if e.buffer.CursorX == 0 {
+	// 	// At beginning of line, join with previous line
+	// 	if pos > 0 {
+	// 		// Store the length of the previous line before joining
+	// 		prevIter := e.buffer.CursorIterator.Previous()
+	// 		prevLineLen := 0
+	// 		if !prevIter.Equals(e.buffer.CursorIterator) {
+	// 			prevLineLen = len(prevIter.Line())
+	// 		}
 
-			// For now, we'll implement a simple delete by recreating the buffer
-			// TODO: Add proper Delete method to buffer
-			content := e.buffer.String()
-			if pos-1 < len(content) {
-				newContent := content[:pos-1] + content[pos:]
-				e.buffer.Rope = buffer.NewRopeFromString(newContent)
-				e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
-				e.buffer.CursorX = prevLineLen
-				// Mark buffer as modified (also updates line count)
-				e.buffer.MarkModified()
-				// Update syntax highlighting
-				e.updateSyntaxHighlighting()
-			}
-		}
-	} else {
-		// Delete character before cursor
-		if pos > 0 {
-			// For now, we'll implement a simple delete by recreating the buffer
-			// TODO: Add proper Delete method to buffer
-			content := e.buffer.String()
-			if pos-1 < len(content) {
-				newContent := content[:pos-1] + content[pos:]
-				e.buffer.Rope = buffer.NewRopeFromString(newContent)
-				e.buffer.CursorX--
-				// Mark buffer as modified (also updates line count)
-				e.buffer.MarkModified()
-				// Update syntax highlighting
-				e.updateSyntaxHighlighting()
-			}
-		}
-	}
+	// 		// For now, we'll implement a simple delete by recreating the buffer
+	// 		// TODO: Add proper Delete method to buffer
+	// 		content := e.buffer.String()
+	// 		if pos-1 < len(content) {
+	// 			newContent := content[:pos-1] + content[pos:]
+	// 			e.buffer.Rope = buffer.NewRopeFromString(newContent)
+	// 			e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
+	// 			e.buffer.CursorX = prevLineLen
+	// 			// Mark buffer as modified (also updates line count)
+	// 			e.buffer.MarkModified()
+	// 			// Update syntax highlighting
+	// 			e.updateSyntaxHighlighting()
+	// 		}
+	// 	}
+	// } else {
+	// 	// Delete character before cursor
+	// 	if pos > 0 {
+	// 		// For now, we'll implement a simple delete by recreating the buffer
+	// 		// TODO: Add proper Delete method to buffer
+	// 		content := e.buffer.String()
+	// 		if pos-1 < len(content) {
+	// 			newContent := content[:pos-1] + content[pos:]
+	// 			e.buffer.Rope = buffer.NewRopeFromString(newContent)
+	// 			e.buffer.CursorX--
+	// 			// Mark buffer as modified (also updates line count)
+	// 			e.buffer.MarkModified()
+	// 			// Update syntax highlighting
+	// 			e.updateSyntaxHighlighting()
+	// 		}
+	// 	}
+	// }
 
-	// Mark offsets as dirty
-	e.buffer.OffsetsDirty = true
+	// // Mark offsets as dirty
+	// e.buffer.OffsetsDirty = true
 
 	return nil
 }
