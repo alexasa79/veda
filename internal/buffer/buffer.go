@@ -13,13 +13,15 @@ type Node struct {
 	// Common fields for all nodes
 	parent *Node // Parent node (nil for root)
 	weight int   // Total length of text in this subtree
-	
+
 	// For internal nodes
 	left  *Node // Left child
 	right *Node // Right child
-	
+
 	// For leaf nodes
 	text string // The actual text content (empty for internal nodes)
+
+	offset int
 }
 
 // NewLeaf creates a new leaf node.
@@ -27,6 +29,7 @@ func NewLeaf(text string) *Node {
 	return &Node{
 		text:   text,
 		weight: len(text),
+		offset: 0, // Will be set properly when added to rope
 	}
 }
 
@@ -36,15 +39,25 @@ func NewConcatNode(left, right *Node) *Node {
 		left:   left,
 		right:  right,
 		weight: 0,
+		offset: 0, // Will be set when added to rope
 	}
-	// Calculate total weight
+	// Calculate total weight and set child offsets
 	if left != nil {
 		node.weight += left.weight
 		left.parent = node
+		// Left child keeps its current offset
 	}
 	if right != nil {
 		node.weight += right.weight
 		right.parent = node
+		// Right child's offset is left's offset + left's weight
+		if left != nil {
+			right.offset = left.offset + left.weight
+		}
+	}
+	// Internal node's offset is same as left child's offset
+	if left != nil {
+		node.offset = left.offset
 	}
 	return node
 }
@@ -86,8 +99,10 @@ type Rope struct {
 // NewRopeFromString creates a new rope from a string.
 // This is a simple implementation that doesn't create a balanced tree yet.
 func NewRopeFromString(text string) *Rope {
+	root := NewLeaf(text)
+	root.offset = 0 // Root starts at offset 0
 	return &Rope{
-		root: NewLeaf(text),
+		root: root,
 	}
 }
 
@@ -114,6 +129,7 @@ func (r *Rope) Lines() []string {
 func (r *Rope) Insert(pos int, text string) {
 	if r.root == nil {
 		r.root = NewLeaf(text)
+		r.root.offset = 0
 		return
 	}
 	r.root = r.insert(r.root, pos, text)
@@ -133,20 +149,20 @@ func (r *Rope) byteAt(node *Node, pos int) byte {
 	if node == nil {
 		return 0
 	}
-	
+
 	if node.IsLeaf() {
 		if pos >= 0 && pos < len(node.text) {
 			return node.text[pos]
 		}
 		return 0
 	}
-	
+
 	// Internal node - check left subtree weight
 	leftWeight := 0
 	if node.left != nil {
 		leftWeight = node.left.weight
 	}
-	
+
 	if pos < leftWeight {
 		return r.byteAt(node.left, pos)
 	}
@@ -156,21 +172,29 @@ func (r *Rope) byteAt(node *Node, pos int) byte {
 // insert is the recursive helper for the Insert method.
 func (r *Rope) insert(node *Node, pos int, text string) *Node {
 	if node == nil {
-		return NewLeaf(text)
+		newNode := NewLeaf(text)
+		newNode.offset = pos
+		return newNode
 	}
-	
+
 	if node.IsLeaf() {
 		// Insert into leaf
 		node.text = node.text[:pos] + text + node.text[pos:]
 		node.weight = len(node.text)
-		
+
 		if node.weight > maxLeafSize {
 			// Split the leaf
 			splitPos := node.weight / 2
 			leftNode := NewLeaf(node.text[:splitPos])
 			rightNode := NewLeaf(node.text[splitPos:])
-			newNode := NewConcatNode(leftNode, rightNode)
 			
+			// Set offsets for split nodes
+			leftNode.offset = node.offset
+			rightNode.offset = node.offset + splitPos
+			
+			newNode := NewConcatNode(leftNode, rightNode)
+			newNode.offset = node.offset
+
 			// Update parent pointer
 			if node.parent != nil {
 				newNode.parent = node.parent
@@ -184,13 +208,13 @@ func (r *Rope) insert(node *Node, pos int, text string) *Node {
 		}
 		return node
 	}
-	
+
 	// Internal node - check against left subtree weight
 	leftWeight := 0
 	if node.left != nil {
 		leftWeight = node.left.weight
 	}
-	
+
 	if pos < leftWeight {
 		node.left = r.insert(node.left, pos, text)
 		node.left.parent = node
@@ -198,7 +222,7 @@ func (r *Rope) insert(node *Node, pos int, text string) *Node {
 		node.right = r.insert(node.right, pos-leftWeight, text)
 		node.right.parent = node
 	}
-	
+
 	// Update total weight
 	node.weight = 0
 	if node.left != nil {
@@ -206,8 +230,12 @@ func (r *Rope) insert(node *Node, pos int, text string) *Node {
 	}
 	if node.right != nil {
 		node.weight += node.right.weight
+		// Update right child's offset
+		if node.left != nil {
+			node.right.offset = node.left.offset + node.left.weight
+		}
 	}
-	
+
 	return node
 }
 
@@ -216,7 +244,7 @@ func (r *Rope) Extract(start, end int) string {
 	if start >= end || start < 0 || end > r.Length() {
 		return ""
 	}
-	
+
 	// For small extractions, use byte-by-byte
 	length := end - start
 	if length <= 32 {
@@ -226,7 +254,7 @@ func (r *Rope) Extract(start, end int) string {
 		}
 		return string(result)
 	}
-	
+
 	// For larger extractions, use optimized approach
 	var result strings.Builder
 	result.Grow(length)
@@ -239,7 +267,7 @@ func (r *Rope) extractRange(node *Node, start, end int, result *strings.Builder)
 	if node == nil || start >= end {
 		return
 	}
-	
+
 	if node.IsLeaf() {
 		// Extract from leaf
 		nodeEnd := len(node.text)
@@ -257,13 +285,13 @@ func (r *Rope) extractRange(node *Node, start, end int, result *strings.Builder)
 		}
 		return
 	}
-	
+
 	// Internal node
 	leftWeight := 0
 	if node.left != nil {
 		leftWeight = node.left.weight
 	}
-	
+
 	// Extract from left subtree if needed
 	if start < leftWeight {
 		leftEnd := end
@@ -272,7 +300,7 @@ func (r *Rope) extractRange(node *Node, start, end int, result *strings.Builder)
 		}
 		r.extractRange(node.left, start, leftEnd, result)
 	}
-	
+
 	// Extract from right subtree if needed
 	if end > leftWeight {
 		rightStart := 0
