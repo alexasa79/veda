@@ -538,16 +538,16 @@ func (e *Editor) getVisualCursorX() int {
 
 // updateLineOffsets recalculates the byte offset cache for all lines
 func (e *Editor) updateLineOffsets() {
-	// Use walker to build offsets without converting entire buffer to string
+	// Use iterator to build offsets without converting entire buffer to string
 	lineCount := e.buffer.LineCount
 	e.lineOffsets = make([]int, lineCount+1)
 
-	walker := buffer.NewRopeWalker(e.buffer.Rope)
+	iter := buffer.NewBufferIterator(e.buffer)
 	i := 0
 
-	for !walker.IsEOF() && i < lineCount {
-		e.lineOffsets[i] = walker.Position()
-		walker = walker.NextLine()
+	for !iter.IsEOF() && i < lineCount {
+		e.lineOffsets[i] = iter.Position()
+		iter = iter.Next()
 		i++
 	}
 
