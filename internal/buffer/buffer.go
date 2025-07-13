@@ -103,6 +103,33 @@ func (r *Rope) Insert(pos int, text string) {
 	r.root = r.root.insert(pos, text)
 }
 
+// ByteAt returns the byte at the given position in the rope.
+// Returns 0 if position is out of bounds.
+func (r *Rope) ByteAt(pos int) byte {
+	if r.root == nil || pos < 0 || pos >= r.Length() {
+		return 0
+	}
+	return r.byteAt(r.root, pos)
+}
+
+// byteAt is a helper method that recursively finds the byte at position
+func (r *Rope) byteAt(node Node, pos int) byte {
+	switch n := node.(type) {
+	case *Leaf:
+		if pos >= 0 && pos < len(n.text) {
+			return n.text[pos]
+		}
+		return 0
+	case *ConcatNode:
+		if pos < n.weight {
+			return r.byteAt(n.left, pos)
+		}
+		return r.byteAt(n.right, pos-n.weight)
+	default:
+		return 0
+	}
+}
+
 // insert is the recursive helper for the Insert method.
 func (n *ConcatNode) insert(pos int, text string) Node {
 	// TODO: Implement rebalancing

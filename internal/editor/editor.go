@@ -266,29 +266,6 @@ func (e *Editor) scrollToShowAtTop() {
 	}
 }
 
-// refreshViewIterator recreates the view iterator at the same line position
-// This should be called after buffer modifications
-func (e *Editor) refreshViewIterator() {
-	if e.viewIterator == nil {
-		e.viewIterator = buffer.NewBufferIterator(e.buffer)
-		return
-	}
-
-	// Update the iterator's buffer reference to see the new content
-	e.viewIterator.UpdateBuffer(e.buffer)
-}
-
-// refreshCursorIterator updates the cursor iterator after buffer modifications
-// This should be called after buffer modifications to ensure the iterator sees the latest content
-func (e *Editor) refreshCursorIterator() {
-	if e.cursorIterator == nil {
-		e.cursorIterator = buffer.NewBufferIterator(e.buffer)
-		return
-	}
-
-	// Update the iterator's buffer reference to see the new content
-	e.cursorIterator.UpdateBuffer(e.buffer)
-}
 
 
 
@@ -1088,9 +1065,6 @@ func (e *Editor) openLineBelow() error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterators after buffer modification
-	e.refreshViewIterator()
-	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1122,9 +1096,6 @@ func (e *Editor) openLineAbove() error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterators after buffer modification
-	e.refreshViewIterator()
-	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1148,9 +1119,6 @@ func (e *Editor) insertChar(ch rune) error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterators after buffer modification
-	e.refreshViewIterator()
-	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1175,9 +1143,6 @@ func (e *Editor) insertNewline() error {
 	// Mark offsets as dirty
 	e.offsetsDirty = true
 
-	// Refresh iterators after buffer modification
-	e.refreshViewIterator()
-	e.refreshCursorIterator()
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
