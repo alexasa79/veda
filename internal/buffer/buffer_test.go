@@ -30,9 +30,9 @@ func TestInsert_Split(t *testing.T) {
 	// Insert another string to trigger a split
 	r.Insert(1500, strings.Repeat("b", 3000))
 
-	// Check that the root is a ConcatNode
-	if _, ok := r.root.(*ConcatNode); !ok {
-		t.Errorf("Insert failed: expected root to be a ConcatNode, got %T", r.root)
+	// Check that the root is an internal node (not a leaf)
+	if r.root.IsLeaf() {
+		t.Errorf("Insert failed: expected root to be an internal node, but it's a leaf")
 	}
 
 	// Check the length

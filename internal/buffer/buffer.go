@@ -7,64 +7,80 @@ const (
 	minLeafSize = 2048
 )
 
-// Node is the interface for all nodes in the rope.
-type Node interface {
-	// Length returns the total length of the text stored under this node.
-	Length() int
-	// String returns the full text of the node.
-	String() string
-	insert(pos int, text string) Node
-}
-
-// Leaf represents a leaf node in the rope, containing a string fragment.
-type Leaf struct {
-	text string
+// Node represents a node in the rope tree.
+// It can be either a leaf node (containing text) or an internal node (with children).
+type Node struct {
+	// Common fields for all nodes
+	parent *Node // Parent node (nil for root)
+	weight int   // Total length of text in this subtree
+	
+	// For internal nodes
+	left  *Node // Left child
+	right *Node // Right child
+	
+	// For leaf nodes
+	text string // The actual text content (empty for internal nodes)
 }
 
 // NewLeaf creates a new leaf node.
-func NewLeaf(text string) *Leaf {
-	return &Leaf{text: text}
-}
-
-func (l *Leaf) Length() int {
-	return len(l.text)
-}
-
-func (l *Leaf) String() string {
-	return l.text
-}
-
-// ConcatNode represents an internal node that concatenates two sub-nodes.
-type ConcatNode struct {
-	left, right Node
-	// weight is the length of the text in the left child.
-	weight int
-}
-
-// NewConcatNode creates a new concatenation node.
-func NewConcatNode(left, right Node) *ConcatNode {
-	return &ConcatNode{
-		left:   left,
-		right:  right,
-		weight: left.Length(),
+func NewLeaf(text string) *Node {
+	return &Node{
+		text:   text,
+		weight: len(text),
 	}
 }
 
-func (n *ConcatNode) Length() int {
-	return n.weight + n.right.Length()
+// NewConcatNode creates a new internal concatenation node.
+func NewConcatNode(left, right *Node) *Node {
+	node := &Node{
+		left:   left,
+		right:  right,
+		weight: 0,
+	}
+	// Calculate total weight
+	if left != nil {
+		node.weight += left.weight
+		left.parent = node
+	}
+	if right != nil {
+		node.weight += right.weight
+		right.parent = node
+	}
+	return node
 }
 
-func (n *ConcatNode) String() string {
+// IsLeaf returns true if this is a leaf node
+func (n *Node) IsLeaf() bool {
+	return n.left == nil && n.right == nil
+}
+
+// Length returns the total length of the text stored under this node.
+func (n *Node) Length() int {
+	if n == nil {
+		return 0
+	}
+	return n.weight
+}
+
+// String returns the full text of the node.
+func (n *Node) String() string {
+	if n == nil {
+		return ""
+	}
+	if n.IsLeaf() {
+		return n.text
+	}
 	var sb strings.Builder
 	sb.WriteString(n.left.String())
 	sb.WriteString(n.right.String())
 	return sb.String()
 }
 
+
 // Rope is the main data structure for the editor's text content.
 // It implements a rope data structure for efficient text manipulation.
 type Rope struct {
-	root Node
+	root *Node
 }
 
 // NewRopeFromString creates a new rope from a string.
@@ -100,7 +116,7 @@ func (r *Rope) Insert(pos int, text string) {
 		r.root = NewLeaf(text)
 		return
 	}
-	r.root = r.root.insert(pos, text)
+	r.root = r.insert(r.root, pos, text)
 }
 
 // ByteAt returns the byte at the given position in the rope.
@@ -113,45 +129,156 @@ func (r *Rope) ByteAt(pos int) byte {
 }
 
 // byteAt is a helper method that recursively finds the byte at position
-func (r *Rope) byteAt(node Node, pos int) byte {
-	switch n := node.(type) {
-	case *Leaf:
-		if pos >= 0 && pos < len(n.text) {
-			return n.text[pos]
-		}
-		return 0
-	case *ConcatNode:
-		if pos < n.weight {
-			return r.byteAt(n.left, pos)
-		}
-		return r.byteAt(n.right, pos-n.weight)
-	default:
+func (r *Rope) byteAt(node *Node, pos int) byte {
+	if node == nil {
 		return 0
 	}
+	
+	if node.IsLeaf() {
+		if pos >= 0 && pos < len(node.text) {
+			return node.text[pos]
+		}
+		return 0
+	}
+	
+	// Internal node - check left subtree weight
+	leftWeight := 0
+	if node.left != nil {
+		leftWeight = node.left.weight
+	}
+	
+	if pos < leftWeight {
+		return r.byteAt(node.left, pos)
+	}
+	return r.byteAt(node.right, pos-leftWeight)
 }
 
 // insert is the recursive helper for the Insert method.
-func (n *ConcatNode) insert(pos int, text string) Node {
-	// TODO: Implement rebalancing
-	if pos < n.weight {
-		n.left = n.left.insert(pos, text)
-	} else {
-		n.right = n.right.insert(pos-n.weight, text)
+func (r *Rope) insert(node *Node, pos int, text string) *Node {
+	if node == nil {
+		return NewLeaf(text)
 	}
-	n.weight = n.left.Length()
-	return n
+	
+	if node.IsLeaf() {
+		// Insert into leaf
+		node.text = node.text[:pos] + text + node.text[pos:]
+		node.weight = len(node.text)
+		
+		if node.weight > maxLeafSize {
+			// Split the leaf
+			splitPos := node.weight / 2
+			leftNode := NewLeaf(node.text[:splitPos])
+			rightNode := NewLeaf(node.text[splitPos:])
+			newNode := NewConcatNode(leftNode, rightNode)
+			
+			// Update parent pointer
+			if node.parent != nil {
+				newNode.parent = node.parent
+				if node.parent.left == node {
+					node.parent.left = newNode
+				} else {
+					node.parent.right = newNode
+				}
+			}
+			return newNode
+		}
+		return node
+	}
+	
+	// Internal node - check against left subtree weight
+	leftWeight := 0
+	if node.left != nil {
+		leftWeight = node.left.weight
+	}
+	
+	if pos < leftWeight {
+		node.left = r.insert(node.left, pos, text)
+		node.left.parent = node
+	} else {
+		node.right = r.insert(node.right, pos-leftWeight, text)
+		node.right.parent = node
+	}
+	
+	// Update total weight
+	node.weight = 0
+	if node.left != nil {
+		node.weight += node.left.weight
+	}
+	if node.right != nil {
+		node.weight += node.right.weight
+	}
+	
+	return node
 }
 
-func (l *Leaf) insert(pos int, text string) Node {
-	// TODO: Implement rebalancing
-	l.text = l.text[:pos] + text + l.text[pos:]
-	if l.Length() > maxLeafSize {
-		// Split the leaf
-		splitPos := l.Length() / 2
-		return NewConcatNode(
-			NewLeaf(l.text[:splitPos]),
-			NewLeaf(l.text[splitPos:]),
-		)
+// Extract returns a substring from the rope between start and end positions
+func (r *Rope) Extract(start, end int) string {
+	if start >= end || start < 0 || end > r.Length() {
+		return ""
 	}
-	return l
+	
+	// For small extractions, use byte-by-byte
+	length := end - start
+	if length <= 32 {
+		result := make([]byte, length)
+		for i := 0; i < length; i++ {
+			result[i] = r.ByteAt(start + i)
+		}
+		return string(result)
+	}
+	
+	// For larger extractions, use optimized approach
+	var result strings.Builder
+	result.Grow(length)
+	r.extractRange(r.root, start, end, &result)
+	return result.String()
+}
+
+// extractRange recursively extracts text from start to end into the builder
+func (r *Rope) extractRange(node *Node, start, end int, result *strings.Builder) {
+	if node == nil || start >= end {
+		return
+	}
+	
+	if node.IsLeaf() {
+		// Extract from leaf
+		nodeEnd := len(node.text)
+		if start < nodeEnd && end > 0 {
+			// Calculate the range within this leaf
+			extractStart := 0
+			if start > 0 {
+				extractStart = start
+			}
+			extractEnd := nodeEnd
+			if end < nodeEnd {
+				extractEnd = end
+			}
+			result.WriteString(node.text[extractStart:extractEnd])
+		}
+		return
+	}
+	
+	// Internal node
+	leftWeight := 0
+	if node.left != nil {
+		leftWeight = node.left.weight
+	}
+	
+	// Extract from left subtree if needed
+	if start < leftWeight {
+		leftEnd := end
+		if leftEnd > leftWeight {
+			leftEnd = leftWeight
+		}
+		r.extractRange(node.left, start, leftEnd, result)
+	}
+	
+	// Extract from right subtree if needed
+	if end > leftWeight {
+		rightStart := 0
+		if start > leftWeight {
+			rightStart = start - leftWeight
+		}
+		r.extractRange(node.right, rightStart, end-leftWeight, result)
+	}
 }

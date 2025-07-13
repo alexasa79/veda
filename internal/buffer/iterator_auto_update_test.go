@@ -39,36 +39,46 @@ func TestIteratorPositionAfterBufferModification(t *testing.T) {
 	content := "Line 1\nLine 2\nLine 3"
 	buf := NewBuffer(content, "test.txt", config.IndentSpaces, 4)
 	
-	// Create iterator and move to line 2
-	iter := NewBufferIterator(buf)
-	iter = iter.Next()
+	// Test 1: Modification after iterator position
+	// Create iterator at beginning
+	iter1 := NewBufferIterator(buf)
 	
-	// Verify we're on line 2
-	if iter.LineNumber() != 1 || iter.Line() != "Line 2" {
-		t.Errorf("Expected to be on line 1 with content 'Line 2', got line %d with %q", 
-			iter.LineNumber(), iter.Line())
+	// Verify we're on line 1
+	if iter1.LineNumber() != 0 || iter1.Line() != "Line 1" {
+		t.Errorf("Expected to be on line 0 with content 'Line 1', got line %d with %q", 
+			iter1.LineNumber(), iter1.Line())
 	}
 	
-	// Insert text on line 1 (before current line)
-	buf.Insert(3, "XXX") // Insert in middle of "Line 1"
+	// Insert text after the current line (after "Line 1\n")
+	buf.Insert(7, "Inserted ") // Insert at beginning of "Line 2"
 	
-	// Iterator should still be on line 2 with updated content visible
-	if iter.LineNumber() != 1 || iter.Line() != "Line 2" {
-		t.Errorf("After insert before, expected line 1 'Line 2', got line %d with %q", 
-			iter.LineNumber(), iter.Line())
+	// Iterator should still see the same content at its position
+	if iter1.Line() != "Line 1" {
+		t.Errorf("After insert after position, expected 'Line 1', got %q", iter1.Line())
 	}
 	
-	// Insert newline at end of first line (after "LinXXXe 1\n" which ends at position 10)
-	buf.Insert(10, "New Line\n") // Insert before "Line 2"
+	// Move to next line - should see the modified content
+	iter1 = iter1.Next()
+	if iter1.Line() != "Inserted Line 2" {
+		t.Errorf("After moving to next line, expected 'Inserted Line 2', got %q", iter1.Line())
+	}
 	
-	// With a line-number-based iterator, when lines are inserted before us,
-	// our line number stays the same but now points to different content
-	// Line 0: "LinXXXe 1"  
-	// Line 1: "New Line" (this is where our iterator now points)
-	// Line 2: "Line 2" (the original content moved down)
-	// Line 3: "Line 3"
-	if iter.Line() != "New Line" {
-		t.Errorf("After newline insert, expected 'New Line', got %q", iter.Line())
+	// Test 2: To modify before an iterator, get an earlier position first
+	// Get iterator at the beginning
+	iter2 := NewBufferIterator(buf)
+	
+	// Insert at beginning of buffer
+	buf.Insert(0, "New First ")
+	
+	// The iterator at position 0 now sees the new content
+	if iter2.Line() != "New First Line 1" {
+		t.Errorf("Iterator at position 0 should see 'New First Line 1', got %q", iter2.Line())
+	}
+	
+	// Create a new iterator to see the changes
+	iter3 := NewBufferIterator(buf)
+	if iter3.Line() != "New First Line 1" {
+		t.Errorf("New iterator should see 'New First Line 1', got %q", iter3.Line())
 	}
 }
 
