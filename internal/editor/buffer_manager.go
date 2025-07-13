@@ -10,7 +10,8 @@ import (
 // saveCurrentBufferState saves the current buffer's state before switching
 func (e *Editor) saveCurrentBufferState() {
 	if e.buffer != nil {
-		e.buffer.SaveCursorState(e.cursorX, e.viewIterator, e.cursorIterator)
+		// Save cursorX and line offset cache - iterators stay with the buffer
+		e.buffer.CursorX = e.cursorX
 		e.buffer.LineOffsets = e.lineOffsets
 		e.buffer.OffsetsDirty = e.offsetsDirty
 	}
@@ -21,8 +22,8 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	// Set the buffer
 	e.buffer = buf
 	
-	// Restore cursor and view state
-	e.cursorX, e.viewIterator, e.cursorIterator = buf.RestoreCursorState()
+	// Restore cursor X position and line offset cache - iterators are already in the buffer
+	e.cursorX = buf.CursorX
 	e.lineOffsets = buf.LineOffsets
 	e.offsetsDirty = buf.OffsetsDirty
 	

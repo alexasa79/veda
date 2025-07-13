@@ -22,8 +22,8 @@ func (e *Editor) pushNavigationHistory() {
 	entry := NavigationEntry{
 		filePath:         e.buffer.FilePath,
 		cursorX:          e.cursorX,
-		cursorLineNumber: e.cursorIterator.LineNumber(),
-		topLineNumber:    e.viewIterator.LineNumber(),
+		cursorLineNumber: e.buffer.CursorIterator.LineNumber(),
+		topLineNumber:    e.buffer.ViewIterator.LineNumber(),
 	}
 	
 	// Add to history
@@ -66,14 +66,14 @@ func (e *Editor) goBack() error {
 	e.cursorX = entry.cursorX
 	
 	// Restore cursor iterator to the saved line number
-	e.cursorIterator = buffer.NewBufferIterator(e.buffer)
-	for i := 0; i < entry.cursorLineNumber && !e.cursorIterator.IsEOF(); i++ {
-		e.cursorIterator = e.cursorIterator.Next()
+	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
+	for i := 0; i < entry.cursorLineNumber && !e.buffer.CursorIterator.IsEOF(); i++ {
+		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
 	}
 	
 	// Ensure cursor is within bounds
-	if !e.cursorIterator.IsEOF() {
-		line := e.cursorIterator.Line()
+	if !e.buffer.CursorIterator.IsEOF() {
+		line := e.buffer.CursorIterator.Line()
 		if e.cursorX > len(line) {
 			e.cursorX = len(line)
 			if e.cursorX > 0 && e.mode == commands.NormalMode {

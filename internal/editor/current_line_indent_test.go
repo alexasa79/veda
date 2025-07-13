@@ -310,7 +310,7 @@ func TestGetCurrentLineIndentInfoWithCursor(t *testing.T) {
 	
 	for _, tc := range testCases {
 		te.SetCursorPosition(0, tc.cursorY)
-		info := te.getCurrentLineIndentInfo(te.cursorIterator)
+		info := te.getCurrentLineIndentInfo(te.buffer.CursorIterator)
 		
 		if info.Level != tc.expectedLevel {
 			t.Errorf("Line %d: expected level %d, got %d", 

@@ -16,8 +16,8 @@ type Buffer struct {
 	
 	// Cursor and view state
 	CursorX        int
-	ViewIterator   *BufferIterator  // Saved view position iterator
-	CursorIterator *BufferIterator  // Saved cursor position iterator
+	ViewIterator   *BufferIterator  // Current view position iterator
+	CursorIterator *BufferIterator  // Current cursor position iterator
 	
 	// Caching
 	LineOffsets  []int  // Cache of byte offsets for each line
@@ -53,7 +53,8 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		FilePath:     filePath,
 		IsModified:   false,
 		CursorX:      0,
-		ViewIterator: nil,  // Will be created when buffer is first used
+		ViewIterator:   nil,  // Will be created when buffer is first used
+		CursorIterator: nil,  // Will be created when buffer is first used
 		LineOffsets:  []int{},
 		OffsetsDirty: true,
 		LineCount:    len(rope.Lines()),
@@ -63,29 +64,12 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		},
 	}
 	b.UpdateLineNumberWidth()
-	// Create initial iterator
+	// Create initial iterators
 	b.ViewIterator = NewBufferIterator(b)
+	b.CursorIterator = NewBufferIterator(b)
 	return b
 }
 
-// SaveCursorState saves the current cursor and view position
-func (b *Buffer) SaveCursorState(x int, viewIterator *BufferIterator, cursorIterator *BufferIterator) {
-	b.CursorX = x
-	b.ViewIterator = viewIterator
-	b.CursorIterator = cursorIterator
-}
-
-// RestoreCursorState returns the saved cursor and view position
-func (b *Buffer) RestoreCursorState() (x int, viewIterator *BufferIterator, cursorIterator *BufferIterator) {
-	// Ensure we have valid iterators
-	if b.ViewIterator == nil {
-		b.ViewIterator = NewBufferIterator(b)
-	}
-	if b.CursorIterator == nil {
-		b.CursorIterator = NewBufferIterator(b)
-	}
-	return b.CursorX, b.ViewIterator, b.CursorIterator
-}
 
 // MarkModified marks the buffer as modified
 func (b *Buffer) MarkModified() {

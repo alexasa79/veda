@@ -3,5 +3,5 @@
 - [x] In saveCurrentBufferState we should save the iterator and not the line number.
 - [x] Get rid of cursorY in Editor. We're going to use an iterator instead.
 - [x] Get rid of the rope walker business.
-- [ ] There is a cursor iterator in the editor and there is also one in the buffer. I wonder if we need one in the buffer.
+- [x] There is a cursor iterator in the editor and there is also one in the buffer. I wonder if we need one in the buffer.
 - [ ] Remove the interface from the Rope. I do not see why we would need any abstraction there.

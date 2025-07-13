@@ -34,7 +34,7 @@ func TestSaveCurrentBufferState(t *testing.T) {
 	te.SetCursorPosition(5, 10)
 	// Move view down by 3 lines
 	for i := 0; i < 3; i++ {
-		te.viewIterator = te.viewIterator.Next()
+		te.buffer.ViewIterator = te.buffer.ViewIterator.Next()
 	}
 	
 	// Save the state

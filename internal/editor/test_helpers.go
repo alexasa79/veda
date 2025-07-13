@@ -30,8 +30,8 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	te := NewTestEditor(width, height)
 	te.buffer = buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	// Update iterators to point to the new buffer
-	te.viewIterator = buffer.NewBufferIterator(te.buffer)
-	te.cursorIterator = buffer.NewBufferIterator(te.buffer)
+	te.buffer.ViewIterator = buffer.NewBufferIterator(te.buffer)
+	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
 	te.updateLineOffsets()
 	
 	// Add the buffer to the buffers map so buffer management functions work
@@ -64,7 +64,7 @@ func (te *TestEditor) InsertChar(ch rune) error {
 
 // GetCursorPosition returns the current cursor position
 func (te *TestEditor) GetCursorPosition() (x, y int) {
-	return te.cursorX, te.cursorIterator.LineNumber()
+	return te.cursorX, te.buffer.CursorIterator.LineNumber()
 }
 
 // SetCursorPosition sets the cursor to a specific position
@@ -72,16 +72,16 @@ func (te *TestEditor) SetCursorPosition(x, y int) {
 	te.cursorX = x
 	
 	// Reset cursor iterator to beginning
-	te.cursorIterator = buffer.NewBufferIterator(te.buffer)
+	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
 	
 	// Move to target line
-	for i := 0; i < y && !te.cursorIterator.IsEOF(); i++ {
-		te.cursorIterator = te.cursorIterator.Next()
+	for i := 0; i < y && !te.buffer.CursorIterator.IsEOF(); i++ {
+		te.buffer.CursorIterator = te.buffer.CursorIterator.Next()
 	}
 	
 	// Ensure cursor X is within bounds
-	if !te.cursorIterator.IsEOF() {
-		line := te.cursorIterator.Line()
+	if !te.buffer.CursorIterator.IsEOF() {
+		line := te.buffer.CursorIterator.Line()
 		if te.cursorX > len(line) {
 			te.cursorX = len(line)
 		}
