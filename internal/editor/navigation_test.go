@@ -6,9 +6,17 @@ import (
 )
 
 func TestNavigationHistory(t *testing.T) {
-	te := NewTestEditor(80, 24)
+	// Create editor with enough lines
+	content := ""
+	for i := 0; i < 20; i++ {
+		if i > 0 {
+			content += "\n"
+		}
+		content += fmt.Sprintf("Line %d", i)
+	}
+	te := NewTestEditorWithContent(80, 24, content)
 	
-	// Set initial position
+	// Set file path and position
 	te.buffer.FilePath = "test.go"
 	te.SetCursorPosition(5, 10)
 	
@@ -33,7 +41,15 @@ func TestNavigationHistory(t *testing.T) {
 }
 
 func TestNavigationHistoryMaxSize(t *testing.T) {
-	te := NewTestEditor(80, 24)
+	// Create editor with enough lines
+	content := ""
+	for i := 0; i < 60; i++ {
+		if i > 0 {
+			content += "\n"
+		}
+		content += fmt.Sprintf("Line %d", i)
+	}
+	te := NewTestEditorWithContent(80, 24, content)
 	te.buffer.FilePath = "test.go"
 	
 	// Push more entries than maxNavHistory
