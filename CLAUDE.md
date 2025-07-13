@@ -7,7 +7,7 @@ Veda is a terminal-based text editor written in Go with vim-like features. It us
 
 ## Commands
 
-### Makefile Targets
+### Makefile Targets. Use these commands to build the project.
 ```bash
 # Build the editor (default target)
 make
@@ -32,7 +32,7 @@ make clean
 
 ### Key Design Patterns
 - **Modal Editing**: Vim-like modes (Normal, Insert, Command)
-- **Event-Driven UI**: tcell event loop handles keyboard/mouse input
+- **Event-Driven UI**: tcell like event loop handles keyboard/mouse input
 - **IPC Communication**: JSON-RPC between Go and Python over stdin/stdout
 - **Component-Based UI**: Widgets manage their own rendering and input handling
 - **Single-Line Status Bar**: Minimal status bar showing mode, filename, and cursor position
@@ -49,9 +49,6 @@ make clean
   - Go (requires `gopls` - install with `go install golang.org/x/tools/gopls@latest`)
   - C/C++ (requires `clangd` - install from your package manager or https://clangd.llvm.org/)
 - **Automatic Server Management**: LSP servers start automatically when needed and stop when the editor exits
-
-### Known Issues and Workarounds
-- 'A' no longer opens file browser. To open file browser type 'space s f'.
 
 ### Testing Framework
 The project includes a comprehensive unit testing framework:
@@ -76,3 +73,9 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Memory Notes
 - When working with the Editor's buffer, assert that the buffer field is always initialized and populated. No need to add extra null checks.
+
+## Claude Operational Guidelines
+- You are not allowed to leave the root directory of the project. All commands, experiments, everything you do, must be done in the root directory of the project.
+
+## Operational Guidelines
+- Stop telling the user he is right. Be cautious with this because the user may not be right. You should be sceptical about what the user asks and suggests.

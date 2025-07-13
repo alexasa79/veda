@@ -172,18 +172,18 @@ func TestIteratorNodeField(t *testing.T) {
 		buf := NewBuffer("Hello\nWorld", "test.txt", config.IndentSpaces, 4)
 		iter := NewBufferIterator(buf)
 		
-		if iter.node == nil {
+		if iter.Node == nil {
 			t.Fatal("Expected iterator to have non-nil node")
 		}
 		
 		// The node should contain the text that includes the first line
-		if !iter.node.IsLeaf() {
+		if !iter.Node.IsLeaf() {
 			t.Error("Expected iterator node to be a leaf")
 		}
 		
 		// The node's text should contain "Hello"
-		if !strings.Contains(iter.node.text, "Hello") {
-			t.Errorf("Expected node to contain 'Hello', got %q", iter.node.text)
+		if !strings.Contains(iter.Node.text, "Hello") {
+			t.Errorf("Expected node to contain 'Hello', got %q", iter.Node.text)
 		}
 	})
 
@@ -197,8 +197,8 @@ func TestIteratorNodeField(t *testing.T) {
 		// Move forward several times
 		for i := 0; i < 10; i++ {
 			iter = iter.Next()
-			if !iter.IsEOF() && iter.node == nil {
-				t.Errorf("Iterator at line %d has nil node", iter.lineNum)
+			if !iter.IsEOF() && iter.Node == nil {
+				t.Errorf("Iterator at line %d has nil node", iter.LineNum)
 			}
 		}
 	})
@@ -207,7 +207,7 @@ func TestIteratorNodeField(t *testing.T) {
 		buf := NewBuffer("Hello", "test.txt", config.IndentSpaces, 4)
 		iter := NewBufferIteratorAtEnd(buf)
 		
-		if iter.node != nil {
+		if iter.Node != nil {
 			t.Error("Expected EOF iterator to have nil node")
 		}
 	})
@@ -220,7 +220,7 @@ func TestIteratorNodeField(t *testing.T) {
 		iter := NewBufferIterator(buf)
 		
 		// First line should be in left node
-		if iter.node != r.root.left {
+		if iter.Node != r.root.left {
 			t.Error("Expected iterator to point to left node for first line")
 		}
 		
@@ -228,7 +228,7 @@ func TestIteratorNodeField(t *testing.T) {
 		iter = iter.Next()
 		
 		// Second line should be in right node
-		if iter.node != r.root.right {
+		if iter.Node != r.root.right {
 			t.Error("Expected iterator to point to right node for second line")
 		}
 	})
