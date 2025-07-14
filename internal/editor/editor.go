@@ -541,7 +541,6 @@ func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
 func (e *Editor) drawEditor() {
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-	totalLines := e.buffer.LineCount
 
 	// Use cached line number width from buffer
 	lineNumberWidth := e.buffer.LineNumberWidth
@@ -555,17 +554,26 @@ func (e *Editor) drawEditor() {
 
 	// Start from the view iterator
 	iter := e.buffer.ViewIterator
-	for i := 0; i < visibleHeight && !iter.IsEOF(); i++ {
-		lineIndex := iter.LineNumber()
-
+	for i := 0; i < visibleHeight; i++ {
 		// First, fill the entire line with the normal background
 		for x := 0; x < width; x++ {
 			e.screen.SetContent(x, i, ' ', nil, normalStyle)
 		}
 
-		// Draw line number
-		lineNum := lineIndex + 1 // Line numbers start at 1
-		if lineNum <= totalLines {
+		// Special case: Empty buffer should still show line 1
+		if i == 0 && iter.IsEOF() && e.buffer.Rope.Length() == 0 {
+			// Draw line number 1 for empty buffer
+			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, 1)
+			e.drawText(0, i, lineNumberStyle, lineNumStr)
+
+			// Draw separator after line number
+			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
+			// No content to draw, but this represents the single empty line
+		} else if !iter.IsEOF() {
+			lineIndex := iter.LineNumber()
+			lineNum := lineIndex + 1 // Line numbers start at 1
+
+			// Draw line number
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
 			e.drawText(0, i, lineNumberStyle, lineNumStr)
 
@@ -574,15 +582,15 @@ func (e *Editor) drawEditor() {
 
 			// Draw the actual line content using iterator
 			e.drawLine(iter, lineNumberWidth, i)
+
+			// Move to next line
+			iter = iter.Next()
 		} else {
-			// For lines beyond the buffer, fill line number area
+			// For lines beyond the buffer, show tilde or fill line number area
 			for x := 0; x < lineNumberWidth; x++ {
 				e.screen.SetContent(x, i, ' ', nil, lineNumberStyle)
 			}
 		}
-
-		// Move to next line
-		iter = iter.Next()
 	}
 }
 
@@ -1034,7 +1042,7 @@ func (e *Editor) openLineBelow() error {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Move to end of current line
 	if !e.buffer.CursorIterator.IsEOF() {
 		line := e.buffer.CursorIterator.Line()
@@ -1050,7 +1058,7 @@ func (e *Editor) openLineBelow() error {
 	// Recreate iterators - cursor moves to next line
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Move cursor to beginning of new line
 	e.buffer.CursorX = 0
 
@@ -1068,7 +1076,7 @@ func (e *Editor) openLineAbove() error {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Move to beginning of current line
 	e.buffer.CursorX = 0
 
@@ -1082,7 +1090,7 @@ func (e *Editor) openLineAbove() error {
 	// because we inserted before the current position
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Cursor stays at beginning of line
 	e.buffer.CursorX = 0
 
@@ -1100,7 +1108,7 @@ func (e *Editor) insertChar(ch rune) error {
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	cursorX := e.buffer.CursorX
-	
+
 	// Calculate the absolute position in the buffer
 	pos := e.getAbsolutePosition()
 
@@ -1110,7 +1118,7 @@ func (e *Editor) insertChar(ch rune) error {
 	// Recreate iterators at the same line
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Move cursor forward
 	e.buffer.CursorX = cursorX + 1
 
@@ -1124,7 +1132,7 @@ func (e *Editor) insertNewline() error {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Get the absolute position
 	pos := e.getAbsolutePosition()
 
@@ -1136,7 +1144,7 @@ func (e *Editor) insertNewline() error {
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
 	// View iterator stays at its current line
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Move cursor to beginning of next line
 	e.buffer.CursorX = 0
 
@@ -1173,10 +1181,10 @@ func (e *Editor) backspace() error {
 			// Recreate iterators - cursor moves to previous line
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum-1)
 			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-			
+
 			// Position cursor at end of previous line
 			e.buffer.CursorX = prevLineLen
-			
+
 			// Update syntax highlighting
 			e.updateSyntaxHighlighting()
 		}
@@ -1189,10 +1197,10 @@ func (e *Editor) backspace() error {
 			// Recreate iterators at the same line
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-			
+
 			// Move cursor back one position
 			e.buffer.CursorX--
-			
+
 			// Update syntax highlighting
 			e.updateSyntaxHighlighting()
 		}
