@@ -37,6 +37,62 @@ func NewBufferIterator(buffer *Buffer) *BufferIterator {
 	return it
 }
 
+// NewBufferIteratorAtLine creates a new iterator at the beginning of the specified line
+func NewBufferIteratorAtLine(buffer *Buffer, lineNum int) *BufferIterator {
+	// Assert preconditions
+	utils.Assert(buffer.Rope != nil, "buffer.Rope is nil")
+	utils.Assert(buffer.Rope.root != nil, "buffer.Rope.root is nil")
+	utils.Assert(lineNum >= 0, fmt.Sprintf("line number %d is negative", lineNum))
+
+	// Start from the beginning and find the target line
+	// TODO: This is O(n) and should be optimized to O(log n) by storing newline counts in nodes
+	offset := 0
+	currentLine := 0
+	length := buffer.Rope.Length()
+
+	// Skip lines until we reach the target line
+	for offset < length && currentLine < lineNum {
+		if buffer.Rope.ByteAt(offset) == '\n' {
+			currentLine++
+		}
+		offset++
+	}
+
+	// If we went past EOF while looking for the line, the line doesn't exist
+	if currentLine < lineNum {
+		// Line number is beyond the last line
+		// Position at EOF
+		it := &BufferIterator{
+			Buffer:     buffer,
+			LineNum:    currentLine + 1, // Past the last line
+			Offset:     length,
+			Generation: buffer.Generation,
+		}
+		if buffer.Rope != nil && buffer.Rope.root != nil {
+			it.Node = getRightmostLeaf(buffer.Rope.root)
+		}
+		return it
+	}
+
+	// Create iterator at the found position
+	it := &BufferIterator{
+		Buffer:     buffer,
+		LineNum:    lineNum,
+		Offset:     offset,
+		Generation: buffer.Generation,
+	}
+
+	// Find the node containing this offset
+	if offset < length {
+		it.Node = it.findNodeAtOffset(offset)
+	} else {
+		// At EOF
+		it.Node = getRightmostLeaf(buffer.Rope.root)
+	}
+
+	return it
+}
+
 // NewBufferIteratorAtEnd creates a new iterator at the end of the buffer
 func NewBufferIteratorAtEnd(buffer *Buffer) *BufferIterator {
 	it := &BufferIterator{

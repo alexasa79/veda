@@ -1321,6 +1321,64 @@ func TestIteratorLogic(t *testing.T) {
 				}
 			})
 		})
+
+		t.Run("NewBufferIteratorAtLine", func(t *testing.T) {
+			buf := NewBuffer("Line 1\nLine 2\nLine 3\n", "test.txt", config.IndentSpaces, 4)
+			
+			testCases := []struct {
+				name       string
+				lineNum    int
+				expOffset  int
+				expLine    string
+				isEOF      bool
+			}{
+				{"first line", 0, 0, "Line 1", false},
+				{"second line", 1, 7, "Line 2", false},
+				{"third line", 2, 14, "Line 3", false},
+				{"empty line at end", 3, 21, "", true},  // Past the last newline
+				{"beyond last line", 4, 21, "", true},   // Line doesn't exist
+				{"way beyond last line", 100, 21, "", true},  // Far beyond EOF
+			}
+			
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					iter := NewBufferIteratorAtLine(buf, tc.lineNum)
+					
+					if iter.Offset != tc.expOffset {
+						t.Errorf("Expected offset %d, got %d", tc.expOffset, iter.Offset)
+					}
+					
+					if iter.LineNum != tc.lineNum && iter.LineNum <= 3 {
+						// For valid line numbers, LineNum should match
+						t.Errorf("Expected line number %d, got %d", tc.lineNum, iter.LineNum)
+					}
+					
+					if iter.IsEOF() != tc.isEOF {
+						t.Errorf("Expected IsEOF=%v, got %v", tc.isEOF, iter.IsEOF())
+					}
+					
+					if !tc.isEOF && iter.Line() != tc.expLine {
+						t.Errorf("Expected line %q, got %q", tc.expLine, iter.Line())
+					}
+				})
+			}
+			
+			// Test with buffer without trailing newline
+			t.Run("buffer without trailing newline", func(t *testing.T) {
+				buf2 := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+				
+				iter := NewBufferIteratorAtLine(buf2, 2)
+				if iter.Line() != "Line 3" {
+					t.Errorf("Expected 'Line 3', got %q", iter.Line())
+				}
+				
+				// Line 3 doesn't exist (no trailing newline)
+				iter = NewBufferIteratorAtLine(buf2, 3)
+				if !iter.IsEOF() {
+					t.Error("Expected EOF for non-existent line")
+				}
+			})
+		})
 	})
 }
 
