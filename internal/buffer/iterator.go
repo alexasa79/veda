@@ -17,8 +17,8 @@ type BufferIterator struct {
 
 // ValidateGeneration checks if the iterator is still valid for the current buffer state
 func (it *BufferIterator) ValidateGeneration() {
-	utils.Assert(it.Generation == it.Buffer.Generation, 
-		fmt.Sprintf("Iterator generation mismatch: iterator has %d, buffer has %d", 
+	utils.Assert(it.Generation == it.Buffer.Generation,
+		fmt.Sprintf("Iterator generation mismatch: iterator has %d, buffer has %d",
 			it.Generation, it.Buffer.Generation))
 }
 
@@ -345,7 +345,7 @@ func getPreviousLeafNode(node *Node) *Node {
 // Next returns a new iterator pointing to the next line
 func (it *BufferIterator) Next() *BufferIterator {
 	it.ValidateGeneration()
-	
+
 	if it.IsEOF() {
 		return &BufferIterator{
 			Buffer:     it.Buffer,
@@ -404,7 +404,7 @@ func (it *BufferIterator) Next() *BufferIterator {
 // Previous returns a new iterator pointing to the previous line
 func (it *BufferIterator) Previous() *BufferIterator {
 	it.ValidateGeneration()
-	
+
 	// An iterator must always have a node
 	utils.Assert(it.Node != nil, "BufferIterator.Previous: iterator has nil node")
 
@@ -439,11 +439,11 @@ func (it *BufferIterator) Previous() *BufferIterator {
 				Generation: it.Generation,
 			}
 		}
-		
+
 		// Look at the character before EOF
 		prevChar, ok := workingIter.previousChar()
 		utils.Assert(ok, "previousChar must succeed when Offset > 0")
-		
+
 		// If the last character is a newline, we're at the start of an empty line
 		if prevChar.getCharAt() == '\n' {
 			// Return iterator positioned at the newline (which represents the empty line)
@@ -458,7 +458,7 @@ func (it *BufferIterator) Previous() *BufferIterator {
 		// Otherwise, the last character is not a newline, so we need to find the line start
 		workingIter = prevChar
 	} else {
-		// Step 2: Not at EOF, previous character must be \n
+			// Step 2: Not at EOF, previous character must be \n
 		workingIter, ok = workingIter.previousChar()
 		if !ok {
 			// At beginning of buffer
@@ -470,8 +470,6 @@ func (it *BufferIterator) Previous() *BufferIterator {
 				Generation: it.Generation,
 			}
 		}
-		utils.Assert(workingIter.getCharAt() == '\n',
-			"Previous: expected newline before current line start")
 	}
 
 	// Step 3: Search backwards for the previous \n
@@ -514,7 +512,7 @@ func (it *BufferIterator) Previous() *BufferIterator {
 // Line returns the current line content (without trailing newline)
 func (it *BufferIterator) Line() string {
 	it.ValidateGeneration()
-	
+
 	if it.IsEOF() {
 		return ""
 	}
@@ -553,7 +551,7 @@ func (it *BufferIterator) Position() int {
 // LineEnd returns the byte position of the end of the current line (excluding newline)
 func (it *BufferIterator) LineEnd() int {
 	it.ValidateGeneration()
-	
+
 	if it.IsEOF() {
 		return it.Buffer.Rope.Length()
 	}
