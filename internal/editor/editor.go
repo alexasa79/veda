@@ -1032,116 +1032,117 @@ func (e *Editor) exitInsertMode() error {
 
 // openLineBelow opens a new line below the current line and enters insert mode
 func (e *Editor) openLineBelow() error {
-	// DISABLED FOR REFACTORING
-	// // Move to end of current line
-	// if !e.buffer.CursorIterator.IsEOF() {
-	// 	line := e.buffer.CursorIterator.Line()
-	// 	e.buffer.CursorX = len(line)
-	// }
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	
+	// Move to end of current line
+	if !e.buffer.CursorIterator.IsEOF() {
+		line := e.buffer.CursorIterator.Line()
+		e.buffer.CursorX = len(line)
+	}
 
-	// // Get absolute position at end of line
-	// pos := e.getAbsolutePosition()
+	// Get absolute position at end of line
+	pos := e.getAbsolutePosition()
 
-	// // Insert newline
-	// e.buffer.Insert(pos, "\n")
+	// Insert newline (this will invalidate iterators)
+	e.buffer.Insert(pos, "\n")
 
-	// // Move cursor to beginning of new line
-	// e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	// e.buffer.CursorX = 0
+	// Recreate iterators - cursor moves to next line
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	// Move cursor to beginning of new line
+	e.buffer.CursorX = 0
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
 
-	// // Mark buffer as modified (also updates line count)
-	// e.buffer.MarkModified()
-
-	// // Mark offsets as dirty
-	// e.buffer.OffsetsDirty = true
-
-
-	// // Update syntax highlighting
-	// e.updateSyntaxHighlighting()
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 
 	return nil
 }
 
 // openLineAbove opens a new line above the current line and enters insert mode
 func (e *Editor) openLineAbove() error {
-	// DISABLED FOR REFACTORING
-	// // Move to beginning of current line
-	// e.buffer.CursorX = 0
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	
+	// Move to beginning of current line
+	e.buffer.CursorX = 0
 
-	// // Get absolute position
-	// pos := e.getAbsolutePosition()
+	// Get absolute position
+	pos := e.getAbsolutePosition()
 
-	// // Insert newline before current position
-	// e.buffer.Insert(pos, "\n")
+	// Insert newline before current position (this will invalidate iterators)
+	e.buffer.Insert(pos, "\n")
 
-	// // Move cursor to the newly created line above
-	// // (cursor stays at same Y position, which is now the new empty line)
-	// e.buffer.CursorX = 0
+	// The cursor stays at the same line number (which is now the new empty line)
+	// because we inserted before the current position
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	// Cursor stays at beginning of line
+	e.buffer.CursorX = 0
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
 
-	// // Mark buffer as modified (also updates line count)
-	// e.buffer.MarkModified()
-
-	// // Mark offsets as dirty
-	// e.buffer.OffsetsDirty = true
-
-
-	// // Update syntax highlighting
-	// e.updateSyntaxHighlighting()
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 
 	return nil
 }
 
 func (e *Editor) insertChar(ch rune) error {
-	// DISABLED FOR REFACTORING
-	// // Calculate the absolute position in the buffer
-	// pos := e.getAbsolutePosition()
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	cursorX := e.buffer.CursorX
+	
+	// Calculate the absolute position in the buffer
+	pos := e.getAbsolutePosition()
 
-	// // Insert the character
-	// e.buffer.Insert(pos, string(ch))
+	// Insert the character (this will invalidate iterators)
+	e.buffer.Insert(pos, string(ch))
 
-	// // Move cursor forward
-	// e.buffer.CursorX++
+	// Recreate iterators at the same line
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	// Move cursor forward
+	e.buffer.CursorX = cursorX + 1
 
-	// // Mark buffer as modified (also updates line count)
-	// e.buffer.MarkModified()
-
-	// // Mark offsets as dirty
-	// e.buffer.OffsetsDirty = true
-
-
-	// // Update syntax highlighting
-	// e.updateSyntaxHighlighting()
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 
 	return nil
 }
 
 func (e *Editor) insertNewline() error {
-	// DISABLED FOR REFACTORING
-	// // Get the absolute position
-	// pos := e.getAbsolutePosition()
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	
+	// Get the absolute position
+	pos := e.getAbsolutePosition()
 
-	// // Insert newline
-	// e.buffer.Insert(pos, "\n")
+	// Insert newline
+	e.buffer.Insert(pos, "\n")
 
-	// // Move cursor to beginning of next line
-	// e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	// e.buffer.CursorX = 0
+	// Recreate iterators after buffer modification
+	// Cursor moves to next line
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
+	// View iterator stays at its current line
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	// Move cursor to beginning of next line
+	e.buffer.CursorX = 0
 
-	// // Mark buffer as modified (also updates line count)
-	// e.buffer.MarkModified()
-
-	// // Mark offsets as dirty
-	// e.buffer.OffsetsDirty = true
-
-
-	// // Update syntax highlighting
-	// e.updateSyntaxHighlighting()
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 
 	return nil
 }

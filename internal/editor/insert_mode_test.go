@@ -28,68 +28,64 @@ func TestInsertMode(t *testing.T) {
 		}
 	})
 	
-	// DISABLED FOR REFACTORING
-	// t.Run("insert single character", func(t *testing.T) {
-	// 	te := NewTestEditorWithContent(80, 24, "Hello")
-	// 	
-	// 	// Enter insert mode
-	// 	te.ExecuteCommand("enter-insert-mode")
-	// 	
-	// 	// Insert a character at the beginning
-	// 	te.InsertChar('X')
-	// 	AssertBufferEquals(t, te, "XHello")
-	// 	AssertCursorAt(t, te, 1, 0)
-	// })
+	t.Run("insert single character", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello")
+		
+		// Enter insert mode
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Insert a character at the beginning
+		te.InsertChar('X')
+		AssertBufferEquals(t, te, "XHello")
+		AssertCursorAt(t, te, 1, 0)
+	})
 	
-	// DISABLED FOR REFACTORING
-	// t.Run("insert multiple characters", func(t *testing.T) {
-	// 	te := NewTestEditorWithContent(80, 24, "World")
-	// 	
-	// 	// Enter insert mode
-	// 	te.ExecuteCommand("enter-insert-mode")
-	// 	
-	// 	// Insert "Hello, " at the beginning
-	// 	te.InsertChar('H')
-	// 	te.InsertChar('e')
-	// 	te.InsertChar('l')
-	// 	te.InsertChar('l')
-	// 	te.InsertChar('o')
-	// 	te.InsertChar(',')
-	// 	te.InsertChar(' ')
-	// 	
-	// 	AssertBufferEquals(t, te, "Hello, World")
-	// 	AssertCursorAt(t, te, 7, 0)
-	// })
+	t.Run("insert multiple characters", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "World")
+		
+		// Enter insert mode
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Insert "Hello, " at the beginning
+		te.InsertChar('H')
+		te.InsertChar('e')
+		te.InsertChar('l')
+		te.InsertChar('l')
+		te.InsertChar('o')
+		te.InsertChar(',')
+		te.InsertChar(' ')
+		
+		AssertBufferEquals(t, te, "Hello, World")
+		AssertCursorAt(t, te, 7, 0)
+	})
 	
-	// DISABLED FOR REFACTORING
-	// t.Run("insert in middle of line", func(t *testing.T) {
-	// 	te := NewTestEditorWithContent(80, 24, "Hello World")
-	// 	
-	// 	// Move cursor to position 5 (after "Hello")
-	// 	te.buffer.CursorX = 5
-	// 	
-	// 	// Enter insert mode and insert comma
-	// 	te.ExecuteCommand("enter-insert-mode")
-	// 	te.InsertChar(',')
-	// 	
-	// 	AssertBufferEquals(t, te, "Hello, World")
-	// 	AssertCursorAt(t, te, 6, 0)
-	// })
+	t.Run("insert in middle of line", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello World")
+		
+		// Move cursor to position 5 (after "Hello")
+		te.buffer.CursorX = 5
+		
+		// Enter insert mode and insert comma
+		te.ExecuteCommand("enter-insert-mode")
+		te.InsertChar(',')
+		
+		AssertBufferEquals(t, te, "Hello, World")
+		AssertCursorAt(t, te, 6, 0)
+	})
 	
-	// DISABLED FOR REFACTORING
-	// t.Run("insert newline", func(t *testing.T) {
-	// 	te := NewTestEditorWithContent(80, 24, "Hello World")
-	// 	
-	// 	// Move cursor to position 5 (after "Hello")
-	// 	te.buffer.CursorX = 5
-	// 	
-	// 	// Enter insert mode and insert newline
-	// 	te.ExecuteCommand("enter-insert-mode")
-	// 	te.ExecuteCommand("insert-newline")
-	// 	
-	// 	AssertBufferEquals(t, te, "Hello\n World")
-	// 	AssertCursorAt(t, te, 0, 1)
-	// })
+	t.Run("insert newline", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello World")
+		
+		// Move cursor to position 5 (after "Hello")
+		te.buffer.CursorX = 5
+		
+		// Enter insert mode and insert newline
+		te.ExecuteCommand("enter-insert-mode")
+		te.ExecuteCommand("insert-newline")
+		
+		AssertBufferEquals(t, te, "Hello\n World")
+		AssertCursorAt(t, te, 0, 1)
+	})
 	
 	// DISABLED FOR REFACTORING
 	// t.Run("backspace in insert mode", func(t *testing.T) {
@@ -128,20 +124,19 @@ func TestInsertMode(t *testing.T) {
 	// 	AssertCursorAt(t, te, 5, 0)
 	// })
 	
-	// DISABLED FOR REFACTORING
-	// t.Run("insert on empty buffer", func(t *testing.T) {
-	// 	te := NewTestEditorWithContent(80, 24, "")
-	// 	
-	// 	// Enter insert mode
-	// 	te.ExecuteCommand("enter-insert-mode")
-	// 	
-	// 	// Insert some text
-	// 	te.InsertChar('H')
-	// 	te.InsertChar('i')
-	// 	
-	// 	AssertBufferEquals(t, te, "Hi")
-	// 	AssertCursorAt(t, te, 2, 0)
-	// })
+	t.Run("insert on empty buffer", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "")
+		
+		// Enter insert mode
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Insert some text
+		te.InsertChar('H')
+		te.InsertChar('i')
+		
+		AssertBufferEquals(t, te, "Hi")
+		AssertCursorAt(t, te, 2, 0)
+	})
 	
 	// DISABLED FOR REFACTORING
 	// t.Run("cursor movement in insert mode", func(t *testing.T) {
