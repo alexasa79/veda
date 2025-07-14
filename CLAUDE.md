@@ -3,13 +3,14 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
-Veda is a terminal-based text editor written in Go with vim-like features. It uses a Python proxy process for file system operations and implements a rope data structure for efficient text manipulation.
+Veda is a terminal-based text editor written in Go with vim-like features. It uses a Python proxy process for file system operations and implements a rope data structure for efficient text manipulation. The compiled binary is named `vd`.
 
 ## Commands
 
-### Makefile Targets. Use these commands to build the project.
+### Makefile Targets
+- Use these commands to build the project:
 ```bash
-# Build the editor (default target)
+# Build the editor binary 'vd' (default target)
 make
 # or
 make all
@@ -17,7 +18,7 @@ make all
 # Run all tests
 make test
 
-# Clean build artifacts
+# Clean build artifacts (removes the 'vd' binary)
 make clean
 ```
 
@@ -45,7 +46,7 @@ make clean
 
 ### Language Server Protocol (LSP) Support
 - **Go to Definition**: Press 'g d' in normal mode to navigate to the definition of the symbol under the cursor
-- **Supported Languages**: 
+- **Supported Languages**:
   - Go (requires `gopls` - install with `go install golang.org/x/tools/gopls@latest`)
   - C/C++ (requires `clangd` - install from your package manager or https://clangd.llvm.org/)
 - **Automatic Server Management**: LSP servers start automatically when needed and stop when the editor exits
