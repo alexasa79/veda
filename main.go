@@ -19,5 +19,11 @@ func main() {
 	}
 	defer ed.Close()
 
+	// Check if a file was provided as command-line argument
+	if len(os.Args) > 1 {
+		filePath := os.Args[1]
+		ed.OpenFile(filePath)
+	}
+
 	ed.Run()
 }

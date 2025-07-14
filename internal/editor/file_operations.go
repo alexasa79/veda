@@ -68,6 +68,11 @@ func (e *Editor) showFuzzyListWidget() {
 	}
 }
 
+// OpenFile loads a file's content into the editor buffer (exported for main.go)
+func (e *Editor) OpenFile(filePath string) {
+	e.openFile(filePath)
+}
+
 // openFile loads a file's content into the editor buffer
 func (e *Editor) openFile(filePath string) {
 	// First save the current buffer state

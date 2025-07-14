@@ -83,3 +83,6 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Permissions and Capabilities
 - You are allowed to run ls commands.
+
+## Proxy Implementation Notes
+- All access to the file is implemented via proxy process. The proxy is written in Python. It has a client side implemented in proxy.go.
