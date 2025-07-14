@@ -163,6 +163,91 @@ func getLeftmostLeaf(node *Node) *Node {
 	return current
 }
 
+// getCharAt returns the character at the iterator's current position
+func (it *BufferIterator) getCharAt() byte {
+	utils.Assert(it.Node != nil && it.Node.IsLeaf(), "getCharAt: iterator must point to a leaf node")
+	positionInNode := it.Offset - it.Node.offset
+	utils.Assert(positionInNode >= 0, "getCharAt: position in node must be >= 0")
+	utils.Assert(positionInNode < len(it.Node.text), "getCharAt: position in node must be < text length")
+	return it.Node.text[positionInNode]
+}
+
+// nextChar returns a new iterator moved forward one character
+// Returns the new iterator and true if successful, or current iterator and false if at end of buffer
+func (it *BufferIterator) nextChar() (BufferIterator, bool) {
+	// Check if we're at the end of the buffer
+	if it.Offset >= it.Buffer.Rope.Length() {
+		return *it, false
+	}
+
+	// First increment the offset
+	newOffset := it.Offset + 1
+
+	// If the new offset is beyond the current node, move to next node
+	if newOffset >= it.Node.offset + len(it.Node.text) {
+		nextNode := getNextLeafNode(it.Node)
+		if nextNode == nil {
+			// At end of nodes but maybe not at end of buffer
+			return BufferIterator{
+				Buffer:  it.Buffer,
+				LineNum: it.LineNum,
+				Offset:  newOffset,
+				Node:    it.Node,
+			}, newOffset <= it.Buffer.Rope.Length()
+		}
+		// Move to the next node
+		return BufferIterator{
+			Buffer:  it.Buffer,
+			LineNum: it.LineNum,
+			Offset:  newOffset,
+			Node:    nextNode,
+		}, true
+	}
+
+	// Stay in current node
+	return BufferIterator{
+		Buffer:  it.Buffer,
+		LineNum: it.LineNum,
+		Offset:  newOffset,
+		Node:    it.Node,
+	}, true
+}
+
+// previousChar returns a new iterator moved backwards one character
+// Returns the new iterator and true if successful, or current iterator and false if at beginning of buffer
+func (it *BufferIterator) previousChar() (BufferIterator, bool) {
+	nodeStartOffset := it.Node.offset
+	positionInNode := it.Offset - nodeStartOffset
+
+	// If we're at the beginning of current node, move to previous node
+	if positionInNode <= 0 {
+		prevNode := getPreviousLeafNode(it.Node)
+		if prevNode == nil {
+			// Reached beginning of buffer
+			return BufferIterator{
+				Buffer:  it.Buffer,
+				LineNum: it.LineNum,
+				Offset:  0,
+				Node:    it.Node,
+			}, false
+		}
+		return BufferIterator{
+			Buffer:  it.Buffer,
+			LineNum: it.LineNum,
+			Offset:  prevNode.offset + len(prevNode.text) - 1,
+			Node:    prevNode,
+		}, true
+	}
+
+	// Move back one character in current node
+	return BufferIterator{
+		Buffer:  it.Buffer,
+		LineNum: it.LineNum,
+		Offset:  it.Offset - 1,
+		Node:    it.Node,
+	}, true
+}
+
 // getPreviousLeafNode returns the previous leaf node in in-order traversal
 func getPreviousLeafNode(node *Node) *Node {
 	if node == nil {
@@ -196,72 +281,45 @@ func (it *BufferIterator) Next() *BufferIterator {
 		}
 	}
 
-	// An iterator must always have a node (unless at EOF)
-	if it.Node == nil {
-		panic("BufferIterator.Next: iterator has nil node but is not at EOF")
-	}
-
-	// Start from current position
-	currentNode := it.Node
+	// An iterator must always have a node
+	utils.Assert(it.Node != nil, "BufferIterator.Next: iterator has nil node but is not at EOF")
 	// Iterator must always point to a leaf node
-	utils.Assert(currentNode.IsLeaf(), "BufferIterator.Next: iterator node must be a leaf")
-	nodeStartOffset := currentNode.offset
-	positionInNode := it.Offset - nodeStartOffset
-	currentOffset := it.Offset
+	utils.Assert(it.Node.IsLeaf(), "BufferIterator.Next: iterator node must be a leaf")
+
+	// Create a working copy of the iterator
+	workingIter := *it
+	var ok bool
 
 	// Search for newline character by character
 	for {
-		// If we're at the end of current node
-		if positionInNode >= len(currentNode.text) {
-			// Move to next node
-			nextNode := getNextLeafNode(currentNode)
-			if nextNode == nil {
-				// Assert that we are at the end of the buffer
-				utils.Assert(currentOffset == it.Buffer.Rope.Length(), "reached end of nodes but not at end of buffer")
-
-				// Reached end of buffer - stay on last node
+		// Check character at current position
+		if workingIter.Offset < it.Buffer.Rope.Length() && workingIter.getCharAt() == '\n' {
+			// Found newline, move past it
+			workingIter, ok = workingIter.nextChar()
+			if !ok {
+				// Reached end of buffer after newline
 				return &BufferIterator{
 					Buffer:  it.Buffer,
 					LineNum: it.LineNum + 1,
 					Offset:  it.Buffer.Rope.Length(),
-					Node:    currentNode, // Keep the last node
+					Node:    workingIter.Node,
 				}
 			}
-			currentNode = nextNode
-			nodeStartOffset = currentNode.offset
-			positionInNode = 0
-			currentOffset = nodeStartOffset
+			workingIter.LineNum = it.LineNum + 1
+			return &workingIter
 		}
 
-		// Check character at current position
-		if positionInNode < len(currentNode.text) {
-			if currentNode.text[positionInNode] == '\n' {
-				// Move past the newline
-				positionInNode++
-				currentOffset++
-
-				// Check if we need to move to the next node after the newline
-				if positionInNode >= len(currentNode.text) {
-					nextNode := getNextLeafNode(currentNode)
-					if nextNode != nil {
-						currentNode = nextNode
-						// Keep the currentOffset we calculated, don't reset it
-					}
-					// If nextNode is nil, we're at EOF but stay on current node
-				}
-				break
+		// Move to next character
+		workingIter, ok = workingIter.nextChar()
+		if !ok {
+			// Reached end of buffer without finding newline
+			return &BufferIterator{
+				Buffer:  it.Buffer,
+				LineNum: it.LineNum + 1,
+				Offset:  it.Buffer.Rope.Length(),
+				Node:    workingIter.Node,
 			}
-			// Move to next character
-			positionInNode++
-			currentOffset++
 		}
-	}
-
-	return &BufferIterator{
-		Buffer:  it.Buffer,
-		LineNum: it.LineNum + 1,
-		Offset:  currentOffset,
-		Node:    currentNode,
 	}
 }
 
@@ -280,68 +338,82 @@ func (it *BufferIterator) Previous() *BufferIterator {
 		}
 	}
 
-	// Start from current position
-	currentNode := it.Node
-	// Iterator must always point to a leaf node
-	utils.Assert(currentNode.IsLeaf(), "BufferIterator.Previous: iterator node must be a leaf")
-	nodeStartOffset := currentNode.offset
-	positionInNode := it.Offset - nodeStartOffset
-	currentOffset := it.Offset
+	// Create a working copy of the iterator
+	workingIter := *it
+	var ok bool
 
-	// Search backwards for newline character by character
-	for {
-		// If we're at the beginning of current node
-		if positionInNode <= 0 {
-			// Move to previous node
-			prevNode := getPreviousLeafNode(currentNode)
-			if prevNode == nil {
-				// Assert that we are at the beginning of the buffer
-				utils.Assert(currentOffset == 0, "reached beginning of nodes but not at beginning of buffer")
-
-				// Reached beginning of buffer - stay at position 0
+	// Step 1: Handle EOF case
+	if workingIter.IsEOF() {
+		workingIter, ok = workingIter.previousChar()
+		if !ok {
+			// At beginning of buffer
+			return &BufferIterator{
+				Buffer:  it.Buffer,
+				LineNum: 0,
+				Offset:  0,
+				Node:    workingIter.Node,
+			}
+		}
+		// If the character before EOF is \n, move back one more
+		if workingIter.getCharAt() == '\n' {
+			workingIter, ok = workingIter.previousChar()
+			if !ok {
+				// At beginning of buffer
 				return &BufferIterator{
 					Buffer:  it.Buffer,
 					LineNum: 0,
 					Offset:  0,
-					Node:    currentNode,
+					Node:    workingIter.Node,
 				}
 			}
-			currentNode = prevNode
-			nodeStartOffset = currentNode.offset
-			positionInNode = len(currentNode.text)
-			currentOffset = nodeStartOffset + positionInNode
 		}
-
-		// Move back one character
-		positionInNode--
-		currentOffset--
-
-		// Check character at current position
-		if positionInNode >= 0 && positionInNode < len(currentNode.text) {
-			if currentNode.text[positionInNode] == '\n' {
-				// Found newline! The previous line starts after this newline
-				positionInNode++
-				currentOffset++
-
-				// Check if we need to move to the next node after the newline
-				if positionInNode >= len(currentNode.text) {
-					nextNode := getNextLeafNode(currentNode)
-					if nextNode != nil {
-						currentNode = nextNode
-						// Keep the currentOffset we calculated, don't reset it
-					}
-					// If nextNode is nil, we stay on current node
-				}
-				break
+	} else {
+		// Step 2: Not at EOF, previous character must be \n
+		workingIter, ok = workingIter.previousChar()
+		if !ok {
+			// At beginning of buffer
+			return &BufferIterator{
+				Buffer:  it.Buffer,
+				LineNum: 0,
+				Offset:  0,
+				Node:    workingIter.Node,
 			}
 		}
+		utils.Assert(workingIter.getCharAt() == '\n',
+			"Previous: expected newline before current line start")
 	}
 
-	return &BufferIterator{
-		Buffer:  it.Buffer,
-		LineNum: it.LineNum - 1,
-		Offset:  currentOffset,
-		Node:    currentNode,
+	// Step 3: Search backwards for the previous \n
+	for {
+		// Move to previous character
+		workingIter, ok = workingIter.previousChar()
+		if !ok {
+			// Reached beginning, return start of buffer
+			return &BufferIterator{
+				Buffer:  it.Buffer,
+				LineNum: 0,
+				Offset:  0,
+				Node:    workingIter.Node,
+			}
+		}
+
+		// Check if this character is a newline
+		if workingIter.getCharAt() == '\n' {
+			// Found the newline, move forward one character to get start of line
+			nextIter, ok := workingIter.nextChar()
+			if !ok {
+				// At end of buffer after newline, return position after the newline
+				nextIter = BufferIterator{
+					Buffer:  it.Buffer,
+					LineNum: it.LineNum - 1,
+					Offset:  workingIter.Offset + 1,
+					Node:    workingIter.Node,
+				}
+			} else {
+				nextIter.LineNum = it.LineNum - 1
+			}
+			return &nextIter
+		}
 	}
 }
 

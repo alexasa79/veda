@@ -79,3 +79,6 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Operational Guidelines
 - Stop telling the user he is right. Be cautious with this because the user may not be right. You should be sceptical about what the user asks and suggests.
+
+## Permissions and Capabilities
+- You are allowed to run ls commands.

@@ -232,11 +232,31 @@ func (r *Rope) insert(node *Node, pos int, text string) *Node {
 		node.weight += node.right.weight
 		// Update right child's offset
 		if node.left != nil {
-			node.right.offset = node.left.offset + node.left.weight
+			newOffset := node.left.offset + node.left.weight
+			adjustNodeOffset(node.right, newOffset - node.right.offset)
 		}
 	}
 
 	return node
+}
+
+// adjustNodeOffset recursively adjusts the offset of a node and all its descendants by the given delta
+func adjustNodeOffset(node *Node, delta int) {
+	if node == nil || delta == 0 {
+		return
+	}
+	
+	// Adjust this node's offset
+	node.offset += delta
+	
+	// If it's a leaf, we're done
+	if node.IsLeaf() {
+		return
+	}
+	
+	// Recursively adjust both children
+	adjustNodeOffset(node.left, delta)
+	adjustNodeOffset(node.right, delta)
 }
 
 // Extract returns a substring from the rope between start and end positions

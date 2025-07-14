@@ -203,18 +203,32 @@ func TestIteratorNodeField(t *testing.T) {
 		}
 	})
 
-	t.Run("iterator node is nil at EOF", func(t *testing.T) {
+	t.Run("iterator node points to last leaf at EOF", func(t *testing.T) {
 		buf := NewBuffer("Hello", "test.txt", config.IndentSpaces, 4)
 		iter := NewBufferIteratorAtEnd(buf)
 		
-		if iter.Node != nil {
-			t.Error("Expected EOF iterator to have nil node")
+		if iter.Node == nil {
+			t.Fatal("Expected EOF iterator to have non-nil node")
+		}
+		
+		if !iter.Node.IsLeaf() {
+			t.Error("Expected EOF iterator to point to a leaf node")
+		}
+		
+		// The node should be the last (rightmost) node in the rope
+		if iter.Node.text != "Hello" {
+			t.Errorf("Expected EOF iterator to point to node with 'Hello', got %q", iter.Node.text)
 		}
 	})
 
 	t.Run("iterator finds correct node for offset", func(t *testing.T) {
 		// Create a rope with known structure
-		r := &Rope{root: NewConcatNode(NewLeaf("Hello\n"), NewLeaf("World\n"))}
+		left := NewLeaf("Hello\n")
+		right := NewLeaf("World\n")
+		left.offset = 0
+		right.offset = 6
+		root := NewConcatNode(left, right)
+		r := &Rope{root: root}
 		buf := &Buffer{Rope: r}
 		
 		iter := NewBufferIterator(buf)
