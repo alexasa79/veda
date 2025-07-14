@@ -209,3 +209,10 @@ func (b *Buffer) Insert(pos int, text string) {
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
 }
+
+// Delete removes characters between start and end positions and increments the generation
+func (b *Buffer) Delete(start, end int) {
+	b.Rope.Delete(start, end)
+	b.Generation++ // Increment generation when buffer is modified
+	b.MarkModified()
+}

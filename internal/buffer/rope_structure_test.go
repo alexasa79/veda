@@ -356,3 +356,160 @@ func TestExtract(t *testing.T) {
 		}
 	})
 }
+
+// TestDelete tests the rope Delete operation
+func TestDelete(t *testing.T) {
+	t.Run("delete from single leaf", func(t *testing.T) {
+		r := NewRopeFromString("Hello World")
+		
+		// Delete "World"
+		r.Delete(6, 11)
+		if got := r.String(); got != "Hello " {
+			t.Errorf("Expected 'Hello ', got %q", got)
+		}
+		
+		// Delete space
+		r.Delete(5, 6)
+		if got := r.String(); got != "Hello" {
+			t.Errorf("Expected 'Hello', got %q", got)
+		}
+		
+		// Delete from beginning
+		r.Delete(0, 2)
+		if got := r.String(); got != "llo" {
+			t.Errorf("Expected 'llo', got %q", got)
+		}
+	})
+
+	t.Run("delete entire content", func(t *testing.T) {
+		r := NewRopeFromString("Test String")
+		r.Delete(0, r.Length())
+		if got := r.String(); got != "" {
+			t.Errorf("Expected empty string, got %q", got)
+		}
+	})
+
+	t.Run("delete from split rope", func(t *testing.T) {
+		// Create a rope that will split into multiple nodes
+		content := strings.Repeat("Hello World ", 100)
+		r := NewRopeFromString(content)
+		
+		// Delete from middle
+		r.Delete(50, 100)
+		result := r.String()
+		expected := content[:50] + content[100:]
+		if result != expected {
+			t.Errorf("Delete from middle failed")
+		}
+	})
+
+	t.Run("delete across nodes", func(t *testing.T) {
+		// Create a large rope to ensure multiple nodes
+		part1 := strings.Repeat("A", 2000)
+		part2 := strings.Repeat("B", 2000)
+		part3 := strings.Repeat("C", 2000)
+		content := part1 + part2 + part3
+		r := NewRopeFromString(content)
+		
+		// Delete from middle of part1 to middle of part3
+		r.Delete(1000, 5000)
+		result := r.String()
+		expected := part1[:1000] + part3[1000:]
+		if result != expected {
+			t.Errorf("Delete across nodes failed, got length %d, expected %d", len(result), len(expected))
+		}
+	})
+
+	t.Run("delete edge cases", func(t *testing.T) {
+		r := NewRopeFromString("Test")
+		
+		// Invalid range (start >= end)
+		r.Delete(2, 2)
+		if got := r.String(); got != "Test" {
+			t.Errorf("Expected 'Test' for empty range, got %q", got)
+		}
+		
+		// Invalid range (start > end)
+		r.Delete(3, 1)
+		if got := r.String(); got != "Test" {
+			t.Errorf("Expected 'Test' for invalid range, got %q", got)
+		}
+		
+		// Out of bounds
+		r.Delete(10, 20)
+		if got := r.String(); got != "Test" {
+			t.Errorf("Expected 'Test' for out of bounds, got %q", got)
+		}
+		
+		// Negative start
+		r.Delete(-1, 2)
+		if got := r.String(); got != "Test" {
+			t.Errorf("Expected 'Test' for negative start, got %q", got)
+		}
+	})
+
+	t.Run("delete preserves structure", func(t *testing.T) {
+		// Create a rope properly with NewRopeFromString to ensure offsets are set
+		r := NewRopeFromString("Hello World!")
+		
+		// Delete part of the string
+		r.Delete(8, 11) // Delete "rld"
+		if got := r.String(); got != "Hello Wo!" {
+			t.Errorf("Expected 'Hello Wo!', got %q", got)
+		}
+		
+		// Verify the length is correct
+		if r.Length() != 9 {
+			t.Errorf("Expected length 9, got %d", r.Length())
+		}
+	})
+
+	t.Run("delete with newlines", func(t *testing.T) {
+		r := NewRopeFromString("Line1\nLine2\nLine3")
+		
+		// Delete middle line with its newline
+		r.Delete(5, 12) // Delete "\nLine2\n"
+		if got := r.String(); got != "Line1Line3" {
+			t.Errorf("Expected 'Line1Line3', got %q", got)
+		}
+	})
+
+	t.Run("delete updates offsets correctly", func(t *testing.T) {
+		// Create a larger rope to test offset updates
+		content := "AAABBBCCC"
+		r := NewRopeFromString(content)
+		
+		// Force split by inserting at multiple positions
+		r.Insert(3, "XXX")
+		r.Insert(9, "YYY")
+		// Now we have "AAAXXXBBBYYYCCC"
+		
+		// Delete the insertions
+		r.Delete(3, 6)  // Remove XXX
+		// Now we have "AAABBBYYYCCC"
+		r.Delete(6, 9)  // Remove YYY
+		// Should be back to "AAABBBCCC"
+		
+		if got := r.String(); got != content {
+			t.Errorf("Expected %q, got %q", content, got)
+		}
+	})
+
+	t.Run("delete entire nodes", func(t *testing.T) {
+		// Create rope with multiple nodes
+		texts := []string{
+			strings.Repeat("A", 1000),
+			strings.Repeat("B", 1000),
+			strings.Repeat("C", 1000),
+		}
+		content := strings.Join(texts, "")
+		r := NewRopeFromString(content)
+		
+		// Delete entire middle section
+		r.Delete(1000, 2000)
+		expected := texts[0] + texts[2]
+		if got := r.String(); got != expected {
+			t.Errorf("Expected length %d, got %d", len(expected), len(got))
+		}
+	})
+}

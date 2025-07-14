@@ -144,10 +144,9 @@ func (e *Editor) Run() {
 					}
 					needsRedraw = cmdNeedsRedraw
 				} else if e.mode == commands.InsertMode && ev.Key == ui.KeyRune {
-					// DISABLED FOR REFACTORING
 					// In insert mode, insert unmapped rune keys
-					// e.insertChar(ev.Rune)
-					// needsRedraw = true
+					e.insertChar(ev.Rune)
+					needsRedraw = true
 				}
 			}
 		case *ui.EventResize:
@@ -1148,58 +1147,56 @@ func (e *Editor) insertNewline() error {
 }
 
 func (e *Editor) backspace() error {
-	// DISABLED FOR REFACTORING
-	// // If at beginning of buffer, nothing to delete
-	// if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
-	// 	return nil
-	// }
+	// If at beginning of buffer, nothing to delete
+	if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
+		return nil
+	}
 
-	// pos := e.getAbsolutePosition()
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	pos := e.getAbsolutePosition()
 
-	// if e.buffer.CursorX == 0 {
-	// 	// At beginning of line, join with previous line
-	// 	if pos > 0 {
-	// 		// Store the length of the previous line before joining
-	// 		prevIter := e.buffer.CursorIterator.Previous()
-	// 		prevLineLen := 0
-	// 		if !prevIter.Equals(e.buffer.CursorIterator) {
-	// 			prevLineLen = len(prevIter.Line())
-	// 		}
+	if e.buffer.CursorX == 0 {
+		// At beginning of line, join with previous line
+		if pos > 0 {
+			// Store the length of the previous line before joining
+			prevIter := e.buffer.CursorIterator.Previous()
+			prevLineLen := 0
+			if !prevIter.Equals(e.buffer.CursorIterator) {
+				prevLineLen = len(prevIter.Line())
+			}
 
-	// 		// For now, we'll implement a simple delete by recreating the buffer
-	// 		// TODO: Add proper Delete method to buffer
-	// 		content := e.buffer.String()
-	// 		if pos-1 < len(content) {
-	// 			newContent := content[:pos-1] + content[pos:]
-	// 			e.buffer.Rope = buffer.NewRopeFromString(newContent)
-	// 			e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
-	// 			e.buffer.CursorX = prevLineLen
-	// 			// Mark buffer as modified (also updates line count)
-	// 			e.buffer.MarkModified()
-	// 			// Update syntax highlighting
-	// 			e.updateSyntaxHighlighting()
-	// 		}
-	// 	}
-	// } else {
-	// 	// Delete character before cursor
-	// 	if pos > 0 {
-	// 		// For now, we'll implement a simple delete by recreating the buffer
-	// 		// TODO: Add proper Delete method to buffer
-	// 		content := e.buffer.String()
-	// 		if pos-1 < len(content) {
-	// 			newContent := content[:pos-1] + content[pos:]
-	// 			e.buffer.Rope = buffer.NewRopeFromString(newContent)
-	// 			e.buffer.CursorX--
-	// 			// Mark buffer as modified (also updates line count)
-	// 			e.buffer.MarkModified()
-	// 			// Update syntax highlighting
-	// 			e.updateSyntaxHighlighting()
-	// 		}
-	// 	}
-	// }
+			// Delete the newline character before current position
+			e.buffer.Delete(pos-1, pos)
 
-	// // Mark offsets as dirty
-	// e.buffer.OffsetsDirty = true
+			// Recreate iterators - cursor moves to previous line
+			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum-1)
+			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+			
+			// Position cursor at end of previous line
+			e.buffer.CursorX = prevLineLen
+			
+			// Update syntax highlighting
+			e.updateSyntaxHighlighting()
+		}
+	} else {
+		// Delete character before cursor
+		if pos > 0 {
+			// Delete one character before cursor position
+			e.buffer.Delete(pos-1, pos)
+
+			// Recreate iterators at the same line
+			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+			
+			// Move cursor back one position
+			e.buffer.CursorX--
+			
+			// Update syntax highlighting
+			e.updateSyntaxHighlighting()
+		}
+	}
 
 	return nil
 }

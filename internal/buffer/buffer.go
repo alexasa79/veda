@@ -330,3 +330,106 @@ func (r *Rope) extractRange(node *Node, start, end int, result *strings.Builder)
 		r.extractRange(node.right, rightStart, end-leftWeight, result)
 	}
 }
+
+// Delete removes characters from the rope between start and end positions.
+func (r *Rope) Delete(start, end int) {
+	if start >= end || start < 0 || end > r.Length() {
+		return
+	}
+	
+	r.root = r.delete(r.root, start, end)
+}
+
+// delete recursively removes characters between start and end positions
+func (r *Rope) delete(node *Node, start, end int) *Node {
+	if node == nil || start >= end {
+		return node
+	}
+	
+	if node.IsLeaf() {
+		// Delete from leaf
+		nodeLen := len(node.text)
+		
+		// If deletion covers entire leaf, return nil to remove this node
+		if start <= 0 && end >= nodeLen {
+			return nil
+		}
+		
+		// Partial deletion
+		newText := ""
+		if start > 0 {
+			newText += node.text[:start]
+		}
+		if end < nodeLen {
+			newText += node.text[end:]
+		}
+		
+		if newText == "" {
+			return nil // Empty leaf, remove it
+		}
+		
+		// Create new leaf with remaining text
+		newLeaf := NewLeaf(newText)
+		newLeaf.offset = node.offset
+		newLeaf.parent = node.parent
+		return newLeaf
+	}
+	
+	// Internal node
+	leftWeight := 0
+	if node.left != nil {
+		leftWeight = node.left.weight
+	}
+	
+	// Process left subtree if needed
+	if start < leftWeight {
+		leftEnd := end
+		if leftEnd > leftWeight {
+			leftEnd = leftWeight
+		}
+		node.left = r.delete(node.left, start, leftEnd)
+		if node.left != nil {
+			node.left.parent = node
+		}
+	}
+	
+	// Process right subtree if needed
+	if end > leftWeight {
+		rightStart := 0
+		if start > leftWeight {
+			rightStart = start - leftWeight
+		}
+		node.right = r.delete(node.right, rightStart, end-leftWeight)
+		if node.right != nil {
+			node.right.parent = node
+			// Update right offset
+			if node.left != nil {
+				node.right.offset = node.left.offset + node.left.weight
+			} else {
+				node.right.offset = node.offset
+			}
+		}
+	}
+	
+	// Update node weight
+	node.weight = 0
+	if node.left != nil {
+		node.weight += node.left.weight
+	}
+	if node.right != nil {
+		node.weight += node.right.weight
+	}
+	
+	// Handle empty nodes
+	if node.left == nil && node.right == nil {
+		return nil
+	}
+	if node.left == nil {
+		return node.right
+	}
+	if node.right == nil {
+		return node.left
+	}
+	
+	return node
+}
