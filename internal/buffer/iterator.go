@@ -368,10 +368,13 @@ func (it *BufferIterator) Previous() *BufferIterator {
 	var ok bool
 
 	// Step 1: Handle EOF case
+	// When at EOF, we need to determine which line to land on:
+	// - "11\n22" (EOF at pos 5) -> Previous should go to start of "22" (pos 3)
+	// - "11\n22\n" (EOF at pos 6) -> Previous should go to empty line (pos 6)
+	// - "11\n22\n\n" (EOF at pos 7) -> Previous should go to empty line after "22" (pos 6)
 	if workingIter.IsEOF() {
-		workingIter, ok = workingIter.previousChar()
-		if !ok {
-			// At beginning of buffer
+		// First check if buffer is empty or we're at the very beginning
+		if workingIter.Offset == 0 {
 			return &BufferIterator{
 				Buffer:     it.Buffer,
 				LineNum:    0,
@@ -380,19 +383,24 @@ func (it *BufferIterator) Previous() *BufferIterator {
 				Generation: it.Generation,
 			}
 		}
-		// If the character before EOF is \n, move back one more
-		if workingIter.getCharAt() == '\n' {
-			workingIter, ok = workingIter.previousChar()
-			if !ok {
-				// At beginning of buffer
-				return &BufferIterator{
-					Buffer:  it.Buffer,
-					LineNum: 0,
-					Offset:  0,
-					Node:    workingIter.Node,
-				}
+		
+		// Look at the character before EOF
+		prevChar, ok := workingIter.previousChar()
+		utils.Assert(ok, "previousChar must succeed when Offset > 0")
+		
+		// If the last character is a newline, we're at the start of an empty line
+		if prevChar.getCharAt() == '\n' {
+			// Return iterator positioned at the newline (which represents the empty line)
+			return &BufferIterator{
+				Buffer:     it.Buffer,
+				LineNum:    it.LineNum - 1,     // Adjust line number
+				Offset:     it.Offset - 1,       // Position at the newline character
+				Node:       prevChar.Node,       // Use the node containing the \n
+				Generation: it.Generation,
 			}
 		}
+		// Otherwise, the last character is not a newline, so we need to find the line start
+		workingIter = prevChar
 	} else {
 		// Step 2: Not at EOF, previous character must be \n
 		workingIter, ok = workingIter.previousChar()

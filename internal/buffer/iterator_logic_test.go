@@ -1244,6 +1244,83 @@ func TestIteratorLogic(t *testing.T) {
 				t.Error("Previous from line 1: content mismatch")
 			}
 		})
+
+		t.Run("Previous from EOF with different line endings", func(t *testing.T) {
+			// Test the three cases we documented in the Previous() method
+			
+			// Case 1: "11\n22" - buffer doesn't end with newline
+			t.Run("buffer without trailing newline", func(t *testing.T) {
+				buf := NewBuffer("11\n22", "test.txt", config.IndentSpaces, 4)
+				iter := NewBufferIteratorAtEnd(buf)
+				
+				// Should be at EOF (position 5)
+				if iter.Offset != 5 {
+					t.Errorf("Expected EOF at offset 5, got %d", iter.Offset)
+				}
+				
+				prev := iter.Previous()
+				// Should land at start of "22" (position 3)
+				if prev.Offset != 3 {
+					t.Errorf("Expected offset 3, got %d", prev.Offset)
+				}
+				if prev.Line() != "22" {
+					t.Errorf("Expected line '22', got %q", prev.Line())
+				}
+			})
+			
+			// Case 2: "11\n22\n" - buffer ends with single newline
+			t.Run("buffer with trailing newline", func(t *testing.T) {
+				buf := NewBuffer("11\n22\n", "test.txt", config.IndentSpaces, 4)
+				iter := NewBufferIteratorAtEnd(buf)
+				
+				// Should be at EOF (position 6)
+				if iter.Offset != 6 {
+					t.Errorf("Expected EOF at offset 6, got %d", iter.Offset)
+				}
+				
+				prev := iter.Previous()
+				// Should land at the newline character that represents the empty line
+				if prev.Offset != 5 {
+					t.Errorf("Expected offset 5 (newline position), got %d", prev.Offset)
+				}
+				if prev.Line() != "" {
+					t.Errorf("Expected empty line, got %q", prev.Line())
+				}
+				if prev.IsEOF() {
+					t.Error("Iterator should not be at EOF when on empty line")
+				}
+			})
+			
+			// Case 3: "11\n22\n\n" - buffer ends with multiple newlines
+			t.Run("buffer with multiple trailing newlines", func(t *testing.T) {
+				buf := NewBuffer("11\n22\n\n", "test.txt", config.IndentSpaces, 4)
+				iter := NewBufferIteratorAtEnd(buf)
+				
+				// Should be at EOF (position 7)
+				if iter.Offset != 7 {
+					t.Errorf("Expected EOF at offset 7, got %d", iter.Offset)
+				}
+				
+				prev := iter.Previous()
+				// Should land at second empty line (position 6)
+				if prev.Offset != 6 {
+					t.Errorf("Expected offset 6, got %d", prev.Offset)
+				}
+				if prev.Line() != "" {
+					t.Errorf("Expected empty line, got %q", prev.Line())
+				}
+				
+				// Go back one more time
+				prev2 := prev.Previous()
+				// Should land at "22" (position 3)
+				if prev2.Offset != 3 {
+					t.Errorf("Expected offset 3, got %d", prev2.Offset)
+				}
+				if prev2.Line() != "22" {
+					t.Errorf("Expected line '22', got %q", prev2.Line())
+				}
+			})
+		})
 	})
 }
 
