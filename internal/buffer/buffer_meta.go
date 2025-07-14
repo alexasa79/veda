@@ -9,26 +9,29 @@ import (
 // Buffer represents a complete text buffer with metadata
 type Buffer struct {
 	*Rope // Embed the rope data structure
-	
+
 	// File information
 	FilePath    string
 	IsModified  bool
-	
+
 	// Cursor and view state
 	CursorX        int
 	ViewIterator   *BufferIterator  // Current view position iterator
 	CursorIterator *BufferIterator  // Current cursor position iterator
-	
+
 	// Caching
 	LineOffsets  []int  // Cache of byte offsets for each line
 	OffsetsDirty bool   // Whether line offsets need recalculation
 	LineCount    int    // Cache of the number of lines
-	
+
 	// Indentation settings for this buffer
 	Indentation  IndentationInfo
-	
+
 	// Line number display width (e.g., 4 for files with 1000-9999 lines)
 	LineNumberWidth int
+
+	// Generation number for iterator validation
+	Generation uint64
 }
 
 // IndentationInfo holds information about file indentation
@@ -62,6 +65,7 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 			Type:  defaultIndentType,
 			Width: defaultIndentWidth,
 		},
+		Generation:   0,  // Start with generation 0
 	}
 	b.UpdateLineNumberWidth()
 	// Create initial iterators
@@ -135,7 +139,7 @@ type LineIndentInfo struct {
 // GetLineIndentInfo analyzes a line and returns its indentation information
 func (b *Buffer) GetLineIndentInfo(line string) LineIndentInfo {
 	info := LineIndentInfo{}
-	
+
 	// Count leading whitespace
 	for i, ch := range line {
 		if ch == ' ' {
@@ -147,12 +151,12 @@ func (b *Buffer) GetLineIndentInfo(line string) LineIndentInfo {
 			break
 		}
 	}
-	
+
 	// If entire line is whitespace
 	if info.ActualPrefix == "" && len(line) > 0 && (info.Spaces > 0 || info.Tabs > 0) {
 		info.ActualPrefix = line
 	}
-	
+
 	// Calculate level based on file's indentation settings
 	if b.Indentation.Type == config.IndentTabs {
 		// For tabs, each tab is one level
@@ -175,7 +179,7 @@ func (b *Buffer) GetLineIndentInfo(line string) LineIndentInfo {
 			info.IsContinuation = true
 		}
 	}
-	
+
 	return info
 }
 
@@ -184,7 +188,7 @@ func (b *Buffer) GetCurrentLineIndentInfo(iter *BufferIterator) LineIndentInfo {
 	if iter.IsEOF() {
 		return LineIndentInfo{}
 	}
-	
+
 	return b.GetLineIndentInfo(iter.Line())
 }
 
@@ -197,4 +201,11 @@ func (b *Buffer) UpdateLineNumberWidth() {
 		width := len(fmt.Sprintf("%d", b.LineCount))
 		b.LineNumberWidth = width + 1 // +1 for padding space
 	}
+}
+
+// Insert inserts text at the given position and increments the generation
+func (b *Buffer) Insert(pos int, text string) {
+	b.Rope.Insert(pos, text)
+	b.Generation++ // Increment generation when buffer is modified
+	b.MarkModified()
 }

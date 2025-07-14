@@ -8,18 +8,27 @@ import (
 // BufferIterator provides line-by-line iteration over a Buffer.
 // This implementation tracks line position and caches the rope node for efficiency.
 type BufferIterator struct {
-	Buffer   *Buffer // Pointer to the buffer
-	LineNum  int     // Current line number (0-based), or points past last line if at EOF
-	Offset   int     // Byte offset in the buffer to the start of the current line
-	Node     *Node   // Pointer to the rope node that contains this line (can be nil for EOF)
+	Buffer     *Buffer // Pointer to the buffer
+	LineNum    int     // Current line number (0-based), or points past last line if at EOF
+	Offset     int     // Byte offset in the buffer to the start of the current line
+	Node       *Node   // Pointer to the rope node that contains this line (can be nil for EOF)
+	Generation uint64  // Generation number when this iterator was created
+}
+
+// ValidateGeneration checks if the iterator is still valid for the current buffer state
+func (it *BufferIterator) ValidateGeneration() {
+	utils.Assert(it.Generation == it.Buffer.Generation, 
+		fmt.Sprintf("Iterator generation mismatch: iterator has %d, buffer has %d", 
+			it.Generation, it.Buffer.Generation))
 }
 
 // NewBufferIterator creates a new iterator at the beginning of the buffer
 func NewBufferIterator(buffer *Buffer) *BufferIterator {
 	it := &BufferIterator{
-		Buffer:  buffer,
-		LineNum: 0,
-		Offset:  0,
+		Buffer:     buffer,
+		LineNum:    0,
+		Offset:     0,
+		Generation: buffer.Generation,
 	}
 	// Find the node containing offset 0
 	if buffer.Rope != nil && buffer.Rope.root != nil {
@@ -31,8 +40,9 @@ func NewBufferIterator(buffer *Buffer) *BufferIterator {
 // NewBufferIteratorAtEnd creates a new iterator at the end of the buffer
 func NewBufferIteratorAtEnd(buffer *Buffer) *BufferIterator {
 	it := &BufferIterator{
-		Buffer: buffer,
-		Offset: buffer.Rope.Length(),
+		Buffer:     buffer,
+		Offset:     buffer.Rope.Length(),
+		Generation: buffer.Generation,
 	}
 
 	// Find the last leaf node in the rope
@@ -189,27 +199,30 @@ func (it *BufferIterator) nextChar() (BufferIterator, bool) {
 		if nextNode == nil {
 			// At end of nodes but maybe not at end of buffer
 			return BufferIterator{
-				Buffer:  it.Buffer,
-				LineNum: it.LineNum,
-				Offset:  newOffset,
-				Node:    it.Node,
+				Buffer:     it.Buffer,
+				LineNum:    it.LineNum,
+				Offset:     newOffset,
+				Node:       it.Node,
+				Generation: it.Generation,
 			}, newOffset <= it.Buffer.Rope.Length()
 		}
 		// Move to the next node
 		return BufferIterator{
-			Buffer:  it.Buffer,
-			LineNum: it.LineNum,
-			Offset:  newOffset,
-			Node:    nextNode,
+			Buffer:     it.Buffer,
+			LineNum:    it.LineNum,
+			Offset:     newOffset,
+			Node:       nextNode,
+			Generation: it.Generation,
 		}, true
 	}
 
 	// Stay in current node
 	return BufferIterator{
-		Buffer:  it.Buffer,
-		LineNum: it.LineNum,
-		Offset:  newOffset,
-		Node:    it.Node,
+		Buffer:     it.Buffer,
+		LineNum:    it.LineNum,
+		Offset:     newOffset,
+		Node:       it.Node,
+		Generation: it.Generation,
 	}, true
 }
 
@@ -225,26 +238,29 @@ func (it *BufferIterator) previousChar() (BufferIterator, bool) {
 		if prevNode == nil {
 			// Reached beginning of buffer
 			return BufferIterator{
-				Buffer:  it.Buffer,
-				LineNum: it.LineNum,
-				Offset:  0,
-				Node:    it.Node,
+				Buffer:     it.Buffer,
+				LineNum:    it.LineNum,
+				Offset:     0,
+				Node:       it.Node,
+				Generation: it.Generation,
 			}, false
 		}
 		return BufferIterator{
-			Buffer:  it.Buffer,
-			LineNum: it.LineNum,
-			Offset:  prevNode.offset + len(prevNode.text) - 1,
-			Node:    prevNode,
+			Buffer:     it.Buffer,
+			LineNum:    it.LineNum,
+			Offset:     prevNode.offset + len(prevNode.text) - 1,
+			Node:       prevNode,
+			Generation: it.Generation,
 		}, true
 	}
 
 	// Move back one character in current node
 	return BufferIterator{
-		Buffer:  it.Buffer,
-		LineNum: it.LineNum,
-		Offset:  it.Offset - 1,
-		Node:    it.Node,
+		Buffer:     it.Buffer,
+		LineNum:    it.LineNum,
+		Offset:     it.Offset - 1,
+		Node:       it.Node,
+		Generation: it.Generation,
 	}, true
 }
 
@@ -272,12 +288,15 @@ func getPreviousLeafNode(node *Node) *Node {
 
 // Next returns a new iterator pointing to the next line
 func (it *BufferIterator) Next() *BufferIterator {
+	it.ValidateGeneration()
+	
 	if it.IsEOF() {
 		return &BufferIterator{
-			Buffer:  it.Buffer,
-			LineNum: it.LineNum,
-			Offset:  it.Offset,
-			Node:    it.Node,
+			Buffer:     it.Buffer,
+			LineNum:    it.LineNum,
+			Offset:     it.Offset,
+			Node:       it.Node,
+			Generation: it.Generation,
 		}
 	}
 
@@ -299,13 +318,15 @@ func (it *BufferIterator) Next() *BufferIterator {
 			if !ok {
 				// Reached end of buffer after newline
 				return &BufferIterator{
-					Buffer:  it.Buffer,
-					LineNum: it.LineNum + 1,
-					Offset:  it.Buffer.Rope.Length(),
-					Node:    workingIter.Node,
+					Buffer:     it.Buffer,
+					LineNum:    it.LineNum + 1,
+					Offset:     it.Buffer.Rope.Length(),
+					Node:       workingIter.Node,
+					Generation: it.Generation,
 				}
 			}
 			workingIter.LineNum = it.LineNum + 1
+			workingIter.Generation = it.Generation
 			return &workingIter
 		}
 
@@ -314,10 +335,11 @@ func (it *BufferIterator) Next() *BufferIterator {
 		if !ok {
 			// Reached end of buffer without finding newline
 			return &BufferIterator{
-				Buffer:  it.Buffer,
-				LineNum: it.LineNum + 1,
-				Offset:  it.Buffer.Rope.Length(),
-				Node:    workingIter.Node,
+				Buffer:     it.Buffer,
+				LineNum:    it.LineNum + 1,
+				Offset:     it.Buffer.Rope.Length(),
+				Node:       workingIter.Node,
+				Generation: it.Generation,
 			}
 		}
 	}
@@ -325,16 +347,19 @@ func (it *BufferIterator) Next() *BufferIterator {
 
 // Previous returns a new iterator pointing to the previous line
 func (it *BufferIterator) Previous() *BufferIterator {
+	it.ValidateGeneration()
+	
 	// An iterator must always have a node
 	utils.Assert(it.Node != nil, "BufferIterator.Previous: iterator has nil node")
 
 	if it.LineNum == 0 {
 		// Already at beginning, can't go back further
 		return &BufferIterator{
-			Buffer:  it.Buffer,
-			LineNum: 0,
-			Offset:  0,
-			Node:    it.Node,
+			Buffer:     it.Buffer,
+			LineNum:    0,
+			Offset:     0,
+			Node:       it.Node,
+			Generation: it.Generation,
 		}
 	}
 
@@ -348,10 +373,11 @@ func (it *BufferIterator) Previous() *BufferIterator {
 		if !ok {
 			// At beginning of buffer
 			return &BufferIterator{
-				Buffer:  it.Buffer,
-				LineNum: 0,
-				Offset:  0,
-				Node:    workingIter.Node,
+				Buffer:     it.Buffer,
+				LineNum:    0,
+				Offset:     0,
+				Node:       workingIter.Node,
+				Generation: it.Generation,
 			}
 		}
 		// If the character before EOF is \n, move back one more
@@ -373,10 +399,11 @@ func (it *BufferIterator) Previous() *BufferIterator {
 		if !ok {
 			// At beginning of buffer
 			return &BufferIterator{
-				Buffer:  it.Buffer,
-				LineNum: 0,
-				Offset:  0,
-				Node:    workingIter.Node,
+				Buffer:     it.Buffer,
+				LineNum:    0,
+				Offset:     0,
+				Node:       workingIter.Node,
+				Generation: it.Generation,
 			}
 		}
 		utils.Assert(workingIter.getCharAt() == '\n',
@@ -390,10 +417,11 @@ func (it *BufferIterator) Previous() *BufferIterator {
 		if !ok {
 			// Reached beginning, return start of buffer
 			return &BufferIterator{
-				Buffer:  it.Buffer,
-				LineNum: 0,
-				Offset:  0,
-				Node:    workingIter.Node,
+				Buffer:     it.Buffer,
+				LineNum:    0,
+				Offset:     0,
+				Node:       workingIter.Node,
+				Generation: it.Generation,
 			}
 		}
 
@@ -404,13 +432,15 @@ func (it *BufferIterator) Previous() *BufferIterator {
 			if !ok {
 				// At end of buffer after newline, return position after the newline
 				nextIter = BufferIterator{
-					Buffer:  it.Buffer,
-					LineNum: it.LineNum - 1,
-					Offset:  workingIter.Offset + 1,
-					Node:    workingIter.Node,
+					Buffer:     it.Buffer,
+					LineNum:    it.LineNum - 1,
+					Offset:     workingIter.Offset + 1,
+					Node:       workingIter.Node,
+					Generation: it.Generation,
 				}
 			} else {
 				nextIter.LineNum = it.LineNum - 1
+				nextIter.Generation = it.Generation
 			}
 			return &nextIter
 		}
@@ -419,6 +449,8 @@ func (it *BufferIterator) Previous() *BufferIterator {
 
 // Line returns the current line content (without trailing newline)
 func (it *BufferIterator) Line() string {
+	it.ValidateGeneration()
+	
 	if it.IsEOF() {
 		return ""
 	}
@@ -432,26 +464,32 @@ func (it *BufferIterator) Line() string {
 
 // LineBytes returns the current line content as a byte slice (without trailing newline)
 func (it *BufferIterator) LineBytes() []byte {
+	it.ValidateGeneration()
 	return []byte(it.Line())
 }
 
 // LineNumber returns the current line number (0-based)
 func (it *BufferIterator) LineNumber() int {
+	it.ValidateGeneration()
 	return it.LineNum
 }
 
 // IsEOF returns true if the iterator is at end of file
 func (it *BufferIterator) IsEOF() bool {
+	it.ValidateGeneration()
 	return it.Offset >= it.Buffer.Rope.Length()
 }
 
 // Position returns the current byte position in the buffer
 func (it *BufferIterator) Position() int {
+	it.ValidateGeneration()
 	return it.Offset
 }
 
 // LineEnd returns the byte position of the end of the current line (excluding newline)
 func (it *BufferIterator) LineEnd() int {
+	it.ValidateGeneration()
+	
 	if it.IsEOF() {
 		return it.Buffer.Rope.Length()
 	}

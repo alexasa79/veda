@@ -450,7 +450,7 @@ func TestIteratorLogic(t *testing.T) {
 
 			// Insert large text to force splits
 			largeText := strings.Repeat("X", 5000)
-			buf.Rope.Insert(7, largeText) // Insert after "initial"
+			buf.Insert(7, largeText) // Insert after "initial"
 
 			// Verify the buffer has multiple nodes
 			if buf.Rope.root.IsLeaf() {
@@ -967,9 +967,9 @@ func TestIteratorLogic(t *testing.T) {
 			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
 
 			// Perform multiple insertions at different positions
-			buf.Rope.Insert(7, "INSERTED-") // After "Line 1\n"
-			buf.Rope.Insert(22, "-MIDDLE")  // In middle of "Line 2"
-			buf.Rope.Insert(0, "START-")    // At beginning
+			buf.Insert(7, "INSERTED-") // After "Line 1\n"
+			buf.Insert(22, "-MIDDLE")  // In middle of "Line 2"
+			buf.Insert(0, "START-")    // At beginning
 
 			// Expected content: "START-Line 1\nINSERTED-Line 2-MIDDLE\nLine 3"
 			expectedLines := []string{
@@ -1061,7 +1061,7 @@ func TestIteratorLogic(t *testing.T) {
 			}
 
 			for _, ins := range insertions {
-				buf.Rope.Insert(ins.pos, ins.text)
+				buf.Insert(ins.pos, ins.text)
 			}
 
 			// Add newlines to create multiple lines
@@ -1074,7 +1074,7 @@ func TestIteratorLogic(t *testing.T) {
 
 			// Insert newlines from end to beginning to maintain positions
 			for i := len(newlinePositions) - 1; i >= 0; i-- {
-				buf.Rope.Insert(newlinePositions[i], "\n")
+				buf.Insert(newlinePositions[i], "\n")
 			}
 
 			// Navigate and count lines
@@ -1104,7 +1104,7 @@ func TestIteratorLogic(t *testing.T) {
 			}
 		})
 
-		t.Run("iterator stability after buffer modifications", func(t *testing.T) {
+		t.Run("iterator invalidation after buffer modifications", func(t *testing.T) {
 			// Create initial buffer
 			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
 
@@ -1113,25 +1113,51 @@ func TestIteratorLogic(t *testing.T) {
 			iter2 := NewBufferIterator(buf).Next()    // At line 1
 			iter3 := NewBufferIteratorAtEnd(buf)      // At EOF
 
-			// Store original values
-			orig1 := struct{ line string; offset int }{iter1.Line(), iter1.Offset}
-			orig2 := struct{ line string; offset int }{iter2.Line(), iter2.Offset}
-			_ = iter3 // We're just testing iter1 and iter2 for now
-
-			// Perform insertion after all iterators
-			buf.Rope.Insert(buf.Rope.Length(), "\nLine 4")
-
-			// Verify iterators still return same content
-			// (They should be unaffected by insertions after their position)
-			if iter1.Line() != orig1.line {
-				t.Errorf("Iterator 1 line changed: was %q, now %q", orig1.line, iter1.Line())
+			// Store original generation
+			origGeneration := buf.Generation
+			if iter1.Generation != origGeneration {
+				t.Errorf("Iterator 1 generation mismatch: expected %d, got %d", origGeneration, iter1.Generation)
 			}
-			if iter2.Line() != orig2.line {
-				t.Errorf("Iterator 2 line changed: was %q, now %q", orig2.line, iter2.Line())
+			if iter2.Generation != origGeneration {
+				t.Errorf("Iterator 2 generation mismatch: expected %d, got %d", origGeneration, iter2.Generation)
+			}
+			if iter3.Generation != origGeneration {
+				t.Errorf("Iterator 3 generation mismatch: expected %d, got %d", origGeneration, iter3.Generation)
 			}
 
-			// Note: Node pointers might change due to tree rebalancing,
-			// but the content and offsets should remain valid
+			// Perform insertion
+			buf.Insert(buf.Rope.Length(), "\nLine 4")
+
+			// Verify buffer generation has increased
+			if buf.Generation <= origGeneration {
+				t.Errorf("Buffer generation did not increase after insert: was %d, now %d", origGeneration, buf.Generation)
+			}
+
+			// Verify that using old iterators would fail (we'll check by creating new ones)
+			// The old iterators are now invalid and should not be used
+			// Create new iterators after modification
+			newIter1 := NewBufferIterator(buf)
+			newIter2 := NewBufferIterator(buf).Next()
+			newIter3 := NewBufferIteratorAtEnd(buf)
+
+			// Verify new iterators have the updated generation
+			if newIter1.Generation != buf.Generation {
+				t.Errorf("New iterator 1 generation mismatch: expected %d, got %d", buf.Generation, newIter1.Generation)
+			}
+			if newIter2.Generation != buf.Generation {
+				t.Errorf("New iterator 2 generation mismatch: expected %d, got %d", buf.Generation, newIter2.Generation)
+			}
+			if newIter3.Generation != buf.Generation {
+				t.Errorf("New iterator 3 generation mismatch: expected %d, got %d", buf.Generation, newIter3.Generation)
+			}
+
+			// Verify content is correct with new iterators
+			if newIter1.Line() != "Line 1" {
+				t.Errorf("New iterator 1 line incorrect: expected %q, got %q", "Line 1", newIter1.Line())
+			}
+			if newIter2.Line() != "Line 2" {
+				t.Errorf("New iterator 2 line incorrect: expected %q, got %q", "Line 2", newIter2.Line())
+			}
 		})
 
 		t.Run("mixed navigation patterns", func(t *testing.T) {
