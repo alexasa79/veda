@@ -41,6 +41,11 @@ type Editor struct {
 	navHistory      []NavigationEntry       // Stack of previous positions
 	maxNavHistory   int                     // Maximum number of entries to keep
 
+	// Context display
+	contextCache    []int                   // Cached context line numbers
+	contextLine     int                     // Line number for which context was cached
+	showContext     bool                    // Whether to show context
+
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -81,6 +86,9 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		bufferOrder:     []string{},
 		navHistory:      []NavigationEntry{},
 		maxNavHistory:   50, // Keep last 50 navigation entries
+		showContext:     true, // Show context by default
+		contextCache:    nil,
+		contextLine:     -1,
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -211,7 +219,8 @@ func (e *Editor) updateCursor() {
 		// Use cached line number width from buffer
 		lineNumberWidth := e.buffer.LineNumberWidth
 		visualCursorX := e.getVisualCursorX()
-		e.screen.ShowCursor(visualCursorX+lineNumberWidth, e.buffer.CursorIterator.LineNumber()-e.buffer.ViewIterator.LineNumber())
+		cursorY := e.buffer.CursorIterator.LineNumber() - e.buffer.ViewIterator.LineNumber() + e.getContentStartY()
+		e.screen.ShowCursor(visualCursorX+lineNumberWidth, cursorY)
 	}
 }
 
@@ -220,10 +229,16 @@ func (e *Editor) scroll() {
 	bufferLines := e.buffer.LineCount
 	topLine := e.buffer.ViewIterator.LineNumber()
 
+	// Adjust scroll offset for top margin only (to account for context lines)
+	topScrollOffset := e.config.ScrollOffset - len(e.contextCache)
+	if topScrollOffset < 0 {
+		topScrollOffset = 0
+	}
+
 	// Scroll up when cursor is too close to top
 	cursorLine := e.buffer.CursorIterator.LineNumber()
-	if cursorLine < topLine+e.config.ScrollOffset {
-		linesToMove := topLine - (cursorLine - e.config.ScrollOffset)
+	if cursorLine < topLine+topScrollOffset {
+		linesToMove := topLine - (cursorLine - topScrollOffset)
 		if linesToMove > 0 {
 			for i := 0; i < linesToMove; i++ {
 				e.buffer.ViewIterator = e.buffer.ViewIterator.Previous()
@@ -233,6 +248,7 @@ func (e *Editor) scroll() {
 
 	// Scroll down when cursor is too close to bottom, but allow cursor to reach
 	// the bottom of the screen when at the end of the buffer
+	// Bottom scroll offset remains unchanged
 	if cursorLine >= topLine+visibleHeight-e.config.ScrollOffset {
 		// If we're near the end of the buffer, allow the last line to be at the bottom
 		maxTopLine := bufferLines - visibleHeight
@@ -261,8 +277,14 @@ func (e *Editor) scrollToShowAtTop() {
 	// Create a new iterator at the beginning
 	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
 
+	// Adjust scroll offset for top margin only (to account for context lines)
+	topScrollOffset := e.config.ScrollOffset - len(e.contextCache)
+	if topScrollOffset < 0 {
+		topScrollOffset = 0
+	}
+
 	// Move down to position cursor at ScrollOffset from the top
-	targetLine := e.buffer.CursorIterator.LineNumber() - e.config.ScrollOffset
+	targetLine := e.buffer.CursorIterator.LineNumber() - topScrollOffset
 	if targetLine < 0 {
 		targetLine = 0
 	}
@@ -426,18 +448,36 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string) int {
 
 // drawLine draws a single line using the iterator
 func (e *Editor) drawLine(iter *buffer.BufferIterator, startX int, screenY int) {
+	e.drawLineWithBackground(iter, startX, screenY, nil)
+}
+
+// drawContextLine draws a single line with context background
+func (e *Editor) drawContextLine(iter *buffer.BufferIterator, startX int, screenY int, contextBg ui.Color) {
+	e.drawLineWithBackground(iter, startX, screenY, &contextBg)
+}
+
+// drawLineWithBackground draws a single line using the iterator with an optional background color override
+func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int, screenY int, bgOverride *ui.Color) {
 	line := iter.Line()
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	isCurrentLine := lineIndex == e.buffer.CursorIterator.LineNumber()
 
-	// If current line, we'll need to override background colors and pad the line
-	var currentLineBg ui.Color
-	if isCurrentLine {
+	// Determine which background to use
+	var lineBg ui.Color
+	if bgOverride != nil {
+		// Use the provided background override
+		lineBg = *bgOverride
+		normalStyle = normalStyle.Background(lineBg)
+	} else if isCurrentLine {
+		// Use current line background
 		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
-		_, currentLineBg, _ = currentLineStyle.Decompose()
-		normalStyle = normalStyle.Background(currentLineBg)
+		_, lineBg, _ = currentLineStyle.Decompose()
+		normalStyle = normalStyle.Background(lineBg)
+	}
 
+	// If we have a background color (either override or current line), pad the line
+	if bgOverride != nil || isCurrentLine {
 		// Calculate how many spaces we need to fill the screen width
 		width, _ := e.screen.Size()
 		lineVisualWidth := e.visualWidth(line)
@@ -487,9 +527,12 @@ func (e *Editor) drawLine(iter *buffer.BufferIterator, startX int, screenY int) 
 			tokenText := line[token.Start:endPos]
 
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-			if isCurrentLine {
+			if bgOverride != nil {
+				// Override background with the provided override
+				tokenStyle = tokenStyle.Background(*bgOverride)
+			} else if isCurrentLine {
 				// Override background for current line
-				tokenStyle = tokenStyle.Background(currentLineBg)
+				tokenStyle = tokenStyle.Background(lineBg)
 			}
 
 			x += e.drawText(x, screenY, tokenStyle, tokenText)
@@ -569,26 +612,57 @@ func (e *Editor) drawEditor() {
 	// Clear the entire screen once
 	e.screen.Clear()
 
+	// Update context if needed (must be done before getContentStartY)
+	e.updateContext()
+
 	// Get screen dimensions
 	width, _ := e.screen.Size()
 	visibleHeight := e.getVisibleHeight()
+	contentStartY := e.getContentStartY()
+	
+	// Draw context lines with line numbers and syntax highlighting
+	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.ContextBackground)
+	for i, lineNum := range e.contextCache {
+		// Create an iterator at the context line
+		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		if !iter.IsEOF() {
+			// Fill the entire line with the context background
+			for x := 0; x < width; x++ {
+				e.screen.SetContent(x, i, ' ', nil, contextBgStyle)
+			}
+			
+			// Draw line number with context background
+			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum+1) // Line numbers are 1-based
+			// Create a new style with context background
+			_, contextBg, _ := contextBgStyle.Decompose()
+			lineNumWithContextBg := lineNumberStyle.Background(contextBg)
+			e.drawText(0, i, lineNumWithContextBg, lineNumStr)
+			
+			// Draw separator with context background
+			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumWithContextBg)
+			
+			// Draw the line content with syntax highlighting but context background
+			e.drawContextLine(iter, lineNumberWidth, i, contextBg)
+		}
+	}
 
 	// Start from the view iterator
 	iter := e.buffer.ViewIterator
 	for i := 0; i < visibleHeight; i++ {
+		screenY := contentStartY + i
 		// First, fill the entire line with the normal background
 		for x := 0; x < width; x++ {
-			e.screen.SetContent(x, i, ' ', nil, normalStyle)
+			e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
 		}
 
 		// Special case: Empty buffer should still show line 1
 		if i == 0 && iter.IsEOF() && e.buffer.Rope.Length() == 0 {
 			// Draw line number 1 for empty buffer
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, 1)
-			e.drawText(0, i, lineNumberStyle, lineNumStr)
+			e.drawText(0, screenY, lineNumberStyle, lineNumStr)
 
 			// Draw separator after line number
-			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
+			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
 			// No content to draw, but this represents the single empty line
 		} else if !iter.IsEOF() {
 			lineIndex := iter.LineNumber()
@@ -596,20 +670,20 @@ func (e *Editor) drawEditor() {
 
 			// Draw line number
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
-			e.drawText(0, i, lineNumberStyle, lineNumStr)
+			e.drawText(0, screenY, lineNumberStyle, lineNumStr)
 
 			// Draw separator after line number
-			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumberStyle)
+			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
 
 			// Draw the actual line content using iterator
-			e.drawLine(iter, lineNumberWidth, i)
+			e.drawLine(iter, lineNumberWidth, screenY)
 
 			// Move to next line
 			iter = iter.Next()
 		} else {
 			// For lines beyond the buffer, show tilde or fill line number area
 			for x := 0; x < lineNumberWidth; x++ {
-				e.screen.SetContent(x, i, ' ', nil, lineNumberStyle)
+				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
 			}
 		}
 	}
@@ -1234,10 +1308,62 @@ func (e *Editor) backspace() error {
 // These methods centralize the calculation of screen areas, making it easy to change
 // the layout (e.g., status bar height) without modifying code throughout the editor.
 
-// getVisibleHeight returns the height of the visible editing area (excluding status bar)
+// getVisibleHeight returns the height of the visible editing area (excluding status bar and context)
 func (e *Editor) getVisibleHeight() int {
 	_, height := e.screen.Size()
-	return height - 1 // Reserve 1 line for status bar
+	reserved := 1 // Status bar
+	reserved += len(e.contextCache) // Context lines
+	return height - reserved
+}
+
+// getContentStartY returns the Y position where content starts
+func (e *Editor) getContentStartY() int {
+	return len(e.contextCache) // Start after context lines
+}
+
+// shouldShowContext determines if context should be shown
+func (e *Editor) shouldShowContext() bool {
+	if !e.showContext {
+		return false
+	}
+	
+	// Always show context if we have it
+	// The scroll offset will handle limiting the number of lines
+	return true
+}
+
+// updateContext updates the cached context for the current cursor position
+func (e *Editor) updateContext() {
+	// Get current cursor line
+	cursorIter := e.buffer.CursorIterator
+	currentLine := cursorIter.LineNumber()
+	
+	// Only update if line changed
+	if currentLine == e.contextLine && len(e.contextCache) > 0 {
+		return
+	}
+	
+	// Get file path
+	filePath := e.buffer.FilePath
+	if filePath == "" {
+		e.contextCache = nil
+		return
+	}
+	
+	// Get folding ranges from LSP
+	ranges, err := e.proxyClient.GetFoldingRanges(filePath)
+	if err != nil || len(ranges) == 0 {
+		e.contextCache = nil
+		return
+	}
+	
+	// Calculate visible range
+	viewStartLine := e.buffer.ViewIterator.LineNumber()
+	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
+	
+	// Get context line numbers, limited by scroll offset
+	e.contextCache = getContextLineNumbers(ranges, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+	e.contextLine = currentLine
 }
 
 // getStatusBarY returns the Y position of the status bar

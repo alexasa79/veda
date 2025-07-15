@@ -279,6 +279,118 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
+    def get_document_symbols(self, file_path: str) -> Optional[List[Dict[str, Any]]]:
+        """Get document symbols (functions, classes, etc.) for a file."""
+        # Determine language from file extension
+        ext = Path(file_path).suffix.lower()
+        language = None
+        for lang, config in self.language_servers.items():
+            if ext in config['extensions']:
+                language = lang
+                break
+                
+        if not language:
+            logger.info(f"No language server available for extension {ext}")
+            return None
+            
+        # Start server if needed
+        if not self.start_server(language):
+            return None
+            
+        # Ensure file is open in LSP
+        self._open_file(language, file_path)
+        
+        server = self.servers[language]
+        file_uri = f"file://{Path(file_path).absolute()}"
+        
+        server['request_id'] += 1
+        request_id = server['request_id']
+        
+        request = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "textDocument/documentSymbol",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri
+                }
+            }
+        }
+        
+        logger.info(f"Sending textDocument/documentSymbol request for {file_uri}")
+        self._send_message(language, request)
+        
+        # Wait for the response with our specific request ID
+        response = self._wait_for_response(language, request_id)
+        logger.info(f"Received documentSymbol response: {response}")
+        
+        if response and "result" in response:
+            result = response["result"]
+            if isinstance(result, list):
+                return result
+            elif result is None:
+                return []
+            return result
+        elif response and "error" in response:
+            logger.error(f"LSP error: {response['error']}")
+        return None
+    
+    def get_folding_ranges(self, file_path: str) -> Optional[List[Dict[str, Any]]]:
+        """Get folding ranges for a file."""
+        # Determine language from file extension
+        ext = Path(file_path).suffix.lower()
+        language = None
+        for lang, config in self.language_servers.items():
+            if ext in config['extensions']:
+                language = lang
+                break
+                
+        if not language:
+            logger.info(f"No language server available for extension {ext}")
+            return None
+            
+        # Start server if needed
+        if not self.start_server(language):
+            return None
+            
+        # Ensure file is open in LSP
+        self._open_file(language, file_path)
+        
+        server = self.servers[language]
+        file_uri = f"file://{Path(file_path).absolute()}"
+        
+        server['request_id'] += 1
+        request_id = server['request_id']
+        
+        request = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "textDocument/foldingRange",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri
+                }
+            }
+        }
+        
+        logger.info(f"Sending textDocument/foldingRange request for {file_uri}")
+        self._send_message(language, request)
+        
+        # Wait for the response with our specific request ID
+        response = self._wait_for_response(language, request_id)
+        logger.info(f"Received foldingRange response: {response}")
+        
+        if response and "result" in response:
+            result = response["result"]
+            if isinstance(result, list):
+                return result
+            elif result is None:
+                return []
+            return result
+        elif response and "error" in response:
+            logger.error(f"LSP error: {response['error']}")
+        return None
+    
     def _open_file(self, language: str, file_path: str):
         """Notify LSP server that a file has been opened."""
         if language not in self.servers:
@@ -431,6 +543,8 @@ class VedaProxy:
             'go_to_definition': self.go_to_definition,
             'get_lsp_messages': self.get_lsp_messages,
             'get_lsp_notifications': self.get_lsp_notifications,
+            'get_document_symbols': self.get_document_symbols,
+            'get_folding_ranges': self.get_folding_ranges,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -673,6 +787,28 @@ class VedaProxy:
         """Get pending showMessage notifications for a language."""
         notifications = self.lsp.get_pending_notifications(language)
         return {'success': True, 'notifications': notifications}
+    
+    def get_document_symbols(self, file_path: str) -> Dict[str, Any]:
+        """Get document symbols (functions, classes, etc.) for a file."""
+        try:
+            result = self.lsp.get_document_symbols(file_path)
+            if result is not None:
+                return {'success': True, 'result': result}
+            return {'success': False, 'error': 'No symbols found'}
+        except Exception as e:
+            logger.error(f"Error in get_document_symbols: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_folding_ranges(self, file_path: str) -> Dict[str, Any]:
+        """Get folding ranges for a file."""
+        try:
+            result = self.lsp.get_folding_ranges(file_path)
+            if result is not None:
+                return {'success': True, 'result': result}
+            return {'success': False, 'error': 'No folding ranges found'}
+        except Exception as e:
+            logger.error(f"Error in get_folding_ranges: {e}")
+            return {'success': False, 'error': str(e)}
 
 
 class JSONRPCHandler:
@@ -733,7 +869,9 @@ class JSONRPCHandler:
             try:
                 request_data = json.loads(line)
                 response = self.handle_request(request_data)
-                print(json.dumps(response), flush=True)
+                response_json = json.dumps(response)
+                logger.info(f"Sending response: {response_json[:200]}...")  # Log first 200 chars
+                print(response_json, flush=True)
 
             except json.JSONDecodeError:
                 print(json.dumps({'error': 'Invalid JSON'}), flush=True)

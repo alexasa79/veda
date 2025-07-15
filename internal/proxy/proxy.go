@@ -2,14 +2,33 @@ package proxy
 
 import (
 	"bufio"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"syscall"
 	"veda/internal/log"
 )
 
 var LL *log.Logger = log.NewLogger("PROXY")
+
+//go:embed veda-proxy.py
+var embeddedProxy string
+
+// proxyScriptPath is the fixed path to the proxy script
+var proxyScriptPath = "/tmp/veda-proxy.py"
+
+// init extracts the embedded proxy script to /tmp
+func init() {
+	// Write the embedded proxy script to the fixed location
+	if err := os.WriteFile(proxyScriptPath, []byte(embeddedProxy), 0755); err != nil {
+		LL.Error("Failed to write proxy script to %s: %v", proxyScriptPath, err)
+		return
+	}
+	
+	LL.Debug("Extracted proxy script to: %s", proxyScriptPath)
+}
 
 // JSONRPCRequest represents a JSON RPC request
 type JSONRPCRequest struct {
@@ -51,6 +70,29 @@ type Position struct {
 	Character int `json:"character"`
 }
 
+// DocumentSymbol represents a symbol in a document (LSP DocumentSymbol)
+type DocumentSymbol struct {
+	Name           string            `json:"name"`
+	Detail         string            `json:"detail,omitempty"`
+	Kind           int               `json:"kind"`
+	Tags           []int             `json:"tags,omitempty"`
+	Deprecated     bool              `json:"deprecated,omitempty"`
+	Range          Range             `json:"range"`
+	SelectionRange Range             `json:"selectionRange"`
+	Children       []DocumentSymbol  `json:"children,omitempty"`
+	// For SymbolInformation format (older LSP)
+	Location       *Location         `json:"location,omitempty"`
+}
+
+// FoldingRange represents a folding range in a document
+type FoldingRange struct {
+	StartLine      int     `json:"startLine"`
+	StartCharacter *int    `json:"startCharacter,omitempty"`
+	EndLine        int     `json:"endLine"`
+	EndCharacter   *int    `json:"endCharacter,omitempty"`
+	Kind           *string `json:"kind,omitempty"` // "comment", "imports", "region"
+}
+
 // Client represents a proxy client
 type Client struct {
 	cmd       *exec.Cmd
@@ -61,7 +103,7 @@ type Client struct {
 
 // NewClient creates a new proxy client and starts the proxy process
 func NewClient() (*Client, error) {
-	cmd := exec.Command("python3", "veda-proxy.py")
+	cmd := exec.Command("python3", proxyScriptPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdinPipe, err := cmd.StdinPipe()
@@ -74,13 +116,29 @@ func NewClient() (*Client, error) {
 		return nil, err
 	}
 
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
+	// Log any stderr output from the proxy
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			LL.Debug("Proxy stderr: %s", line)
+			// Also print to stdout for test visibility
+			fmt.Fprintf(os.Stderr, "PROXY STDERR: %s\n", line)
+		}
+	}()
+
 	stdin := bufio.NewWriter(stdinPipe)
 	stdout := bufio.NewScanner(stdoutPipe)
-	
+
 	// Increase scanner buffer size to handle large responses
 	// Default is 64KB, we'll set it to 1MB
 	const maxScanTokenSize = 1024 * 1024 // 1MB
@@ -126,7 +184,7 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 		for _, item := range response.Result {
 			if fileMap, ok := item.(map[string]interface{}); ok {
 				file := FileInfo{}
-				
+
 				// Safely extract fields with type checking
 				if name, ok := fileMap["name"].(string); ok {
 					file.Name = name
@@ -140,7 +198,7 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 				if size, ok := fileMap["size"].(float64); ok {
 					file.Size = int64(size)
 				}
-				
+
 				// Skip entries with missing required fields
 				if file.Name != "" && file.Type != "" {
 					files = append(files, file)
@@ -188,7 +246,7 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 		for _, item := range response.Result {
 			if fileMap, ok := item.(map[string]interface{}); ok {
 				file := FileInfo{}
-				
+
 				// Safely extract fields with type checking
 				if name, ok := fileMap["name"].(string); ok {
 					file.Name = name
@@ -202,7 +260,7 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 				if size, ok := fileMap["size"].(float64); ok {
 					file.Size = int64(size)
 				}
-				
+
 				// Skip entries with missing required fields
 				if file.Name != "" && file.Type != "" {
 					files = append(files, file)
@@ -357,7 +415,7 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Log the request for debugging
 	LL.Trace("GoToDefinition request: %s", string(requestBytes))
 
@@ -501,7 +559,7 @@ func (c *Client) GetLSPMessages(language string) ([]interface{}, error) {
 func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{}, error) {
 	c.requestID++
 	request := JSONRPCRequest{
-		Method: "get_lsp_notifications", 
+		Method: "get_lsp_notifications",
 		Params: map[string]interface{}{"language": language},
 		ID:     c.requestID,
 	}
@@ -543,6 +601,162 @@ func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{},
 		return nil, fmt.Errorf("failed to get LSP notifications")
 	}
 
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
+// GetDocumentSymbols gets document symbols (functions, classes, etc.) for a file
+func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_document_symbols",
+		Params: map[string]interface{}{
+			"file_path": filePath,
+		},
+		ID: c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log the request for debugging
+	LL.Trace("GetDocumentSymbols request: %s", string(requestBytes))
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	if err := c.stdin.Flush(); err != nil {
+		return nil, fmt.Errorf("failed to flush request: %w", err)
+	}
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+
+		responseText := c.stdout.Text()
+		LL.Trace("GetDocumentSymbols response: %s", responseText)
+
+		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
+			return nil, err
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if result, ok := response.Result["result"].([]interface{}); ok {
+				// Convert the result to DocumentSymbol objects
+				symbols := make([]DocumentSymbol, 0, len(result))
+				for _, item := range result {
+					symbolData, err := json.Marshal(item)
+					if err != nil {
+						continue
+					}
+					var symbol DocumentSymbol
+					if err := json.Unmarshal(symbolData, &symbol); err != nil {
+						continue
+					}
+
+					// If this is SymbolInformation format (has location), convert it
+					if symbol.Location != nil && symbol.Range.Start.Line == 0 && symbol.Range.End.Line == 0 {
+						symbol.Range = symbol.Location.Range
+					}
+
+					symbols = append(symbols, symbol)
+				}
+				return symbols, nil
+			}
+		}
+
+		if errorMsg, ok := response.Result["error"].(string); ok {
+			return nil, fmt.Errorf("LSP error: %s", errorMsg)
+		}
+
+		return nil, fmt.Errorf("failed to get document symbols")
+	}
+
+	if err := c.stdout.Err(); err != nil {
+		return nil, fmt.Errorf("scanner error: %w", err)
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
+// GetFoldingRanges gets folding ranges for a file
+func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_folding_ranges",
+		Params: map[string]interface{}{
+			"file_path": filePath,
+		},
+		ID: c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log the request for debugging
+	LL.Trace("GetFoldingRanges request: %s", string(requestBytes))
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	if err := c.stdin.Flush(); err != nil {
+		return nil, fmt.Errorf("failed to flush request: %w", err)
+	}
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+
+		responseText := c.stdout.Text()
+		LL.Trace("GetFoldingRanges response: %s", responseText)
+
+		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
+			return nil, err
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if result, ok := response.Result["result"].([]interface{}); ok {
+				// Convert the result to FoldingRange objects
+				ranges := make([]FoldingRange, 0, len(result))
+				for _, item := range result {
+					rangeData, err := json.Marshal(item)
+					if err != nil {
+						continue
+					}
+					var foldingRange FoldingRange
+					if err := json.Unmarshal(rangeData, &foldingRange); err != nil {
+						continue
+					}
+					ranges = append(ranges, foldingRange)
+				}
+				return ranges, nil
+			}
+		}
+
+		if errorMsg, ok := response.Result["error"].(string); ok {
+			return nil, fmt.Errorf("LSP error: %s", errorMsg)
+		}
+
+		return nil, fmt.Errorf("failed to get folding ranges")
+	}
+
+	if err := c.stdout.Err(); err != nil {
+		return nil, fmt.Errorf("scanner error: %w", err)
+	}
+	
 	return nil, fmt.Errorf("failed to read proxy response")
 }
 

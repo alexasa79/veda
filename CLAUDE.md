@@ -79,6 +79,7 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Claude Operational Guidelines
 - You are not allowed to leave the root directory of the project. All commands, experiments, everything you do, must be done in the root directory of the project.
+- You are not allowed to change the current directory.
 
 ## Operational Guidelines
 - Stop telling the user he is right. Be cautious with this because the user may not be right. You should be sceptical about what the user asks and suggests.
@@ -88,3 +89,6 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Proxy Implementation Notes
 - All access to the file is implemented via proxy process. The proxy is written in Python. It has a client side implemented in proxy.go.
+
+## Project Language Notes
+- The project is written in Go. The only file written in other programming language is veda-proxy.py. This is the only non-Go file this project will ever have.

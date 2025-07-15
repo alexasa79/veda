@@ -20,11 +20,12 @@ type Theme struct {
 	FuzzyListSelection StyleDef
 
 	// Text editor colors
-	Normal      StyleDef
-	Selection   StyleDef
-	LineNumber  StyleDef
-	CurrentLine StyleDef
-	LineColumn  StyleDef // Line and column display in status bar
+	Normal           StyleDef
+	Selection        StyleDef
+	LineNumber       StyleDef
+	CurrentLine      StyleDef
+	LineColumn       StyleDef // Line and column display in status bar
+	ContextBackground StyleDef // Background for context lines
 
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
@@ -116,6 +117,11 @@ func NewTheme() *Theme {
 		LineColumn: StyleDef{
 			Foreground: "#0088ff[B]",
 			Background: "#fff",
+		},
+
+		ContextBackground: StyleDef{
+			Foreground: "#f8f8f2",
+			Background: "#1e1f1c", // Darker than normal background
 		},
 
 		// Monokai syntax highlighting colors
