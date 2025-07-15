@@ -5,11 +5,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
 	"veda/internal/log"
+	"veda/internal/perf"
 	"veda/internal/proxy"
 	"veda/internal/syntax"
 	"veda/internal/ui"
@@ -29,6 +31,7 @@ type Editor struct {
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
 	highlighter     *syntax.Highlighter
+	perfTracker     *perf.TimeTracker
 
 	// Buffer management
 	buffers         map[string]*buffer.Buffer  // Map of file path to buffer
@@ -73,6 +76,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
 		highlighter:     syntax.NewHighlighter(),
+		perfTracker:     perf.New(true, 5*time.Second), // Report every 5 seconds
 		buffers:         make(map[string]*buffer.Buffer),
 		bufferOrder:     []string{},
 		navHistory:      []NavigationEntry{},
@@ -124,6 +128,9 @@ func (e *Editor) Run() {
 	for {
 		ev := e.screen.PollEvent()
 
+		// Start performance tracking for this iteration
+		t0 := e.perfTracker.Start()
+
 		// Track if we need a full redraw
 		needsRedraw := false
 		oldViewIterator := e.buffer.ViewIterator
@@ -133,11 +140,13 @@ func (e *Editor) Run() {
 			if e.mode == commands.CommandMode {
 				// Command mode is special - it's a line editor
 				e.handleCommandMode(ev)
+				t0 = e.perfTracker.ReportSince("handleCommandMode", t0)
 				needsRedraw = true // Command mode always needs redraw
 			} else {
 				// Normal and Insert modes both use key mapping
 				if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 					err, cmdNeedsRedraw := e.commandRegistry.Execute(command)
+					t0 = e.perfTracker.ReportSince("command:"+command, t0)
 
 					if err != nil {
 						// TODO: Show error to user
@@ -146,17 +155,20 @@ func (e *Editor) Run() {
 				} else if e.mode == commands.InsertMode && ev.Key == ui.KeyRune {
 					// In insert mode, insert unmapped rune keys
 					e.insertChar(ev.Rune)
+					t0 = e.perfTracker.ReportSince("insertChar", t0)
 					needsRedraw = true
 				}
 			}
 		case *ui.EventResize:
 			// Handle screen resize events
 			e.handleResize()
+			t0 = e.perfTracker.ReportSince("handleResize", t0)
 			needsRedraw = true
 		}
 
 		// Check if scrolling occurred
 		e.scroll()
+		t0 = e.perfTracker.ReportSince("scroll", t0)
 
 		if !oldViewIterator.Equals(e.buffer.ViewIterator) {
 			needsRedraw = true
@@ -165,12 +177,16 @@ func (e *Editor) Run() {
 		// Redraw if needed
 		if needsRedraw {
 			e.drawEditor()
+			t0 = e.perfTracker.ReportSince("drawEditor", t0)
 			e.drawStatusBar()
+			t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
 		}
 
 		// Always update cursor position and show
 		e.updateCursor()
+		t0 = e.perfTracker.ReportSince("updateCursor", t0)
 		e.screen.Show()
+		e.perfTracker.ReportSince("screen.Show", t0)
 	}
 }
 
@@ -378,6 +394,11 @@ func (e *Editor) handleResize() {
 
 // Close finalizes the screen and proxy client.
 func (e *Editor) Close() {
+	// Stop the performance tracker
+	if e.perfTracker != nil {
+		e.perfTracker.Stop()
+	}
+	
 	e.screen.Fini()
 	if e.proxyClient != nil {
 		e.proxyClient.Close()
