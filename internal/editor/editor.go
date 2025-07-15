@@ -420,7 +420,7 @@ func (e *Editor) Close() {
 	if e.perfTracker != nil {
 		e.perfTracker.Stop()
 	}
-	
+
 	e.screen.Fini()
 	if e.proxyClient != nil {
 		e.proxyClient.Close()
@@ -619,7 +619,7 @@ func (e *Editor) drawEditor() {
 	width, _ := e.screen.Size()
 	visibleHeight := e.getVisibleHeight()
 	contentStartY := e.getContentStartY()
-	
+
 	// Draw context lines with line numbers and syntax highlighting
 	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.ContextBackground)
 	for i, lineNum := range e.contextCache {
@@ -630,17 +630,17 @@ func (e *Editor) drawEditor() {
 			for x := 0; x < width; x++ {
 				e.screen.SetContent(x, i, ' ', nil, contextBgStyle)
 			}
-			
+
 			// Draw line number with context background
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum+1) // Line numbers are 1-based
 			// Create a new style with context background
 			_, contextBg, _ := contextBgStyle.Decompose()
 			lineNumWithContextBg := lineNumberStyle.Background(contextBg)
 			e.drawText(0, i, lineNumWithContextBg, lineNumStr)
-			
+
 			// Draw separator with context background
 			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumWithContextBg)
-			
+
 			// Draw the line content with syntax highlighting but context background
 			e.drawContextLine(iter, lineNumberWidth, i, contextBg)
 		}
@@ -719,8 +719,14 @@ func (e *Editor) drawStatusBar() {
 		}
 		x += e.drawText(x, statusBarY, statusBarStyle, modeText)
 
-		filename := e.buffer.DisplayName()
+		// Show filename and LSP indicator
+		filename := e.buffer.FileName()
 		x += e.drawText(x, statusBarY, statusBarStyle, filename)
+
+		// Add LSP indicator if LSP is available
+		if e.buffer.HasLSP {
+			x += e.drawText(x, statusBarY, statusBarStyle, " ")
+		}
 
 		// Right side: indentation and line:col
 
@@ -753,8 +759,8 @@ func (e *Editor) drawStatusBar() {
 			lineIndentDisplay = "L0"
 		}
 
-		lineColInfo := fmt.Sprintf("%d:%d", e.buffer.CursorIterator.LineNumber()+1, visualCol)
-		rightInfo := fmt.Sprintf("%s  %s  %s", indentInfo, lineIndentDisplay, lineColInfo)
+		lineColInfo := fmt.Sprintf("  %d:%d  ", e.buffer.CursorIterator.LineNumber()+1, visualCol)
+		rightInfo := fmt.Sprintf("%s  %s%s", indentInfo, lineIndentDisplay, lineColInfo)
 
 		// Calculate position for right-aligned text
 		rightX := width - len(rightInfo)
@@ -766,9 +772,7 @@ func (e *Editor) drawStatusBar() {
 			rightX += e.drawText(rightX, statusBarY, statusBarStyle, "  ")
 			// Draw line indentation level
 			rightX += e.drawText(rightX, statusBarY, statusBarStyle, lineIndentDisplay)
-			// Add spacing
-			rightX += e.drawText(rightX, statusBarY, statusBarStyle, "  ")
-			// Draw line:col with different style
+			// Draw line:col with different style (already includes spacing)
 			e.drawText(rightX, statusBarY, lineColStyle, lineColInfo)
 		}
 	}
@@ -1326,7 +1330,7 @@ func (e *Editor) shouldShowContext() bool {
 	if !e.showContext {
 		return false
 	}
-	
+
 	// Always show context if we have it
 	// The scroll offset will handle limiting the number of lines
 	return true
@@ -1337,30 +1341,37 @@ func (e *Editor) updateContext() {
 	// Get current cursor line
 	cursorIter := e.buffer.CursorIterator
 	currentLine := cursorIter.LineNumber()
-	
+
 	// Only update if line changed
 	if currentLine == e.contextLine && len(e.contextCache) > 0 {
 		return
 	}
-	
+
 	// Get file path
 	filePath := e.buffer.FilePath
 	if filePath == "" {
 		e.contextCache = nil
 		return
 	}
-	
+
 	// Get folding ranges from LSP
 	ranges, err := e.proxyClient.GetFoldingRanges(filePath)
 	if err != nil || len(ranges) == 0 {
 		e.contextCache = nil
+		// Mark LSP as not available if we got an error
+		if err != nil {
+			e.buffer.HasLSP = false
+		}
 		return
 	}
-	
+
+	// If we got here, LSP is working
+	e.buffer.HasLSP = true
+
 	// Calculate visible range
 	viewStartLine := e.buffer.ViewIterator.LineNumber()
 	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
-	
+
 	// Get context line numbers, limited by scroll offset
 	e.contextCache = getContextLineNumbers(ranges, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
 	e.contextLine = currentLine

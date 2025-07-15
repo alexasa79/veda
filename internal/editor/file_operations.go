@@ -123,6 +123,11 @@ func (e *Editor) openFile(filePath string) {
 	
 	// Detect indentation for the new file
 	newBuffer.Indentation = e.detectIndentation()
+	
+	// Check if LSP is available for this file
+	// We do a quick check by trying to get folding ranges
+	_, err = e.proxyClient.GetFoldingRanges(filePath)
+	newBuffer.HasLSP = (err == nil)
 }
 
 // openFileCmd implements the open-file command

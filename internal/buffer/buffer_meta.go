@@ -32,6 +32,9 @@ type Buffer struct {
 
 	// Generation number for iterator validation
 	Generation uint64
+	
+	// LSP availability
+	HasLSP bool  // Whether LSP is available for this buffer
 }
 
 // IndentationInfo holds information about file indentation
@@ -97,6 +100,25 @@ func (b *Buffer) HasFile() bool {
 func (b *Buffer) DisplayName() string {
 	if b.FilePath == "" {
 		return "[No Name]"
+	}
+	return b.FilePath
+}
+
+// FileName returns just the filename without the path
+func (b *Buffer) FileName() string {
+	if b.FilePath == "" {
+		return "[No Name]"
+	}
+	// Find the last slash
+	lastSlash := -1
+	for i := len(b.FilePath) - 1; i >= 0; i-- {
+		if b.FilePath[i] == '/' {
+			lastSlash = i
+			break
+		}
+	}
+	if lastSlash >= 0 && lastSlash < len(b.FilePath)-1 {
+		return b.FilePath[lastSlash+1:]
 	}
 	return b.FilePath
 }

@@ -115,8 +115,8 @@ func NewTheme() *Theme {
 		},
 
 		LineColumn: StyleDef{
-			Foreground: "#0088ff[B]",
-			Background: "#fff",
+			Foreground: "#000000[B]",
+			Background: "#a0a0a0", // Darker gray background to make it stand out
 		},
 
 		ContextBackground: StyleDef{
