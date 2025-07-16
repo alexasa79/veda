@@ -1210,6 +1210,9 @@ func (e *Editor) openLineAbove() error {
 }
 
 func (e *Editor) insertChar(ch rune) error {
+	// Check for auto-pair characters
+	pairedChar, isPaired := e.getPairedChar(ch)
+	
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -1218,20 +1221,52 @@ func (e *Editor) insertChar(ch rune) error {
 	// Calculate the absolute position in the buffer
 	pos := e.getAbsolutePosition()
 
-	// Insert the character (this will invalidate iterators)
-	e.buffer.Insert(pos, string(ch))
+	if isPaired {
+		// Insert both the opening and closing characters
+		e.buffer.Insert(pos, string(ch) + string(pairedChar))
 
-	// Recreate iterators at the same line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+		// Recreate iterators at the same line
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-	// Move cursor forward
-	e.buffer.CursorX = cursorX + 1
+		// Move cursor between the pair (only forward by 1)
+		e.buffer.CursorX = cursorX + 1
+	} else {
+		// Normal character insert
+		e.buffer.Insert(pos, string(ch))
+
+		// Recreate iterators at the same line
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+		// Move cursor forward
+		e.buffer.CursorX = cursorX + 1
+	}
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
 	return nil
+}
+
+// getPairedChar returns the closing character for auto-pairing and whether the character should be paired
+func (e *Editor) getPairedChar(ch rune) (rune, bool) {
+	switch ch {
+	case '(':
+		return ')', true
+	case '[':
+		return ']', true
+	case '{':
+		return '}', true
+	case '"':
+		return '"', true
+	case '\'':
+		return '\'', true
+	case '`':
+		return '`', true
+	default:
+		return 0, false
+	}
 }
 
 func (e *Editor) insertNewline() error {
