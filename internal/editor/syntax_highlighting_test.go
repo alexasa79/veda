@@ -29,7 +29,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		// Insert a newline
 		te.ExecuteCommand("insert-newline")
 		
-		// Verify newline was inserted
+		// Verify newline was inserted (no indentation since current line has none)
 		AssertBufferEquals(t, te, "package main\n")
 		AssertCursorAt(t, te, 0, 1) // Beginning of new line
 		
@@ -74,7 +74,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		// Add some content on new line
 		te.InsertChar('\t') // Tab for indentation
 		
-		// Verify content
+		// Verify content (no auto-indent, then manual tab)
 		expected := "func main() {\n\t fmt.Println(\"Hello\") }"
 		AssertBufferEquals(t, te, expected)
 		

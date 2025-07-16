@@ -1142,24 +1142,28 @@ func (e *Editor) openLineBelow() error {
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 
-	// Move to end of current line
+	// Get the current line and move to end
+	currentLine := ""
 	if !e.buffer.CursorIterator.IsEOF() {
-		line := e.buffer.CursorIterator.Line()
-		e.buffer.CursorX = len(line)
+		currentLine = e.buffer.CursorIterator.Line()
+		e.buffer.CursorX = len(currentLine)
 	}
+
+	// Calculate auto-indent for the new line
+	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
 
 	// Get absolute position at end of line
 	pos := e.getAbsolutePosition()
 
-	// Insert newline (this will invalidate iterators)
-	e.buffer.Insert(pos, "\n")
+	// Insert newline and indentation (this will invalidate iterators)
+	e.buffer.Insert(pos, "\n"+autoIndent.IndentStr)
 
 	// Recreate iterators - cursor moves to next line
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-	// Move cursor to beginning of new line
-	e.buffer.CursorX = 0
+	// Move cursor to end of indentation
+	e.buffer.CursorX = len(autoIndent.IndentStr)
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
@@ -1176,6 +1180,20 @@ func (e *Editor) openLineAbove() error {
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 
+	// Get the previous line for auto-indent calculation (if we're not on the first line)
+	previousLine := ""
+	if lineNum > 0 {
+		// Temporarily move to previous line to get its content
+		prevIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum - 1)
+		if !prevIter.IsEOF() {
+			previousLine = prevIter.Line()
+		}
+	}
+
+	// Calculate auto-indent based on the previous line
+	// Use the length of the previous line as cursor position for calculation
+	autoIndent := e.buffer.CalculateAutoIndent(previousLine, len(previousLine))
+
 	// Move to beginning of current line
 	e.buffer.CursorX = 0
 
@@ -1183,6 +1201,7 @@ func (e *Editor) openLineAbove() error {
 	pos := e.getAbsolutePosition()
 
 	// Insert newline before current position (this will invalidate iterators)
+	// Move the cursor up and add indentation
 	e.buffer.Insert(pos, "\n")
 
 	// The cursor stays at the same line number (which is now the new empty line)
@@ -1190,8 +1209,18 @@ func (e *Editor) openLineAbove() error {
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-	// Cursor stays at beginning of line
-	e.buffer.CursorX = 0
+	// Insert indentation at the beginning of the new line
+	if autoIndent.IndentStr != "" {
+		pos = e.getAbsolutePosition()
+		e.buffer.Insert(pos, autoIndent.IndentStr)
+		
+		// Recreate iterators after insertion
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	}
+
+	// Move cursor to end of indentation
+	e.buffer.CursorX = len(autoIndent.IndentStr)
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
@@ -1232,11 +1261,20 @@ func (e *Editor) insertNewline() error {
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 
+	// Get the current line for auto-indent calculation
+	currentLine := ""
+	if !e.buffer.CursorIterator.IsEOF() {
+		currentLine = e.buffer.CursorIterator.Line()
+	}
+
+	// Calculate auto-indent for the new line
+	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
+
 	// Get the absolute position
 	pos := e.getAbsolutePosition()
 
-	// Insert newline
-	e.buffer.Insert(pos, "\n")
+	// Insert newline and indentation
+	e.buffer.Insert(pos, "\n"+autoIndent.IndentStr)
 
 	// Recreate iterators after buffer modification
 	// Cursor moves to next line
@@ -1244,8 +1282,8 @@ func (e *Editor) insertNewline() error {
 	// View iterator stays at its current line
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-	// Move cursor to beginning of next line
-	e.buffer.CursorX = 0
+	// Move cursor to end of indentation
+	e.buffer.CursorX = len(autoIndent.IndentStr)
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
