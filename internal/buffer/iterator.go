@@ -44,31 +44,38 @@ func NewBufferIteratorAtLine(buffer *Buffer, lineNum int) *BufferIterator {
 	utils.Assert(buffer.Rope.root != nil, "buffer.Rope.root is nil")
 	utils.Assert(lineNum >= 0, fmt.Sprintf("line number %d is negative", lineNum))
 
-	// Start from the beginning and find the target line
-	// TODO: This is O(n) and should be optimized to O(log n) by storing newline counts in nodes
-	offset := 0
-	currentLine := 0
-	length := buffer.Rope.Length()
+	// Use the optimized O(log n) line search
+	node, offsetInNode := buffer.Rope.findNodeAtLine(lineNum)
 
-	// Skip lines until we reach the target line
-	for offset < length && currentLine < lineNum {
-		if buffer.Rope.ByteAt(offset) == '\n' {
-			currentLine++
-		}
-		offset++
-	}
-
-	// If we went past EOF while looking for the line, the line doesn't exist
-	if currentLine < lineNum {
-		// Line number is beyond the last line
-		// Position at EOF
+	if node == nil {
+		// Line doesn't exist, position at EOF
+		length := buffer.Rope.Length()
 		it := &BufferIterator{
 			Buffer:     buffer,
-			LineNum:    currentLine + 1, // Past the last line
+			LineNum:    lineNum, // Keep the requested line number even if beyond EOF
 			Offset:     length,
 			Generation: buffer.Generation,
 		}
-		if buffer.Rope != nil && buffer.Rope.root != nil {
+		if buffer.Rope.root != nil {
+			it.Node = getRightmostLeaf(buffer.Rope.root)
+		}
+		return it
+	}
+
+	// Calculate the absolute offset in the buffer
+	absoluteOffset := node.offset + offsetInNode
+
+	// Handle case where line is beyond the last line in the buffer
+	length := buffer.Rope.Length()
+	if absoluteOffset >= length {
+		// Position at EOF
+		it := &BufferIterator{
+			Buffer:     buffer,
+			LineNum:    lineNum,
+			Offset:     length,
+			Generation: buffer.Generation,
+		}
+		if buffer.Rope.root != nil {
 			it.Node = getRightmostLeaf(buffer.Rope.root)
 		}
 		return it
@@ -78,16 +85,9 @@ func NewBufferIteratorAtLine(buffer *Buffer, lineNum int) *BufferIterator {
 	it := &BufferIterator{
 		Buffer:     buffer,
 		LineNum:    lineNum,
-		Offset:     offset,
+		Offset:     absoluteOffset,
+		Node:       node,
 		Generation: buffer.Generation,
-	}
-
-	// Find the node containing this offset
-	if offset < length {
-		it.Node = it.findNodeAtOffset(offset)
-	} else {
-		// At EOF
-		it.Node = getRightmostLeaf(buffer.Rope.root)
 	}
 
 	return it

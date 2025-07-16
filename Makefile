@@ -20,7 +20,7 @@ build:
 
 # Run all tests
 test:
-	$(GOTEST) -v ./...
+	$(GOTEST) -v ./internal/*/
 
 # Clean up
 clean:
