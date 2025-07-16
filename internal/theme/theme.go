@@ -25,7 +25,7 @@ type Theme struct {
 	LineNumber       StyleDef
 	CurrentLine      StyleDef
 	LineColumn       StyleDef // Line and column display in status bar
-	ContextBackground StyleDef // Background for context lines
+	Context StyleDef // Style for context lines and signature help
 
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
@@ -119,7 +119,7 @@ func NewTheme() *Theme {
 			Background: "#a0a0a0", // Darker gray background to make it stand out
 		},
 
-		ContextBackground: StyleDef{
+		Context: StyleDef{
 			Foreground: "#f8f8f2",
 			Background: "#1e1f1c", // Darker than normal background
 		},

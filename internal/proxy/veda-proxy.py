@@ -279,6 +279,59 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
+    def get_signature_help(self, file_path: str, line: int, character: int) -> Optional[Dict[str, Any]]:
+        """Get signature help for a function at the given position."""
+        # Determine language from file extension
+        language = self.get_language_for_file(file_path)
+        if not language:
+            logger.error(f"No language server configured for file: {file_path}")
+            return None
+            
+        # Ensure the server is started
+        if language not in self.servers:
+            logger.info(f"LSP server for {language} is not running, starting it...")
+            if not self.start_server(language):
+                logger.error(f"Failed to start LSP server for {language}")
+                return None
+            
+        # Ensure the file is open in the LSP server
+        self._open_file(language, file_path)
+        
+        # Prepare the signature help request
+        server = self.servers[language]
+        server['request_id'] += 1
+        request_id = server['request_id']
+        # Convert to absolute path before creating URI
+        abs_path = Path(file_path).absolute()
+        file_uri = abs_path.as_uri()
+        
+        request = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "textDocument/signatureHelp",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri
+                },
+                "position": {
+                    "line": line,
+                    "character": character
+                }
+            }
+        }
+        
+        logger.info(f"Sending textDocument/signatureHelp request for {file_uri} at {line}:{character}")
+        self._send_message(language, request)
+        
+        # Wait for the response with our specific request ID
+        response = self._wait_for_response(language, request_id)
+        logger.info(f"Received signature help response: {response}")
+        if response and "result" in response:
+            return response["result"]
+        elif response and "error" in response:
+            logger.error(f"LSP error: {response['error']}")
+        return None
+    
     def get_document_symbols(self, file_path: str) -> Optional[List[Dict[str, Any]]]:
         """Get document symbols (functions, classes, etc.) for a file."""
         # Determine language from file extension
@@ -545,6 +598,7 @@ class VedaProxy:
             'get_lsp_notifications': self.get_lsp_notifications,
             'get_document_symbols': self.get_document_symbols,
             'get_folding_ranges': self.get_folding_ranges,
+            'get_signature_help': self.get_signature_help,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -808,6 +862,17 @@ class VedaProxy:
             return {'success': False, 'error': 'No folding ranges found'}
         except Exception as e:
             logger.error(f"Error in get_folding_ranges: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_signature_help(self, file_path: str, line: int, character: int) -> Dict[str, Any]:
+        """Get signature help for a function at the given position."""
+        try:
+            result = self.lsp.get_signature_help(file_path, line, character)
+            if result is not None:
+                return {'success': True, 'result': result}
+            return {'success': False, 'error': 'No signature help available'}
+        except Exception as e:
+            logger.error(f"Error in get_signature_help: {e}")
             return {'success': False, 'error': str(e)}
 
 

@@ -130,6 +130,7 @@ func (e *Editor) Run() {
 
 	// Initial draw
 	e.drawEditor()
+	e.drawSignature()
 	e.drawStatusBar()
 	e.updateCursor()
 	e.screen.Show()
@@ -190,7 +191,8 @@ func (e *Editor) Run() {
 			t0 = e.perfTracker.ReportSince("drawEditor", t0)
 		}
 		
-		// Always redraw status bar to show updated cursor position
+		// Always redraw signature and status bar to show updated cursor position
+		e.drawSignature()
 		e.drawStatusBar()
 		t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
 
@@ -603,7 +605,7 @@ func (e *Editor) drawEditor() {
 	contentStartY := e.getContentStartY()
 
 	// Draw context lines with line numbers and syntax highlighting
-	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.ContextBackground)
+	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
 	for i, lineNum := range e.contextCache {
 		// Create an iterator at the context line
 		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
@@ -670,6 +672,7 @@ func (e *Editor) drawEditor() {
 		}
 	}
 }
+
 
 func (e *Editor) drawStatusBar() {
 	width, height := e.screen.Size()
@@ -1439,6 +1442,10 @@ func (e *Editor) getVisibleHeight() int {
 	_, height := e.screen.Size()
 	reserved := 1 // Status bar
 	reserved += len(e.contextCache) // Context lines
+	// Reserve space for signature if shown
+	if e.buffer.CurrentSignature != nil {
+		reserved += e.getSignatureLines()
+	}
 	return height - reserved
 }
 
@@ -1505,6 +1512,7 @@ func (e *Editor) getStatusBarY() int {
 	return height - 1
 }
 
+
 // getVisibleLines returns the number of lines that can be displayed in the editor
 func (e *Editor) getVisibleLines() int {
 	return e.getVisibleHeight()
@@ -1540,79 +1548,6 @@ func (e *Editor) updateSyntaxHighlighting() {
 	}
 }
 
-// updateArgumentListState checks if the cursor is inside a function's argument list
-func (e *Editor) updateArgumentListState() {
-	if e.highlighter == nil || e.highlighter.GetTree() == nil {
-		e.buffer.InArgumentList = false
-		return
-	}
-
-	// Get the current cursor position in the buffer
-	cursorPos := e.getAbsolutePosition()
-	
-	// Find the node at cursor position
-	root := e.highlighter.GetTree().RootNode()
-	node := e.findNodeAtPosition(root, cursorPos)
-	
-	if node == nil {
-		e.buffer.InArgumentList = false
-		return
-	}
-	
-	// Walk up the tree to find a call_expression node
-	current := node
-	var callExpr *sitter.Node
-	for current != nil {
-		if current.Type() == "call_expression" {
-			callExpr = current
-			break
-		}
-		current = current.Parent()
-	}
-	
-	if callExpr == nil {
-		e.buffer.InArgumentList = false
-		return
-	}
-	
-	// Find the argument_list child of the call expression
-	var argList *sitter.Node
-	for i := 0; i < int(callExpr.ChildCount()); i++ {
-		child := callExpr.Child(i)
-		if child.Type() == "argument_list" {
-			argList = child
-			break
-		}
-	}
-	
-	if argList == nil || argList.ChildCount() < 2 {
-		e.buffer.InArgumentList = false
-		return
-	}
-	
-	// Get the positions of the opening and closing parentheses
-	// First child is always '(', last child is always ')'
-	openParen := argList.Child(0)
-	closeParen := argList.Child(int(argList.ChildCount() - 1))
-	
-	if openParen == nil || closeParen == nil {
-		e.buffer.InArgumentList = false
-		return
-	}
-	
-	// Check if cursor is between the parentheses (inclusive of opening paren)
-	openPos := int(openParen.StartByte())
-	closePos := int(closeParen.StartByte())
-	
-	// In normal mode, being ON the opening paren or anywhere up to (but not including) the closing paren
-	// counts as being inside the argument list
-	if cursorPos >= openPos && cursorPos < closePos {
-		e.buffer.InArgumentList = true
-	} else {
-		e.buffer.InArgumentList = false
-	}
-}
-
 // findNodeAtPosition finds the most specific node containing the given position
 func (e *Editor) findNodeAtPosition(node *sitter.Node, pos int) *sitter.Node {
 	// Check if position is within this node
@@ -1633,6 +1568,7 @@ func (e *Editor) enterCommandModeCmd() error {
 	e.enterCommandMode()
 	return nil
 }
+
 
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
 func (e *Editor) showLSPBufferGo() error {

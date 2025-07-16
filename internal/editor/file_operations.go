@@ -55,6 +55,7 @@ func (e *Editor) showFuzzyListWidget() {
 	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
 		selection := fuzzyListWidget.Show(widgetScreen, func() {
 			e.drawEditor()
+			e.drawSignature()
 			e.drawStatusBar()
 		})
 		

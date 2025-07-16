@@ -26,7 +26,7 @@ func init() {
 		LL.Error("Failed to write proxy script to %s: %v", proxyScriptPath, err)
 		return
 	}
-	
+
 	LL.Debug("Extracted proxy script to: %s", proxyScriptPath)
 }
 
@@ -756,8 +756,58 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 	if err := c.stdout.Err(); err != nil {
 		return nil, fmt.Errorf("scanner error: %w", err)
 	}
-	
+
 	return nil, fmt.Errorf("failed to read proxy response")
+}
+
+// GetSignatureHelp gets signature help for a function at the given position
+func (c *Client) GetSignatureHelp(filePath string, line int, character int) (interface{}, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_signature_help",
+		Params: map[string]interface{}{
+			"file_path": filePath,
+			"line":      line,
+			"character": character,
+		},
+		ID: c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log the request for debugging
+	LL.Trace("GetSignatureHelp request: %s", string(requestBytes))
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		responseText := c.stdout.Text()
+		LL.Trace("GetSignatureHelp response: %s", responseText)
+
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response["error"] != nil {
+			return nil, fmt.Errorf("proxy error: %v", response["error"])
+		}
+
+		if result, ok := response["result"].(map[string]interface{}); ok {
+			if result["success"] == true && result["result"] != nil {
+				return result["result"], nil
+			}
+			if errorMsg, ok := result["error"].(string); ok {
+				return nil, fmt.Errorf(errorMsg)
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to get signature help")
 }
 
 // Close terminates the proxy process

@@ -6,6 +6,20 @@ import (
 	"veda/internal/config"
 )
 
+// SignatureHelp represents function signature information from LSP
+type SignatureHelp struct {
+	Label           string                 `json:"label"`          // The function signature
+	Documentation   string                 `json:"documentation"`  // Optional documentation
+	Parameters      []ParameterInfo        `json:"parameters"`     // Information about each parameter
+	ActiveParameter int                    `json:"activeParameter"` // Which parameter is currently active
+}
+
+// ParameterInfo represents information about a function parameter
+type ParameterInfo struct {
+	Label         string `json:"label"`         // Parameter name and type
+	Documentation string `json:"documentation"` // Optional parameter documentation
+}
+
 // Buffer represents a complete text buffer with metadata
 type Buffer struct {
 	*Rope // Embed the rope data structure
@@ -35,7 +49,8 @@ type Buffer struct {
 	HasLSP bool  // Whether LSP is available for this buffer
 	
 	// Function signature state
-	InArgumentList bool  // Whether cursor is inside a function's argument list
+	InArgumentList bool           // Whether cursor is inside a function's argument list
+	CurrentSignature *SignatureHelp // The current function signature from LSP
 }
 
 // IndentationInfo holds information about file indentation
