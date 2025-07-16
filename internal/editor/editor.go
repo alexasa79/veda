@@ -572,28 +572,6 @@ func (e *Editor) getVisualCursorX() int {
 	return e.visualWidth(line[:e.buffer.CursorX])
 }
 
-// updateLineOffsets recalculates the byte offset cache for all lines
-func (e *Editor) updateLineOffsets() {
-	// Use iterator to build offsets without converting entire buffer to string
-	lineCount := e.buffer.LineCount
-	e.buffer.LineOffsets = make([]int, lineCount+1)
-
-	iter := buffer.NewBufferIterator(e.buffer)
-	i := 0
-
-	for !iter.IsEOF() && i < lineCount {
-		e.buffer.LineOffsets[i] = iter.Position()
-		iter = iter.Next()
-		i++
-	}
-
-	// Set final offset (end of file)
-	if i < len(e.buffer.LineOffsets) {
-		e.buffer.LineOffsets[i] = e.buffer.Length()
-	}
-
-	e.buffer.OffsetsDirty = false
-}
 
 // getLineTokens returns syntax tokens for a line using iterator position
 func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
@@ -1428,32 +1406,21 @@ func (e *Editor) getVisibleLines() int {
 
 // getAbsolutePosition returns the absolute position in the buffer for the current cursor
 func (e *Editor) getAbsolutePosition() int {
-	// Update cache if needed
-	if e.buffer.OffsetsDirty || len(e.buffer.LineOffsets) == 0 {
-		e.updateLineOffsets()
-	}
+	// Get the position at the start of the current line
+	pos := e.buffer.CursorIterator.Position()
 
-	// Use cached offsets for efficiency
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	if cursorLine >= 0 && cursorLine < len(e.buffer.LineOffsets) {
-		pos := e.buffer.LineOffsets[cursorLine]
-
-		// Add current X position
-		// Need to get current line length to validate cursorX
-		if !e.buffer.CursorIterator.IsEOF() {
-			line := e.buffer.CursorIterator.Line()
-			if e.buffer.CursorX > len(line) {
-				pos += len(line)
-			} else {
-				pos += e.buffer.CursorX
-			}
+	// Add current X position
+	// Need to get current line length to validate cursorX
+	if !e.buffer.CursorIterator.IsEOF() {
+		line := e.buffer.CursorIterator.Line()
+		if e.buffer.CursorX > len(line) {
+			pos += len(line)
+		} else {
+			pos += e.buffer.CursorX
 		}
-
-		return pos
 	}
 
-	// Fallback for out of bounds
-	return 0
+	return pos
 }
 
 // updateSyntaxHighlighting re-parses the buffer for syntax highlighting
@@ -1516,7 +1483,6 @@ func (e *Editor) showLSPBufferGo() error {
 		bufferInfo.CursorX = 0
 		bufferInfo.ViewIterator = buffer.NewBufferIterator(bufferInfo)
 		bufferInfo.CursorIterator = buffer.NewBufferIterator(bufferInfo)
-		bufferInfo.OffsetsDirty = true
 		e.switchToBuffer(bufferInfo)
 	} else {
 		// Create new buffer

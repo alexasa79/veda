@@ -60,8 +60,6 @@ func TestSwitchToBuffer(t *testing.T) {
 	newBuffer := buffer.NewBuffer("Hello, World!", "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	newBuffer.CursorX = 3
 	// CursorIterator and ViewIterator will be created when switching
-	newBuffer.LineOffsets = []int{}
-	newBuffer.OffsetsDirty = true
 	
 	// Add to buffers
 	te.buffers["test.txt"] = newBuffer

@@ -20,8 +20,6 @@ type Buffer struct {
 	CursorIterator *BufferIterator  // Current cursor position iterator
 
 	// Caching
-	LineOffsets  []int  // Cache of byte offsets for each line
-	OffsetsDirty bool   // Whether line offsets need recalculation
 	LineCount    int    // Cache of the number of lines
 
 	// Indentation settings for this buffer
@@ -61,8 +59,6 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		CursorX:      0,
 		ViewIterator:   nil,  // Will be created when buffer is first used
 		CursorIterator: nil,  // Will be created when buffer is first used
-		LineOffsets:  []int{},
-		OffsetsDirty: true,
 		LineCount:    len(rope.Lines()),
 		Indentation: IndentationInfo{
 			Type:  defaultIndentType,
@@ -81,7 +77,6 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 // MarkModified marks the buffer as modified
 func (b *Buffer) MarkModified() {
 	b.IsModified = true
-	b.OffsetsDirty = true
 	b.LineCount = len(b.Lines())
 	b.UpdateLineNumberWidth()
 }

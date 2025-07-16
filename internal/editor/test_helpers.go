@@ -32,7 +32,6 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	// Update iterators to point to the new buffer
 	te.buffer.ViewIterator = buffer.NewBufferIterator(te.buffer)
 	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
-	te.updateLineOffsets()
 	
 	// Add the buffer to the buffers map so buffer management functions work
 	te.buffers[te.buffer.FilePath] = te.buffer
