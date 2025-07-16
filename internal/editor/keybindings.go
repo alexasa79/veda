@@ -41,6 +41,9 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "o", "open-line-below")
 	e.registerKeyBinding(commands.NormalMode, "O", "open-line-above")
 
+	// Delete commands
+	e.registerKeyBinding(commands.NormalMode, "x", "delete-current-character")
+
 	// Insert mode keys
 	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
 	e.registerKeyBinding(commands.InsertMode, "backspace", "backspace")

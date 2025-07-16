@@ -1191,7 +1191,7 @@ func (e *Editor) openLineAbove() error {
 	if autoIndent.IndentStr != "" {
 		pos = e.getAbsolutePosition()
 		e.buffer.Insert(pos, autoIndent.IndentStr)
-		
+
 		// Recreate iterators after insertion
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
@@ -1320,6 +1320,51 @@ func (e *Editor) backspace() error {
 			e.updateSyntaxHighlighting()
 		}
 	}
+
+	return nil
+}
+
+// deleteCurrentCharacter deletes the character at the current cursor position
+func (e *Editor) deleteCurrentCharacter() error {
+	// If at EOF or empty buffer, nothing to delete
+	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+		return nil
+	}
+
+	// Get current line to check bounds
+	line := e.buffer.CursorIterator.Line()
+
+	// If cursor is past the end of the line, nothing to delete
+	if e.buffer.CursorX >= len(line) {
+		return nil
+	}
+
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+
+	// Get absolute position of cursor
+	pos := e.getAbsolutePosition()
+
+	// Delete one character at cursor position
+	e.buffer.Delete(pos, pos+1)
+
+	// Recreate iterators at the same line
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+	// Cursor position stays the same, but we need to ensure it's not past the end of the line
+	newLine := e.buffer.CursorIterator.Line()
+	if e.buffer.CursorX > len(newLine) {
+		if len(newLine) > 0 {
+			e.buffer.CursorX = len(newLine) - 1 // Stay on last character in normal mode
+		} else {
+			e.buffer.CursorX = 0
+		}
+	}
+
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 
 	return nil
 }
@@ -1568,4 +1613,3 @@ func (e *Editor) goToDefinition() error {
 
 	return nil
 }
-

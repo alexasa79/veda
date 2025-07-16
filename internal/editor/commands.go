@@ -35,6 +35,9 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("insert-newline", e.insertNewline, true) // Modifies buffer
 	e.commandRegistry.Register("backspace", e.backspace, true) // Modifies buffer
 
+	// Delete commands
+	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter, true) // Modifies buffer
+
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd, true) // Opens dialog
 	e.commandRegistry.Register("quit", e.quit, true)
@@ -42,10 +45,10 @@ func (e *Editor) registerCommands() {
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition, true) // May change file
 	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo, true) // Changes buffer
-	
+
 	// Navigation commands
 	e.commandRegistry.Register("go-back", e.goBack, true) // May change file
-	
+
 	// Buffer commands
 	e.commandRegistry.Register("show-buffers", e.showBuffers, true) // Opens dialog
 }
