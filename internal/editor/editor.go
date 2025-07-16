@@ -16,6 +16,8 @@ import (
 	"veda/internal/syntax"
 	"veda/internal/ui"
 	"veda/internal/widgets"
+	
+	sitter "github.com/smacker/go-tree-sitter"
 )
 
 var LL *log.Logger = log.NewLogger("EDITOR")
@@ -186,9 +188,11 @@ func (e *Editor) Run() {
 		if needsRedraw {
 			e.drawEditor()
 			t0 = e.perfTracker.ReportSince("drawEditor", t0)
-			e.drawStatusBar()
-			t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
 		}
+		
+		// Always redraw status bar to show updated cursor position
+		e.drawStatusBar()
+		t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
 
 		// Always update cursor position and show
 		e.updateCursor()
@@ -705,6 +709,11 @@ func (e *Editor) drawStatusBar() {
 		if e.buffer.HasLSP {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ")
 		}
+		
+		// Add argument list indicator
+		if e.buffer.InArgumentList {
+			x += e.drawText(x, statusBarY, statusBarStyle, " [args]")
+		}
 
 		// Right side: indentation and line:col
 
@@ -737,7 +746,9 @@ func (e *Editor) drawStatusBar() {
 			lineIndentDisplay = "L0"
 		}
 
-		lineColInfo := fmt.Sprintf("  %d:%d  ", e.buffer.CursorIterator.LineNumber()+1, visualCol)
+		// Add absolute position to the display
+		absPos := e.getAbsolutePosition()
+		lineColInfo := fmt.Sprintf("  %d:%d [%d]  ", e.buffer.CursorIterator.LineNumber()+1, visualCol, absPos)
 		rightInfo := fmt.Sprintf("%s  %s%s", indentInfo, lineIndentDisplay, lineColInfo)
 
 		// Calculate position for right-aligned text
@@ -756,6 +767,14 @@ func (e *Editor) drawStatusBar() {
 	}
 }
 
+// updateCursorState updates any state that depends on cursor position
+func (e *Editor) updateCursorState() {
+	// Update argument list state if we have syntax highlighting
+	if e.highlighter != nil && e.highlighter.GetTree() != nil {
+		e.updateArgumentListState()
+	}
+}
+
 // Movement commands
 func (e *Editor) moveUp() error {
 	if e.buffer.CursorIterator.LineNumber() > 0 {
@@ -770,6 +789,7 @@ func (e *Editor) moveUp() error {
 			e.buffer.CursorX = maxX
 		}
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -786,6 +806,7 @@ func (e *Editor) moveDown() error {
 			e.buffer.CursorX = maxX
 		}
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -793,6 +814,7 @@ func (e *Editor) moveLeft() error {
 	if e.buffer.CursorX > 0 {
 		e.buffer.CursorX--
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -805,6 +827,7 @@ func (e *Editor) moveRight() error {
 	if e.buffer.CursorX < maxX {
 		e.buffer.CursorX++
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -992,6 +1015,7 @@ func (e *Editor) wordBackward() error {
 // beginningOfLine moves cursor to the beginning of the current line
 func (e *Editor) beginningOfLine() error {
 	e.buffer.CursorX = 0
+	e.updateCursorState()
 	return nil
 }
 
@@ -1016,6 +1040,7 @@ func (e *Editor) beginningOfLineInsert() error {
 func (e *Editor) endOfLineInsert() error {
 	line := e.buffer.CursorIterator.Line()
 	e.buffer.CursorX = len(line)
+	e.updateCursorState()
 	return nil
 }
 
@@ -1063,6 +1088,7 @@ func (e *Editor) goToBeginning() error {
 	e.buffer.CursorX = 0
 	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
 	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
+	e.updateCursorState()
 	return nil
 }
 
@@ -1509,7 +1535,98 @@ func (e *Editor) updateSyntaxHighlighting() {
 		content := e.buffer.String()
 		// Force a full reparse by not reusing the old tree
 		e.highlighter.ParseFull([]byte(content))
+		// Update argument list state after parsing
+		e.updateArgumentListState()
 	}
+}
+
+// updateArgumentListState checks if the cursor is inside a function's argument list
+func (e *Editor) updateArgumentListState() {
+	if e.highlighter == nil || e.highlighter.GetTree() == nil {
+		e.buffer.InArgumentList = false
+		return
+	}
+
+	// Get the current cursor position in the buffer
+	cursorPos := e.getAbsolutePosition()
+	
+	// Find the node at cursor position
+	root := e.highlighter.GetTree().RootNode()
+	node := e.findNodeAtPosition(root, cursorPos)
+	
+	if node == nil {
+		e.buffer.InArgumentList = false
+		return
+	}
+	
+	// Walk up the tree to find a call_expression node
+	current := node
+	var callExpr *sitter.Node
+	for current != nil {
+		if current.Type() == "call_expression" {
+			callExpr = current
+			break
+		}
+		current = current.Parent()
+	}
+	
+	if callExpr == nil {
+		e.buffer.InArgumentList = false
+		return
+	}
+	
+	// Find the argument_list child of the call expression
+	var argList *sitter.Node
+	for i := 0; i < int(callExpr.ChildCount()); i++ {
+		child := callExpr.Child(i)
+		if child.Type() == "argument_list" {
+			argList = child
+			break
+		}
+	}
+	
+	if argList == nil || argList.ChildCount() < 2 {
+		e.buffer.InArgumentList = false
+		return
+	}
+	
+	// Get the positions of the opening and closing parentheses
+	// First child is always '(', last child is always ')'
+	openParen := argList.Child(0)
+	closeParen := argList.Child(int(argList.ChildCount() - 1))
+	
+	if openParen == nil || closeParen == nil {
+		e.buffer.InArgumentList = false
+		return
+	}
+	
+	// Check if cursor is between the parentheses (inclusive of opening paren)
+	openPos := int(openParen.StartByte())
+	closePos := int(closeParen.StartByte())
+	
+	// In normal mode, being ON the opening paren or anywhere up to (but not including) the closing paren
+	// counts as being inside the argument list
+	if cursorPos >= openPos && cursorPos < closePos {
+		e.buffer.InArgumentList = true
+	} else {
+		e.buffer.InArgumentList = false
+	}
+}
+
+// findNodeAtPosition finds the most specific node containing the given position
+func (e *Editor) findNodeAtPosition(node *sitter.Node, pos int) *sitter.Node {
+	// Check if position is within this node
+	if int(node.StartByte()) <= pos && pos <= int(node.EndByte()) {
+		// Check children first for more specific match
+		for i := 0; i < int(node.ChildCount()); i++ {
+			child := node.Child(i)
+			if result := e.findNodeAtPosition(child, pos); result != nil {
+				return result
+			}
+		}
+		return node
+	}
+	return nil
 }
 
 func (e *Editor) enterCommandModeCmd() error {

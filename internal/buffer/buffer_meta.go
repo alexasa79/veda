@@ -33,6 +33,9 @@ type Buffer struct {
 	
 	// LSP availability
 	HasLSP bool  // Whether LSP is available for this buffer
+	
+	// Function signature state
+	InArgumentList bool  // Whether cursor is inside a function's argument list
 }
 
 // IndentationInfo holds information about file indentation

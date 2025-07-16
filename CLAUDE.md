@@ -92,3 +92,6 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Project Language Notes
 - The project is written in Go. The only file written in other programming language is veda-proxy.py. This is the only non-Go file this project will ever have.
+
+## Editor Interaction Notes
+- This is an editor project. It is an interactive program and you cannot run it yourself. If you want to test and run the actual editor, ask the user to do it for you and report back the results.

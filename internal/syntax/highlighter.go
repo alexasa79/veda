@@ -127,6 +127,11 @@ func (h *Highlighter) ClearCache() {
 	h.tokenCache = make(map[int][]Token)
 }
 
+// GetTree returns the current syntax tree
+func (h *Highlighter) GetTree() *sitter.Tree {
+	return h.currentTree
+}
+
 // GetTokensForLine returns syntax tokens for a specific line
 func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
