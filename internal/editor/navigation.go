@@ -36,9 +36,9 @@ func (e *Editor) pushNavigationHistory() {
 }
 
 // goBack navigates to the previous position in history
-func (e *Editor) goBack() (error, bool) {
+func (e *Editor) goBack() error {
 	if len(e.navHistory) == 0 {
-		return nil, false // No history to go back to
+		return nil
 	}
 	
 	// Pop the last entry
@@ -85,5 +85,5 @@ func (e *Editor) goBack() (error, bool) {
 	// Position at ScrollOffset from the top for better visibility
 	e.scrollToShowAtTop()
 	
-	return nil, true // May change file
+	return nil
 }

@@ -52,14 +52,12 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
-	err, _ := te.commandRegistry.Execute(command)
-	return err
+	return te.commandRegistry.Execute(command)
 }
 
 // InsertChar simulates inserting a character in insert mode
 func (te *TestEditor) InsertChar(ch rune) error {
-	err, _ := te.insertChar(ch)
-	return err
+	return te.insertChar(ch)
 }
 
 // GetCursorPosition returns the current cursor position

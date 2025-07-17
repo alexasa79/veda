@@ -31,9 +31,9 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 }
 
 // showBuffers shows the buffer list using the fuzzy list widget
-func (e *Editor) showBuffers() (error, bool) {
+func (e *Editor) showBuffers() error {
 	if len(e.buffers) == 0 {
-		return nil, false
+		return nil
 	}
 	
 	width, height := e.screen.Size()
@@ -93,9 +93,9 @@ func (e *Editor) showBuffers() (error, bool) {
 			}
 		}
 		
-		return nil, true // Opens dialog
+		return nil
 	}
 	
 	// If screen doesn't implement widgets.Screen, return nil
-	return nil, false
+	return nil
 }
