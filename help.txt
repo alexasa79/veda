@@ -1,0 +1,45 @@
+Veda - A terminal-based text editor
+
+USAGE:
+    vd [OPTIONS] [FILE]
+
+DESCRIPTION:
+    Veda is a vim-like terminal text editor written in Go. It features modal editing,
+    syntax highlighting, LSP integration, and efficient text manipulation using a
+    rope data structure.
+
+OPTIONS:
+    -d          Enable debug logging (logs DEBUG, INFO, WARNING, ERROR messages)
+    -t          Enable trace logging (logs TRACE, DEBUG, INFO, WARNING, ERROR messages)
+    -h, --help  Show this help message
+
+ARGUMENTS:
+    FILE        Optional file to edit. If not specified, the editor starts with an
+                empty buffer. You can also open files from within the editor using
+                the file browser (space s f).
+
+EDITOR MODES:
+    Normal Mode:    Default mode for navigation and commands (block cursor)
+    Insert Mode:    Press 'i' to enter, 'Escape' to exit (bar cursor)
+    Command Mode:   Press ':' to enter commands like ':q' or ':quit' (block cursor)
+
+KEY BINDINGS (Normal Mode):
+    Arrow keys      Navigate cursor
+    w               Move to next word
+    b               Move to previous word
+    0, Home         Move to beginning of line
+    $, End          Move to end of line
+    g g             Go to beginning of file
+    G               Go to end of file
+    i               Enter insert mode
+    o               Open new line below and enter insert mode
+    O               Open new line above and enter insert mode
+    space s f       Open file browser
+    g d             Go to definition (LSP)
+    :               Enter command mode
+
+SUPPORTED LANGUAGES (LSP):
+    Go              Requires 'gopls' (go install golang.org/x/tools/gopls@latest)
+    C/C++           Requires 'clangd' (install from package manager)
+
+For more information, visit: https://github.com/your-repo/veda

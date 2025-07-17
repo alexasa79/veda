@@ -50,7 +50,6 @@ func CleanupLogging() {
 
 func NewLogger(name string) *Logger {
 	logger := &Logger{INFO, name}
-	// logger.MinLevel = TRACE
 	AllLoggers = append(AllLoggers, logger)
 	return logger
 }
