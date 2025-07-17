@@ -2,7 +2,6 @@ package editor
 
 import (
 	"encoding/json"
-	"fmt"
 	"veda/internal/buffer"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -173,44 +172,6 @@ func (e *Editor) querySignatureHelp() {
 			}
 		}
 	}
-}
-
-// drawSignature renders the function signature above the status bar
-func (e *Editor) drawSignature() {
-	LL.Trace("Drawing signature %v, %v", e.buffer.InArgumentList, e.buffer.CurrentSignature)
-
-	if e.buffer.CurrentSignature == nil {
-		return
-	}
-
-	width, _ := e.screen.Size()
-	signatureY := e.getSignatureY()
-	signatureStyle := e.config.Theme.GetStyle(e.config.Theme.Context) // Use context style for signature
-
-	// Fill signature background
-	for i := 0; i < width; i++ {
-		e.screen.SetContent(i, signatureY, ' ', nil, signatureStyle)
-	}
-
-	// Format the signature for display
-	sig := e.buffer.CurrentSignature
-	displayText := sig.Label
-
-	// Highlight the active parameter if available
-	if len(sig.Parameters) > 0 && sig.ActiveParameter >= 0 && sig.ActiveParameter < len(sig.Parameters) {
-		// This is a simple display - we could enhance it later to highlight the active parameter
-		displayText = fmt.Sprintf("%s  [%d/%d]", sig.Label, sig.ActiveParameter+1, len(sig.Parameters))
-	}
-
-	// Log for debugging
-	LL.Debug("Drawing signature at Y=%d: %s", signatureY, displayText)
-
-	// Draw the signature text (truncate if too long)
-	maxLen := width - 2
-	if len(displayText) > maxLen {
-		displayText = displayText[:maxLen-3] + "..."
-	}
-	e.drawText(1, signatureY, signatureStyle, displayText)
 }
 
 // getSignatureY returns the Y position where signature should be drawn
