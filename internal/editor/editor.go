@@ -16,7 +16,7 @@ import (
 	"veda/internal/syntax"
 	"veda/internal/ui"
 	"veda/internal/widgets"
-	
+
 	sitter "github.com/smacker/go-tree-sitter"
 )
 
@@ -190,7 +190,7 @@ func (e *Editor) Run() {
 			e.drawEditor()
 			t0 = e.perfTracker.ReportSince("drawEditor", t0)
 		}
-		
+
 		// Always redraw signature and status bar to show updated cursor position
 		e.drawSignature()
 		e.drawStatusBar()
@@ -712,7 +712,7 @@ func (e *Editor) drawStatusBar() {
 		if e.buffer.HasLSP {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ")
 		}
-		
+
 		// Add argument list indicator
 		if e.buffer.InArgumentList {
 			x += e.drawText(x, statusBarY, statusBarStyle, " [args]")
@@ -1241,7 +1241,7 @@ func (e *Editor) openLineAbove() error {
 func (e *Editor) insertChar(ch rune) error {
 	// Check for auto-pair characters
 	pairedChar, isPaired := e.getPairedChar(ch)
-	
+
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()

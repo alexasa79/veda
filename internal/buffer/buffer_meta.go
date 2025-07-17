@@ -44,10 +44,10 @@ type Buffer struct {
 
 	// Generation number for iterator validation
 	Generation uint64
-	
+
 	// LSP availability
 	HasLSP bool  // Whether LSP is available for this buffer
-	
+
 	// Function signature state
 	InArgumentList bool           // Whether cursor is inside a function's argument list
 	CurrentSignature *SignatureHelp // The current function signature from LSP
