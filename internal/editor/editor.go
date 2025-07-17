@@ -130,6 +130,7 @@ func (e *Editor) Run() {
 
 	// Initial draw
 	e.drawEditor()
+	e.drawContext()
 	e.drawSignature()
 	e.drawStatusBar()
 	e.updateCursor()
@@ -176,6 +177,10 @@ func (e *Editor) Run() {
 		// Always redraw the entire screen
 		e.drawEditor()
 		t0 = e.perfTracker.ReportSince("drawEditor", t0)
+
+		// Draw context lines
+		e.drawContext()
+		t0 = e.perfTracker.ReportSince("drawContext", t0)
 
 		// Always redraw signature and status bar to show updated cursor position
 		e.drawSignature()
@@ -572,26 +577,22 @@ func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
 	return e.highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
 }
 
-func (e *Editor) drawEditor() {
+// drawContext draws the context lines at the top of the editor
+func (e *Editor) drawContext() {
+	if len(e.contextCache) == 0 {
+		return
+	}
+
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
-	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
 
 	// Use cached line number width from buffer
 	lineNumberWidth := e.buffer.LineNumberWidth
 
-	// Clear the entire screen once
-	e.screen.Clear()
-
-	// Update context if needed (must be done before getContentStartY)
-	e.updateContext()
-
-	// Get screen dimensions
+	// Get screen width
 	width, _ := e.screen.Size()
-	visibleHeight := e.getVisibleHeight()
-	contentStartY := e.getContentStartY()
 
 	// Draw context lines with line numbers and syntax highlighting
-	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
 	for i, lineNum := range e.contextCache {
 		// Create an iterator at the context line
 		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
@@ -615,6 +616,25 @@ func (e *Editor) drawEditor() {
 			e.drawContextLine(iter, lineNumberWidth, i, contextBg)
 		}
 	}
+}
+
+func (e *Editor) drawEditor() {
+	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
+	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+
+	// Use cached line number width from buffer
+	lineNumberWidth := e.buffer.LineNumberWidth
+
+	// Clear the entire screen once
+	e.screen.Clear()
+
+	// Update context if needed (must be done before getContentStartY)
+	e.updateContext()
+
+	// Get screen dimensions
+	width, _ := e.screen.Size()
+	visibleHeight := e.getVisibleHeight()
+	contentStartY := e.getContentStartY()
 
 	// Start from the view iterator
 	iter := e.buffer.ViewIterator
