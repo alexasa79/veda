@@ -132,7 +132,7 @@ func (e *Editor) openFile(filePath string) {
 }
 
 // openFileCmd implements the open-file command
-func (e *Editor) openFileCmd() error {
+func (e *Editor) openFileCmd() (error, bool) {
 	e.showFuzzyListWidget()
-	return nil
+	return nil, true // Opens dialog
 }

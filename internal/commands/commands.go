@@ -31,12 +31,12 @@ type Binding struct {
 }
 
 // HandlerFunc is the type for command handler functions
-type HandlerFunc func() error
+// Returns (error, needsRedraw)
+type HandlerFunc func() (error, bool)
 
 // CommandInfo contains metadata about a command
 type CommandInfo struct {
-	Handler       HandlerFunc
-	NeedsRedraw   bool // Whether this command requires a full screen redraw
+	Handler HandlerFunc
 }
 
 // CommandRegistry manages commands and their handlers
@@ -51,11 +51,10 @@ func NewCommandRegistry() *CommandRegistry {
 	}
 }
 
-// Register registers a command handler with metadata
-func (cr *CommandRegistry) Register(command string, handler HandlerFunc, needsRedraw bool) {
+// Register registers a command handler
+func (cr *CommandRegistry) Register(command string, handler HandlerFunc) {
 	cr.commands[command] = CommandInfo{
-		Handler:     handler,
-		NeedsRedraw: needsRedraw,
+		Handler: handler,
 	}
 }
 
@@ -65,7 +64,7 @@ func (cr *CommandRegistry) Execute(command string) (error, bool) {
 	if !exists {
 		return nil, false // Command not found, ignore
 	}
-	return info.Handler(), info.NeedsRedraw
+	return info.Handler()
 }
 
 // Has checks if a command exists in the registry

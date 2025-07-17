@@ -73,13 +73,13 @@ func (e *Editor) updateArgumentListState() {
 		return
 	}
 
-	// Check if cursor is between the parentheses (inclusive of opening paren)
+	// Check if cursor is between the parentheses (inclusive of both)
 	openPos := int(openParen.StartByte())
 	closePos := int(closeParen.StartByte())
 
-	// In normal mode, being ON the opening paren or anywhere up to (but not including) the closing paren
+	// In normal mode, being ON the opening paren or anywhere up to and including the closing paren
 	// counts as being inside the argument list
-	if cursorPos >= openPos && cursorPos < closePos {
+	if cursorPos >= openPos && cursorPos <= closePos {
 		e.buffer.InArgumentList = true
 		LL.Debug("Transition detected: entered argument list")
 		// Query LSP for signature help only if we don't already have one

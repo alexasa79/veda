@@ -779,7 +779,7 @@ func (e *Editor) updateCursorState() {
 }
 
 // Movement commands
-func (e *Editor) moveUp() error {
+func (e *Editor) moveUp() (error, bool) {
 	if e.buffer.CursorIterator.LineNumber() > 0 {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
 		// Adjust cursor X if the new line is shorter
@@ -793,10 +793,10 @@ func (e *Editor) moveUp() error {
 		}
 	}
 	e.updateCursorState()
-	return nil
+	return nil, true // Needs redraw for current line highlighting
 }
 
-func (e *Editor) moveDown() error {
+func (e *Editor) moveDown() (error, bool) {
 	if e.buffer.CursorIterator.LineNumber() < e.buffer.LineCount-1 {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
 		// Adjust cursor X if the new line is shorter
@@ -810,18 +810,18 @@ func (e *Editor) moveDown() error {
 		}
 	}
 	e.updateCursorState()
-	return nil
+	return nil, true // Needs redraw for current line highlighting
 }
 
-func (e *Editor) moveLeft() error {
+func (e *Editor) moveLeft() (error, bool) {
 	if e.buffer.CursorX > 0 {
 		e.buffer.CursorX--
 	}
 	e.updateCursorState()
-	return nil
+	return nil, true // No redraw needed
 }
 
-func (e *Editor) moveRight() error {
+func (e *Editor) moveRight() (error, bool) {
 	line := e.buffer.CursorIterator.Line()
 	maxX := len(line)
 	if maxX > 0 {
@@ -831,11 +831,11 @@ func (e *Editor) moveRight() error {
 		e.buffer.CursorX++
 	}
 	e.updateCursorState()
-	return nil
+	return nil, true // No redraw needed
 }
 
 // Insert mode movement commands - allow cursor to go past last character
-func (e *Editor) moveUpInsert() error {
+func (e *Editor) moveUpInsert() (error, bool) {
 	if e.buffer.CursorIterator.LineNumber() > 0 {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
 		// Adjust cursor X if the new line is shorter
@@ -844,10 +844,10 @@ func (e *Editor) moveUpInsert() error {
 			e.buffer.CursorX = len(line)
 		}
 	}
-	return nil
+	return nil, true // Needs redraw for current line highlighting
 }
 
-func (e *Editor) moveDownInsert() error {
+func (e *Editor) moveDownInsert() (error, bool) {
 	if e.buffer.CursorIterator.LineNumber() < e.buffer.LineCount-1 {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
 		// Adjust cursor X if the new line is shorter
@@ -856,27 +856,27 @@ func (e *Editor) moveDownInsert() error {
 			e.buffer.CursorX = len(line)
 		}
 	}
-	return nil
+	return nil, true // Needs redraw for current line highlighting
 }
 
-func (e *Editor) moveLeftInsert() error {
+func (e *Editor) moveLeftInsert() (error, bool) {
 	if e.buffer.CursorX > 0 {
 		e.buffer.CursorX--
 	}
-	return nil
+	return nil, false // No redraw needed
 }
 
-func (e *Editor) moveRightInsert() error {
+func (e *Editor) moveRightInsert() (error, bool) {
 	line := e.buffer.CursorIterator.Line()
 	// In insert mode, allow cursor to go past the last character
 	if e.buffer.CursorX < len(line) {
 		e.buffer.CursorX++
 	}
-	return nil
+	return nil, false // No redraw needed
 }
 
 // wordForward moves the cursor to the beginning of the next word
-func (e *Editor) wordForward() error {
+func (e *Editor) wordForward() (error, bool) {
 	// Start from current position
 	iter := e.buffer.CursorIterator
 	x := e.buffer.CursorX + 1 // Start searching from next character
@@ -903,7 +903,7 @@ func (e *Editor) wordForward() error {
 				// Found transition from non-alnum to alnum
 				e.buffer.CursorX = x
 				e.buffer.CursorIterator = iter
-				return nil
+				return nil, false
 			}
 
 			if !isAlnum {
@@ -922,14 +922,14 @@ func (e *Editor) wordForward() error {
 	}
 
 	// No more words found, stay at current position
-	return nil
+	return nil, false // No redraw needed
 }
 
 // wordBackward moves the cursor to the beginning of the previous word
-func (e *Editor) wordBackward() error {
+func (e *Editor) wordBackward() (error, bool) {
 	// If we're at the very beginning, can't go back
 	if e.buffer.CursorIterator.LineNumber() == 0 && e.buffer.CursorX == 0 {
-		return nil
+		return nil, false
 	}
 
 	// Start from current position
@@ -949,7 +949,7 @@ func (e *Editor) wordBackward() error {
 		iter = iter.Previous()
 		if iter.LineNumber() == e.buffer.CursorIterator.LineNumber() {
 			// Couldn't move back, we're at beginning
-			return nil
+			return nil, false
 		}
 		currentLine = iter.Line()
 		x = len(currentLine) - 1
@@ -985,7 +985,7 @@ func (e *Editor) wordBackward() error {
 						// Found non-word character, word starts at x+1
 						e.buffer.CursorX = x + 1
 						e.buffer.CursorIterator = iter
-						return nil
+						return nil, false
 					}
 				}
 			}
@@ -997,7 +997,7 @@ func (e *Editor) wordBackward() error {
 		if !lookingForWord {
 			e.buffer.CursorX = 0
 			e.buffer.CursorIterator = iter
-			return nil
+			return nil, false
 		}
 
 		// Move to previous line
@@ -1012,18 +1012,18 @@ func (e *Editor) wordBackward() error {
 	}
 
 	// Reached beginning of buffer
-	return nil
+	return nil, false // No redraw needed
 }
 
 // beginningOfLine moves cursor to the beginning of the current line
-func (e *Editor) beginningOfLine() error {
+func (e *Editor) beginningOfLine() (error, bool) {
 	e.buffer.CursorX = 0
 	e.updateCursorState()
-	return nil
+	return nil, false // No redraw needed
 }
 
 // endOfLine moves cursor to the end of the current line
-func (e *Editor) endOfLine() error {
+func (e *Editor) endOfLine() (error, bool) {
 	line := e.buffer.CursorIterator.Line()
 	lineLen := len(line)
 	if lineLen > 0 {
@@ -1031,23 +1031,23 @@ func (e *Editor) endOfLine() error {
 	} else {
 		e.buffer.CursorX = 0
 	}
-	return nil
+	return nil, false // No redraw needed
 }
 
 // beginningOfLineInsert is the same as beginningOfLine but for insert mode
-func (e *Editor) beginningOfLineInsert() error {
+func (e *Editor) beginningOfLineInsert() (error, bool) {
 	return e.beginningOfLine()
 }
 
 // endOfLineInsert moves cursor past the end of line for insert mode
-func (e *Editor) endOfLineInsert() error {
+func (e *Editor) endOfLineInsert() (error, bool) {
 	line := e.buffer.CursorIterator.Line()
 	e.buffer.CursorX = len(line)
 	e.updateCursorState()
-	return nil
+	return nil, false // No redraw needed
 }
 
-func (e *Editor) pageUp() error {
+func (e *Editor) pageUp() (error, bool) {
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor up by visible lines
@@ -1063,10 +1063,10 @@ func (e *Editor) pageUp() error {
 			e.buffer.CursorX--
 		}
 	}
-	return nil
+	return nil, true // Page commands always need redraw
 }
 
-func (e *Editor) pageDown() error {
+func (e *Editor) pageDown() (error, bool) {
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor down by visible lines
@@ -1083,20 +1083,20 @@ func (e *Editor) pageDown() error {
 			e.buffer.CursorX--
 		}
 	}
-	return nil
+	return nil, true // Page commands always need redraw
 }
 
 // goToBeginning moves the cursor to the beginning of the file
-func (e *Editor) goToBeginning() error {
+func (e *Editor) goToBeginning() (error, bool) {
 	e.buffer.CursorX = 0
 	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
 	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
 	e.updateCursorState()
-	return nil
+	return nil, true // May scroll
 }
 
 // goToEnd moves the cursor to the end of the file
-func (e *Editor) goToEnd() error {
+func (e *Editor) goToEnd() (error, bool) {
 	// Create iterator at EOF
 	endIter := buffer.NewBufferIteratorAtEnd(e.buffer)
 
@@ -1122,29 +1122,29 @@ func (e *Editor) goToEnd() error {
 	// Scroll to show the cursor
 	e.scroll()
 
-	return nil
+	return nil, true // May scroll
 }
 
-func (e *Editor) quit() error {
+func (e *Editor) quit() (error, bool) {
 	e.Close()
 	os.Exit(0)
-	return nil
+	return nil, true
 }
 
 
 // Insert mode commands
-func (e *Editor) enterInsertMode() error {
+func (e *Editor) enterInsertMode() (error, bool) {
 	e.mode = commands.InsertMode
-	return nil
+	return nil, true // Status bar changes
 }
 
-func (e *Editor) exitInsertMode() error {
+func (e *Editor) exitInsertMode() (error, bool) {
 	e.mode = commands.NormalMode
-	return nil
+	return nil, true // Status bar changes
 }
 
 // openLineBelow opens a new line below the current line and enters insert mode
-func (e *Editor) openLineBelow() error {
+func (e *Editor) openLineBelow() (error, bool) {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -1178,11 +1178,11 @@ func (e *Editor) openLineBelow() error {
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
-	return nil
+	return nil, true // Modifies buffer
 }
 
 // openLineAbove opens a new line above the current line and enters insert mode
-func (e *Editor) openLineAbove() error {
+func (e *Editor) openLineAbove() (error, bool) {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -1235,10 +1235,10 @@ func (e *Editor) openLineAbove() error {
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
-	return nil
+	return nil, true // Modifies buffer
 }
 
-func (e *Editor) insertChar(ch rune) error {
+func (e *Editor) insertChar(ch rune) (error, bool) {
 	// Check for auto-pair characters
 	pairedChar, isPaired := e.getPairedChar(ch)
 
@@ -1275,7 +1275,7 @@ func (e *Editor) insertChar(ch rune) error {
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
-	return nil
+	return nil, true // Modifies buffer
 }
 
 // getPairedChar returns the closing character for auto-pairing and whether the character should be paired
@@ -1298,7 +1298,7 @@ func (e *Editor) getPairedChar(ch rune) (rune, bool) {
 	}
 }
 
-func (e *Editor) insertNewline() error {
+func (e *Editor) insertNewline() (error, bool) {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -1330,13 +1330,13 @@ func (e *Editor) insertNewline() error {
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
-	return nil
+	return nil, true // Modifies buffer
 }
 
-func (e *Editor) backspace() error {
+func (e *Editor) backspace() (error, bool) {
 	// If at beginning of buffer, nothing to delete
 	if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
-		return nil
+		return nil, false
 	}
 
 	// Remember current position
@@ -1385,14 +1385,14 @@ func (e *Editor) backspace() error {
 		}
 	}
 
-	return nil
+	return nil, true // Modifies buffer
 }
 
 // deleteCurrentCharacter deletes the character at the current cursor position
-func (e *Editor) deleteCurrentCharacter() error {
+func (e *Editor) deleteCurrentCharacter() (error, bool) {
 	// If at EOF or empty buffer, nothing to delete
 	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
-		return nil
+		return nil, false
 	}
 
 	// Get current line to check bounds
@@ -1400,7 +1400,7 @@ func (e *Editor) deleteCurrentCharacter() error {
 
 	// If cursor is past the end of the line, nothing to delete
 	if e.buffer.CursorX >= len(line) {
-		return nil
+		return nil, false
 	}
 
 	// Remember current position
@@ -1430,7 +1430,7 @@ func (e *Editor) deleteCurrentCharacter() error {
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
-	return nil
+	return nil, true // Modifies buffer
 }
 
 // Layout calculation methods
@@ -1564,14 +1564,14 @@ func (e *Editor) findNodeAtPosition(node *sitter.Node, pos int) *sitter.Node {
 	return nil
 }
 
-func (e *Editor) enterCommandModeCmd() error {
+func (e *Editor) enterCommandModeCmd() (error, bool) {
 	e.enterCommandMode()
-	return nil
+	return nil, true // Status bar changes
 }
 
 
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
-func (e *Editor) showLSPBufferGo() error {
+func (e *Editor) showLSPBufferGo() (error, bool) {
 	// Save current buffer state first
 	e.saveCurrentBufferState()
 
@@ -1579,7 +1579,7 @@ func (e *Editor) showLSPBufferGo() error {
 	messages, err := e.proxyClient.GetLSPMessages("go")
 	if err != nil {
 		LL.Debug("Failed to get LSP messages: %v", err)
-		return err
+		return err, false
 	}
 
 	// Format messages as a string buffer
@@ -1625,14 +1625,14 @@ func (e *Editor) showLSPBufferGo() error {
 		e.switchToBuffer(newBuffer)
 	}
 
-	return nil
+	return nil, true // Changes buffer
 }
 
-func (e *Editor) goToDefinition() error {
+func (e *Editor) goToDefinition() (error, bool) {
 	// Only works if we have a file open
 	if !e.buffer.HasFile() {
 		// TODO: Show error to user
-		return fmt.Errorf("no file open")
+		return fmt.Errorf("no file open"), false
 	}
 
 	// Get cursor position (LSP uses 0-based line numbers)
@@ -1646,7 +1646,7 @@ func (e *Editor) goToDefinition() error {
 	if err != nil {
 		// TODO: Show error to user
 		LL.Debug("goToDefinition failed: %v", err)
-		return err
+		return err, false
 	}
 
 	LL.Trace("goToDefinition: got %d locations", len(locations))
@@ -1654,7 +1654,7 @@ func (e *Editor) goToDefinition() error {
 	// If no locations found, nothing to do
 	if len(locations) == 0 {
 		// TODO: Show message to user
-		return nil
+		return nil, false
 	}
 
 	// Use the first location
@@ -1662,7 +1662,7 @@ func (e *Editor) goToDefinition() error {
 
 	// Parse the file URI
 	if !strings.HasPrefix(location.URI, "file://") {
-		return fmt.Errorf("unsupported URI scheme: %s", location.URI)
+		return fmt.Errorf("unsupported URI scheme: %s", location.URI), false
 	}
 
 	filePath := strings.TrimPrefix(location.URI, "file://")
@@ -1699,5 +1699,5 @@ func (e *Editor) goToDefinition() error {
 	// Position the definition at ScrollOffset from the top of the screen
 	e.scrollToShowAtTop()
 
-	return nil
+	return nil, true // May change file
 }

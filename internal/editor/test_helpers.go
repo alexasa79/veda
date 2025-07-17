@@ -58,7 +58,8 @@ func (te *TestEditor) ExecuteCommand(command string) error {
 
 // InsertChar simulates inserting a character in insert mode
 func (te *TestEditor) InsertChar(ch rune) error {
-	return te.insertChar(ch)
+	err, _ := te.insertChar(ch)
+	return err
 }
 
 // GetCursorPosition returns the current cursor position
