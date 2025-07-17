@@ -524,6 +524,65 @@ func (e *Editor) quit() error {
 	return nil
 }
 
+// parseSignatureHelpResponse parses the raw signature help response and stores it in the buffer
+func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse interface{}) {
+	if rawResponse == nil {
+		LL.Debug("No signature help available")
+		buf.CurrentSignature = nil
+		return
+	}
+
+	LL.Debug("Parsing signature help response: %+v", rawResponse)
+
+	// Convert the result to SignatureHelp structure
+	if sigHelp, ok := rawResponse.(map[string]interface{}); ok {
+		if signatures, ok := sigHelp["signatures"].([]interface{}); ok && len(signatures) > 0 {
+			// Take the first signature
+			if sig, ok := signatures[0].(map[string]interface{}); ok {
+				help := &buffer.SignatureHelp{}
+
+				// Extract label
+				if label, ok := sig["label"].(string); ok {
+					help.Label = label
+				}
+
+				// Extract documentation
+				if doc, ok := sig["documentation"].(string); ok {
+					help.Documentation = doc
+				}
+
+				// Extract active parameter
+				if activeParam, ok := sigHelp["activeParameter"].(float64); ok {
+					help.ActiveParameter = int(activeParam)
+				}
+
+				// Extract parameters
+				if params, ok := sig["parameters"].([]interface{}); ok {
+					for _, p := range params {
+						if param, ok := p.(map[string]interface{}); ok {
+							paramInfo := buffer.ParameterInfo{}
+							if label, ok := param["label"].(string); ok {
+								paramInfo.Label = label
+							}
+							if doc, ok := param["documentation"].(string); ok {
+								paramInfo.Documentation = doc
+							}
+							help.Parameters = append(help.Parameters, paramInfo)
+						}
+					}
+				}
+
+				// Store the signature
+				buf.CurrentSignature = help
+				LL.Info("Stored async signature: %s", help.Label)
+			}
+		}
+	} else {
+		LL.Debug("Unexpected signature help response format: %T", rawResponse)
+		buf.CurrentSignature = nil
+	}
+}
+
 // handleLSPResponse processes responses from the LSP worker thread
 func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
 	LL.Trace("Received LSP response: type=%d, filePath=%s", response.Type, response.FilePath)
@@ -545,6 +604,25 @@ func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
 			// If this is the current buffer, invalidate context cache to trigger redraw
 			if buf == e.buffer {
 				e.contextLine = -1 // Force context update
+			}
+		}
+
+	case lsp.RequestSignatureHelp:
+		// Find the buffer that requested this
+		if buf, exists := e.buffers[response.FilePath]; exists {
+			// Only apply response if generation matches current state
+			if response.Generation == buf.SignatureGeneration {
+				if response.Error != nil {
+					LL.Debug("LSP signature help error for %s: %v", response.FilePath, response.Error)
+					buf.CurrentSignature = nil
+				} else {
+					// Parse and store the signature help
+					e.parseSignatureHelpResponse(buf, response.SignatureHelp)
+				}
+			} else {
+				// Stale response - ignore it
+				LL.Debug("Ignoring stale signature help response: gen=%d, current=%d",
+					response.Generation, buf.SignatureGeneration)
 			}
 		}
 	}

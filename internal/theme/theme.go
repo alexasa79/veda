@@ -121,7 +121,7 @@ func NewTheme() *Theme {
 
 		Context: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#1e1f1c", // Darker than normal background
+			Background: "#000000", // Darker than normal background
 		},
 
 		// Monokai syntax highlighting colors

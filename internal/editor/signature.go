@@ -1,8 +1,7 @@
 package editor
 
 import (
-	"encoding/json"
-	"veda/internal/buffer"
+	"veda/internal/lsp"
 
 	sitter "github.com/smacker/go-tree-sitter"
 )
@@ -79,100 +78,26 @@ func (e *Editor) updateArgumentListState() {
 	// In normal mode, being ON the opening paren or anywhere up to and including the closing paren
 	// counts as being inside the argument list
 	if cursorPos >= openPos && cursorPos <= closePos {
-		e.buffer.InArgumentList = true
-		LL.Debug("Transition detected: entered argument list")
-		// Query LSP for signature help only if we don't already have one
-		if e.buffer.CurrentSignature == nil {
-			e.querySignatureHelp()
+		if !e.buffer.InArgumentList {
+			// Entering argument list for the first time
+			e.buffer.InArgumentList = true
+			LL.Debug("Transition detected: entered argument list")
+			// Send async request for signature help
+			e.requestSignatureHelpAsync()
 		}
+		// If already in argument list, don't send duplicate requests
 	} else {
-		e.buffer.InArgumentList = false
-		e.buffer.CurrentSignature = nil
-	}
-}
-
-// querySignatureHelp queries the LSP for signature help at the current cursor position
-func (e *Editor) querySignatureHelp() {
-	// Only works if we have a file open
-	if !e.buffer.HasFile() {
-		return
-	}
-
-	// Get cursor position
-	line := e.buffer.CursorIterator.LineNumber()
-	col := e.buffer.CursorX
-
-	LL.Debug("Querying signature help for %s at %d:%d", e.buffer.FilePath, line, col)
-
-	// Query the LSP
-	result, err := e.proxyClient.GetSignatureHelp(e.buffer.FilePath, line, col)
-	if err != nil {
-		LL.Debug("Failed to get signature help: %v", err)
-		return
-	}
-
-	// Log the result for debugging
-	LL.Debug("Signature help result: %+v", result)
-
-	// Parse the signature help result
-	if result == nil {
-		LL.Debug("No signature help available")
-		return
-	}
-
-	// Log the type of result for debugging
-	LL.Debug("Signature help result type: %T", result)
-
-	// Marshal to JSON for better debugging
-	if jsonBytes, err := json.Marshal(result); err == nil {
-		LL.Debug("Signature help JSON: %s", string(jsonBytes))
-	}
-
-	// Convert the result to SignatureHelp structure
-	if sigHelp, ok := result.(map[string]interface{}); ok {
-		if signatures, ok := sigHelp["signatures"].([]interface{}); ok && len(signatures) > 0 {
-			// Take the first signature
-			if sig, ok := signatures[0].(map[string]interface{}); ok {
-				help := &buffer.SignatureHelp{}
-
-				// Extract label
-				if label, ok := sig["label"].(string); ok {
-					help.Label = label
-				}
-
-				// Extract documentation
-				if doc, ok := sig["documentation"].(string); ok {
-					help.Documentation = doc
-				}
-
-				// Extract active parameter
-				if activeParam, ok := sigHelp["activeParameter"].(float64); ok {
-					help.ActiveParameter = int(activeParam)
-				}
-
-				// Extract parameters
-				if params, ok := sig["parameters"].([]interface{}); ok {
-					for _, p := range params {
-						if param, ok := p.(map[string]interface{}); ok {
-							paramInfo := buffer.ParameterInfo{}
-							if label, ok := param["label"].(string); ok {
-								paramInfo.Label = label
-							}
-							if doc, ok := param["documentation"].(string); ok {
-								paramInfo.Documentation = doc
-							}
-							help.Parameters = append(help.Parameters, paramInfo)
-						}
-					}
-				}
-
-				// Store the signature
-				e.buffer.CurrentSignature = help
-				LL.Info("Stored signature: %s", help.Label)
-			}
+		if e.buffer.InArgumentList {
+			// Leaving argument list
+			LL.Debug("Transition detected: left argument list")
+			e.buffer.InArgumentList = false
+			e.buffer.CurrentSignature = nil
+			// Increment generation to invalidate any pending responses
+			e.buffer.SignatureGeneration++
 		}
 	}
 }
+
 
 // getSignatureY returns the Y position where signature should be drawn
 func (e *Editor) getSignatureY() int {
@@ -187,4 +112,37 @@ func (e *Editor) getSignatureLines() int {
 	// For now, we'll use 1 line for the signature
 	// Later we can expand this if we need multi-line signatures
 	return 1
+}
+
+// requestSignatureHelpAsync sends an asynchronous request for signature help
+func (e *Editor) requestSignatureHelpAsync() {
+	// Only works if we have a file open
+	if !e.buffer.HasFile() {
+		return
+	}
+
+	// Get cursor position
+	line := e.buffer.CursorIterator.LineNumber()
+	col := e.buffer.CursorX
+
+	LL.Debug("Requesting async signature help for %s at %d:%d", e.buffer.FilePath, line, col)
+
+	// Create LSP request with current generation
+	request := lsp.LSPRequest{
+		Type:       lsp.RequestSignatureHelp,
+		FilePath:   e.buffer.FilePath,
+		Buffer:     e.buffer,
+		Generation: e.buffer.SignatureGeneration,
+		Line:       line,
+		Character:  col,
+	}
+
+	// Send request to LSP worker (non-blocking)
+	select {
+	case e.lspRequestChan <- request:
+		LL.Trace("Sent async signature help request for %s at %d:%d (gen=%d)",
+			e.buffer.FilePath, line, col, e.buffer.SignatureGeneration)
+	default:
+		LL.Debug("LSP request channel full, dropping signature help request for %s", e.buffer.FilePath)
+	}
 }

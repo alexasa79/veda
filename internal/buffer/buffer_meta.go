@@ -52,6 +52,7 @@ type Buffer struct {
 	// Function signature state
 	InArgumentList bool           // Whether cursor is inside a function's argument list
 	CurrentSignature *SignatureHelp // The current function signature from LSP
+	SignatureGeneration uint64    // Generation number for signature help requests
 
 	// Folding ranges from LSP
 	FoldingRanges []proxy.FoldingRange // Cached folding ranges for this buffer

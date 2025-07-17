@@ -12,23 +12,31 @@ type LSPRequestType int
 
 const (
 	RequestFoldingRanges LSPRequestType = iota
-	// Future: RequestGoToDefinition, RequestSignatureHelp, etc.
+	RequestSignatureHelp
+	// Future: RequestGoToDefinition, etc.
 )
 
 // LSPRequest represents a request to the LSP worker thread
 type LSPRequest struct {
-	Type     LSPRequestType
-	FilePath string
-	Buffer   interface{} // Reference to the buffer that made the request
+	Type       LSPRequestType
+	FilePath   string
+	Buffer     interface{} // Reference to the buffer that made the request
+	Generation uint64      // Generation number for request validation
+
+	// Signature help specific fields
+	Line      int // Line number for signature help (0-based)
+	Character int // Character position for signature help (0-based)
+
 	// Future: add other request-specific fields for different LSP operations
 }
-
 // LSPResponse represents a response from the LSP worker thread
 type LSPResponse struct {
 	Type          LSPRequestType
 	FilePath      string
 	Buffer        interface{} // Reference to the buffer that made the request
+	Generation    uint64      // Generation number from the original request
 	FoldingRanges []proxy.FoldingRange
+	SignatureHelp interface{} // Raw signature help response from LSP
 	Error         error
 	// Future: add other response fields for different LSP operations
 }
@@ -46,6 +54,7 @@ func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseC
 				Type:          RequestFoldingRanges,
 				FilePath:      request.FilePath,
 				Buffer:        request.Buffer,
+				Generation:    request.Generation,
 				FoldingRanges: ranges,
 				Error:         err,
 			}
@@ -58,7 +67,25 @@ func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseC
 
 			responseChan <- response
 
-		// Future: handle other request types
+		case RequestSignatureHelp:
+			sigHelp, err := proxyClient.GetSignatureHelp(request.FilePath, request.Line, request.Character)
+			response := LSPResponse{
+				Type:          RequestSignatureHelp,
+				FilePath:      request.FilePath,
+				Buffer:        request.Buffer,
+				Generation:    request.Generation,
+				SignatureHelp: sigHelp,
+				Error:         err,
+			}
+
+			if err != nil {
+				LL.Debug("GetSignatureHelp failed for %s at %d:%d: %v", request.FilePath, request.Line, request.Character, err)
+			} else {
+				LL.Trace("GetSignatureHelp succeeded for %s at %d:%d", request.FilePath, request.Line, request.Character)
+			}
+
+			responseChan <- response
+
 		default:
 			LL.Error("Unknown LSP request type: %d", request.Type)
 		}
