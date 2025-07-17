@@ -23,4 +23,5 @@ type Screen interface {
 	
 	// Event handling
 	PollEvent() ui.Event
+	EventChannel() <-chan ui.Event  // Returns the underlying event channel
 }

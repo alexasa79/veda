@@ -70,3 +70,8 @@ func (s *TerminalScreen) SetCursorStyle(style ui.CursorStyle) {
 func (s *TerminalScreen) PollEvent() ui.Event {
 	return s.adapter.PollEvent()
 }
+
+// EventChannel returns the underlying event channel
+func (s *TerminalScreen) EventChannel() <-chan ui.Event {
+	return s.adapter.EventChannel()
+}

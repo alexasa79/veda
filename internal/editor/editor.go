@@ -47,6 +47,9 @@ type Editor struct {
 	contextLine     int                     // Line number for which context was cached
 	showContext     bool                    // Whether to show context
 
+	// Async notifications
+	asyncEvents     chan ui.Event           // Channel for async events
+
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -90,6 +93,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		showContext:     true, // Show context by default
 		contextCache:    nil,
 		contextLine:     -1,
+		asyncEvents:     make(chan ui.Event, 100), // Buffered channel for async events
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -135,38 +139,58 @@ func (e *Editor) Run() {
 	e.updateCursor()
 	e.screen.Show()
 
+	// Get the screen event channel
+	screenEvents := e.screen.EventChannel()
+
+	// Start a timer that fires every second
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
 	// Event loop
 	for {
-		ev := e.screen.PollEvent()
+		var ev ui.Event
+		
+		// Use select to handle multiple event sources
+		select {
+		case ev = <-screenEvents:
+			// Got a screen event
+		case <-ticker.C:
+			// Timer fired - ev remains nil, will trigger redraw
+		case ev = <-e.asyncEvents:
+			// Got an async event from somewhere else
+		}
 
 		// Start performance tracking for this iteration
 		t0 := e.perfTracker.Start()
 
-		switch ev := ev.(type) {
-		case *ui.EventKey:
-			if e.mode == commands.CommandMode {
-				// Command mode is special - it's a line editor
-				e.handleCommandMode(ev)
-				t0 = e.perfTracker.ReportSince("handleCommandMode", t0)
-			} else {
-				// Normal and Insert modes both use key mapping
-				if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
-					err := e.commandRegistry.Execute(command)
-					t0 = e.perfTracker.ReportSince("command:"+command, t0)
+		// Only handle event if we got one
+		if ev != nil {
+			switch ev := ev.(type) {
+			case *ui.EventKey:
+				if e.mode == commands.CommandMode {
+					// Command mode is special - it's a line editor
+					e.handleCommandMode(ev)
+					t0 = e.perfTracker.ReportSince("handleCommandMode", t0)
+				} else {
+					// Normal and Insert modes both use key mapping
+					if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+						err := e.commandRegistry.Execute(command)
+						t0 = e.perfTracker.ReportSince("command:"+command, t0)
 
-					if err != nil {
-						// TODO: Show error to user
+						if err != nil {
+							// TODO: Show error to user
+						}
+					} else if e.mode == commands.InsertMode && ev.Key == ui.KeyRune {
+						// In insert mode, insert unmapped rune keys
+						e.insertChar(ev.Rune)
+						t0 = e.perfTracker.ReportSince("insertChar", t0)
 					}
-				} else if e.mode == commands.InsertMode && ev.Key == ui.KeyRune {
-					// In insert mode, insert unmapped rune keys
-					e.insertChar(ev.Rune)
-					t0 = e.perfTracker.ReportSince("insertChar", t0)
 				}
+			case *ui.EventResize:
+				// Handle screen resize events
+				e.handleResize()
+				t0 = e.perfTracker.ReportSince("handleResize", t0)
 			}
-		case *ui.EventResize:
-			// Handle screen resize events
-			e.handleResize()
-			t0 = e.perfTracker.ReportSince("handleResize", t0)
 		}
 
 		// Check if scrolling occurred

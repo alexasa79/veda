@@ -836,7 +836,7 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 				return result["result"], nil
 			}
 			if errorMsg, ok := result["error"].(string); ok {
-				return nil, fmt.Errorf(errorMsg)
+				return nil, fmt.Errorf("%s", errorMsg)
 			}
 		}
 	}

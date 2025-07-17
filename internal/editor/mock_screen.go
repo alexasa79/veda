@@ -22,6 +22,7 @@ type MockScreen struct {
 	events        []ui.Event
 	eventIndex    int
 	defaultStyle  ui.Style
+	eventChan     chan ui.Event
 }
 
 // NewMockScreen creates a new mock screen with the given dimensions
@@ -32,6 +33,7 @@ func NewMockScreen(width, height int) *MockScreen {
 		cells:        make(map[int]map[int]Cell),
 		events:       make([]ui.Event, 0),
 		defaultStyle: ui.StyleDefault,
+		eventChan:    make(chan ui.Event, 100),
 	}
 }
 
@@ -103,6 +105,11 @@ func (s *MockScreen) PollEvent() ui.Event {
 	event := s.events[s.eventIndex]
 	s.eventIndex++
 	return event
+}
+
+// EventChannel returns the underlying event channel
+func (s *MockScreen) EventChannel() <-chan ui.Event {
+	return s.eventChan
 }
 
 // Testing-specific methods

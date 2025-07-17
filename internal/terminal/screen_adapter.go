@@ -183,7 +183,7 @@ func (s *ScreenAdapter) PollEvent() ui.Event {
 
 	switch e := ev.(type) {
 	case *EventKey:
-		// Convert our key event to tcell key event
+		// Convert our key event to ui key event
 		return s.convertKeyEvent(e)
 	case *EventResize:
 		// Resize cell buffer
@@ -195,6 +195,12 @@ func (s *ScreenAdapter) PollEvent() ui.Event {
 	}
 
 	return nil
+}
+
+// EventChannel returns the underlying event channel from the terminal
+func (s *ScreenAdapter) EventChannel() <-chan ui.Event {
+	// Since terminal now uses ui.Event directly, we can just return its channel
+	return s.term.EventChannel()
 }
 
 // Helper methods

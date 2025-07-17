@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"veda/internal/log"
+	"veda/internal/ui"
 
 	"golang.org/x/sys/unix"
 )
@@ -36,7 +37,7 @@ type Terminal struct {
 	tty        *os.File  // Direct terminal device
 
 	// Input handling
-	inputChan chan Event
+	inputChan chan ui.Event
 	stopChan  chan struct{}
 }
 
@@ -72,7 +73,7 @@ func New() (*Terminal, error) {
 		backBuffer:    make([]string, height),
 		cursorVisible: true,
 		cursorStyle:   CursorStyleBlock,
-		inputChan:     make(chan Event, 100),
+		inputChan:     make(chan ui.Event, 100),
 		stopChan:      make(chan struct{}),
 		tty:           tty,
 	}
@@ -257,8 +258,13 @@ func (t *Terminal) Show() {
 }
 
 // PollEvent returns the next input event (blocking)
-func (t *Terminal) PollEvent() Event {
+func (t *Terminal) PollEvent() ui.Event {
 	return <-t.inputChan
+}
+
+// EventChannel returns the underlying event channel
+func (t *Terminal) EventChannel() <-chan ui.Event {
+	return t.inputChan
 }
 
 // enterRawMode puts the terminal in raw mode
