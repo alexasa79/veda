@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"veda/internal/config"
+	"veda/internal/proxy"
 )
 
 // SignatureHelp represents function signature information from LSP
@@ -51,6 +52,9 @@ type Buffer struct {
 	// Function signature state
 	InArgumentList bool           // Whether cursor is inside a function's argument list
 	CurrentSignature *SignatureHelp // The current function signature from LSP
+
+	// Folding ranges from LSP
+	FoldingRanges []proxy.FoldingRange // Cached folding ranges for this buffer
 }
 
 // IndentationInfo holds information about file indentation

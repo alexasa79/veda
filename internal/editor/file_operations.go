@@ -57,7 +57,7 @@ func (e *Editor) showFuzzyListWidget() {
 			e.drawEditor()
 			e.drawStatusBar()
 		})
-		
+
 		// If a file was selected, open it
 		if selection != "" {
 			e.openFile(selection)
@@ -77,7 +77,7 @@ func (e *Editor) OpenFile(filePath string) {
 func (e *Editor) openFile(filePath string) {
 	// First save the current buffer state
 	e.saveCurrentBufferState()
-	
+
 	// Check if this file is already open
 	if buf, exists := e.buffers[filePath]; exists {
 		// Switch to existing buffer
@@ -94,10 +94,10 @@ func (e *Editor) openFile(filePath string) {
 
 	// Create a new buffer with the file content
 	newBuffer := buffer.NewBuffer(content, filePath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-	
+
 	// Add to buffers map and order
 	e.buffers[filePath] = newBuffer
-	
+
 	// If this is replacing the empty buffer AND it's still empty, remove it
 	// We should keep the unnamed buffer if the user has typed anything into it
 	if !e.buffer.HasFile() {
@@ -114,20 +114,18 @@ func (e *Editor) openFile(filePath string) {
 			}
 		}
 	}
-	
+
 	// Add new buffer to order
 	e.bufferOrder = append(e.bufferOrder, filePath)
-	
+
 	// Switch to the new buffer
 	e.switchToBuffer(newBuffer)
-	
+
 	// Detect indentation for the new file
 	newBuffer.Indentation = e.detectIndentation()
-	
-	// Check if LSP is available for this file
-	// We do a quick check by trying to get folding ranges
-	_, err = e.proxyClient.GetFoldingRanges(filePath)
-	newBuffer.HasLSP = (err == nil)
+
+	// Request folding ranges from LSP worker thread
+	e.requestFoldingRanges(filePath)
 }
 
 // openFileCmd implements the open-file command

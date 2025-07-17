@@ -12,6 +12,7 @@ import (
 	"veda/internal/config"
 	"veda/internal/events"
 	"veda/internal/log"
+	"veda/internal/lsp"
 	"veda/internal/perf"
 	"veda/internal/proxy"
 	"veda/internal/syntax"
@@ -52,6 +53,9 @@ type Editor struct {
 	// Async notifications
 	asyncEvents     chan events.Event       // Channel for async events
 
+	// LSP communication
+	lspRequestChan  chan lsp.LSPRequest     // Channel for LSP requests
+	lspResponseChan chan lsp.LSPResponse    // Channel for LSP responses
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -76,6 +80,12 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// Create initial empty buffer
 	initialBuffer := buffer.NewBuffer("", "", config.DefaultIndentType, config.DefaultIndentWidth)
 
+	// Create LSP channels
+	lspRequestChan := make(chan lsp.LSPRequest, 10)
+	lspResponseChan := make(chan lsp.LSPResponse, 10)
+
+	// Start LSP worker thread
+	lsp.StartLSPWorker(proxyClient, lspRequestChan, lspResponseChan)
 
 	editor := &Editor{
 		screen:          screen,
@@ -96,6 +106,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		contextCache:    nil,
 		contextLine:     -1,
 		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
+		lspRequestChan:  lspRequestChan,
+		lspResponseChan: lspResponseChan,
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -160,6 +172,10 @@ func (e *Editor) Run() {
 			// Timer fired - ev remains nil, will trigger redraw
 		case ev = <-e.asyncEvents:
 			// Got an async event from somewhere else
+		case lspResponse := <-e.lspResponseChan:
+			// Got an LSP response
+			e.handleLSPResponse(lspResponse)
+			// Continue to redraw
 		}
 
 		LL.Trace("Received event: %+v", ev)
@@ -506,6 +522,59 @@ func (e *Editor) quit() error {
 	e.Close()
 	os.Exit(0)
 	return nil
+}
+
+// handleLSPResponse processes responses from the LSP worker thread
+func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
+	LL.Trace("Received LSP response: type=%d, filePath=%s", response.Type, response.FilePath)
+
+	switch response.Type {
+	case lsp.RequestFoldingRanges:
+		// Find the buffer that requested this
+		if buf, exists := e.buffers[response.FilePath]; exists {
+			if response.Error != nil {
+				LL.Debug("LSP folding ranges error for %s: %v", response.FilePath, response.Error)
+				buf.HasLSP = false
+				buf.FoldingRanges = nil
+			} else {
+				LL.Trace("Updated folding ranges for %s: got %d ranges", response.FilePath, len(response.FoldingRanges))
+				buf.HasLSP = true
+				buf.FoldingRanges = response.FoldingRanges
+			}
+
+			// If this is the current buffer, invalidate context cache to trigger redraw
+			if buf == e.buffer {
+				e.contextLine = -1 // Force context update
+			}
+		}
+	}
+}
+
+// requestFoldingRanges sends a request to the LSP worker for folding ranges
+func (e *Editor) requestFoldingRanges(filePath string) {
+	if filePath == "" {
+		return
+	}
+
+	// Find the buffer for this file path
+	buf, exists := e.buffers[filePath]
+	if !exists {
+		return
+	}
+
+	request := lsp.LSPRequest{
+		Type:     lsp.RequestFoldingRanges,
+		FilePath: filePath,
+		Buffer:   buf,
+	}
+
+	// Send request to LSP worker (non-blocking)
+	select {
+	case e.lspRequestChan <- request:
+		LL.Trace("Sent folding ranges request for %s", filePath)
+	default:
+		LL.Debug("LSP request channel full, dropping folding ranges request for %s", filePath)
+	}
 }
 
 
@@ -860,19 +929,12 @@ func (e *Editor) updateContext() {
 		return
 	}
 
-	// Get folding ranges from LSP
-	ranges, err := e.proxyClient.GetFoldingRanges(filePath)
-	if err != nil || len(ranges) == 0 {
+	// Use cached folding ranges from buffer instead of calling LSP directly
+	ranges := e.buffer.FoldingRanges
+	if len(ranges) == 0 {
 		e.contextCache = nil
-		// Mark LSP as not available if we got an error
-		if err != nil {
-			e.buffer.HasLSP = false
-		}
 		return
 	}
-
-	// If we got here, LSP is working
-	e.buffer.HasLSP = true
 
 	// Calculate visible range
 	viewStartLine := e.buffer.ViewIterator.LineNumber()
