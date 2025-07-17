@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 	"veda/internal/log"
-	"veda/internal/ui"
+	"veda/internal/events"
 
 	"golang.org/x/sys/unix"
 )
@@ -37,7 +37,7 @@ type Terminal struct {
 	tty        *os.File  // Direct terminal device
 
 	// Input handling
-	inputChan chan ui.Event
+	inputChan chan events.Event
 	stopChan  chan struct{}
 }
 
@@ -73,7 +73,7 @@ func New() (*Terminal, error) {
 		backBuffer:    make([]string, height),
 		cursorVisible: true,
 		cursorStyle:   CursorStyleBlock,
-		inputChan:     make(chan ui.Event, 100),
+		inputChan:     make(chan events.Event, 100),
 		stopChan:      make(chan struct{}),
 		tty:           tty,
 	}
@@ -258,12 +258,12 @@ func (t *Terminal) Show() {
 }
 
 // PollEvent returns the next input event (blocking)
-func (t *Terminal) PollEvent() ui.Event {
+func (t *Terminal) PollEvent() events.Event {
 	return <-t.inputChan
 }
 
 // EventChannel returns the underlying event channel
-func (t *Terminal) EventChannel() <-chan ui.Event {
+func (t *Terminal) EventChannel() <-chan events.Event {
 	return t.inputChan
 }
 
@@ -346,6 +346,6 @@ func (t *Terminal) handleResize() {
 		t.backBuffer = newBack
 
 		// Send resize event
-		t.inputChan <- &EventResize{Width: width, Height: height}
+		t.inputChan <- events.NewResizeEvent(width, height)
 	}
 }

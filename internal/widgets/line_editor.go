@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"veda/internal/events"
 	"veda/internal/ui"
 )
 
@@ -127,36 +128,36 @@ func (le *LineEditor) GetCursorPosition() (int, int) {
 }
 
 // HandleKey processes keyboard input for the line editor
-func (le *LineEditor) HandleKey(ev *ui.EventKey) bool {
+func (le *LineEditor) HandleKey(ev *events.KeyEvent) bool {
 	switch ev.Key {
-	case ui.KeyLeft:
+	case events.KeyLeft:
 		if le.cursor > 0 {
 			le.cursor--
 		}
 		return true
-	case ui.KeyRight:
+	case events.KeyRight:
 		if le.cursor < len(le.text) {
 			le.cursor++
 		}
 		return true
-	case ui.KeyHome:
+	case events.KeyHome:
 		le.cursor = 0
 		return true
-	case ui.KeyEnd:
+	case events.KeyEnd:
 		le.cursor = len(le.text)
 		return true
-	case ui.KeyBackspace, ui.KeyBackspace2:
+	case events.KeyBackspace, events.KeyBackspace2:
 		if le.cursor > 0 {
 			le.text = le.text[:le.cursor-1] + le.text[le.cursor:]
 			le.cursor--
 		}
 		return true
-	case ui.KeyDelete:
+	case events.KeyDelete:
 		if le.cursor < len(le.text) {
 			le.text = le.text[:le.cursor] + le.text[le.cursor+1:]
 		}
 		return true
-	case ui.KeyRune:
+	case events.KeyRune:
 		// Insert the typed character
 		char := ev.Rune
 		le.text = le.text[:le.cursor] + string(char) + le.text[le.cursor:]

@@ -3,7 +3,7 @@ package commands
 import (
 	"strings"
 
-	"veda/internal/ui"
+	"veda/internal/events"
 )
 
 // ParseKeySequence parses a string like "ctrl+w" or "space f" into a KeySequence
@@ -34,11 +34,11 @@ func ParseKey(s string) (Key, error) {
 	for i := 0; i < len(parts)-1; i++ {
 		switch strings.ToLower(parts[i]) {
 		case "ctrl", "control":
-			result.Mod |= ui.ModCtrl
+			result.Mod |= events.ModCtrl
 		case "alt", "meta":
-			result.Mod |= ui.ModAlt
+			result.Mod |= events.ModAlt
 		case "shift":
-			result.Mod |= ui.ModShift
+			result.Mod |= events.ModShift
 		}
 	}
 
@@ -48,66 +48,66 @@ func ParseKey(s string) (Key, error) {
 	// Check special key names (convert to lowercase for comparison)
 	switch strings.ToLower(keyName) {
 	case "space":
-		result.Key = ui.KeyRune
+		result.Key = events.KeyRune
 		result.Rune = ' '
 	case "tab":
-		result.Key = ui.KeyTab
+		result.Key = events.KeyTab
 	case "enter", "return":
-		result.Key = ui.KeyEnter
+		result.Key = events.KeyEnter
 	case "escape", "esc":
-		result.Key = ui.KeyEscape
+		result.Key = events.KeyEscape
 	case "backspace", "bs":
-		result.Key = ui.KeyBackspace2
+		result.Key = events.KeyBackspace2
 	case "delete", "del":
-		result.Key = ui.KeyDelete
+		result.Key = events.KeyDelete
 	case "up":
-		result.Key = ui.KeyUp
+		result.Key = events.KeyUp
 	case "down":
-		result.Key = ui.KeyDown
+		result.Key = events.KeyDown
 	case "left":
-		result.Key = ui.KeyLeft
+		result.Key = events.KeyLeft
 	case "right":
-		result.Key = ui.KeyRight
+		result.Key = events.KeyRight
 	case "home":
-		result.Key = ui.KeyHome
+		result.Key = events.KeyHome
 	case "end":
-		result.Key = ui.KeyEnd
+		result.Key = events.KeyEnd
 	case "pageup", "pgup":
-		result.Key = ui.KeyPgUp
+		result.Key = events.KeyPgUp
 	case "pagedown", "pgdn":
-		result.Key = ui.KeyPgDn
+		result.Key = events.KeyPgDn
 	case "f1":
-		result.Key = ui.KeyF1
+		result.Key = events.KeyF1
 	case "f2":
-		result.Key = ui.KeyF2
+		result.Key = events.KeyF2
 	case "f3":
-		result.Key = ui.KeyF3
+		result.Key = events.KeyF3
 	case "f4":
-		result.Key = ui.KeyF4
+		result.Key = events.KeyF4
 	case "f5":
-		result.Key = ui.KeyF5
+		result.Key = events.KeyF5
 	case "f6":
-		result.Key = ui.KeyF6
+		result.Key = events.KeyF6
 	case "f7":
-		result.Key = ui.KeyF7
+		result.Key = events.KeyF7
 	case "f8":
-		result.Key = ui.KeyF8
+		result.Key = events.KeyF8
 	case "f9":
-		result.Key = ui.KeyF9
+		result.Key = events.KeyF9
 	case "f10":
-		result.Key = ui.KeyF10
+		result.Key = events.KeyF10
 	case "f11":
-		result.Key = ui.KeyF11
+		result.Key = events.KeyF11
 	case "f12":
-		result.Key = ui.KeyF12
+		result.Key = events.KeyF12
 	default:
 		// Single character - preserve case
 		if len(keyName) == 1 {
-			result.Key = ui.KeyRune
+			result.Key = events.KeyRune
 			result.Rune = rune(keyName[0])
 		} else {
 			// Unknown key
-			result.Key = ui.KeyRune
+			result.Key = events.KeyRune
 			result.Rune = '?'
 		}
 	}

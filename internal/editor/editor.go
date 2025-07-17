@@ -3,12 +3,14 @@ package editor
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
+	"veda/internal/events"
 	"veda/internal/log"
 	"veda/internal/perf"
 	"veda/internal/proxy"
@@ -48,7 +50,7 @@ type Editor struct {
 	showContext     bool                    // Whether to show context
 
 	// Async notifications
-	asyncEvents     chan ui.Event           // Channel for async events
+	asyncEvents     chan events.Event       // Channel for async events
 
 }
 
@@ -93,7 +95,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		showContext:     true, // Show context by default
 		contextCache:    nil,
 		contextLine:     -1,
-		asyncEvents:     make(chan ui.Event, 100), // Buffered channel for async events
+		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -148,8 +150,8 @@ func (e *Editor) Run() {
 
 	// Event loop
 	for {
-		var ev ui.Event
-		
+		var ev events.Event
+
 		// Use select to handle multiple event sources
 		select {
 		case ev = <-screenEvents:
@@ -160,42 +162,54 @@ func (e *Editor) Run() {
 			// Got an async event from somewhere else
 		}
 
+		LL.Trace("Received event: %+v", ev)
+
 		// Start performance tracking for this iteration
 		t0 := e.perfTracker.Start()
 
 		// Only handle event if we got one
 		if ev != nil {
 			switch ev := ev.(type) {
-			case *ui.EventKey:
+			case *events.KeyEvent:
 				if e.mode == commands.CommandMode {
 					// Command mode is special - it's a line editor
 					e.handleCommandMode(ev)
 					t0 = e.perfTracker.ReportSince("handleCommandMode", t0)
 				} else {
 					// Normal and Insert modes both use key mapping
+					LL.Debug("Key event: Key=%d, Rune=%c, Modifiers=%d, Mode=%s", ev.Key, ev.Rune, ev.Modifiers, e.mode)
+
 					if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+						LL.Debug("Found command: %s", command)
 						err := e.commandRegistry.Execute(command)
 						t0 = e.perfTracker.ReportSince("command:"+command, t0)
 
 						if err != nil {
-							// TODO: Show error to user
+							LL.Debug("Command execution error: %v", err)
 						}
-					} else if e.mode == commands.InsertMode && ev.Key == ui.KeyRune {
-						// In insert mode, insert unmapped rune keys
-						e.insertChar(ev.Rune)
-						t0 = e.perfTracker.ReportSince("insertChar", t0)
+					} else {
+						LL.Debug("No command found for key")
+						if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
+							// In insert mode, insert unmapped rune keys
+							e.insertChar(ev.Rune)
+							t0 = e.perfTracker.ReportSince("insertChar", t0)
+						}
 					}
 				}
-			case *ui.EventResize:
+			case *events.ResizeEvent:
 				// Handle screen resize events
 				e.handleResize()
 				t0 = e.perfTracker.ReportSince("handleResize", t0)
+			default:
+				LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
 			}
 		}
 
 		// Check if scrolling occurred
 		e.scroll()
 		t0 = e.perfTracker.ReportSince("scroll", t0)
+
+		LL.Trace("Redrawing the screen")
 
 		// Always redraw the entire screen
 		e.drawEditor()
@@ -318,12 +332,12 @@ func (e *Editor) scrollToShowAtTop() {
 
 
 
-func (e *Editor) handleCommandMode(ev *ui.EventKey) {
+func (e *Editor) handleCommandMode(ev *events.KeyEvent) {
 	switch ev.Key {
-	case ui.KeyEscape:
+	case events.KeyEscape:
 		// Exit command mode
 		e.exitCommandMode()
-	case ui.KeyEnter:
+	case events.KeyEnter:
 		// Execute command and exit command mode
 		e.executeCommand()
 		e.exitCommandMode()

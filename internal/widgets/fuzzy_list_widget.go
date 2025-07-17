@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"veda/internal/events"
 	"veda/internal/fuzzysearch"
 	"veda/internal/theme"
 	"veda/internal/ui"
@@ -15,7 +16,7 @@ type Screen interface {
 	Clear()
 	Show()
 	ShowCursor(x, y int)
-	PollEvent() ui.Event
+	PollEvent() events.Event
 }
 
 // DecorationMode defines how items should be decorated in the list
@@ -132,10 +133,10 @@ func (flw *FuzzyListWidget) SetDecorationMode(mode DecorationMode) {
 // applyDecorations applies the current decoration mode to raw lines
 func (flw *FuzzyListWidget) applyDecorations() {
 	flw.allLines = make([]string, len(flw.rawLines))
-	
+
 	for i, line := range flw.rawLines {
 		decorated := line
-		
+
 		switch flw.decorationMode {
 		case DecorationFileIcon:
 			// Extract filename from path for icon determination
@@ -144,18 +145,18 @@ func (flw *FuzzyListWidget) applyDecorations() {
 			// Assume files for now, could be enhanced to detect directories
 			icon := utils.GetFileIcon(filename, "file")
 			decorated = icon + " " + line
-			
+
 		case DecorationSymbol:
 			// TODO: Add symbol decoration logic
 			decorated = "◉ " + line
-			
+
 		case DecorationNone:
 			// Keep as-is
 		}
-		
+
 		flw.allLines[i] = decorated
 	}
-	
+
 	// Re-apply filter with new decorations
 	flw.applyFilter()
 }
@@ -222,18 +223,18 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 
 		// Draw content if available
 		lineIndex := flw.topScroll + i
-		
+
 		// Determine style for this line
 		style := flw.theme.GetStyle(flw.theme.FuzzyListContent)
 		if lineIndex == flw.selectedIndex {
 			style = flw.theme.GetStyle(flw.theme.FuzzyListSelection)
 		}
-		
+
 		// Clear content area with appropriate style
 		for j := 1; j < flw.width-1; j++ {
 			screen.SetContent(flw.x+j, row, ' ', nil, style)
 		}
-		
+
 		if lineIndex < len(flw.topLines) {
 			line := flw.topLines[lineIndex]
 			// Convert to runes to handle multi-byte characters correctly
@@ -288,30 +289,30 @@ func (flw *FuzzyListWidget) drawHorizontalBorder(screen Screen, y int, left, mid
 func (flw *FuzzyListWidget) drawTopBorderWithTitle(screen Screen) {
 	borderStyle := flw.theme.GetStyle(flw.theme.FuzzyListBorder)
 	y := flw.y
-	
+
 	// Draw left corner (rounded)
 	screen.SetContent(flw.x, y, '╭', nil, borderStyle)
-	
+
 	// Calculate title position and padding
 	titleLen := len(flw.title)
 	borderWidth := flw.width - 2 // excluding corners
-	
+
 	if titleLen > 0 && titleLen < borderWidth-4 { // Need at least 2 chars padding on each side
 		// Center the title
 		leftPadding := (borderWidth - titleLen - 2) / 2 // -2 for the brackets
-		
+
 		// Draw left border
 		for i := 1; i <= leftPadding; i++ {
 			screen.SetContent(flw.x+i, y, '─', nil, borderStyle)
 		}
-		
+
 		// Draw title with brackets
 		screen.SetContent(flw.x+leftPadding+1, y, '┤', nil, borderStyle)
 		for i, r := range flw.title {
 			screen.SetContent(flw.x+leftPadding+2+i, y, r, nil, borderStyle)
 		}
 		screen.SetContent(flw.x+leftPadding+2+titleLen, y, '├', nil, borderStyle)
-		
+
 		// Draw right border
 		for i := flw.x + leftPadding + titleLen + 3; i < flw.x+flw.width-1; i++ {
 			screen.SetContent(i, y, '─', nil, borderStyle)
@@ -322,7 +323,7 @@ func (flw *FuzzyListWidget) drawTopBorderWithTitle(screen Screen) {
 			screen.SetContent(flw.x+i, y, '─', nil, borderStyle)
 		}
 	}
-	
+
 	// Draw right corner (rounded)
 	screen.SetContent(flw.x+flw.width-1, y, '╮', nil, borderStyle)
 }
@@ -402,11 +403,11 @@ func (flw *FuzzyListWidget) SetSelectedIndex(index int) {
 // applyFilter filters the content based on the search text
 func (flw *FuzzyListWidget) applyFilter() {
 	searchText := flw.bottomEditor.GetText()
-	
+
 	// Clear the filtered lists
 	flw.topLines = []string{}
 	flw.topIndices = []int{}
-	
+
 	// Filter lines and track indices
 	for i, line := range flw.allLines {
 		if fuzzysearch.Match(line, searchText) {
@@ -414,7 +415,7 @@ func (flw *FuzzyListWidget) applyFilter() {
 			flw.topIndices = append(flw.topIndices, i)
 		}
 	}
-	
+
 	// Reset scroll and selection
 	flw.topScroll = 0
 	flw.selectedIndex = 0
@@ -427,35 +428,35 @@ func (flw *FuzzyListWidget) Show(screen Screen, backgroundRender func()) string 
 	for {
 		// Render background (editor and status bar)
 		backgroundRender()
-		
+
 		// Draw widget on top
 		flw.Draw(screen)
-		
+
 		// Show cursor in the search box
 		cursorX, cursorY := flw.bottomEditor.GetCursorPosition()
 		screen.ShowCursor(cursorX, cursorY)
-		
+
 		// Update screen
 		screen.Show()
-		
+
 		// Handle events
 		ev := screen.PollEvent()
-		if ev, ok := ev.(*ui.EventKey); ok {
+		if ev, ok := ev.(*events.KeyEvent); ok {
 			switch ev.Key {
-			case ui.KeyUp:
+			case events.KeyUp:
 				flw.MoveSelectionUp()
-			case ui.KeyDown:
+			case events.KeyDown:
 				flw.MoveSelectionDown()
-			case ui.KeyEnter:
+			case events.KeyEnter:
 				// Return the raw (undecorated) selected item
 				if flw.selectedIndex >= 0 && flw.selectedIndex < len(flw.topIndices) {
 					rawIndex := flw.topIndices[flw.selectedIndex]
 					return flw.rawLines[rawIndex]
 				}
 				return ""
-			case ui.KeyEscape:
+			case events.KeyEscape:
 				return ""
-			case ui.KeyRune:
+			case events.KeyRune:
 				switch ev.Rune {
 				case 'A':
 					return ""

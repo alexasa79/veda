@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"veda/internal/events"
 	"veda/internal/ui"
 )
 
@@ -19,10 +20,10 @@ type MockScreen struct {
 	cursorY       int
 	cursorVisible bool
 	cursorStyle   ui.CursorStyle
-	events        []ui.Event
+	events        []events.Event
 	eventIndex    int
 	defaultStyle  ui.Style
-	eventChan     chan ui.Event
+	eventChan     chan events.Event
 }
 
 // NewMockScreen creates a new mock screen with the given dimensions
@@ -31,9 +32,9 @@ func NewMockScreen(width, height int) *MockScreen {
 		width:        width,
 		height:       height,
 		cells:        make(map[int]map[int]Cell),
-		events:       make([]ui.Event, 0),
+		events:       make([]events.Event, 0),
 		defaultStyle: ui.StyleDefault,
-		eventChan:    make(chan ui.Event, 100),
+		eventChan:    make(chan events.Event, 100),
 	}
 }
 
@@ -96,7 +97,7 @@ func (s *MockScreen) SetCursorStyle(style ui.CursorStyle) {
 }
 
 // PollEvent returns the next event in the queue
-func (s *MockScreen) PollEvent() ui.Event {
+func (s *MockScreen) PollEvent() events.Event {
 	if s.eventIndex >= len(s.events) {
 		// Return nil to indicate no more events
 		return nil
@@ -108,7 +109,7 @@ func (s *MockScreen) PollEvent() ui.Event {
 }
 
 // EventChannel returns the underlying event channel
-func (s *MockScreen) EventChannel() <-chan ui.Event {
+func (s *MockScreen) EventChannel() <-chan events.Event {
 	return s.eventChan
 }
 
@@ -162,12 +163,16 @@ func (s *MockScreen) GetLine(y int) string {
 }
 
 // AddEvent adds an event to the event queue for testing
-func (s *MockScreen) AddEvent(ev ui.Event) {
+func (s *MockScreen) AddEvent(ev events.Event) {
 	s.events = append(s.events, ev)
 }
 
 // AddKeyEvent adds a key event to the event queue
-func (s *MockScreen) AddKeyEvent(key ui.Key, r rune, mod ui.ModMask) {
-	ev := ui.NewEventKey(key, r, mod)
+func (s *MockScreen) AddKeyEvent(key events.Key, r rune, mod events.ModMask) {
+	ev := &events.KeyEvent{
+		Key:       key,
+		Rune:      r,
+		Modifiers: mod,
+	}
 	s.AddEvent(ev)
 }

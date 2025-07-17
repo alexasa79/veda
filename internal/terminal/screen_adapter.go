@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+	"veda/internal/events"
 	"veda/internal/ui"
 )
 
@@ -178,30 +179,15 @@ func (s *ScreenAdapter) SetCursorStyle(style ui.CursorStyle) {
 }
 
 // PollEvent polls for events
-func (s *ScreenAdapter) PollEvent() ui.Event {
-	ev := s.term.PollEvent()
-
-	switch e := ev.(type) {
-	case *EventKey:
-		// Convert our key event to ui key event
-		return s.convertKeyEvent(e)
-	case *EventResize:
-		// Resize cell buffer
-		s.resizeCells(e.Width, e.Height)
-		return ui.NewEventResize(e.Width, e.Height)
-	case *EventMouse:
-		// Convert mouse event
-		return s.convertMouseEvent(e)
-	}
-
-	return nil
+func (s *ScreenAdapter) PollEvent() events.Event {
+	return s.term.PollEvent()
 }
 
-// EventChannel returns the underlying event channel from the terminal
-func (s *ScreenAdapter) EventChannel() <-chan ui.Event {
-	// Since terminal now uses ui.Event directly, we can just return its channel
+// EventChannel returns the underlying event channel
+func (s *ScreenAdapter) EventChannel() <-chan events.Event {
 	return s.term.EventChannel()
 }
+
 
 // Helper methods
 
@@ -302,70 +288,70 @@ func (s *ScreenAdapter) buildStyleSequence(fg, bg ui.Color, attrs ui.AttrMask) [
 
 
 // convertKeyEvent converts our key event to editor format
-func (s *ScreenAdapter) convertKeyEvent(e *EventKey) ui.Event {
+func (s *ScreenAdapter) convertKeyEvent(e *events.KeyEvent) ui.Event {
 	// Map our keys to editor keys
 	editorKey := s.mapKeyToEditor(e.Key)
-	editorMod := s.mapModToEditor(e.Mod)
+	editorMod := s.mapModToEditor(e.Modifiers)
 
 	return ui.NewEventKey(editorKey, e.Rune, editorMod)
 }
 
 // mapKeyToEditor maps our Key type to ui.Key
-func (s *ScreenAdapter) mapKeyToEditor(k Key) ui.Key {
+func (s *ScreenAdapter) mapKeyToEditor(k events.Key) ui.Key {
 	switch k {
-	case KeyRune:
+	case events.KeyRune:
 		return ui.KeyRune
-	case KeyBackspace, KeyBackspace2:
+	case events.KeyBackspace, events.KeyBackspace2:
 		return ui.KeyBackspace2
-	case KeyTab:
+	case events.KeyTab:
 		return ui.KeyTab
-	case KeyEnter:
+	case events.KeyEnter:
 		return ui.KeyEnter
-	case KeyEscape:
+	case events.KeyEscape:
 		return ui.KeyEscape
-	case KeyDelete:
+	case events.KeyDelete:
 		return ui.KeyDelete
-	case KeyInsert:
+	case events.KeyInsert:
 		return ui.KeyInsert
-	case KeyUp:
+	case events.KeyUp:
 		return ui.KeyUp
-	case KeyDown:
+	case events.KeyDown:
 		return ui.KeyDown
-	case KeyLeft:
+	case events.KeyLeft:
 		return ui.KeyLeft
-	case KeyRight:
+	case events.KeyRight:
 		return ui.KeyRight
-	case KeyHome:
+	case events.KeyHome:
 		return ui.KeyHome
-	case KeyEnd:
+	case events.KeyEnd:
 		return ui.KeyEnd
-	case KeyPgUp:
+	case events.KeyPgUp:
 		return ui.KeyPgUp
-	case KeyPgDn:
+	case events.KeyPgDn:
 		return ui.KeyPgDn
-	case KeyF1:
+	case events.KeyF1:
 		return ui.KeyF1
-	case KeyF2:
+	case events.KeyF2:
 		return ui.KeyF2
-	case KeyF3:
+	case events.KeyF3:
 		return ui.KeyF3
-	case KeyF4:
+	case events.KeyF4:
 		return ui.KeyF4
-	case KeyF5:
+	case events.KeyF5:
 		return ui.KeyF5
-	case KeyF6:
+	case events.KeyF6:
 		return ui.KeyF6
-	case KeyF7:
+	case events.KeyF7:
 		return ui.KeyF7
-	case KeyF8:
+	case events.KeyF8:
 		return ui.KeyF8
-	case KeyF9:
+	case events.KeyF9:
 		return ui.KeyF9
-	case KeyF10:
+	case events.KeyF10:
 		return ui.KeyF10
-	case KeyF11:
+	case events.KeyF11:
 		return ui.KeyF11
-	case KeyF12:
+	case events.KeyF12:
 		return ui.KeyF12
 	default:
 		return ui.KeyRune
@@ -373,25 +359,25 @@ func (s *ScreenAdapter) mapKeyToEditor(k Key) ui.Key {
 }
 
 // mapModToEditor maps our ModMask to ui.ModMask
-func (s *ScreenAdapter) mapModToEditor(m ModMask) ui.ModMask {
+func (s *ScreenAdapter) mapModToEditor(m events.ModMask) ui.ModMask {
 	var editorMod ui.ModMask
-	if m&ModShift != 0 {
+	if m&events.ModShift != 0 {
 		editorMod |= ui.ModShift
 	}
-	if m&ModCtrl != 0 {
+	if m&events.ModCtrl != 0 {
 		editorMod |= ui.ModCtrl
 	}
-	if m&ModAlt != 0 {
+	if m&events.ModAlt != 0 {
 		editorMod |= ui.ModAlt
 	}
-	if m&ModMeta != 0 {
+	if m&events.ModMeta != 0 {
 		editorMod |= ui.ModMeta
 	}
 	return editorMod
 }
 
 // convertMouseEvent converts our mouse event to editor format
-func (s *ScreenAdapter) convertMouseEvent(_ *EventMouse) ui.Event {
+func (s *ScreenAdapter) convertMouseEvent(_ *events.MouseEvent) ui.Event {
 	// For now, we don't have mouse events in editor types
 	// Return nil to ignore mouse events
 	return nil

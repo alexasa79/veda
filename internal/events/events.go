@@ -1,44 +1,75 @@
-package terminal
+package events
 
-// Event represents any terminal event (keyboard, mouse, resize, etc.)
+import "time"
+
+// Event represents any system event (keyboard, mouse, resize, etc.)
 type Event interface {
-	When() int64 // Unix timestamp in nanoseconds
+	When() time.Time // Timestamp when the event occurred
 }
 
-// EventKey represents a keyboard event
-type EventKey struct {
-	timestamp int64
+// KeyEvent represents a keyboard event
+type KeyEvent struct {
+	timestamp time.Time
 	Key       Key
 	Rune      rune
-	Mod       ModMask
+	Modifiers ModMask
 }
 
-func (e *EventKey) When() int64 { return e.timestamp }
+func (e *KeyEvent) When() time.Time { return e.timestamp }
 
-// EventResize represents a terminal resize event
-type EventResize struct {
-	timestamp int64
+// NewKeyEvent creates a new key event
+func NewKeyEvent(key Key, ch rune, mod ModMask) *KeyEvent {
+	return &KeyEvent{
+		timestamp: time.Now(),
+		Key:       key,
+		Rune:      ch,
+		Modifiers: mod,
+	}
+}
+
+// ResizeEvent represents a terminal/screen resize event
+type ResizeEvent struct {
+	timestamp time.Time
 	Width     int
 	Height    int
 }
 
-func (e *EventResize) When() int64 { return e.timestamp }
+func (e *ResizeEvent) When() time.Time { return e.timestamp }
 
-// EventMouse represents a mouse event
-type EventMouse struct {
-	timestamp int64
+// NewResizeEvent creates a new resize event
+func NewResizeEvent(width, height int) *ResizeEvent {
+	return &ResizeEvent{
+		timestamp: time.Now(),
+		Width:     width,
+		Height:    height,
+	}
+}
+
+// MouseEvent represents a mouse event
+type MouseEvent struct {
+	timestamp time.Time
 	X         int
 	Y         int
 	Button    ButtonMask
-	Mod       ModMask
+	Modifiers ModMask
 }
 
-func (e *EventMouse) When() int64 { return e.timestamp }
+func (e *MouseEvent) When() time.Time { return e.timestamp }
+
+// NewMouseEvent creates a new mouse event
+func NewMouseEvent(x, y int, button ButtonMask, mod ModMask) *MouseEvent {
+	return &MouseEvent{
+		timestamp: time.Now(),
+		X:         x,
+		Y:         y,
+		Button:    button,
+		Modifiers: mod,
+	}
+}
 
 // Key represents a keyboard key
 type Key int
 
-// Special keys (borrowing from tcell's comprehensive list)
 const (
 	KeyRune Key = iota // Regular character
 
@@ -116,7 +147,7 @@ const (
 	KeyCtrlX
 	KeyCtrlY
 	KeyCtrlZ
-	
+
 	KeyCtrlSpace
 	KeyCtrlBackslash
 	KeyCtrlRightSq
@@ -124,7 +155,7 @@ const (
 	KeyCtrlUnderscore
 )
 
-// ModMask represents keyboard modifiers
+// ModMask represents keyboard and mouse modifiers
 type ModMask int
 
 const (

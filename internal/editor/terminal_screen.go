@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"veda/internal/events"
 	"veda/internal/terminal"
 	"veda/internal/ui"
 )
@@ -16,7 +17,7 @@ func NewTerminalScreen() (*TerminalScreen, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	adapter := terminal.NewScreenAdapter(term)
 	return &TerminalScreen{adapter: adapter}, nil
 }
@@ -67,11 +68,11 @@ func (s *TerminalScreen) SetCursorStyle(style ui.CursorStyle) {
 }
 
 // PollEvent polls for events
-func (s *TerminalScreen) PollEvent() ui.Event {
+func (s *TerminalScreen) PollEvent() events.Event {
 	return s.adapter.PollEvent()
 }
 
-// EventChannel returns the underlying event channel
-func (s *TerminalScreen) EventChannel() <-chan ui.Event {
+// EventChannel returns the event channel for non-blocking event handling
+func (s *TerminalScreen) EventChannel() <-chan events.Event {
 	return s.adapter.EventChannel()
 }

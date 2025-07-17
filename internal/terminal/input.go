@@ -6,101 +6,102 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"veda/internal/events"
 )
 
 // keyCode represents an escape sequence mapping to a key
 type keyCode struct {
 	seq []byte
-	key Key
-	mod ModMask
+	key events.Key
+	mod events.ModMask
 }
 
 // Common escape sequences (borrowing from tcell's extensive mappings)
 var keyCodes = []keyCode{
 	// Special keys (excluding ESC which we'll put at the end)
-	{[]byte{'\x7f'}, KeyBackspace, ModNone},
-	{[]byte{'\x08'}, KeyBackspace2, ModNone},
-	{[]byte{'\t'}, KeyTab, ModNone},
-	{[]byte{'\r'}, KeyEnter, ModNone},
-	{[]byte{'\n'}, KeyEnter, ModNone},
-	
+	{[]byte{'\x7f'}, events.KeyBackspace, events.ModNone},
+	{[]byte{'\x08'}, events.KeyBackspace2, events.ModNone},
+	{[]byte{'\t'}, events.KeyTab, events.ModNone},
+	{[]byte{'\r'}, events.KeyEnter, events.ModNone},
+	{[]byte{'\n'}, events.KeyEnter, events.ModNone},
+
 	// Arrow keys - both normal and application mode
-	{[]byte{'\x1b', '[', 'A'}, KeyUp, ModNone},
-	{[]byte{'\x1b', '[', 'B'}, KeyDown, ModNone},
-	{[]byte{'\x1b', '[', 'C'}, KeyRight, ModNone},
-	{[]byte{'\x1b', '[', 'D'}, KeyLeft, ModNone},
-	{[]byte{'\x1b', 'O', 'A'}, KeyUp, ModNone},
-	{[]byte{'\x1b', 'O', 'B'}, KeyDown, ModNone},
-	{[]byte{'\x1b', 'O', 'C'}, KeyRight, ModNone},
-	{[]byte{'\x1b', 'O', 'D'}, KeyLeft, ModNone},
-	
+	{[]byte{'\x1b', '[', 'A'}, events.KeyUp, events.ModNone},
+	{[]byte{'\x1b', '[', 'B'}, events.KeyDown, events.ModNone},
+	{[]byte{'\x1b', '[', 'C'}, events.KeyRight, events.ModNone},
+	{[]byte{'\x1b', '[', 'D'}, events.KeyLeft, events.ModNone},
+	{[]byte{'\x1b', 'O', 'A'}, events.KeyUp, events.ModNone},
+	{[]byte{'\x1b', 'O', 'B'}, events.KeyDown, events.ModNone},
+	{[]byte{'\x1b', 'O', 'C'}, events.KeyRight, events.ModNone},
+	{[]byte{'\x1b', 'O', 'D'}, events.KeyLeft, events.ModNone},
+
 	// Home/End keys (various encodings)
-	{[]byte{'\x1b', '[', 'H'}, KeyHome, ModNone},
-	{[]byte{'\x1b', '[', 'F'}, KeyEnd, ModNone},
-	{[]byte{'\x1b', '[', '1', '~'}, KeyHome, ModNone},
-	{[]byte{'\x1b', '[', '4', '~'}, KeyEnd, ModNone},
-	{[]byte{'\x1b', '[', '7', '~'}, KeyHome, ModNone},
-	{[]byte{'\x1b', '[', '8', '~'}, KeyEnd, ModNone},
-	{[]byte{'\x1b', 'O', 'H'}, KeyHome, ModNone},
-	{[]byte{'\x1b', 'O', 'F'}, KeyEnd, ModNone},
-	
+	{[]byte{'\x1b', '[', 'H'}, events.KeyHome, events.ModNone},
+	{[]byte{'\x1b', '[', 'F'}, events.KeyEnd, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '~'}, events.KeyHome, events.ModNone},
+	{[]byte{'\x1b', '[', '4', '~'}, events.KeyEnd, events.ModNone},
+	{[]byte{'\x1b', '[', '7', '~'}, events.KeyHome, events.ModNone},
+	{[]byte{'\x1b', '[', '8', '~'}, events.KeyEnd, events.ModNone},
+	{[]byte{'\x1b', 'O', 'H'}, events.KeyHome, events.ModNone},
+	{[]byte{'\x1b', 'O', 'F'}, events.KeyEnd, events.ModNone},
+
 	// Page Up/Down
-	{[]byte{'\x1b', '[', '5', '~'}, KeyPgUp, ModNone},
-	{[]byte{'\x1b', '[', '6', '~'}, KeyPgDn, ModNone},
-	
+	{[]byte{'\x1b', '[', '5', '~'}, events.KeyPgUp, events.ModNone},
+	{[]byte{'\x1b', '[', '6', '~'}, events.KeyPgDn, events.ModNone},
+
 	// Insert/Delete
-	{[]byte{'\x1b', '[', '2', '~'}, KeyInsert, ModNone},
-	{[]byte{'\x1b', '[', '3', '~'}, KeyDelete, ModNone},
-	
+	{[]byte{'\x1b', '[', '2', '~'}, events.KeyInsert, events.ModNone},
+	{[]byte{'\x1b', '[', '3', '~'}, events.KeyDelete, events.ModNone},
+
 	// Function keys F1-F12
-	{[]byte{'\x1b', 'O', 'P'}, KeyF1, ModNone},
-	{[]byte{'\x1b', 'O', 'Q'}, KeyF2, ModNone},
-	{[]byte{'\x1b', 'O', 'R'}, KeyF3, ModNone},
-	{[]byte{'\x1b', 'O', 'S'}, KeyF4, ModNone},
-	{[]byte{'\x1b', '[', '1', '1', '~'}, KeyF1, ModNone},
-	{[]byte{'\x1b', '[', '1', '2', '~'}, KeyF2, ModNone},
-	{[]byte{'\x1b', '[', '1', '3', '~'}, KeyF3, ModNone},
-	{[]byte{'\x1b', '[', '1', '4', '~'}, KeyF4, ModNone},
-	{[]byte{'\x1b', '[', '1', '5', '~'}, KeyF5, ModNone},
-	{[]byte{'\x1b', '[', '1', '7', '~'}, KeyF6, ModNone},
-	{[]byte{'\x1b', '[', '1', '8', '~'}, KeyF7, ModNone},
-	{[]byte{'\x1b', '[', '1', '9', '~'}, KeyF8, ModNone},
-	{[]byte{'\x1b', '[', '2', '0', '~'}, KeyF9, ModNone},
-	{[]byte{'\x1b', '[', '2', '1', '~'}, KeyF10, ModNone},
-	{[]byte{'\x1b', '[', '2', '3', '~'}, KeyF11, ModNone},
-	{[]byte{'\x1b', '[', '2', '4', '~'}, KeyF12, ModNone},
-	
+	{[]byte{'\x1b', 'O', 'P'}, events.KeyF1, events.ModNone},
+	{[]byte{'\x1b', 'O', 'Q'}, events.KeyF2, events.ModNone},
+	{[]byte{'\x1b', 'O', 'R'}, events.KeyF3, events.ModNone},
+	{[]byte{'\x1b', 'O', 'S'}, events.KeyF4, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '1', '~'}, events.KeyF1, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '2', '~'}, events.KeyF2, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '3', '~'}, events.KeyF3, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '4', '~'}, events.KeyF4, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '5', '~'}, events.KeyF5, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '7', '~'}, events.KeyF6, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '8', '~'}, events.KeyF7, events.ModNone},
+	{[]byte{'\x1b', '[', '1', '9', '~'}, events.KeyF8, events.ModNone},
+	{[]byte{'\x1b', '[', '2', '0', '~'}, events.KeyF9, events.ModNone},
+	{[]byte{'\x1b', '[', '2', '1', '~'}, events.KeyF10, events.ModNone},
+	{[]byte{'\x1b', '[', '2', '3', '~'}, events.KeyF11, events.ModNone},
+	{[]byte{'\x1b', '[', '2', '4', '~'}, events.KeyF12, events.ModNone},
+
 	// Control keys
-	{[]byte{'\x01'}, KeyCtrlA, ModNone},
-	{[]byte{'\x02'}, KeyCtrlB, ModNone},
-	{[]byte{'\x03'}, KeyCtrlC, ModNone},
-	{[]byte{'\x04'}, KeyCtrlD, ModNone},
-	{[]byte{'\x05'}, KeyCtrlE, ModNone},
-	{[]byte{'\x06'}, KeyCtrlF, ModNone},
-	{[]byte{'\x07'}, KeyCtrlG, ModNone},
-	{[]byte{'\x08'}, KeyCtrlH, ModNone},
-	{[]byte{'\x09'}, KeyCtrlI, ModNone},
-	{[]byte{'\x0a'}, KeyCtrlJ, ModNone},
-	{[]byte{'\x0b'}, KeyCtrlK, ModNone},
-	{[]byte{'\x0c'}, KeyCtrlL, ModNone},
-	{[]byte{'\x0d'}, KeyCtrlM, ModNone},
-	{[]byte{'\x0e'}, KeyCtrlN, ModNone},
-	{[]byte{'\x0f'}, KeyCtrlO, ModNone},
-	{[]byte{'\x10'}, KeyCtrlP, ModNone},
-	{[]byte{'\x11'}, KeyCtrlQ, ModNone},
-	{[]byte{'\x12'}, KeyCtrlR, ModNone},
-	{[]byte{'\x13'}, KeyCtrlS, ModNone},
-	{[]byte{'\x14'}, KeyCtrlT, ModNone},
-	{[]byte{'\x15'}, KeyCtrlU, ModNone},
-	{[]byte{'\x16'}, KeyCtrlV, ModNone},
-	{[]byte{'\x17'}, KeyCtrlW, ModNone},
-	{[]byte{'\x18'}, KeyCtrlX, ModNone},
-	{[]byte{'\x19'}, KeyCtrlY, ModNone},
-	{[]byte{'\x1a'}, KeyCtrlZ, ModNone},
-	{[]byte{'\x00'}, KeyCtrlSpace, ModNone},
-	
+	{[]byte{'\x01'}, events.KeyCtrlA, events.ModNone},
+	{[]byte{'\x02'}, events.KeyCtrlB, events.ModNone},
+	{[]byte{'\x03'}, events.KeyCtrlC, events.ModNone},
+	{[]byte{'\x04'}, events.KeyCtrlD, events.ModNone},
+	{[]byte{'\x05'}, events.KeyCtrlE, events.ModNone},
+	{[]byte{'\x06'}, events.KeyCtrlF, events.ModNone},
+	{[]byte{'\x07'}, events.KeyCtrlG, events.ModNone},
+	{[]byte{'\x08'}, events.KeyCtrlH, events.ModNone},
+	{[]byte{'\x09'}, events.KeyCtrlI, events.ModNone},
+	{[]byte{'\x0a'}, events.KeyCtrlJ, events.ModNone},
+	{[]byte{'\x0b'}, events.KeyCtrlK, events.ModNone},
+	{[]byte{'\x0c'}, events.KeyCtrlL, events.ModNone},
+	{[]byte{'\x0d'}, events.KeyCtrlM, events.ModNone},
+	{[]byte{'\x0e'}, events.KeyCtrlN, events.ModNone},
+	{[]byte{'\x0f'}, events.KeyCtrlO, events.ModNone},
+	{[]byte{'\x10'}, events.KeyCtrlP, events.ModNone},
+	{[]byte{'\x11'}, events.KeyCtrlQ, events.ModNone},
+	{[]byte{'\x12'}, events.KeyCtrlR, events.ModNone},
+	{[]byte{'\x13'}, events.KeyCtrlS, events.ModNone},
+	{[]byte{'\x14'}, events.KeyCtrlT, events.ModNone},
+	{[]byte{'\x15'}, events.KeyCtrlU, events.ModNone},
+	{[]byte{'\x16'}, events.KeyCtrlV, events.ModNone},
+	{[]byte{'\x17'}, events.KeyCtrlW, events.ModNone},
+	{[]byte{'\x18'}, events.KeyCtrlX, events.ModNone},
+	{[]byte{'\x19'}, events.KeyCtrlY, events.ModNone},
+	{[]byte{'\x1a'}, events.KeyCtrlZ, events.ModNone},
+	{[]byte{'\x00'}, events.KeyCtrlSpace, events.ModNone},
+
 	// ESC key - must be last so escape sequences are checked first
-	{[]byte{'\x1b'}, KeyEscape, ModNone},
+	{[]byte{'\x1b'}, events.KeyEscape, events.ModNone},
 }
 
 // inputHandler reads from stdin and parses input events
@@ -108,7 +109,7 @@ func (t *Terminal) inputHandler() {
 	buf := make([]byte, 128)
 	var pending []byte
 	var lastReadTime time.Time
-	
+
 	for {
 		select {
 		case <-t.stopChan:
@@ -119,7 +120,7 @@ func (t *Terminal) inputHandler() {
 			if err != nil && err != io.EOF {
 				continue
 			}
-			
+
 			if n > 0 {
 				pending = append(pending, buf[:n]...)
 				lastReadTime = time.Now()
@@ -142,7 +143,7 @@ func (t *Terminal) readWithTimeout(buf []byte, timeout time.Duration) (int, erro
 		return 0, err
 	}
 	defer syscall.SetNonblock(int(os.Stdin.Fd()), false)
-	
+
 	// Try to read
 	n, err := os.Stdin.Read(buf)
 	if err == syscall.EAGAIN {
@@ -150,7 +151,7 @@ func (t *Terminal) readWithTimeout(buf []byte, timeout time.Duration) (int, erro
 		time.Sleep(timeout)
 		return 0, nil
 	}
-	
+
 	return n, err
 }
 
@@ -167,32 +168,26 @@ func (t *Terminal) parseInput(buf *[]byte) {
 			// The timeout in inputHandler will ensure we don't wait forever
 			return
 		}
-		
+
 		// Handle UTF-8 runes
 		r, size := decodeRune(*buf)
 		if r == 0 && size == 0 {
 			// Need more bytes for complete rune
 			return
 		}
-		
+
 		// Generate key event for regular character
-		event := &EventKey{
-			timestamp: time.Now().UnixNano(),
-			Key:       KeyRune,
-			Rune:      r,
-			Mod:       ModNone,
-		}
-		
+		event := events.NewKeyEvent(events.KeyRune, r, events.ModNone)
+
 		// Check for Alt modifier (ESC followed by character)
 		if len(*buf) > 1 && (*buf)[0] == '\x1b' {
 			nextR, nextSize := decodeRune((*buf)[1:])
 			if nextR != 0 && nextSize > 0 {
-				event.Rune = nextR
-				event.Mod = ModAlt
+				event = events.NewKeyEvent(events.KeyRune, nextR, events.ModAlt)
 				size = 1 + nextSize
 			}
 		}
-		
+
 		t.inputChan <- event
 		*buf = (*buf)[size:]
 	}
@@ -204,33 +199,30 @@ func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
 	for _, kc := range keyCodes {
 		if len(*buf) >= len(kc.seq) && bytesEqual((*buf)[:len(kc.seq)], kc.seq) {
 			// Found a match
-			event := &EventKey{
-				timestamp: time.Now().UnixNano(),
-				Key:       kc.key,
-				Rune:      0,
-				Mod:       kc.mod,
-			}
-			
+			var event *events.KeyEvent
+
 			// Special handling for space key
-			if kc.key == KeySpace {
-				event.Rune = ' '
+			if kc.key == events.KeySpace {
+				event = events.NewKeyEvent(kc.key, ' ', kc.mod)
+			} else {
+				event = events.NewKeyEvent(kc.key, 0, kc.mod)
 			}
-			
+
 			t.inputChan <- event
 			*buf = (*buf)[len(kc.seq):]
 			return true, false
 		}
 	}
-	
+
 	// Check for partial matches (need more data)
-	
+
 	for _, kc := range keyCodes {
 		if len(*buf) < len(kc.seq) && bytesEqual(*buf, kc.seq[:len(*buf)]) {
 			// Partial match - wait for more data
 			return false, true
 		}
 	}
-	
+
 	return false, false
 }
 
@@ -238,7 +230,7 @@ func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
 func (t *Terminal) resizeHandler() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGWINCH)
-	
+
 	for {
 		select {
 		case <-t.stopChan:
@@ -269,12 +261,12 @@ func decodeRune(buf []byte) (rune, int) {
 	if len(buf) == 0 {
 		return 0, 0
 	}
-	
+
 	// ASCII fast path
 	if buf[0] < 0x80 {
 		return rune(buf[0]), 1
 	}
-	
+
 	// Multi-byte UTF-8
 	if buf[0]&0xe0 == 0xc0 && len(buf) >= 2 {
 		r := rune(buf[0]&0x1f)<<6 | rune(buf[1]&0x3f)
@@ -288,7 +280,7 @@ func decodeRune(buf []byte) (rune, int) {
 		r := rune(buf[0]&0x07)<<18 | rune(buf[1]&0x3f)<<12 | rune(buf[2]&0x3f)<<6 | rune(buf[3]&0x3f)
 		return r, 4
 	}
-	
+
 	// Invalid or incomplete UTF-8
 	return 0, 0
 }

@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"veda/internal/ui"
+	"veda/internal/events"
 )
 
 // Mode represents an editor mode
@@ -15,9 +15,9 @@ const (
 
 // Key represents a key with modifiers
 type Key struct {
-	Key  ui.Key
+	Key  events.Key
 	Rune rune
-	Mod  ui.ModMask
+	Mod  events.ModMask
 }
 
 // KeySequence represents a sequence of keys
@@ -92,21 +92,21 @@ func (km *KeyMapper) AddBinding(binding Binding) {
 }
 
 // ProcessKey processes a key event and returns the command if a binding matches
-func (km *KeyMapper) ProcessKey(ev *ui.EventKey, currentMode Mode) (string, bool) {
+func (km *KeyMapper) ProcessKey(ev *events.KeyEvent, currentMode Mode) (string, bool) {
 	key := Key{
 		Key:  ev.Key,
 		Rune: ev.Rune,
 		Mod:  ev.Modifiers,
 	}
-	
+
 	// Add to pending sequence
 	km.pending = append(km.pending, key)
-	
+
 	// Check for matches
 	var matchFound bool
 	var commandFound string
 	var partialMatch bool
-	
+
 	for _, binding := range km.bindings {
 		// Check if mode matches
 		modeMatches := false
@@ -119,7 +119,7 @@ func (km *KeyMapper) ProcessKey(ev *ui.EventKey, currentMode Mode) (string, bool
 		if !modeMatches {
 			continue
 		}
-		
+
 		// Check if key sequence matches
 		if km.sequenceMatches(km.pending, binding.Keys) {
 			matchFound = true
@@ -128,16 +128,16 @@ func (km *KeyMapper) ProcessKey(ev *ui.EventKey, currentMode Mode) (string, bool
 			partialMatch = true
 		}
 	}
-	
+
 	if matchFound {
 		km.pending = KeySequence{} // Reset pending
 		return commandFound, true
 	}
-	
+
 	if !partialMatch {
 		km.pending = KeySequence{} // Reset pending if no partial matches
 	}
-	
+
 	return "", false
 }
 
@@ -146,13 +146,13 @@ func (km *KeyMapper) sequenceMatches(seq1, seq2 KeySequence) bool {
 	if len(seq1) != len(seq2) {
 		return false
 	}
-	
+
 	for i := range seq1 {
 		if !km.keyEquals(seq1[i], seq2[i]) {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -161,13 +161,13 @@ func (km *KeyMapper) isPartialMatch(seq1, seq2 KeySequence) bool {
 	if len(seq1) > len(seq2) {
 		return false
 	}
-	
+
 	for i := range seq1 {
 		if !km.keyEquals(seq1[i], seq2[i]) {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -176,15 +176,15 @@ func (km *KeyMapper) keyEquals(k1, k2 Key) bool {
 	if k1.Mod != k2.Mod {
 		return false
 	}
-	
-	if k1.Key != ui.KeyRune && k2.Key != ui.KeyRune {
+
+	if k1.Key != events.KeyRune && k2.Key != events.KeyRune {
 		return k1.Key == k2.Key
 	}
-	
-	if k1.Key == ui.KeyRune && k2.Key == ui.KeyRune {
+
+	if k1.Key == events.KeyRune && k2.Key == events.KeyRune {
 		return k1.Rune == k2.Rune
 	}
-	
+
 	return false
 }
 
