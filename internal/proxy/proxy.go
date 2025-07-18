@@ -170,7 +170,7 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -235,7 +235,7 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -300,7 +300,7 @@ func (c *Client) GetFile(path string) (string, error) {
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -343,7 +343,7 @@ func (c *Client) StartLSPServer(language string) error {
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -386,7 +386,7 @@ func (c *Client) StopLSPServer(language string) error {
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -437,7 +437,7 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -547,7 +547,7 @@ func (c *Client) GetLSPMessages(language string) ([]interface{}, error) {
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -593,7 +593,7 @@ func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{},
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -652,7 +652,7 @@ func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 	if err := c.stdin.Flush(); err != nil {
 		return nil, fmt.Errorf("failed to flush request: %w", err)
 	}
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -736,7 +736,7 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 	if err := c.stdin.Flush(); err != nil {
 		return nil, fmt.Errorf("failed to flush request: %w", err)
 	}
-	
+
 	// Simulate remote proxy delay
 	time.Sleep(500 * time.Millisecond)
 
@@ -814,9 +814,9 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
-	
+
 	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		responseText := c.stdout.Text()
