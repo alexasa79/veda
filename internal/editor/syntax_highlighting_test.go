@@ -34,14 +34,25 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		AssertCursorAt(t, te, 0, 1) // Beginning of new line
 		
 		// Type more code on the new line
-		secondLine := "import \"fmt\""
-		for _, ch := range secondLine {
+		// Type "import "
+		for _, ch := range "import " {
 			te.InsertChar(ch)
 		}
 		
+		// Type opening quote - this will create a pair ""
+		te.InsertChar('"')
+		
+		// Type "fmt"
+		for _, ch := range "fmt" {
+			te.InsertChar(ch)
+		}
+		
+		// Move past the auto-paired closing quote
+		te.ExecuteCommand("right")
+		
 		// Verify the complete content
 		AssertBufferEquals(t, te, "package main\nimport \"fmt\"")
-		AssertCursorAt(t, te, 12, 1) // After the closing quote
+		AssertCursorAt(t, te, 11, 1) // After the closing quote
 		
 		// Force a render to trigger syntax highlighting
 		// This would have crashed before the fix

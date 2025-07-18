@@ -50,7 +50,6 @@ type Buffer struct {
 	HasLSP bool  // Whether LSP is available for this buffer
 
 	// Function signature state
-	InArgumentList bool           // Whether cursor is inside a function's argument list
 	CurrentSignature *SignatureHelp // The current function signature from LSP
 	SignatureGeneration uint64    // Generation number for signature help requests
 

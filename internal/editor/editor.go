@@ -18,8 +18,6 @@ import (
 	"veda/internal/syntax"
 	"veda/internal/ui"
 	"veda/internal/widgets"
-
-	sitter "github.com/smacker/go-tree-sitter"
 )
 
 var LL *log.Logger = log.NewLogger("EDITOR")
@@ -512,10 +510,7 @@ func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
 
 // updateCursorState updates any state that depends on cursor position
 func (e *Editor) updateCursorState() {
-	// Update argument list state if we have syntax highlighting
-	if e.highlighter != nil && e.highlighter.GetTree() != nil {
-		e.updateArgumentListState()
-	}
+	// Currently no cursor-dependent state to update
 }
 
 func (e *Editor) quit() error {
@@ -1060,26 +1055,9 @@ func (e *Editor) updateSyntaxHighlighting() {
 		content := e.buffer.String()
 		// Force a full reparse by not reusing the old tree
 		e.highlighter.ParseFull([]byte(content))
-		// Update argument list state after parsing
-		e.updateArgumentListState()
 	}
 }
 
-// findNodeAtPosition finds the most specific node containing the given position
-func (e *Editor) findNodeAtPosition(node *sitter.Node, pos int) *sitter.Node {
-	// Check if position is within this node
-	if int(node.StartByte()) <= pos && pos <= int(node.EndByte()) {
-		// Check children first for more specific match
-		for i := 0; i < int(node.ChildCount()); i++ {
-			child := node.Child(i)
-			if result := e.findNodeAtPosition(child, pos); result != nil {
-				return result
-			}
-		}
-		return node
-	}
-	return nil
-}
 
 func (e *Editor) enterCommandModeCmd() error {
 	e.enterCommandMode()

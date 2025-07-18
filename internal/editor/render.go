@@ -271,11 +271,6 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ")
 		}
 
-		// Add argument list indicator
-		if e.buffer.InArgumentList {
-			x += e.drawText(x, statusBarY, statusBarStyle, " [args]")
-		}
-
 		// Right side: indentation and line:col
 
 		// Use visual column position for display (accounting for tabs)
@@ -330,7 +325,7 @@ func (e *Editor) drawStatusBar() {
 
 // drawSignature renders the function signature above the status bar
 func (e *Editor) drawSignature() {
-	LL.Trace("Drawing signature %v, %v", e.buffer.InArgumentList, e.buffer.CurrentSignature)
+	LL.Trace("Drawing signature %v", e.buffer.CurrentSignature)
 
 	if e.buffer.CurrentSignature == nil {
 		return
