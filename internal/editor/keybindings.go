@@ -65,6 +65,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
+	e.registerKeyBinding(commands.NormalMode, "g s", "show-signature")
 
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")

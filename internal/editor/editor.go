@@ -510,7 +510,8 @@ func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
 
 // updateCursorState updates any state that depends on cursor position
 func (e *Editor) updateCursorState() {
-	// Currently no cursor-dependent state to update
+	// Check if we need to update signature help
+	e.checkSignatureUpdate()
 }
 
 func (e *Editor) quit() error {
@@ -571,6 +572,10 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 				buf.CurrentSignature = help
 				LL.Info("Stored async signature: %s", help.Label)
 			}
+		} else {
+			// No signatures available - we're outside a function call
+			LL.Debug("No signatures in response - clearing signature help")
+			buf.CurrentSignature = nil
 		}
 	} else {
 		LL.Debug("Unexpected signature help response format: %T", rawResponse)

@@ -52,3 +52,35 @@ func (e *Editor) requestSignatureHelpAsync() {
 		LL.Debug("LSP request channel full, dropping signature help request for %s", e.buffer.FilePath)
 	}
 }
+
+// showSignature initiates signature help display
+func (e *Editor) showSignature() error {
+	// Increment generation for this new request
+	e.buffer.SignatureGeneration++
+	
+	// Request signature help from LSP
+	e.requestSignatureHelpAsync()
+	
+	return nil
+}
+
+// checkSignatureUpdate checks if we should re-request signature help based on cursor position
+func (e *Editor) checkSignatureUpdate() {
+	// Only check if we have an active signature
+	if e.buffer.CurrentSignature == nil {
+		return
+	}
+	
+	// Check if current character is comma or closing paren
+	if !e.buffer.CursorIterator.IsEOF() {
+		line := e.buffer.CursorIterator.Line()
+		if e.buffer.CursorX < len(line) {
+			ch := line[e.buffer.CursorX]
+			if ch == ',' || ch == ')' {
+				// Increment generation and re-request
+				e.buffer.SignatureGeneration++
+				e.requestSignatureHelpAsync()
+			}
+		}
+	}
+}

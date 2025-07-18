@@ -76,6 +76,7 @@ Currently the buffer package and editor package have tests. When adding new func
 - When working with the Editor's buffer, assert that the buffer field is always initialized and populated. No need to add extra null checks.
 - When using Buffer and Iterator objects, any change to the buffer invalidates all current iterators pointing to the buffer. To work with these primitives, remember the line number of the iterator before making the change and then call NewBufferIteratorAtLine to restore the iterator.
 - `tracker.go` implements a time tracker that we use for performance measurements. The typical use pattern is to create a performance tracker object. Then to call `t0 := tracker.Start()`, followed by `t0 = tracker.ReportSince(..., t0)`.
+- Always look for implementation that reduces the amount of state we have to keep. For instance if we have a boolean that tells us if the state is present and a pointer to the state's structure, we can remove the boolean and check if the pointer is nil.
 
 ## Claude Operational Guidelines
 - You are not allowed to leave the root directory of the project. All commands, experiments, everything you do, must be done in the root directory of the project.
