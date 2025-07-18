@@ -57,6 +57,8 @@ func ParseKey(s string) (Key, error) {
 	case "escape", "esc":
 		result.Key = events.KeyEscape
 	case "backspace", "bs":
+		result.Key = events.KeyBackspace
+	case "backspace2", "bs2":
 		result.Key = events.KeyBackspace2
 	case "delete", "del":
 		result.Key = events.KeyDelete
