@@ -358,5 +358,5 @@ func (e *Editor) drawSignature() {
 	if len(displayText) > maxLen {
 		displayText = displayText[:maxLen-3] + "..."
 	}
-	e.drawText(1, signatureY, signatureStyle, displayText)
+	e.drawText(0, signatureY, signatureStyle, displayText)
 }
