@@ -7,6 +7,29 @@ import (
 	"veda/internal/proxy"
 )
 
+// calculateLineCount returns the number of lines in the rope,
+// accounting for trailing newlines. A trailing newline doesn't
+// create a new line; it's part of the last line.
+func calculateLineCount(rope *Rope) int {
+	if rope.Length() == 0 {
+		return 1 // Empty buffer has 1 line
+	}
+	
+	// Number of lines is newline count + 1
+	lineCount := rope.root.newlineCount + 1
+	
+	// If buffer ends with newline, don't count it as creating a new line
+	if rope.Length() > 0 {
+		// Get the last character
+		lastChar := rope.ByteAt(rope.Length() - 1)
+		if lastChar == '\n' && lineCount > 1 {
+			lineCount--
+		}
+	}
+	
+	return lineCount
+}
+
 // SignatureHelp represents function signature information from LSP
 type SignatureHelp struct {
 	Label           string                 `json:"label"`          // The function signature
@@ -83,7 +106,7 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		CursorX:      0,
 		ViewIterator:   nil,  // Will be created when buffer is first used
 		CursorIterator: nil,  // Will be created when buffer is first used
-		LineCount:    len(rope.Lines()),
+		LineCount:    calculateLineCount(rope),
 		Indentation: IndentationInfo{
 			Type:  defaultIndentType,
 			Width: defaultIndentWidth,
@@ -101,7 +124,7 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 // MarkModified marks the buffer as modified
 func (b *Buffer) MarkModified() {
 	b.IsModified = true
-	b.LineCount = len(b.Lines())
+	b.LineCount = calculateLineCount(b.Rope)
 	b.UpdateLineNumberWidth()
 }
 
