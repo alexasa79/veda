@@ -76,8 +76,8 @@ func TestSwitchToBuffer(t *testing.T) {
 	if x != 3 {
 		t.Errorf("Expected cursorX to be 3, got %d", x)
 	}
-	if te.buffer.String() != "Hello, World!" {
-		t.Errorf("Expected buffer content to be 'Hello, World!', got %s", te.buffer.String())
+	if te.buffer.Rope.String() != "Hello, World!" {
+		t.Errorf("Expected buffer content to be 'Hello, World!', got %s", te.buffer.Rope.String())
 	}
 }
 
@@ -99,12 +99,12 @@ func TestMultipleBuffers(t *testing.T) {
 	
 	// Switch between buffers
 	te.switchToBuffer(buffer1)
-	if te.buffer.String() != "Buffer 1" {
-		t.Errorf("Expected buffer content to be 'Buffer 1', got %s", te.buffer.String())
+	if te.buffer.Rope.String() != "Buffer 1" {
+		t.Errorf("Expected buffer content to be 'Buffer 1', got %s", te.buffer.Rope.String())
 	}
 	
 	te.switchToBuffer(buffer2)
-	if te.buffer.String() != "Buffer 2" {
-		t.Errorf("Expected buffer content to be 'Buffer 2', got %s", te.buffer.String())
+	if te.buffer.Rope.String() != "Buffer 2" {
+		t.Errorf("Expected buffer content to be 'Buffer 2', got %s", te.buffer.Rope.String())
 	}
 }

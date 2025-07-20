@@ -88,7 +88,7 @@ func (te *TestEditor) SetCursorPosition(x, y int) {
 
 // GetBufferContent returns the entire buffer content as a string
 func (te *TestEditor) GetBufferContent() string {
-	return te.buffer.String()
+	return te.buffer.Rope.String()
 }
 
 // GetScreenContent returns what's visible on the screen

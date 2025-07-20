@@ -73,7 +73,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		// Set up Go file
 		te.buffer.FilePath = "test.go"
 		te.highlighter.SetLanguageFromFile("test.go")
-		te.highlighter.Parse([]byte(te.buffer.String()))
+		te.highlighter.Parse([]byte(te.buffer.Rope.String()))
 		
 		// Move cursor to middle of line
 		te.SetCursorPosition(13, 0) // After "{"
@@ -106,7 +106,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		// Enable Go syntax highlighting
 		te.buffer.FilePath = "test.go"
 		te.highlighter.SetLanguageFromFile("test.go")
-		te.highlighter.Parse([]byte(te.buffer.String()))
+		te.highlighter.Parse([]byte(te.buffer.Rope.String()))
 		
 		// Move to end of line
 		te.buffer.CursorX = 10
