@@ -35,3 +35,4 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 - [ ] Find references
 - [ ] List methods in the file
 - [ ] List methods in the folder
+- [ ] Render tab characters and trailing space characters.
