@@ -568,9 +568,20 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 					for _, p := range params {
 						if param, ok := p.(map[string]interface{}); ok {
 							paramInfo := buffer.ParameterInfo{}
+							
+							// Handle label - can be string or [start, end] array
 							if label, ok := param["label"].(string); ok {
 								paramInfo.Label = label
+							} else if labelArray, ok := param["label"].([]interface{}); ok && len(labelArray) == 2 {
+								// Label is a range [start, end]
+								if start, ok := labelArray[0].(float64); ok {
+									paramInfo.LabelStart = int(start)
+								}
+								if end, ok := labelArray[1].(float64); ok {
+									paramInfo.LabelEnd = int(end)
+								}
 							}
+							
 							if doc, ok := param["documentation"].(string); ok {
 								paramInfo.Documentation = doc
 							}

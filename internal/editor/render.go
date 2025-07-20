@@ -326,83 +326,163 @@ func (e *Editor) drawStatusBar() {
 // drawSignature renders the function signature above the status bar
 func (e *Editor) drawSignature() {
 	LL.Trace("Drawing signature %v", e.buffer.CurrentSignature)
-
 	if e.buffer.CurrentSignature == nil {
 		return
 	}
 
 	width, _ := e.screen.Size()
 	signatureY := e.getSignatureY()
-	signatureStyle := e.config.Theme.GetStyle(e.config.Theme.Context) // Use context style for signature
+	signatureStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
 
 	// Fill signature background
-	for i := 0; i < width; i++ {
-		e.screen.SetContent(i, signatureY, ' ', nil, signatureStyle)
-	}
+	e.fillLine(signatureY, signatureStyle)
 
-	// Format the signature for display
+	// Prepare display text
 	sig := e.buffer.CurrentSignature
-	displayText := sig.Label
+	displayText := e.formatSignatureText(sig)
+	displayText = e.truncateText(displayText, width-2)
 
-	// Highlight the active parameter if available
-	if len(sig.Parameters) > 0 && sig.ActiveParameter >= 0 && sig.ActiveParameter < len(sig.Parameters) {
-		// This is a simple display - we could enhance it later to highlight the active parameter
-		displayText = fmt.Sprintf("%s  [%d/%d]", sig.Label, sig.ActiveParameter+1, len(sig.Parameters))
-	}
-
-	// Log for debugging
 	LL.Debug("Drawing signature at Y=%d: %s", signatureY, displayText)
 
-	// Truncate if too long
-	maxLen := width - 2
-	if len(displayText) > maxLen {
-		displayText = displayText[:maxLen-3] + "..."
+	// Find active parameter range
+	activeStart, activeEnd := e.getActiveParameterRange(sig)
+
+	// Draw the signature
+	if e.highlighter != nil {
+		e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+	} else {
+		e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+	}
+}
+
+// fillLine fills an entire line with the given style
+func (e *Editor) fillLine(y int, style ui.Style) {
+	width, _ := e.screen.Size()
+	for i := 0; i < width; i++ {
+		e.screen.SetContent(i, y, ' ', nil, style)
+	}
+}
+
+// formatSignatureText formats the signature for display
+func (e *Editor) formatSignatureText(sig *buffer.SignatureHelp) string {
+	if len(sig.Parameters) > 0 && sig.ActiveParameter >= 0 && sig.ActiveParameter < len(sig.Parameters) {
+		return fmt.Sprintf("%s  [%d/%d]", sig.Label, sig.ActiveParameter+1, len(sig.Parameters))
+	}
+	return sig.Label
+}
+
+// truncateText truncates text if it exceeds maxLen
+func (e *Editor) truncateText(text string, maxLen int) string {
+	if len(text) > maxLen {
+		return text[:maxLen-3] + "..."
+	}
+	return text
+}
+
+// getActiveParameterRange returns the start and end positions of the active parameter
+func (e *Editor) getActiveParameterRange(sig *buffer.SignatureHelp) (int, int) {
+	if sig.ActiveParameter < 0 || sig.ActiveParameter >= len(sig.Parameters) {
+		return -1, -1
 	}
 
-	// Try to use syntax highlighting if we have a highlighter
-	if e.highlighter != nil {
-		// Get tokens for the signature text
-		tokens := e.highlighter.GetTokensForString(displayText)
-		
-		if len(tokens) > 0 {
-			// Draw with syntax highlighting
-			x := 0
-			lastEnd := 0
-			
-			for _, token := range tokens {
-				// Draw any text before this token with context style
-				if token.Start > lastEnd && token.Start <= len(displayText) {
-					beforeText := displayText[lastEnd:token.Start]
-					e.drawText(x, signatureY, signatureStyle, beforeText)
-					x += len(beforeText)
-				}
-				
-				// Draw the token with its syntax style
-				if token.Start < len(displayText) {
-					endPos := token.End
-					if endPos > len(displayText) {
-						endPos = len(displayText)
-					}
-					tokenText := displayText[token.Start:endPos]
-					tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-					// Override background with context background
-					tokenStyle = tokenStyle.Background(signatureStyle.Bg)
-					e.drawText(x, signatureY, tokenStyle, tokenText)
-					x += len(tokenText)
-					lastEnd = endPos
-				}
-			}
-			
-			// Draw any remaining text
-			if lastEnd < len(displayText) {
-				remainingText := displayText[lastEnd:]
-				e.drawText(x, signatureY, signatureStyle, remainingText)
-			}
-			
-			return
+	param := sig.Parameters[sig.ActiveParameter]
+	if param.LabelStart > 0 || param.LabelEnd > 0 {
+		return param.LabelStart, param.LabelEnd
+	}
+
+	// Try to find parameter by string matching
+	if param.Label != "" {
+		if idx := strings.Index(sig.Label, param.Label); idx >= 0 {
+			return idx, idx + len(param.Label)
 		}
 	}
-	
-	// Fallback: draw without syntax highlighting
-	e.drawText(0, signatureY, signatureStyle, displayText)
+
+	return -1, -1
+}
+
+// drawSignatureWithHighlighting draws the signature with syntax highlighting and bold active parameter
+func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int) {
+	tokens := e.highlighter.GetTokensForString(text)
+	if len(tokens) == 0 {
+		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+		return
+	}
+
+	x := 0
+	lastEnd := 0
+
+	for _, token := range tokens {
+		// Draw text before token
+		if token.Start > lastEnd {
+			beforeText := text[lastEnd:token.Start]
+			style := e.applyBoldIfInRange(baseStyle, lastEnd, token.Start, activeStart, activeEnd)
+			x += e.drawText(x, y, style, beforeText)
+		}
+
+		// Draw token
+		if token.Start < len(text) {
+			endPos := min(token.End, len(text))
+			tokenText := text[token.Start:endPos]
+			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+			tokenStyle = tokenStyle.Background(baseStyle.Bg)
+			tokenStyle = e.applyBoldIfInRange(tokenStyle, token.Start, endPos, activeStart, activeEnd)
+			x += e.drawText(x, y, tokenStyle, tokenText)
+			lastEnd = endPos
+		}
+	}
+
+	// Draw remaining text
+	if lastEnd < len(text) {
+		remainingText := text[lastEnd:]
+		style := e.applyBoldIfInRange(baseStyle, lastEnd, len(text), activeStart, activeEnd)
+		e.drawText(x, y, style, remainingText)
+	}
+}
+
+// drawSignatureWithBold draws the signature with bold active parameter but no syntax highlighting
+func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activeStart, activeEnd int) {
+	if activeStart < 0 || activeEnd <= activeStart {
+		e.drawText(0, y, style, text)
+		return
+	}
+
+	x := 0
+
+	// Before active parameter
+	if activeStart > 0 {
+		x += e.drawText(x, y, style, text[:activeStart])
+	}
+
+	// Active parameter (bold)
+	if activeEnd <= len(text) {
+		boldStyle := style
+		boldStyle.Attrs |= ui.AttrBold
+		x += e.drawText(x, y, boldStyle, text[activeStart:activeEnd])
+	}
+
+	// After active parameter
+	if activeEnd < len(text) {
+		e.drawText(x, y, style, text[activeEnd:])
+	}
+}
+
+// applyBoldIfInRange applies bold attribute if the range overlaps with the active parameter
+func (e *Editor) applyBoldIfInRange(style ui.Style, start, end, activeStart, activeEnd int) ui.Style {
+	if activeStart >= 0 && e.rangesOverlap(start, end, activeStart, activeEnd) {
+		style.Attrs |= ui.AttrBold
+	}
+	return style
+}
+
+// rangesOverlap checks if two ranges overlap
+func (e *Editor) rangesOverlap(start1, end1, start2, end2 int) bool {
+	return start1 < end2 && start2 < end1
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

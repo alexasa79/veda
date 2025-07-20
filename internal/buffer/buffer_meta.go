@@ -17,7 +17,9 @@ type SignatureHelp struct {
 
 // ParameterInfo represents information about a function parameter
 type ParameterInfo struct {
-	Label         string `json:"label"`         // Parameter name and type
+	Label         string `json:"label"`         // Parameter name and type (if label is string)
+	LabelStart    int    `json:"labelStart"`    // Start position in signature (if label is range)
+	LabelEnd      int    `json:"labelEnd"`      // End position in signature (if label is range)
 	Documentation string `json:"documentation"` // Optional parameter documentation
 }
 
