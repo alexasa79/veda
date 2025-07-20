@@ -257,3 +257,16 @@ func (b *Buffer) Delete(start, end int) {
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
 }
+
+// String implements the fmt.Stringer interface for Buffer
+func (b *Buffer) String() string {
+	if b == nil {
+		return "Buffer(nil)"
+	}
+	
+	filename := b.FileName()
+	lines := b.LineCount
+	chars := b.Rope.Length()
+	
+	return fmt.Sprintf("Buffer(file=%s, lines=%d, chars=%d)", filename, lines, chars)
+}

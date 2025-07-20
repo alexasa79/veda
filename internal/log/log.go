@@ -103,3 +103,29 @@ func (logger *Logger) Warning(format string, args ...interface{}) {
 func (logger *Logger) Error(format string, args ...interface{}) {
 	logger.log(ERROR, format, args...)
 }
+
+// SetLevel sets the minimum log level for this logger
+func (logger *Logger) SetLevel(level LogLevel) {
+	logger.MinLevel = level
+}
+
+// SetAllLogLevel sets the log level for all loggers
+func SetAllLogLevel(level LogLevel) {
+	for _, logger := range AllLoggers {
+		logger.SetLevel(level)
+	}
+}
+
+// ParseLogLevel parses a string log level into a LogLevel
+func ParseLogLevel(levelStr string) (LogLevel, error) {
+	switch levelStr {
+	case "trace":
+		return TRACE, nil
+	case "debug":
+		return DEBUG, nil
+	case "info":
+		return INFO, nil
+	default:
+		return INFO, fmt.Errorf("invalid log level: %s (supported: info, debug, trace)", levelStr)
+	}
+}

@@ -21,3 +21,5 @@
 - [ ] Reimplement the way theme is structured. We want to separate code theme and the editor theme,
       where editor theme is the editor elements (status bar, etc).
 - [x] Add something that shows that we have an LSP for the current file.
+- [ ] Organize commands in `handleVariableAssignment` in some way. Ideally, the command itself
+   should say if it has a completion.

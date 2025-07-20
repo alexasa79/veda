@@ -162,6 +162,9 @@ func (e *Editor) Run() {
 	for {
 		var ev events.Event
 
+		LL.Debug("Rendering buffer %+v from top line %+v, cursor line %+v, cursor %d",
+			e.buffer, e.buffer.ViewIterator, e.buffer.CursorIterator, e.buffer.CursorX)
+
 		// Use select to handle multiple event sources
 		select {
 		case ev = <-screenEvents:
@@ -460,6 +463,14 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 	case "smartindent":
 		// Smart indent (already implemented by default)
 		// TODO: make this configurable
+	case "log":
+		// Set log level
+		if level, err := log.ParseLogLevel(value); err == nil {
+			log.SetAllLogLevel(level)
+			LL.Info("Log level set to %s", value)
+		} else {
+			LL.Warning("Invalid log level: %s (use: info, debug, trace)", value)
+		}
 	}
 }
 
@@ -1255,6 +1266,17 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 					}
 				}
 				return completions
+			case "log":
+				// Suggest log levels
+				values := []string{"info", "debug", "trace"}
+				var completions []string
+				for _, v := range values {
+					completion := varName + "=" + v
+					if strings.HasPrefix(completion, prefix) {
+						completions = append(completions, completion)
+					}
+				}
+				return completions
 			}
 		}
 	}
@@ -1263,6 +1285,7 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 	variables := []string{
 		"expandtab", "tabstop", "ts", "shiftwidth", "sw",
 		"number", "relativenumber", "autoindent", "smartindent",
+		"log",
 	}
 	
 	// Add registered commands
