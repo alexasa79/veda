@@ -369,9 +369,9 @@ func TestIndentationCommands(t *testing.T) {
 			t.Fatalf("Expected default to be 4 spaces")
 		}
 		
-		// Simulate entering command mode and typing :set noexpandtab
+		// Simulate entering command mode and typing :expandtab=false
 		te.enterCommandMode()
-		te.commandLine.SetText(":set noexpandtab")
+		te.commandLine.SetText(":expandtab=false")
 		te.executeCommand()
 		
 		if te.buffer.Indentation.Type != config.IndentTabs {
@@ -382,9 +382,9 @@ func TestIndentationCommands(t *testing.T) {
 	t.Run("set tabstop", func(t *testing.T) {
 		te := NewTestEditor(80, 24)
 		
-		// Test :set tabstop 2
+		// Test :tabstop=2
 		te.enterCommandMode()
-		te.commandLine.SetText(":set tabstop 2")
+		te.commandLine.SetText(":tabstop=2")
 		te.executeCommand()
 		
 		if te.buffer.Indentation.Type != config.IndentSpaces {
@@ -398,9 +398,9 @@ func TestIndentationCommands(t *testing.T) {
 	t.Run("set tabstop with equals", func(t *testing.T) {
 		te := NewTestEditor(80, 24)
 		
-		// Test :set tabstop=8
+		// Test :tabstop=8
 		te.enterCommandMode()
-		te.commandLine.SetText(":set tabstop=8")
+		te.commandLine.SetText(":tabstop=8")
 		te.executeCommand()
 		
 		if te.buffer.Indentation.Width != 8 {
@@ -414,9 +414,9 @@ func TestIndentationCommands(t *testing.T) {
 		// First set to tabs
 		te.buffer.SetIndentationType(config.IndentTabs)
 		
-		// Then use :set expandtab
+		// Then use :expandtab=true
 		te.enterCommandMode()
-		te.commandLine.SetText(":set expandtab")
+		te.commandLine.SetText(":expandtab=true")
 		te.executeCommand()
 		
 		if te.buffer.Indentation.Type != config.IndentSpaces {

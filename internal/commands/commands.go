@@ -72,6 +72,11 @@ func (cr *CommandRegistry) Has(command string) bool {
 	return exists
 }
 
+// GetAll returns all registered commands
+func (cr *CommandRegistry) GetAll() map[string]CommandInfo {
+	return cr.commands
+}
+
 // KeyMapper manages key bindings
 type KeyMapper struct {
 	bindings []Binding

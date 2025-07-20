@@ -28,7 +28,7 @@ type Editor struct {
 	buffer          *buffer.Buffer          // Current buffer
 	config          *config.Config
 	mode            commands.Mode
-	commandLine     *widgets.LineEditor
+	commandLine     *widgets.CommandLineWidget
 	proxyClient     *proxy.Client
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
@@ -66,7 +66,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// Initialize command line widget (will be positioned at bottom of screen)
 	width, height := screen.Size()
 	statusBarY := height - 1 // Status bar is always on the last line
-	commandLine := widgets.NewLineEditor(0, statusBarY, width)
+	commandLine := widgets.NewCommandLineWidget(0, statusBarY, width)
 	commandLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
 
 	// Start proxy client
@@ -373,6 +373,9 @@ func (e *Editor) enterCommandMode() {
 	e.commandLine.SetText(":")
 	// Position cursor after the colon
 	e.commandLine.SetCursor(1)
+	
+	// Set up command completion function
+	e.commandLine.SetCompletionFunc(e.getCommandCompletions)
 }
 
 // exitCommandMode switches back to normal mode
@@ -383,10 +386,21 @@ func (e *Editor) exitCommandMode() {
 
 // executeCommand processes the command entered in the command line
 func (e *Editor) executeCommand() {
-	command := e.commandLine.GetText()
+	fullCommand := e.commandLine.GetText()
+	
+	// Add to history before executing
+	e.commandLine.AddToHistory(fullCommand)
+	
 	// Remove the leading ":"
+	command := fullCommand
 	if len(command) > 1 {
 		command = command[1:]
+	}
+
+	// Check if this is a variable assignment (VAR=VALUE)
+	if strings.Contains(command, "=") && !strings.HasPrefix(command, " ") {
+		e.handleVariableAssignment(command)
+		return
 	}
 
 	// First try to execute from the command registry
@@ -398,12 +412,6 @@ func (e *Editor) executeCommand() {
 		return
 	}
 
-	// Handle set commands
-	if strings.HasPrefix(command, "set ") {
-		e.handleSetCommand(command[4:])
-		return
-	}
-
 	// Handle basic commands that aren't in the registry
 	switch command {
 	case "q", "quit":
@@ -412,43 +420,46 @@ func (e *Editor) executeCommand() {
 	}
 }
 
-// handleSetCommand processes :set commands
-func (e *Editor) handleSetCommand(args string) {
-	// Handle formats like "tabstop=4" and "tabstop 4"
-	parts := strings.Fields(args)
-	if len(parts) == 0 {
+// handleVariableAssignment processes variable assignments in VAR=VALUE format
+func (e *Editor) handleVariableAssignment(assignment string) {
+	parts := strings.SplitN(assignment, "=", 2)
+	if len(parts) != 2 {
 		return
 	}
-
-	// Check if first part contains '='
-	if strings.Contains(parts[0], "=") {
-		eqParts := strings.SplitN(parts[0], "=", 2)
-		if len(eqParts) == 2 {
-			parts = []string{eqParts[0], eqParts[1]}
-		}
-	}
-
-	switch parts[0] {
+	
+	varName := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+	
+	switch varName {
 	case "expandtab":
-		// Use spaces instead of tabs
-		e.buffer.SetIndentationType(config.IndentSpaces)
-	case "noexpandtab":
-		// Use tabs instead of spaces
-		e.buffer.SetIndentationType(config.IndentTabs)
+		// Boolean value
+		if value == "true" || value == "1" || value == "yes" {
+			e.buffer.SetIndentationType(config.IndentSpaces)
+		} else if value == "false" || value == "0" || value == "no" {
+			e.buffer.SetIndentationType(config.IndentTabs)
+		}
 	case "tabstop", "ts":
 		// Set tab width
-		if len(parts) >= 2 {
-			if width, err := strconv.Atoi(parts[1]); err == nil && width > 0 && width <= 8 {
-				e.buffer.SetIndentationWidth(width)
-			}
+		if width, err := strconv.Atoi(value); err == nil && width > 0 && width <= 8 {
+			e.buffer.SetIndentationWidth(width)
 		}
 	case "shiftwidth", "sw":
 		// Set indent width (same as tabstop for now)
-		if len(parts) >= 2 {
-			if width, err := strconv.Atoi(parts[1]); err == nil && width > 0 && width <= 8 {
-				e.buffer.SetIndentationWidth(width)
-			}
+		if width, err := strconv.Atoi(value); err == nil && width > 0 && width <= 8 {
+			e.buffer.SetIndentationWidth(width)
 		}
+	case "number":
+		// Show line numbers (future feature)
+		// TODO: implement line numbers
+	case "relativenumber":
+		// Show relative line numbers (future feature)
+		// TODO: implement relative line numbers
+	case "autoindent":
+		// Auto indent (already implemented by default)
+		// TODO: make this configurable
+	case "smartindent":
+		// Smart indent (already implemented by default)
+		// TODO: make this configurable
 	}
 }
 
@@ -1200,4 +1211,69 @@ func (e *Editor) goToDefinition() error {
 	e.scrollToShowAtTop()
 
 	return nil
+}
+
+// getCommandCompletions returns possible completions for the given command prefix
+func (e *Editor) getCommandCompletions(prefix string) []string {
+	// Check if this is a variable assignment
+	if strings.Contains(prefix, "=") {
+		// Complete variable values
+		parts := strings.SplitN(prefix, "=", 2)
+		if len(parts) == 2 {
+			varName := parts[0]
+			
+			switch varName {
+			case "expandtab":
+				values := []string{"true", "false", "yes", "no", "1", "0"}
+				var completions []string
+				for _, v := range values {
+					completion := varName + "=" + v
+					if strings.HasPrefix(completion, prefix) {
+						completions = append(completions, completion)
+					}
+				}
+				return completions
+			case "tabstop", "ts", "shiftwidth", "sw":
+				// Suggest common values
+				values := []string{"2", "4", "8"}
+				var completions []string
+				for _, v := range values {
+					completion := varName + "=" + v
+					if strings.HasPrefix(completion, prefix) {
+						completions = append(completions, completion)
+					}
+				}
+				return completions
+			}
+		}
+	}
+	
+	// Variable names for assignment
+	variables := []string{
+		"expandtab", "tabstop", "ts", "shiftwidth", "sw",
+		"number", "relativenumber", "autoindent", "smartindent",
+	}
+	
+	// Add registered commands
+	var commands []string
+	for cmd := range e.commandRegistry.GetAll() {
+		commands = append(commands, cmd)
+	}
+	
+	// Add built-in commands
+	builtinCommands := []string{"q", "quit"}
+	commands = append(commands, builtinCommands...)
+	
+	// Combine all possible completions
+	allCompletions := append(commands, variables...)
+	
+	// Filter based on prefix
+	var completions []string
+	for _, item := range allCompletions {
+		if strings.HasPrefix(item, prefix) {
+			completions = append(completions, item)
+		}
+	}
+	
+	return completions
 }
