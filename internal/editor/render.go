@@ -353,10 +353,56 @@ func (e *Editor) drawSignature() {
 	// Log for debugging
 	LL.Debug("Drawing signature at Y=%d: %s", signatureY, displayText)
 
-	// Draw the signature text (truncate if too long)
+	// Truncate if too long
 	maxLen := width - 2
 	if len(displayText) > maxLen {
 		displayText = displayText[:maxLen-3] + "..."
 	}
+
+	// Try to use syntax highlighting if we have a highlighter
+	if e.highlighter != nil {
+		// Get tokens for the signature text
+		tokens := e.highlighter.GetTokensForString(displayText)
+		
+		if len(tokens) > 0 {
+			// Draw with syntax highlighting
+			x := 0
+			lastEnd := 0
+			
+			for _, token := range tokens {
+				// Draw any text before this token with context style
+				if token.Start > lastEnd && token.Start <= len(displayText) {
+					beforeText := displayText[lastEnd:token.Start]
+					e.drawText(x, signatureY, signatureStyle, beforeText)
+					x += len(beforeText)
+				}
+				
+				// Draw the token with its syntax style
+				if token.Start < len(displayText) {
+					endPos := token.End
+					if endPos > len(displayText) {
+						endPos = len(displayText)
+					}
+					tokenText := displayText[token.Start:endPos]
+					tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+					// Override background with context background
+					tokenStyle = tokenStyle.Background(signatureStyle.Bg)
+					e.drawText(x, signatureY, tokenStyle, tokenText)
+					x += len(tokenText)
+					lastEnd = endPos
+				}
+			}
+			
+			// Draw any remaining text
+			if lastEnd < len(displayText) {
+				remainingText := displayText[lastEnd:]
+				e.drawText(x, signatureY, signatureStyle, remainingText)
+			}
+			
+			return
+		}
+	}
+	
+	// Fallback: draw without syntax highlighting
 	e.drawText(0, signatureY, signatureStyle, displayText)
 }

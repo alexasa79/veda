@@ -158,6 +158,31 @@ func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	return tokens
 }
 
+// GetTokensForString parses and returns syntax tokens for a single string
+func (h *Highlighter) GetTokensForString(text string) []Token {
+	if h.currentLang == "" {
+		return nil
+	}
+
+	// Parse the string as a standalone piece of code
+	source := []byte(text)
+	tree, err := h.parser.ParseCtx(context.Background(), nil, source)
+	if err != nil {
+		return nil
+	}
+
+	tokens := []Token{}
+	root := tree.RootNode()
+
+	// Walk the tree and collect tokens
+	h.walkNode(root, 0, len(source), source, &tokens)
+
+	// Sort tokens by start position and merge overlapping
+	tokens = h.mergeOverlappingTokens(tokens)
+
+	return tokens
+}
+
 // walkNode recursively walks the syntax tree and collects tokens
 func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source []byte, tokens *[]Token) {
 	nodeStart := int(node.StartByte())
