@@ -103,7 +103,7 @@ func (e *Editor) openFile(filePath string) {
 	if !e.buffer.HasFile() {
 		if unnamedBuffer, exists := e.buffers[""]; exists {
 			// Only remove if the buffer is truly empty
-			if unnamedBuffer.String() == "" {
+			if unnamedBuffer.Rope.String() == "" {
 				delete(e.buffers, "")
 				for i, path := range e.bufferOrder {
 					if path == "" {

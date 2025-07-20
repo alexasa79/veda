@@ -1,3 +1,4 @@
+# Small things
 - [x] Remove `drawLine` (does not seem to be used anymore) and rename `drawLineFromIterator` to `drawLine`.
 - [x] getLineTokensFromIterator should not exist. Tokens should be a map from iterator to slice of
   tokens and not a map from line index to slice of tokens.
@@ -23,3 +24,13 @@
 - [x] Add something that shows that we have an LSP for the current file.
 - [ ] Organize commands in `handleVariableAssignment` in some way. Ideally, the command itself
    should say if it has a completion.
+- [ ] I have multiple references to Buffer.Rope.String() in the code. Each such reference serializes
+  the entire buffer, which makes it inefficient. Find a solution to this.
+
+# Features
+- [ ] Multi-line support
+- [ ] Go to specific line
+- [ ] Search
+- [ ] Find references
+- [ ] List methods in the file
+- [ ] List methods in the folder

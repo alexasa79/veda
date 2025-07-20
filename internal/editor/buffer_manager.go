@@ -23,7 +23,7 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	// Set up syntax highlighting
 	if e.highlighter != nil && buf.HasFile() {
 		e.highlighter.SetLanguageFromFile(buf.FilePath)
-		e.highlighter.ParseFull([]byte(buf.String()))
+		e.highlighter.ParseFull([]byte(buf.Rope.String()))
 	} else {
 		// Reset syntax highlighting for unnamed buffer
 		e.highlighter = syntax.NewHighlighter()

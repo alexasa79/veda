@@ -1090,7 +1090,7 @@ func (e *Editor) getAbsolutePosition() int {
 // updateSyntaxHighlighting re-parses the buffer for syntax highlighting
 func (e *Editor) updateSyntaxHighlighting() {
 	if e.highlighter != nil && e.buffer.HasFile() {
-		content := e.buffer.String()
+		content := e.buffer.Rope.String()
 		// Force a full reparse by not reusing the old tree
 		e.highlighter.ParseFull([]byte(content))
 	}
