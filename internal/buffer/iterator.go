@@ -95,32 +95,41 @@ func NewBufferIteratorAtLine(buffer *Buffer, lineNum int) *BufferIterator {
 
 // NewBufferIteratorAtEnd creates a new iterator at the end of the buffer
 func NewBufferIteratorAtEnd(buffer *Buffer) *BufferIterator {
+	// Assert preconditions
+	utils.Assert(buffer.Rope != nil, "buffer.Rope is nil")
+
+	length := buffer.Rope.Length()
 	it := &BufferIterator{
 		Buffer:     buffer,
-		Offset:     buffer.Rope.Length(),
+		Offset:     length,
 		Generation: buffer.Generation,
 	}
 
 	// Find the last leaf node in the rope
-	if buffer.Rope != nil && buffer.Rope.root != nil {
+	if buffer.Rope.root != nil {
 		it.Node = getRightmostLeaf(buffer.Rope.root)
-	}
 
-	// Calculate the line number at EOF
-	// We set the line number to be one more than the actual last line
-	// This way Previous() can always just do lineNum - 1
-	lineNum := 0
-	length := buffer.Rope.Length()
+		// Calculate the line number at EOF using newlineCount
+		// We set the line number to be one more than the total line count
+		// This way Previous() can always just do lineNum - 1
+		totalNewlines := buffer.Rope.root.newlineCount
+		it.LineNum = totalNewlines + 1
 
-	// Count all newlines in the buffer
-	for i := 0; i < length; i++ {
-		if buffer.Rope.ByteAt(i) == '\n' {
-			lineNum++
+		// If the last character in the buffer is \n, do not count it as
+		// a line.
+		lastChar, ok := it.previousChar()
+		if !ok {
+			// Empty buffe r
+			it.LineNum = 0
+		} else {
+			if lastChar.getCharAt() == '\n' {
+				it.LineNum--
+			}
 		}
+	} else {
+		// Empty buffer
+		it.LineNum = 0
 	}
-
-	// Add 1 to represent being past the last line
-	it.LineNum = lineNum + 1
 
 	return it
 }
@@ -426,37 +435,14 @@ func (it *BufferIterator) Previous() *BufferIterator {
 	// Step 1: Handle EOF case
 	// When at EOF, we need to determine which line to land on:
 	// - "11\n22" (EOF at pos 5) -> Previous should go to start of "22" (pos 3)
-	// - "11\n22\n" (EOF at pos 6) -> Previous should go to empty line (pos 6)
+	// - "11\n22\n" (EOF at pos 6) -> Previous should go to start of "22" (pos 3)
 	// - "11\n22\n\n" (EOF at pos 7) -> Previous should go to empty line after "22" (pos 6)
 	if workingIter.IsEOF() {
-		// First check if buffer is empty or we're at the very beginning
-		if workingIter.Offset == 0 {
-			return &BufferIterator{
-				Buffer:     it.Buffer,
-				LineNum:    0,
-				Offset:     0,
-				Node:       workingIter.Node,
-				Generation: it.Generation,
-			}
-		}
-
 		// Look at the character before EOF
-		prevChar, ok := workingIter.previousChar()
+		prevCharIterator, ok := workingIter.previousChar()
 		utils.Assert(ok, "previousChar must succeed when Offset > 0")
 
-		// If the last character is a newline, we're at the start of an empty line
-		if prevChar.getCharAt() == '\n' {
-			// Return iterator positioned at the newline (which represents the empty line)
-			return &BufferIterator{
-				Buffer:     it.Buffer,
-				LineNum:    it.LineNum - 1,     // Adjust line number
-				Offset:     it.Offset - 1,       // Position at the newline character
-				Node:       prevChar.Node,       // Use the node containing the \n
-				Generation: it.Generation,
-			}
-		}
-		// Otherwise, the last character is not a newline, so we need to find the line start
-		workingIter = prevChar
+		workingIter = prevCharIterator
 	} else {
 			// Step 2: Not at EOF, previous character must be \n
 		workingIter, ok = workingIter.previousChar()

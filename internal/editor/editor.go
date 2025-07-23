@@ -346,8 +346,28 @@ func (e *Editor) scrollToShowAtTop() {
 	}
 }
 
+// ScrollToShowAtBottom positions the view so the cursor line appears at the bottom of the screen
+// This method calculates the view position so that the cursor is on the last visible line
+func (e *Editor) ScrollToShowAtBottom() {
+	visibleHeight := e.getVisibleHeight()
+	cursorLine := e.buffer.CursorIterator.LineNumber()
+	
+	// Calculate the desired view start line
+	// If cursor is below screen, we need to move view up by 1
+	// View should start at: cursorLine - visibleHeight + 1 - 1
+	desiredViewLine := cursorLine - visibleHeight + 2
+	
+	// Handle edge case where desired view would be negative
+	if desiredViewLine < 0 {
+		desiredViewLine = 0
+	}
+	
+	// Create iterator at the desired view line
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
 
-
+	LL.Debug("After going to the end, the view iterator is at %+v, cursor iterator at %+v, visible height is %d", 
+		e.buffer.ViewIterator, e.buffer.CursorIterator, visibleHeight)
+}
 
 func (e *Editor) handleCommandMode(ev *events.KeyEvent) {
 	switch ev.Key {

@@ -294,7 +294,7 @@ func (e *Editor) goToEnd() error {
 	}
 
 	// Scroll to show the cursor
-	e.scroll()
+	e.ScrollToShowAtBottom()
 
 	return nil
 }

@@ -115,8 +115,7 @@ func TestGoToEnd(t *testing.T) {
 			t.Fatalf("go-to-end failed: %v", err)
 		}
 
-		// Should be at beginning of empty last line
-		AssertCursorAt(t, te, 0, 2)
+		AssertCursorAt(t, te, 10, 1)
 	})
 
 	t.Run("go to end in single line file", func(t *testing.T) {
@@ -162,7 +161,7 @@ func TestGoToEnd(t *testing.T) {
 		}
 
 		// Should be at last line (empty line after line3)
-		AssertCursorAt(t, te, 0, 3) // Empty line at position 3
+		AssertCursorAt(t, te, 4, 2) // Empty line at position 3
 
 		// Now move up - this is where the crash was happening
 		err = te.ExecuteCommand("up")
@@ -171,7 +170,7 @@ func TestGoToEnd(t *testing.T) {
 		}
 
 		// Should move to line 2 (line3)
-		AssertCursorAt(t, te, 0, 2) // Cursor at beginning of "line3"
+		AssertCursorAt(t, te, 4, 1) // Cursor at beginning of "line3"
 	})
 
 	t.Run("go to end scrolls view", func(t *testing.T) {
