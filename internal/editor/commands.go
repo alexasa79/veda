@@ -55,4 +55,5 @@ func (e *Editor) registerCommands() {
 
 	// Symbol commands
 	e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd)
+	e.commandRegistry.Register("list-document-symbols", e.listDocumentSymbolsCmd)
 }

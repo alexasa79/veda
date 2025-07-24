@@ -683,6 +683,11 @@ func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
 		// Project symbols responses are handled by specific widgets via ResponseTo channel
 		// This case is here to prevent "unknown response type" warnings
 		LL.Trace("Received project symbols response for query '%s', forwarded to widget", response.Query)
+
+	case lsp.RequestDocumentSymbols:
+		// Document symbols responses are handled by specific widgets via ResponseTo channel
+		// This case is here to prevent "unknown response type" warnings
+		LL.Trace("Received document symbols response for file '%s', forwarded to widget", response.FilePath)
 	}
 }
 

@@ -14,6 +14,7 @@ const (
 	RequestFoldingRanges LSPRequestType = iota
 	RequestSignatureHelp
 	RequestProjectSymbols
+	RequestDocumentSymbols
 	// Future: RequestGoToDefinition, etc.
 )
 
@@ -43,7 +44,8 @@ type LSPResponse struct {
 	FoldingRanges []proxy.FoldingRange
 	SignatureHelp interface{} // Raw signature help response from LSP
 	ProjectSymbols []proxy.ProjectSymbol // Project symbols response
-	Query         string      // The query that was used for project symbols
+	DocumentSymbols []proxy.DocumentSymbol // Document symbols response
+	Query         string      // The query that was used for project/document symbols
 	ResponseTo    interface{} // Widget or component to send response to
 	Error         error
 	// Future: add other response fields for different LSP operations
@@ -119,6 +121,41 @@ func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseC
 					select {
 					case ch <- response:
 						LL.Trace("Sent project symbols response to specific channel")
+					default:
+						LL.Debug("Specific response channel full, sending to general channel")
+						responseChan <- response
+					}
+				} else {
+					responseChan <- response
+				}
+			} else {
+				responseChan <- response
+			}
+
+		case RequestDocumentSymbols:
+			symbols, err := proxyClient.GetDocumentSymbols(request.FilePath)
+			response := LSPResponse{
+				Type:            RequestDocumentSymbols,
+				FilePath:        request.FilePath,
+				Buffer:          request.Buffer,
+				Generation:      request.Generation,
+				DocumentSymbols: symbols,
+				ResponseTo:      request.ResponseTo,
+				Error:           err,
+			}
+
+			if err != nil {
+				LL.Debug("GetDocumentSymbols failed for %s: %v", request.FilePath, err)
+			} else {
+				LL.Trace("GetDocumentSymbols succeeded for %s: got %d symbols", request.FilePath, len(symbols))
+			}
+
+			// Send to specific channel if provided, otherwise to general response channel
+			if request.ResponseTo != nil {
+				if ch, ok := request.ResponseTo.(chan LSPResponse); ok {
+					select {
+					case ch <- response:
+						LL.Trace("Sent document symbols response to specific channel")
 					default:
 						LL.Debug("Specific response channel full, sending to general channel")
 						responseChan <- response

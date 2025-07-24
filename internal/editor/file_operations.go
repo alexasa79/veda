@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"strings"
+	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/lsp"
@@ -314,5 +315,133 @@ func (e *Editor) navigateToLocation(line, character int) {
 func (e *Editor) listProjectSymbolsCmd() error {
 	LL.Debug("listProjectSymbolsCmd called")
 	e.showProjectSymbolsList()
+	return nil
+}
+
+// showDocumentSymbolsList shows a fuzzy list of symbols in the current document
+func (e *Editor) showDocumentSymbolsList() {
+	LL.Debug("showDocumentSymbolsList called")
+	width, height := e.screen.Size()
+
+	// Create fuzzy list widget (centered overlay)
+	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListHeight := height * 7 / 10 // 70% of screen height
+	fuzzyListX := (width - fuzzyListWidth) / 2
+	fuzzyListY := (height - fuzzyListHeight) / 2
+
+	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
+	fuzzyListWidget.SetTitle("Document Symbols")
+	fuzzyListWidget.SetDecorationMode(widgets.DecorationNone)
+
+	// Start with loading message
+	fuzzyListWidget.SetContent([]string{"Loading symbols..."})
+	
+	// Cast our Screen to widgets.Screen interface
+	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
+		var symbols []proxy.DocumentSymbol // Store the actual symbol objects
+		var symbolMap = make(map[string]int) // Map display name to index
+		
+		// Create a channel to receive LSP responses for this widget
+		symbolResponseChan := make(chan lsp.LSPResponse, 1)
+		
+		// Create a channel for content updates
+		contentUpdateChan := make(chan []string, 1)
+		
+		// Send async LSP request for document symbols
+		request := lsp.LSPRequest{
+			Type:       lsp.RequestDocumentSymbols,
+			FilePath:   e.buffer.FilePath,
+			Buffer:     e.buffer,
+			Generation: e.buffer.SignatureGeneration,
+			ResponseTo: symbolResponseChan,
+		}
+		
+		// Send request to LSP worker (non-blocking)
+		select {
+		case e.lspRequestChan <- request:
+			LL.Trace("Sent document symbols request for %s", e.buffer.FilePath)
+		default:
+			LL.Debug("LSP request channel full, dropping request")
+			contentUpdateChan <- []string{"Error: Could not send request"}
+		}
+		
+		// Start a goroutine to handle LSP response
+		go func() {
+			select {
+			case response := <-symbolResponseChan:
+				if response.Type == lsp.RequestDocumentSymbols {
+					if response.Error != nil {
+						LL.Debug("LSP document symbols error: %v", response.Error)
+						contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+					} else {
+						LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
+						
+						// Convert to display strings
+						var displayNames []string
+						newSymbolMap := make(map[string]int)
+						
+						// Symbol kind names
+						kindNames := map[int]string{
+							1: "File", 2: "Module", 3: "Namespace", 4: "Package",
+							5: "Class", 6: "Method", 7: "Property", 8: "Field",
+							9: "Constructor", 10: "Enum", 11: "Interface", 12: "Function",
+							13: "Variable", 14: "Constant", 15: "String", 16: "Number",
+							17: "Boolean", 18: "Array", 19: "Object", 20: "Key",
+							21: "Null", 22: "EnumMember", 23: "Struct", 24: "Event",
+							25: "Operator", 26: "TypeParameter",
+						}
+						
+						for i, sym := range response.DocumentSymbols {
+							kindName := kindNames[sym.Kind]
+							if kindName == "" {
+								kindName = fmt.Sprintf("Unknown(%d)", sym.Kind)
+							}
+							displayName := fmt.Sprintf("%s [%s] (line %d)", sym.Name, kindName, sym.Range.Start.Line+1)
+							displayNames = append(displayNames, displayName)
+							newSymbolMap[displayName] = i
+						}
+						
+						// Update symbol data
+						symbols = response.DocumentSymbols
+						symbolMap = newSymbolMap
+						
+						if len(displayNames) == 0 {
+							contentUpdateChan <- []string{"No symbols found"}
+						} else {
+							contentUpdateChan <- displayNames
+						}
+					}
+				}
+			case <-time.After(5 * time.Second):
+				contentUpdateChan <- []string{"Error: Timeout waiting for symbols"}
+			}
+			close(symbolResponseChan)
+		}()
+		
+		// Show the widget with async support (no text change handler needed)
+		selection := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
+			e.drawEditor()
+			e.drawStatusBar()
+		}, nil, contentUpdateChan)
+		
+		// Close the channel
+		close(contentUpdateChan)
+		
+		// If a symbol was selected, navigate to it
+		if selection != "" {
+			// Find the selected symbol by display name
+			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
+				sym := symbols[idx]
+				// Navigate to location (document symbols are in the current file)
+				e.navigateToLocation(sym.Range.Start.Line, sym.Range.Start.Character)
+			}
+		}
+	}
+}
+
+// listDocumentSymbolsCmd implements the list-document-symbols command
+func (e *Editor) listDocumentSymbolsCmd() error {
+	LL.Debug("listDocumentSymbolsCmd called")
+	e.showDocumentSymbolsList()
 	return nil
 }

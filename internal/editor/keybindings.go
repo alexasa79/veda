@@ -65,6 +65,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Symbol operations
 	e.registerKeyBinding(commands.NormalMode, "space s w", "list-project-symbols")
+	e.registerKeyBinding(commands.NormalMode, "space s d", "list-document-symbols")
 
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
