@@ -1,8 +1,12 @@
 package editor
 
 import (
+	"fmt"
 	"strings"
 	"veda/internal/buffer"
+	"veda/internal/commands"
+	"veda/internal/lsp"
+	"veda/internal/proxy"
 	"veda/internal/widgets"
 )
 
@@ -131,5 +135,184 @@ func (e *Editor) openFile(filePath string) {
 // openFileCmd implements the open-file command
 func (e *Editor) openFileCmd() error {
 	e.showFuzzyListWidget()
+	return nil
+}
+
+// showProjectSymbolsList shows a fuzzy list of all project symbols
+func (e *Editor) showProjectSymbolsList() {
+	LL.Debug("showProjectSymbolsList called")
+	width, height := e.screen.Size()
+
+	// Create fuzzy list widget (centered overlay)
+	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListHeight := height * 7 / 10 // 70% of screen height
+	fuzzyListX := (width - fuzzyListWidth) / 2
+	fuzzyListY := (height - fuzzyListHeight) / 2
+
+	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
+	fuzzyListWidget.SetTitle("Project Symbols (type to search)")
+	fuzzyListWidget.SetDecorationMode(widgets.DecorationNone)
+
+	// Start with empty content
+	fuzzyListWidget.SetContent([]string{})
+	
+	// Cast our Screen to widgets.Screen interface
+	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
+		// Track the last query to avoid redundant LSP calls
+		var lastQuery string
+		var pendingQuery string // Query that is currently being processed
+		var symbols []proxy.ProjectSymbol // Store the actual symbol objects
+		var symbolMap = make(map[string]int) // Map display name to index
+		
+		// Create a channel to receive LSP responses for this widget
+		symbolResponseChan := make(chan lsp.LSPResponse, 10)
+		
+		// Create a channel for content updates
+		contentUpdateChan := make(chan []string, 10)
+		
+		// Create a channel to pass symbol data back from the goroutine
+		type symbolUpdate struct {
+			symbols []proxy.ProjectSymbol
+			symbolMap map[string]int
+		}
+		symbolUpdateChan := make(chan symbolUpdate, 1)
+		
+		// Start a goroutine to handle LSP responses
+		go func() {
+			for response := range symbolResponseChan {
+				if response.Type == lsp.RequestProjectSymbols && response.Query == pendingQuery {
+					if response.Error != nil {
+						LL.Debug("LSP query error: %v", response.Error)
+						contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+						symbolUpdateChan <- symbolUpdate{nil, make(map[string]int)}
+					} else {
+						LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
+						
+						// Convert to display strings
+						var displayNames []string
+						newSymbolMap := make(map[string]int)
+						
+						for i, sym := range response.ProjectSymbols {
+							displayNames = append(displayNames, sym.Name)
+							newSymbolMap[sym.Name] = i
+						}
+						
+						// Send the symbol data update
+						symbolUpdateChan <- symbolUpdate{response.ProjectSymbols, newSymbolMap}
+						
+						if len(displayNames) == 0 {
+							contentUpdateChan <- []string{"No symbols found"}
+						} else {
+							// Send all symbols - the widget will apply filtering
+							contentUpdateChan <- displayNames
+						}
+					}
+				}
+			}
+			close(symbolUpdateChan)
+		}()
+		
+		// Start another goroutine to handle symbol updates
+		go func() {
+			for update := range symbolUpdateChan {
+				symbols = update.symbols
+				symbolMap = update.symbolMap
+			}
+		}()
+		
+		// Define the text change handler
+		onTextChanged := func(newText string) {
+			if newText != lastQuery {
+				lastQuery = newText
+				
+				if len(newText) > 0 {
+					// Send async LSP request for symbols
+					pendingQuery = newText
+					LL.Debug("Sending async LSP query for symbols with: %s", newText)
+					
+					request := lsp.LSPRequest{
+						Type:       lsp.RequestProjectSymbols,
+						FilePath:   e.buffer.FilePath,
+						Buffer:     e.buffer,
+						Generation: e.buffer.SignatureGeneration,
+						Query:      newText,
+						ResponseTo: symbolResponseChan,
+					}
+					
+					// Send request to LSP worker (non-blocking)
+					select {
+					case e.lspRequestChan <- request:
+						LL.Trace("Sent project symbols request for query '%s'", newText)
+						// Don't clear the list - keep current results displayed
+					default:
+						LL.Debug("LSP request channel full, dropping request")
+					}
+				} else {
+					// Empty query - clear the list
+					contentUpdateChan <- []string{}
+					symbols = nil
+					symbolMap = make(map[string]int)
+					pendingQuery = ""
+				}
+			}
+		}
+		
+		// Show the widget with async support
+		selection := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
+			e.drawEditor()
+			e.drawStatusBar()
+		}, onTextChanged, contentUpdateChan)
+		
+		// Close the channels
+		close(symbolResponseChan)
+		close(contentUpdateChan)
+		
+		// If a symbol was selected, navigate to it
+		if selection != "" {
+			// Find the selected symbol by display name
+			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
+				sym := symbols[idx]
+				
+				// Open file if different
+				if sym.Path != e.buffer.FilePath {
+					e.openFile(sym.Path)
+				}
+				// Navigate to location
+				e.navigateToLocation(sym.Line, sym.Character)
+			}
+		}
+	}
+}
+
+// navigateToLocation moves cursor to specific line and character position
+func (e *Editor) navigateToLocation(line, character int) {
+	targetLine := line // LSP line numbers are 0-based
+	e.buffer.CursorX = character
+
+	// Create iterator and advance to target line
+	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
+
+	// Move iterator to target line
+	for i := 0; i < targetLine && !e.buffer.CursorIterator.IsEOF(); i++ {
+		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
+	}
+
+	// Ensure cursor X is within bounds
+	currentLine := e.buffer.CursorIterator.Line()
+	if e.buffer.CursorX > len(currentLine) {
+		e.buffer.CursorX = len(currentLine)
+		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+			e.buffer.CursorX-- // Don't go past last character in normal mode
+		}
+	}
+
+	// Position the definition at ScrollOffset from the top of the screen
+	e.scrollToShowAtTop()
+}
+
+// listProjectSymbolsCmd implements the list-project-symbols command
+func (e *Editor) listProjectSymbolsCmd() error {
+	LL.Debug("listProjectSymbolsCmd called")
+	e.showProjectSymbolsList()
 	return nil
 }

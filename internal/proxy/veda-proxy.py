@@ -172,6 +172,10 @@ class LSPManager:
             "params": {
                 "processId": os.getpid(),
                 "rootUri": f"file://{Path.cwd().absolute()}",
+                "workspaceFolders": [{
+                    "uri": f"file://{Path.cwd().absolute()}",
+                    "name": Path.cwd().name
+                }],
                 "capabilities": {
                     "textDocument": {
                         "definition": {
@@ -388,6 +392,78 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
+    def get_workspace_symbols(self, query: str = "") -> Optional[List[Dict[str, Any]]]:
+        """Get workspace symbols (functions, classes, etc.) across all files in the project."""
+        # Collect symbols from all active language servers
+        all_symbols = []
+        
+        for language in list(self.servers.keys()):
+            if not self.servers[language]['initialized']:
+                continue
+                
+            server = self.servers[language]
+            server['request_id'] += 1
+            request_id = server['request_id']
+            
+            request = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "workspace/symbol",
+                "params": {
+                    "query": query
+                }
+            }
+            
+            logger.info(f"Sending workspace/symbol request to {language} server with query: {query}")
+            self._send_message(language, request)
+            
+            # Wait for the response with our specific request ID
+            response = self._wait_for_response(language, request_id)
+            logger.info(f"Received workspace/symbol response from {language}: {response}")
+            
+            if response and "result" in response:
+                result = response["result"]
+                if isinstance(result, list):
+                    # Add language info to each symbol
+                    for symbol in result:
+                        symbol['language'] = language
+                    all_symbols.extend(result)
+        
+        # If no LSP servers are running, try to start them for common file types in the project
+        if not all_symbols:
+            # Find all source files in the project
+            project_root = Path.cwd()
+            for lang, config in self.language_servers.items():
+                for ext in config['extensions']:
+                    if list(project_root.rglob(f"*{ext}")):
+                        logger.info(f"Found {ext} files, starting {lang} server")
+                        if self.start_server(lang):
+                            # Retry the query with the newly started server
+                            server = self.servers[lang]
+                            server['request_id'] += 1
+                            request_id = server['request_id']
+                            
+                            request = {
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "method": "workspace/symbol",
+                                "params": {
+                                    "query": query
+                                }
+                            }
+                            
+                            self._send_message(lang, request)
+                            response = self._wait_for_response(lang, request_id)
+                            
+                            if response and "result" in response:
+                                result = response["result"]
+                                if isinstance(result, list):
+                                    for symbol in result:
+                                        symbol['language'] = lang
+                                    all_symbols.extend(result)
+        
+        return all_symbols if all_symbols else None
+    
     def get_folding_ranges(self, file_path: str) -> Optional[List[Dict[str, Any]]]:
         """Get folding ranges for a file."""
         # Determine language from file extension
@@ -599,6 +675,7 @@ class VedaProxy:
             'get_document_symbols': self.get_document_symbols,
             'get_folding_ranges': self.get_folding_ranges,
             'get_signature_help': self.get_signature_help,
+            'list_project_symbols': self.list_project_symbols,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -873,6 +950,53 @@ class VedaProxy:
             return {'success': False, 'error': 'No signature help available'}
         except Exception as e:
             logger.error(f"Error in get_signature_help: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def list_project_symbols(self, query: str = "") -> Dict[str, Any]:
+        """Get all symbols across the entire project workspace."""
+        try:
+            result = self.lsp.get_workspace_symbols(query)
+            if result is not None:
+                # Format symbols for the fuzzy list widget
+                formatted_symbols = []
+                for symbol in result:
+                    # Extract file path from URI
+                    uri = symbol.get('location', {}).get('uri', '')
+                    if uri.startswith('file://'):
+                        file_path = uri[7:]  # Remove 'file://' prefix
+                    else:
+                        file_path = uri
+                    
+                    # Format display name with symbol kind and file
+                    kind_names = {
+                        1: "File", 2: "Module", 3: "Namespace", 4: "Package",
+                        5: "Class", 6: "Method", 7: "Property", 8: "Field",
+                        9: "Constructor", 10: "Enum", 11: "Interface", 12: "Function",
+                        13: "Variable", 14: "Constant", 15: "String", 16: "Number",
+                        17: "Boolean", 18: "Array", 19: "Object", 20: "Key",
+                        21: "Null", 22: "EnumMember", 23: "Struct", 24: "Event",
+                        25: "Operator", 26: "TypeParameter"
+                    }
+                    kind = symbol.get('kind', 0)
+                    kind_name = kind_names.get(kind, f"Unknown({kind})")
+                    
+                    name = symbol.get('name', '')
+                    display_name = f"{name} [{kind_name}] - {file_path}"
+                    
+                    formatted_symbol = {
+                        'name': display_name,
+                        'path': file_path,
+                        'line': symbol.get('location', {}).get('range', {}).get('start', {}).get('line', 0),
+                        'character': symbol.get('location', {}).get('range', {}).get('start', {}).get('character', 0),
+                        'kind': kind,
+                        'language': symbol.get('language', 'unknown')
+                    }
+                    formatted_symbols.append(formatted_symbol)
+                
+                return {'success': True, 'symbols': formatted_symbols}
+            return {'success': False, 'error': 'No symbols found in project'}
+        except Exception as e:
+            logger.error(f"Error in list_project_symbols: {e}")
             return {'success': False, 'error': str(e)}
 
 

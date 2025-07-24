@@ -1,12 +1,13 @@
 package widgets
 
 import (
+	"strings"
+	"time"
 	"veda/internal/events"
 	"veda/internal/fuzzysearch"
 	"veda/internal/theme"
 	"veda/internal/ui"
 	"veda/internal/utils"
-	"strings"
 )
 
 // Screen is the interface for screen operations used by widgets
@@ -17,6 +18,7 @@ type Screen interface {
 	Show()
 	ShowCursor(x, y int)
 	PollEvent() events.Event
+	EventChannel() <-chan events.Event  // Returns the underlying event channel
 }
 
 // DecorationMode defines how items should be decorated in the list
@@ -423,7 +425,34 @@ func (flw *FuzzyListWidget) applyFilter() {
 
 // Show displays the fuzzy list widget as a modal dialog and handles its own event loop
 // Returns the selected item, or empty string if cancelled
+// If onTextChanged is provided, it will be called when the search text changes
+// If contentUpdateChan is provided, the widget will use async event handling
 func (flw *FuzzyListWidget) Show(screen Screen, backgroundRender func()) string {
+	return flw.ShowWithCallbacks(screen, backgroundRender, nil, nil)
+}
+
+// ShowWithCallbacks displays the fuzzy list widget with optional callbacks for async operations
+// The onTextChanged callback is called whenever the search text changes (with the new text)
+// The contentUpdateChan can be used to send new content to display asynchronously
+// Returns the selected item (raw line), or empty string if cancelled
+func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender func(), 
+	onTextChanged func(string), contentUpdateChan <-chan []string) string {
+	
+	// Determine if we should use async event handling
+	useAsync := contentUpdateChan != nil
+	
+	var screenEvents <-chan events.Event
+	var ticker *time.Ticker
+	
+	if useAsync {
+		// Get the screen event channel for non-blocking event handling
+		screenEvents = screen.EventChannel()
+		
+		// Create a ticker for periodic redraws
+		ticker = time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+	}
+	
 	// Event loop
 	for {
 		// Render background (editor and status bar)
@@ -439,10 +468,31 @@ func (flw *FuzzyListWidget) Show(screen Screen, backgroundRender func()) string 
 		// Update screen
 		screen.Show()
 
-		// Handle events
-		ev := screen.PollEvent()
-		if ev, ok := ev.(*events.KeyEvent); ok {
-			switch ev.Key {
+		var ev events.Event
+		
+		if useAsync {
+			// Use select for non-blocking event handling
+			select {
+			case newContent := <-contentUpdateChan:
+				// Update content asynchronously
+				flw.SetContent(newContent)
+				continue // Redraw with new content
+				
+			case ev = <-screenEvents:
+				// Got a keyboard event
+				
+			case <-ticker.C:
+				// Periodic redraw to handle any visual updates
+				continue
+			}
+		} else {
+			// Use blocking event handling for simple case
+			ev = screen.PollEvent()
+		}
+		
+		// Handle keyboard events
+		if keyEv, ok := ev.(*events.KeyEvent); ok {
+			switch keyEv.Key {
 			case events.KeyUp:
 				flw.MoveSelectionUp()
 			case events.KeyDown:
@@ -457,26 +507,32 @@ func (flw *FuzzyListWidget) Show(screen Screen, backgroundRender func()) string 
 			case events.KeyEscape:
 				return ""
 			case events.KeyRune:
-				switch ev.Rune {
+				switch keyEv.Rune {
 				case 'A':
 					return ""
 				default:
 					// Pass the key to the line editor
 					oldText := flw.bottomEditor.GetText()
-					flw.bottomEditor.HandleKey(ev)
+					flw.bottomEditor.HandleKey(keyEv)
 					newText := flw.bottomEditor.GetText()
-					// If text changed, apply filter
+					// If text changed, notify callback and apply filter
 					if oldText != newText {
+						if onTextChanged != nil {
+							onTextChanged(newText)
+						}
 						flw.applyFilter()
 					}
 				}
 			default:
 				// Handle other keys for the line editor (like backspace)
 				oldText := flw.bottomEditor.GetText()
-				flw.bottomEditor.HandleKey(ev)
+				flw.bottomEditor.HandleKey(keyEv)
 				newText := flw.bottomEditor.GetText()
-				// If text changed, apply filter
+				// If text changed, notify callback and apply filter
 				if oldText != newText {
+					if onTextChanged != nil {
+						onTextChanged(newText)
+					}
 					flw.applyFilter()
 				}
 			}

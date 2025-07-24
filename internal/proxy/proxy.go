@@ -94,6 +94,16 @@ type FoldingRange struct {
 	Kind           *string `json:"kind,omitempty"` // "comment", "imports", "region"
 }
 
+// ProjectSymbol represents a symbol in the project (for fuzzy list)
+type ProjectSymbol struct {
+	Name      string `json:"name"`      // Display name with kind and file
+	Path      string `json:"path"`      // File path
+	Line      int    `json:"line"`      // Line number
+	Character int    `json:"character"` // Character position
+	Kind      int    `json:"kind"`      // LSP symbol kind
+	Language  string `json:"language"`  // Language of the file
+}
+
 // Client represents a proxy client
 type Client struct {
 	cmd       *exec.Cmd
@@ -842,6 +852,82 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 	}
 
 	return nil, fmt.Errorf("failed to get signature help")
+}
+
+// ListProjectSymbols gets all symbols across the entire project
+func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "list_project_symbols",
+		Params: map[string]interface{}{
+			"query": query,
+		},
+		ID: c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log the request for debugging
+	LL.Trace("ListProjectSymbols request: %s", string(requestBytes))
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	// Simulate remote proxy delay
+	time.Sleep(500 * time.Millisecond)
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		
+		responseText := c.stdout.Text()
+		LL.Trace("ListProjectSymbols response: %s", responseText)
+		
+		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if symbolsData, ok := response.Result["symbols"].([]interface{}); ok {
+				// Convert the result to ProjectSymbol objects
+				symbols := make([]ProjectSymbol, 0, len(symbolsData))
+				for _, item := range symbolsData {
+					symbolBytes, err := json.Marshal(item)
+					if err != nil {
+						continue
+					}
+					var symbol ProjectSymbol
+					if err := json.Unmarshal(symbolBytes, &symbol); err != nil {
+						continue
+					}
+					symbols = append(symbols, symbol)
+				}
+				return symbols, nil
+			}
+		}
+
+		if errorMsg, ok := response.Result["error"].(string); ok {
+			return nil, fmt.Errorf("LSP error: %s", errorMsg)
+		}
+
+		return nil, fmt.Errorf("no symbols found in project")
+	}
+
+	if err := c.stdout.Err(); err != nil {
+		return nil, fmt.Errorf("scanner error: %w", err)
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response")
 }
 
 // Close terminates the proxy process

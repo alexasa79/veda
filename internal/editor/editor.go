@@ -678,6 +678,11 @@ func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
 					response.Generation, buf.SignatureGeneration)
 			}
 		}
+
+	case lsp.RequestProjectSymbols:
+		// Project symbols responses are handled by specific widgets via ResponseTo channel
+		// This case is here to prevent "unknown response type" warnings
+		LL.Trace("Received project symbols response for query '%s', forwarded to widget", response.Query)
 	}
 }
 

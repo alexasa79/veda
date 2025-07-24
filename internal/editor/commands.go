@@ -52,4 +52,7 @@ func (e *Editor) registerCommands() {
 
 	// Buffer commands
 	e.commandRegistry.Register("show-buffers", e.showBuffers)
+
+	// Symbol commands
+	e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd)
 }

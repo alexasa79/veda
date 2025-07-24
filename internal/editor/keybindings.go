@@ -63,6 +63,9 @@ func (e *Editor) setupDefaultBindings() {
 	// Buffer operations
 	e.registerKeyBinding(commands.NormalMode, "space s b", "show-buffers")
 
+	// Symbol operations
+	e.registerKeyBinding(commands.NormalMode, "space s w", "list-project-symbols")
+
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
 	e.registerKeyBinding(commands.NormalMode, "g s", "show-signature")
