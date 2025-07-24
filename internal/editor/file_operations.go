@@ -274,6 +274,9 @@ func (e *Editor) showProjectSymbolsList() {
 			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
 				sym := symbols[idx]
 				
+				// Push current position to navigation history before jumping
+				e.pushNavigationHistory()
+				
 				// Open file if different
 				if sym.Path != e.buffer.FilePath {
 					e.openFile(sym.Path)
@@ -432,6 +435,8 @@ func (e *Editor) showDocumentSymbolsList() {
 			// Find the selected symbol by display name
 			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
 				sym := symbols[idx]
+				// Push current position to navigation history before jumping
+				e.pushNavigationHistory()
 				// Navigate to location (document symbols are in the current file)
 				e.navigateToLocation(sym.Range.Start.Line, sym.Range.Start.Character)
 			}
