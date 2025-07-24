@@ -44,6 +44,13 @@ make clean
 - Command mode: Triggered by ':', supports commands like `:q` or `:quit`. Block cursor.
 - The editor loads test data (100 lines) on startup for scrolling demonstration
 
+### Undo/Redo System
+- **Undo**: Press 'u' in normal mode to undo the last change
+- **Redo**: Press 'U' (shift-u) in normal mode to redo an undone change
+- **Command History**: All text modifications are tracked as commands for undo/redo (per buffer)
+- **Insert Mode Sessions**: All changes made during a single insert mode session (from entering to exiting insert mode) are grouped as one undo unit
+- **Important**: When implementing new text-modifying commands, they MUST support undo/redo by implementing the Command interface
+
 ### Language Server Protocol (LSP) Support
 - **Go to Definition**: Press 'g d' in normal mode to navigate to the definition of the symbol under the cursor
 - **Supported Languages**:
@@ -77,6 +84,13 @@ Currently the buffer package and editor package have tests. When adding new func
 - When using Buffer and Iterator objects, any change to the buffer invalidates all current iterators pointing to the buffer. To work with these primitives, remember the line number of the iterator before making the change and then call NewBufferIteratorAtLine to restore the iterator.
 - `tracker.go` implements a time tracker that we use for performance measurements. The typical use pattern is to create a performance tracker object. Then to call `t0 := tracker.Start()`, followed by `t0 = tracker.ReportSince(..., t0)`.
 - Always look for implementation that reduces the amount of state we have to keep. For instance if we have a boolean that tells us if the state is present and a pointer to the state's structure, we can remove the boolean and check if the pointer is nil.
+
+## Implementation Guidelines
+- **Undo/Redo Support**: All new commands that modify text MUST implement undo/redo functionality. This includes:
+  - Storing necessary state to reverse the operation (e.g., deleted text, cursor positions)
+  - Implementing the Command interface with Execute() and Undo() methods
+  - Ensuring commands handle buffer iterator invalidation correctly
+  - Testing undo/redo behavior for edge cases
 
 ## Claude Operational Guidelines
 - You are not allowed to leave the root directory of the project. All commands, experiments, everything you do, must be done in the root directory of the project.

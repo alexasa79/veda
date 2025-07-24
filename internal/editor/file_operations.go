@@ -156,7 +156,7 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Start with empty content
 	fuzzyListWidget.SetContent([]string{})
-	
+
 	// Cast our Screen to widgets.Screen interface
 	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
 		// Track the last query to avoid redundant LSP calls
@@ -164,20 +164,20 @@ func (e *Editor) showProjectSymbolsList() {
 		var pendingQuery string // Query that is currently being processed
 		var symbols []proxy.ProjectSymbol // Store the actual symbol objects
 		var symbolMap = make(map[string]int) // Map display name to index
-		
+
 		// Create a channel to receive LSP responses for this widget
 		symbolResponseChan := make(chan lsp.LSPResponse, 10)
-		
+
 		// Create a channel for content updates
 		contentUpdateChan := make(chan []string, 10)
-		
+
 		// Create a channel to pass symbol data back from the goroutine
 		type symbolUpdate struct {
 			symbols []proxy.ProjectSymbol
 			symbolMap map[string]int
 		}
 		symbolUpdateChan := make(chan symbolUpdate, 1)
-		
+
 		// Start a goroutine to handle LSP responses
 		go func() {
 			for response := range symbolResponseChan {
@@ -188,19 +188,19 @@ func (e *Editor) showProjectSymbolsList() {
 						symbolUpdateChan <- symbolUpdate{nil, make(map[string]int)}
 					} else {
 						LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
-						
+
 						// Convert to display strings
 						var displayNames []string
 						newSymbolMap := make(map[string]int)
-						
+
 						for i, sym := range response.ProjectSymbols {
 							displayNames = append(displayNames, sym.Name)
 							newSymbolMap[sym.Name] = i
 						}
-						
+
 						// Send the symbol data update
 						symbolUpdateChan <- symbolUpdate{response.ProjectSymbols, newSymbolMap}
-						
+
 						if len(displayNames) == 0 {
 							contentUpdateChan <- []string{"No symbols found"}
 						} else {
@@ -212,7 +212,7 @@ func (e *Editor) showProjectSymbolsList() {
 			}
 			close(symbolUpdateChan)
 		}()
-		
+
 		// Start another goroutine to handle symbol updates
 		go func() {
 			for update := range symbolUpdateChan {
@@ -220,17 +220,17 @@ func (e *Editor) showProjectSymbolsList() {
 				symbolMap = update.symbolMap
 			}
 		}()
-		
+
 		// Define the text change handler
 		onTextChanged := func(newText string) {
 			if newText != lastQuery {
 				lastQuery = newText
-				
+
 				if len(newText) > 0 {
 					// Send async LSP request for symbols
 					pendingQuery = newText
 					LL.Debug("Sending async LSP query for symbols with: %s", newText)
-					
+
 					request := lsp.LSPRequest{
 						Type:       lsp.RequestProjectSymbols,
 						FilePath:   e.buffer.FilePath,
@@ -239,7 +239,7 @@ func (e *Editor) showProjectSymbolsList() {
 						Query:      newText,
 						ResponseTo: symbolResponseChan,
 					}
-					
+
 					// Send request to LSP worker (non-blocking)
 					select {
 					case e.lspRequestChan <- request:
@@ -257,26 +257,26 @@ func (e *Editor) showProjectSymbolsList() {
 				}
 			}
 		}
-		
+
 		// Show the widget with async support
 		selection := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
 			e.drawEditor()
 			e.drawStatusBar()
 		}, onTextChanged, contentUpdateChan)
-		
+
 		// Close the channels
 		close(symbolResponseChan)
 		close(contentUpdateChan)
-		
+
 		// If a symbol was selected, navigate to it
 		if selection != "" {
 			// Find the selected symbol by display name
 			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
 				sym := symbols[idx]
-				
+
 				// Push current position to navigation history before jumping
 				e.pushNavigationHistory()
-				
+
 				// Open file if different
 				if sym.Path != e.buffer.FilePath {
 					e.openFile(sym.Path)
@@ -338,18 +338,18 @@ func (e *Editor) showDocumentSymbolsList() {
 
 	// Start with loading message
 	fuzzyListWidget.SetContent([]string{"Loading symbols..."})
-	
+
 	// Cast our Screen to widgets.Screen interface
 	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
 		var symbols []proxy.DocumentSymbol // Store the actual symbol objects
 		var symbolMap = make(map[string]int) // Map display name to index
-		
+
 		// Create a channel to receive LSP responses for this widget
 		symbolResponseChan := make(chan lsp.LSPResponse, 1)
-		
+
 		// Create a channel for content updates
 		contentUpdateChan := make(chan []string, 1)
-		
+
 		// Send async LSP request for document symbols
 		request := lsp.LSPRequest{
 			Type:       lsp.RequestDocumentSymbols,
@@ -358,7 +358,7 @@ func (e *Editor) showDocumentSymbolsList() {
 			Generation: e.buffer.SignatureGeneration,
 			ResponseTo: symbolResponseChan,
 		}
-		
+
 		// Send request to LSP worker (non-blocking)
 		select {
 		case e.lspRequestChan <- request:
@@ -367,7 +367,7 @@ func (e *Editor) showDocumentSymbolsList() {
 			LL.Debug("LSP request channel full, dropping request")
 			contentUpdateChan <- []string{"Error: Could not send request"}
 		}
-		
+
 		// Start a goroutine to handle LSP response
 		go func() {
 			select {
@@ -378,11 +378,11 @@ func (e *Editor) showDocumentSymbolsList() {
 						contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
 					} else {
 						LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
-						
+
 						// Convert to display strings
 						var displayNames []string
 						newSymbolMap := make(map[string]int)
-						
+
 						// Symbol kind names
 						kindNames := map[int]string{
 							1: "File", 2: "Module", 3: "Namespace", 4: "Package",
@@ -393,7 +393,7 @@ func (e *Editor) showDocumentSymbolsList() {
 							21: "Null", 22: "EnumMember", 23: "Struct", 24: "Event",
 							25: "Operator", 26: "TypeParameter",
 						}
-						
+
 						for i, sym := range response.DocumentSymbols {
 							kindName := kindNames[sym.Kind]
 							if kindName == "" {
@@ -403,11 +403,11 @@ func (e *Editor) showDocumentSymbolsList() {
 							displayNames = append(displayNames, displayName)
 							newSymbolMap[displayName] = i
 						}
-						
+
 						// Update symbol data
 						symbols = response.DocumentSymbols
 						symbolMap = newSymbolMap
-						
+
 						if len(displayNames) == 0 {
 							contentUpdateChan <- []string{"No symbols found"}
 						} else {
@@ -420,16 +420,16 @@ func (e *Editor) showDocumentSymbolsList() {
 			}
 			close(symbolResponseChan)
 		}()
-		
+
 		// Show the widget with async support (no text change handler needed)
 		selection := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
 			e.drawEditor()
 			e.drawStatusBar()
 		}, nil, contentUpdateChan)
-		
+
 		// Close the channel
 		close(contentUpdateChan)
-		
+
 		// If a symbol was selected, navigate to it
 		if selection != "" {
 			// Find the selected symbol by display name

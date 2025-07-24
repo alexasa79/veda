@@ -80,6 +80,9 @@ type Buffer struct {
 
 	// Folding ranges from LSP
 	FoldingRanges []proxy.FoldingRange // Cached folding ranges for this buffer
+
+	// Undo/Redo history
+	History *History // Command history for undo/redo operations
 }
 
 // IndentationInfo holds information about file indentation
@@ -112,6 +115,7 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 			Width: defaultIndentWidth,
 		},
 		Generation:   0,  // Start with generation 0
+		History:      NewHistory(), // Initialize undo/redo history
 	}
 	b.UpdateLineNumberWidth()
 	// Create initial iterators
