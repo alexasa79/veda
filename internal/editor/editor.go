@@ -1136,12 +1136,27 @@ func (e *Editor) deleteCurrentCharacter() error {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	cursorX := e.buffer.CursorX
 
-	// Get absolute position of cursor
+	// Get the character being deleted
 	pos := e.getAbsolutePosition()
-
-	// Delete one character at cursor position
-	e.buffer.Delete(pos, pos+1)
+	deletedChar := e.buffer.Rope.ByteAt(pos)
+	deletedText := string(deletedChar)
+	
+	// Create history entry
+	entry := buffer.NewDeleteTextEntry(lineNum, cursorX, deletedText)
+	
+	// Execute through history
+	if e.buffer.History != nil {
+		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		}
+	} else {
+		// Fallback if history is not initialized
+		if err := entry.Execute(e.buffer); err != nil {
+			return err
+		}
+	}
 
 	// Recreate iterators at the same line
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
