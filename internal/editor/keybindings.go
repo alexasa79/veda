@@ -70,6 +70,10 @@ func (e *Editor) setupDefaultBindings() {
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
 	e.registerKeyBinding(commands.NormalMode, "g s", "show-signature")
+
+	// Undo/Redo operations
+	e.registerKeyBinding(commands.NormalMode, "u", "undo")
+	e.registerKeyBinding(commands.NormalMode, "U", "redo")
 	e.registerKeyBinding(commands.NormalMode, "ctrl+shift+space", "show-signature")
 	e.registerKeyBinding(commands.InsertMode, "ctrl+shift+space", "show-signature")
 
