@@ -14,7 +14,7 @@ type HistoryEntry interface {
 type History struct {
 	undoStack []HistoryEntry
 	redoStack []HistoryEntry
-	
+
 	// For tracking insert mode sessions
 	currentComposite *CompositeEntry
 	inInsertMode     bool
@@ -35,18 +35,18 @@ func (h *History) Execute(buf *Buffer, entry HistoryEntry) error {
 		h.currentComposite.Add(entry)
 		return entry.Execute(buf)
 	}
-	
+
 	// Execute the entry
 	if err := entry.Execute(buf); err != nil {
 		return err
 	}
-	
+
 	// Add to undo stack
 	h.undoStack = append(h.undoStack, entry)
-	
+
 	// Clear redo stack when new entry is executed
 	h.redoStack = h.redoStack[:0]
-	
+
 	return nil
 }
 
@@ -55,21 +55,21 @@ func (h *History) Undo(buf *Buffer) error {
 	if len(h.undoStack) == 0 {
 		return nil // Nothing to undo
 	}
-	
+
 	// Pop from undo stack
 	entry := h.undoStack[len(h.undoStack)-1]
 	h.undoStack = h.undoStack[:len(h.undoStack)-1]
-	
+
 	// Undo the entry
 	if err := entry.Undo(buf); err != nil {
 		// On error, restore to undo stack
 		h.undoStack = append(h.undoStack, entry)
 		return err
 	}
-	
+
 	// Push to redo stack
 	h.redoStack = append(h.redoStack, entry)
-	
+
 	return nil
 }
 
@@ -78,21 +78,21 @@ func (h *History) Redo(buf *Buffer) error {
 	if len(h.redoStack) == 0 {
 		return nil // Nothing to redo
 	}
-	
+
 	// Pop from redo stack
 	entry := h.redoStack[len(h.redoStack)-1]
 	h.redoStack = h.redoStack[:len(h.redoStack)-1]
-	
+
 	// Execute the entry
 	if err := entry.Execute(buf); err != nil {
 		// On error, restore to redo stack
 		h.redoStack = append(h.redoStack, entry)
 		return err
 	}
-	
+
 	// Push back to undo stack
 	h.undoStack = append(h.undoStack, entry)
-	
+
 	return nil
 }
 
@@ -107,16 +107,16 @@ func (h *History) EndInsertSession() {
 	if !h.inInsertMode {
 		return
 	}
-	
+
 	h.inInsertMode = false
-	
+
 	// Only add to history if there were actual changes
 	if h.currentComposite != nil && len(h.currentComposite.entries) > 0 {
 		h.undoStack = append(h.undoStack, h.currentComposite)
 		// Clear redo stack when new entry is added
 		h.redoStack = h.redoStack[:0]
 	}
-	
+
 	h.currentComposite = nil
 }
 
@@ -183,45 +183,38 @@ func NewInsertTextEntry(line, character int, text string) *InsertTextEntry {
 
 // Execute inserts the text
 func (ie *InsertTextEntry) Execute(buf *Buffer) error {
-	// Calculate absolute position
-	pos := 0
-	iter := NewBufferIterator(buf)
-	for i := 0; i < ie.line && !iter.IsEOF(); i++ {
-		iter = iter.Next()
-	}
-	if !iter.IsEOF() {
-		pos = iter.Offset + ie.character
-	}
-	
+	// Use the optimized line-based iterator
+	iter := NewBufferIteratorAtLine(buf, ie.line)
+	pos := iter.Offset + ie.character
+
 	// Insert the text at the calculated position
 	buf.Insert(pos, ie.text)
-	
+
 	// Update cursor position
 	buf.CursorIterator = NewBufferIteratorAtLine(buf, ie.line)
 	buf.CursorX = ie.character + len(ie.text)
-	
+
 	return nil
 }
 
 // Undo removes the inserted text
 func (ie *InsertTextEntry) Undo(buf *Buffer) error {
-	// Calculate absolute position
-	pos := 0
-	iter := NewBufferIterator(buf)
-	for i := 0; i < ie.line && !iter.IsEOF(); i++ {
-		iter = iter.Next()
-	}
-	if !iter.IsEOF() {
-		pos = iter.Offset + ie.character
-	}
-	
+	// Use the optimized line-based iterator
+	iter := NewBufferIteratorAtLine(buf, ie.line)
+	pos := iter.Offset + ie.character
+
 	// Delete the inserted text
 	buf.Delete(pos, pos + len(ie.text))
-	
+
+	// After delete, if buffer is empty, ensure it has a valid rope
+	if buf.Rope.root == nil {
+		buf.Rope = NewRopeFromString("")
+	}
+
 	// Restore cursor position
 	buf.CursorIterator = NewBufferIteratorAtLine(buf, ie.line)
 	buf.CursorX = ie.character
-	
+
 	return nil
 }
 
@@ -251,45 +244,38 @@ func NewDeleteTextEntry(line, character int, text string) *DeleteTextEntry {
 
 // Execute deletes the text (for redo)
 func (de *DeleteTextEntry) Execute(buf *Buffer) error {
-	// Calculate absolute position
-	pos := 0
-	iter := NewBufferIterator(buf)
-	for i := 0; i < de.line && !iter.IsEOF(); i++ {
-		iter = iter.Next()
-	}
-	if !iter.IsEOF() {
-		pos = iter.Offset + de.character
-	}
-	
+	// Use the optimized line-based iterator
+	iter := NewBufferIteratorAtLine(buf, de.line)
+	pos := iter.Offset + de.character
+
 	// Delete the text
 	buf.Delete(pos, pos + len(de.text))
-	
+
+	// After delete, if buffer is empty, ensure it has a valid rope
+	if buf.Rope.root == nil {
+		buf.Rope = NewRopeFromString("")
+	}
+
 	// Update cursor position
 	buf.CursorIterator = NewBufferIteratorAtLine(buf, de.line)
 	buf.CursorX = de.character
-	
+
 	return nil
 }
 
 // Undo restores the deleted text
 func (de *DeleteTextEntry) Undo(buf *Buffer) error {
-	// Calculate absolute position
-	pos := 0
-	iter := NewBufferIterator(buf)
-	for i := 0; i < de.line && !iter.IsEOF(); i++ {
-		iter = iter.Next()
-	}
-	if !iter.IsEOF() {
-		pos = iter.Offset + de.character
-	}
-	
+	// Use the optimized line-based iterator
+	iter := NewBufferIteratorAtLine(buf, de.line)
+	pos := iter.Offset + de.character
+
 	// Restore the deleted text
 	buf.Insert(pos, de.text)
-	
+
 	// Restore cursor position
 	buf.CursorIterator = NewBufferIteratorAtLine(buf, de.line)
 	buf.CursorX = de.character
-	
+
 	return nil
 }
 

@@ -731,6 +731,13 @@ func (e *Editor) enterInsertMode() error {
 
 func (e *Editor) exitInsertMode() error {
 	e.mode = commands.NormalMode
+	
+	// Adjust cursor position for normal mode
+	// In vim, when exiting insert mode, if cursor is not at position 0, move back one
+	if e.buffer != nil && e.buffer.CursorX > 0 {
+		e.buffer.CursorX--
+	}
+	
 	// Finalize insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		e.buffer.History.EndInsertSession()
@@ -841,11 +848,20 @@ func (e *Editor) openLineBelow() error {
 	// Calculate auto-indent for the new line
 	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
 
-	// Get absolute position at end of line
-	pos := e.getAbsolutePosition()
-
-	// Insert newline and indentation (this will invalidate iterators)
-	e.buffer.Insert(pos, "\n"+autoIndent.IndentStr)
+	// Create history entry for the newline and indentation
+	textToInsert := "\n" + autoIndent.IndentStr
+	entry := buffer.NewInsertTextEntry(lineNum, e.buffer.CursorX, textToInsert)
+	
+	// Execute through history
+	if e.buffer.History != nil {
+		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		}
+	} else {
+		// Fallback if history is not initialized
+		pos := e.getAbsolutePosition()
+		e.buffer.Insert(pos, textToInsert)
+	}
 
 	// Recreate iterators - cursor moves to next line
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
@@ -856,6 +872,10 @@ func (e *Editor) openLineBelow() error {
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
+	// Start tracking insert mode changes
+	if e.buffer != nil && e.buffer.History != nil {
+		e.buffer.History.StartInsertSession()
+	}
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -886,12 +906,19 @@ func (e *Editor) openLineAbove() error {
 	// Move to beginning of current line
 	e.buffer.CursorX = 0
 
-	// Get absolute position
-	pos := e.getAbsolutePosition()
-
-	// Insert newline before current position (this will invalidate iterators)
-	// Move the cursor up and add indentation
-	e.buffer.Insert(pos, "\n")
+	// Create history entry for the newline
+	entry := buffer.NewInsertTextEntry(lineNum, 0, "\n")
+	
+	// Execute through history
+	if e.buffer.History != nil {
+		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		}
+	} else {
+		// Fallback if history is not initialized
+		pos := e.getAbsolutePosition()
+		e.buffer.Insert(pos, "\n")
+	}
 
 	// The cursor stays at the same line number (which is now the new empty line)
 	// because we inserted before the current position
@@ -900,8 +927,19 @@ func (e *Editor) openLineAbove() error {
 
 	// Insert indentation at the beginning of the new line
 	if autoIndent.IndentStr != "" {
-		pos = e.getAbsolutePosition()
-		e.buffer.Insert(pos, autoIndent.IndentStr)
+		// Create history entry for the indentation
+		indentEntry := buffer.NewInsertTextEntry(lineNum, 0, autoIndent.IndentStr)
+		
+		// Execute through history
+		if e.buffer.History != nil {
+			if err := e.buffer.History.Execute(e.buffer, indentEntry); err != nil {
+				return err
+			}
+		} else {
+			// Fallback if history is not initialized
+			pos := e.getAbsolutePosition()
+			e.buffer.Insert(pos, autoIndent.IndentStr)
+		}
 
 		// Recreate iterators after insertion
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
@@ -913,6 +951,10 @@ func (e *Editor) openLineAbove() error {
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
+	// Start tracking insert mode changes
+	if e.buffer != nil && e.buffer.History != nil {
+		e.buffer.History.StartInsertSession()
+	}
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1125,17 +1167,46 @@ func (e *Editor) deleteCurrentCharacter() error {
 		return nil
 	}
 
-	// Get current line to check bounds
-	line := e.buffer.CursorIterator.Line()
-
-	// If cursor is past the end of the line, nothing to delete
-	if e.buffer.CursorX >= len(line) {
-		return nil
-	}
-
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
+
+	// Get current line to check bounds
+	line := e.buffer.CursorIterator.Line()
+
+	// If cursor is past the end of the line, check if we can delete newline
+	if e.buffer.CursorX >= len(line) {
+		// Check if there's a newline character at the end of this line
+		pos := e.getAbsolutePosition()
+		if pos < e.buffer.Rope.Length() && e.buffer.Rope.ByteAt(pos) == '\n' {
+			// We can delete the newline
+			deletedText := "\n"
+			entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
+			
+			// Execute through history
+			if e.buffer.History != nil {
+				if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+					return err
+				}
+			} else {
+				// Fallback if history is not initialized
+				if err := entry.Execute(e.buffer); err != nil {
+					return err
+				}
+			}
+			
+			// Recreate iterators at the same position
+			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+			
+			// Update syntax highlighting
+			e.updateSyntaxHighlighting()
+			return nil
+		}
+		return nil
+	}
+
+	// Get cursor X position
 	cursorX := e.buffer.CursorX
 
 	// Get the character being deleted
