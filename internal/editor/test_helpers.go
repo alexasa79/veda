@@ -3,6 +3,13 @@ package editor
 import (
 	"testing"
 	"veda/internal/buffer"
+	"veda/internal/commands"
+	"veda/internal/events"
+)
+
+// Constants for common keys
+const (
+	KeyEscape = events.KeyEscape
 )
 
 // TestEditor wraps an Editor with test-friendly methods
@@ -58,6 +65,36 @@ func (te *TestEditor) ExecuteCommand(command string) error {
 // InsertChar simulates inserting a character in insert mode
 func (te *TestEditor) InsertChar(ch rune) error {
 	return te.insertChar(ch)
+}
+
+// TypeKeys simulates typing a sequence of keys in normal mode
+func (te *TestEditor) TypeKeys(keys string) {
+	for _, ch := range keys {
+		ev := &events.KeyEvent{
+			Key:  events.KeyRune,
+			Rune: ch,
+		}
+		// Simulate the key handling logic
+		if te.mode == commands.NormalMode && te.hasPendingOperation() {
+			te.handlePendingOperation(string(ch))
+		} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
+			te.commandRegistry.Execute(command)
+		}
+	}
+}
+
+// PressKey simulates pressing a special key
+func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
+	ev := &events.KeyEvent{
+		Key:       key,
+		Modifiers: modifiers,
+	}
+	// Handle escape for pending operations
+	if te.mode == commands.NormalMode && te.hasPendingOperation() && key == events.KeyEscape {
+		te.cancelPendingOperation()
+	} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
+		te.commandRegistry.Execute(command)
+	}
 }
 
 // GetCursorPosition returns the current cursor position

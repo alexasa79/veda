@@ -57,6 +57,11 @@ type Editor struct {
 	
 	// Repeat last change
 	lastChange      buffer.HistoryEntry     // Last text modification for repeat command
+	
+	// Pending operation for multi-key commands
+	pendingOperator Operator                // Current operator waiting for text object
+	pendingModifier TextObjectModifier      // Modifier for text object (a/i)
+	pendingKeys     []string                // Accumulated keys for current operation
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -199,7 +204,17 @@ func (e *Editor) Run() {
 					// Normal and Insert modes both use key mapping
 					LL.Debug("Key event: Key=%d, Rune=%c, Modifiers=%d, Mode=%s", ev.Key, ev.Rune, ev.Modifiers, e.mode)
 
-					if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+					// Check for escape to cancel pending operations
+					if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyEscape {
+						e.cancelPendingOperation()
+						t0 = e.perfTracker.ReportSince("cancelPendingOperation", t0)
+					} else if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyRune {
+						// Handle as part of pending operation
+						if err := e.handlePendingOperation(string(ev.Rune)); err != nil {
+							LL.Debug("Pending operation error: %v", err)
+						}
+						t0 = e.perfTracker.ReportSince("handlePendingOperation", t0)
+					} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 						LL.Debug("Found command: %s", command)
 						err := e.commandRegistry.Execute(command)
 						t0 = e.perfTracker.ReportSince("command:"+command, t0)

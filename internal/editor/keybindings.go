@@ -77,6 +77,9 @@ func (e *Editor) setupDefaultBindings() {
 	
 	// Repeat last change
 	e.registerKeyBinding(commands.NormalMode, ".", "repeat-last-change")
+	
+	// Delete operations
+	e.registerKeyBinding(commands.NormalMode, "d", "start-delete")
 	e.registerKeyBinding(commands.NormalMode, "ctrl+shift+space", "show-signature")
 	e.registerKeyBinding(commands.InsertMode, "ctrl+shift+space", "show-signature")
 

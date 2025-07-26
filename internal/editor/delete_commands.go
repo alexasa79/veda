@@ -1,0 +1,126 @@
+package editor
+
+// startDeleteOperation begins a delete operation, waiting for a text object
+func (e *Editor) startDeleteOperation() error {
+	e.pendingOperator = DeleteOperator{}
+	e.pendingModifier = ModifierNone
+	e.pendingKeys = []string{"d"}
+	return nil
+}
+
+// handlePendingOperation processes keys when there's a pending operation
+func (e *Editor) handlePendingOperation(key string) error {
+	if e.pendingOperator == nil {
+		return nil
+	}
+	
+	// Add key to pending keys
+	e.pendingKeys = append(e.pendingKeys, key)
+	
+	// Check for special cases first
+	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "d" && e.pendingKeys[1] == "d" {
+		// dd - delete line
+		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
+	}
+	
+	// Check for modifier keys
+	if len(e.pendingKeys) == 2 && (key == "a" || key == "i") {
+		e.pendingModifier = TextObjectModifier(key)
+		return nil // Wait for text object
+	}
+	
+	// Try to find a text object
+	textObj := e.getTextObjectForKey(key)
+	if textObj != nil {
+		return e.executeOperatorWithTextObject(e.pendingOperator, textObj)
+	}
+	
+	// Check for brackets after modifier
+	if len(e.pendingKeys) == 3 && (e.pendingModifier == ModifierAround || e.pendingModifier == ModifierInside) {
+		bracket := rune(key[0])
+		if bracketObj := NewBracketTextObject(bracket, e.pendingModifier); bracketObj != nil {
+			return e.executeOperatorWithTextObject(e.pendingOperator, bracketObj)
+		}
+	}
+	
+	// If we get here and have accumulated too many keys, cancel the operation
+	if len(e.pendingKeys) > 3 {
+		e.clearPendingOperation()
+	}
+	
+	return nil
+}
+
+// getTextObjectForKey returns the appropriate text object for a key
+func (e *Editor) getTextObjectForKey(key string) TextObject {
+	switch key {
+	case "w":
+		return WordTextObject{modifier: e.pendingModifier}
+	case "W":
+		return WORDTextObject{}
+	case "b":
+		// 'b' for blocks through LSP folding ranges
+		if e.pendingModifier != ModifierNone {
+			return NewBlockTextObject(e.pendingModifier)
+		}
+	case "a":
+		// 'a' for argument
+		if e.pendingModifier != ModifierNone {
+			return NewArgumentTextObject(e.pendingModifier, e.proxyClient)
+		}
+	case "f":
+		// 'f' for function
+		if e.pendingModifier != ModifierNone {
+			return NewFunctionTextObject(e.pendingModifier, e.proxyClient)
+		}
+	}
+	
+	return nil
+}
+
+// executeOperatorWithTextObject executes the pending operator on the given text object
+func (e *Editor) executeOperatorWithTextObject(op Operator, textObj TextObject) error {
+	defer e.clearPendingOperation()
+	
+	if e.buffer == nil {
+		return nil
+	}
+	
+	// Get current cursor position
+	cursorLine := e.buffer.CursorIterator.LineNumber()
+	cursorChar := e.buffer.CursorX
+	
+	// Get the range from the text object
+	startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursorLine, cursorChar)
+	if !found {
+		return nil
+	}
+	
+	// Execute the operator on the range
+	if err := op.Execute(e, startLine, startChar, endLine, endChar); err != nil {
+		return err
+	}
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
+	return nil
+}
+
+// clearPendingOperation resets the pending operation state
+func (e *Editor) clearPendingOperation() {
+	e.pendingOperator = nil
+	e.pendingModifier = ModifierNone
+	e.pendingKeys = nil
+}
+
+// cancelPendingOperation cancels any pending operation (called on Escape)
+func (e *Editor) cancelPendingOperation() error {
+	e.clearPendingOperation()
+	return nil
+}
+
+// hasPendingOperation returns true if there's a pending operation
+func (e *Editor) hasPendingOperation() bool {
+	return e.pendingOperator != nil
+}

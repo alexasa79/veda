@@ -63,4 +63,7 @@ func (e *Editor) registerCommands() {
 	
 	// Repeat command
 	e.commandRegistry.Register("repeat-last-change", e.repeatLastChange)
+	
+	// Delete commands
+	e.commandRegistry.Register("start-delete", e.startDeleteOperation)
 }
