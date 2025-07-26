@@ -60,4 +60,7 @@ func (e *Editor) registerCommands() {
 	// Undo/Redo commands
 	e.commandRegistry.Register("undo", e.undo)
 	e.commandRegistry.Register("redo", e.redo)
+	
+	// Repeat command
+	e.commandRegistry.Register("repeat-last-change", e.repeatLastChange)
 }

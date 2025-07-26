@@ -54,6 +54,9 @@ type Editor struct {
 	// LSP communication
 	lspRequestChan  chan lsp.LSPRequest     // Channel for LSP requests
 	lspResponseChan chan lsp.LSPResponse    // Channel for LSP responses
+	
+	// Repeat last change
+	lastChange      buffer.HistoryEntry     // Last text modification for repeat command
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -740,7 +743,9 @@ func (e *Editor) exitInsertMode() error {
 	
 	// Finalize insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.EndInsertSession()
+		if compositeEntry := e.buffer.History.EndInsertSession(); compositeEntry != nil {
+			e.lastChange = compositeEntry
+		}
 	}
 	return nil
 }
@@ -832,6 +837,98 @@ func (e *Editor) redo() error {
 	return nil
 }
 
+// repeatLastChange repeats the last text modification at the current cursor position
+func (e *Editor) repeatLastChange() error {
+	if e.lastChange == nil {
+		return nil // Nothing to repeat
+	}
+	
+	if e.buffer == nil || e.buffer.History == nil {
+		return nil
+	}
+	
+	// Get current cursor position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	cursorX := e.buffer.CursorX
+	
+	// Create a new entry based on the type of the last change
+	var newEntry buffer.HistoryEntry
+	
+	switch original := e.lastChange.(type) {
+	case *buffer.InsertTextEntry:
+		// For insert, we need to insert after the current cursor position in normal mode
+		// This mimics pressing 'i' which inserts before the cursor
+		newEntry = buffer.NewInsertTextEntry(lineNum, cursorX, original.Text)
+		
+	case *buffer.DeleteTextEntry:
+		// Delete happens at the current cursor position
+		newEntry = buffer.NewDeleteTextEntry(lineNum, cursorX, original.Text)
+		
+	case *buffer.CompositeEntry:
+		// For composite entries (like insert mode sessions), replay all operations
+		// starting from the current cursor position
+		composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
+		
+		// Calculate the base position offset
+		var baseLineOffset, baseCharOffset int
+		var firstLine int
+		if len(original.Entries) > 0 {
+			// Get the first entry's position as reference
+			switch first := original.Entries[0].(type) {
+			case *buffer.InsertTextEntry:
+				firstLine = first.Line
+				baseLineOffset = lineNum - first.Line
+				baseCharOffset = cursorX - first.Character
+			case *buffer.DeleteTextEntry:
+				firstLine = first.Line
+				baseLineOffset = lineNum - first.Line
+				baseCharOffset = cursorX - first.Character
+			}
+		}
+		
+		// Translate each sub-entry
+		for _, subEntry := range original.Entries {
+			switch se := subEntry.(type) {
+			case *buffer.InsertTextEntry:
+				newLine := se.Line + baseLineOffset
+				newChar := se.Character
+				// Only apply character offset to the first entry on the same line
+				if se.Line == firstLine {
+					newChar = se.Character + baseCharOffset
+				}
+				composite.Add(buffer.NewInsertTextEntry(newLine, newChar, se.Text))
+				
+			case *buffer.DeleteTextEntry:
+				newLine := se.Line + baseLineOffset
+				newChar := se.Character
+				// Only apply character offset to the first entry on the same line
+				if se.Line == firstLine {
+					newChar = se.Character + baseCharOffset
+				}
+				composite.Add(buffer.NewDeleteTextEntry(newLine, newChar, se.Text))
+			}
+		}
+		newEntry = composite
+		
+	default:
+		// Unknown entry type, cannot repeat
+		return nil
+	}
+	
+	// Save the original lastChange before executing
+	originalLastChange := e.lastChange
+	
+	// Execute the new entry (this will also update lastChange)
+	if _, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
+		return err
+	}
+	
+	// Restore the original lastChange to maintain it for future repeats
+	e.lastChange = originalLastChange
+	
+	return nil
+}
+
 // openLineBelow opens a new line below the current line and enters insert mode
 func (e *Editor) openLineBelow() error {
 	// Remember current position
@@ -854,8 +951,10 @@ func (e *Editor) openLineBelow() error {
 	
 	// Execute through history
 	if e.buffer.History != nil {
-		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
+		} else if executed != nil {
+			e.lastChange = executed
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -911,8 +1010,10 @@ func (e *Editor) openLineAbove() error {
 	
 	// Execute through history
 	if e.buffer.History != nil {
-		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
+		} else if executed != nil {
+			e.lastChange = executed
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -932,8 +1033,10 @@ func (e *Editor) openLineAbove() error {
 		
 		// Execute through history
 		if e.buffer.History != nil {
-			if err := e.buffer.History.Execute(e.buffer, indentEntry); err != nil {
+			if executed, err := e.buffer.History.Execute(e.buffer, indentEntry); err != nil {
 				return err
+			} else if executed != nil {
+				e.lastChange = executed
 			}
 		} else {
 			// Fallback if history is not initialized
@@ -981,8 +1084,10 @@ func (e *Editor) insertChar(ch rune) error {
 	
 	// Execute through history (this handles both direct execution and insert mode tracking)
 	if e.buffer.History != nil {
-		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
+		} else if executed != nil {
+			e.lastChange = executed
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -1051,8 +1156,10 @@ func (e *Editor) insertNewline() error {
 	
 	// Execute through history
 	if e.buffer.History != nil {
-		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
+		} else if executed != nil {
+			e.lastChange = executed
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -1104,8 +1211,10 @@ func (e *Editor) backspace() error {
 			
 			// Execute through history
 			if e.buffer.History != nil {
-				if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 					return err
+				} else if executed != nil {
+					e.lastChange = executed
 				}
 			} else {
 				// Fallback if history is not initialized
@@ -1135,8 +1244,10 @@ func (e *Editor) backspace() error {
 			
 			// Execute through history
 			if e.buffer.History != nil {
-				if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 					return err
+				} else if executed != nil {
+					e.lastChange = executed
 				}
 			} else {
 				// Fallback if history is not initialized
@@ -1185,8 +1296,10 @@ func (e *Editor) deleteCurrentCharacter() error {
 			
 			// Execute through history
 			if e.buffer.History != nil {
-				if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 					return err
+				} else if executed != nil {
+					e.lastChange = executed
 				}
 			} else {
 				// Fallback if history is not initialized
@@ -1219,8 +1332,10 @@ func (e *Editor) deleteCurrentCharacter() error {
 	
 	// Execute through history
 	if e.buffer.History != nil {
-		if err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
+		} else if executed != nil {
+			e.lastChange = executed
 		}
 	} else {
 		// Fallback if history is not initialized

@@ -19,7 +19,7 @@ func TestUndoRedoBasics(t *testing.T) {
 		
 		// Insert text
 		entry := NewInsertTextEntry(0, 0, "Hello")
-		err := buf.History.Execute(buf, entry)
+		_, err := buf.History.Execute(buf, entry)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
@@ -54,7 +54,7 @@ func TestUndoRedoBasics(t *testing.T) {
 		
 		// Delete text
 		entry := NewDeleteTextEntry(0, 1, "ello")
-		err := buf.History.Execute(buf, entry)
+		_, err := buf.History.Execute(buf, entry)
 		if err != nil {
 			t.Fatalf("Execute failed: %v", err)
 		}
@@ -81,7 +81,7 @@ func TestUndoRedoBasics(t *testing.T) {
 		
 		// Insert text
 		entry := NewInsertTextEntry(0, 0, "Test")
-		buf.History.Execute(buf, entry)
+		_, _ = buf.History.Execute(buf, entry)
 		
 		// Undo
 		buf.History.Undo(buf)
@@ -105,9 +105,9 @@ func TestUndoRedoBasics(t *testing.T) {
 		buf := NewBuffer("", "", config.IndentTabs, 4)
 		
 		// Execute multiple operations
-		buf.History.Execute(buf, NewInsertTextEntry(0, 0, "One"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 3, " Two"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 7, " Three"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "One"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 3, " Two"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 7, " Three"))
 		
 		if buf.Rope.String() != "One Two Three" {
 			t.Errorf("Expected 'One Two Three', got '%s'", buf.Rope.String())
@@ -150,14 +150,14 @@ func TestUndoRedoBasics(t *testing.T) {
 		buf := NewBuffer("", "", config.IndentTabs, 4)
 		
 		// Add some operations
-		buf.History.Execute(buf, NewInsertTextEntry(0, 0, "First"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 5, " Second"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "First"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 5, " Second"))
 		
 		// Undo once
 		buf.History.Undo(buf)
 		
 		// Execute new operation (should clear redo stack)
-		buf.History.Execute(buf, NewInsertTextEntry(0, 5, " New"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 5, " New"))
 		
 		// Try to redo - should have no effect
 		buf.History.Redo(buf)
@@ -177,11 +177,11 @@ func TestInsertModeSession(t *testing.T) {
 		buf.History.StartInsertSession()
 		
 		// Multiple operations in insert mode
-		buf.History.Execute(buf, NewInsertTextEntry(0, 0, "H"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 1, "e"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 2, "l"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 3, "l"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 4, "o"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "H"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 1, "e"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 2, "l"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 3, "l"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 4, "o"))
 		
 		// End insert mode session
 		buf.History.EndInsertSession()
@@ -209,7 +209,7 @@ func TestInsertModeSession(t *testing.T) {
 		buf := NewBuffer("Initial", "", config.IndentTabs, 4)
 		
 		// Add a normal operation
-		buf.History.Execute(buf, NewInsertTextEntry(0, 7, " Text"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 7, " Text"))
 		
 		// Start and end empty insert session
 		buf.History.StartInsertSession()
@@ -230,14 +230,14 @@ func TestInsertModeSession(t *testing.T) {
 		buf.History.StartInsertSession()
 		
 		// Mix of inserts and deletes in insert mode
-		buf.History.Execute(buf, NewInsertTextEntry(0, 5, " "))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 6, "W"))
-		buf.History.Execute(buf, NewDeleteTextEntry(0, 6, "W")) // Backspace
-		buf.History.Execute(buf, NewInsertTextEntry(0, 6, "w"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 7, "o"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 8, "r"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 9, "l"))
-		buf.History.Execute(buf, NewInsertTextEntry(0, 10, "d"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 5, " "))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 6, "W"))
+		_, _ = buf.History.Execute(buf, NewDeleteTextEntry(0, 6, "W")) // Backspace
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 6, "w"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 7, "o"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 8, "r"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 9, "l"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 10, "d"))
 		
 		// End insert mode session
 		buf.History.EndInsertSession()
@@ -260,7 +260,7 @@ func TestMultilineOperations(t *testing.T) {
 		buf := NewBuffer("Line1", "", config.IndentTabs, 4)
 		
 		// Insert newline at end of Line1
-		buf.History.Execute(buf, NewInsertTextEntry(0, 5, "\n"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 5, "\n"))
 		
 		// Check intermediate state
 		if buf.Rope.String() != "Line1\n" {
@@ -273,7 +273,7 @@ func TestMultilineOperations(t *testing.T) {
 		t.Logf("Buffer length: %d", buf.Rope.Length())
 		
 		// Insert text on new line
-		buf.History.Execute(buf, NewInsertTextEntry(1, 0, "Line2"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(1, 0, "Line2"))
 		
 		if buf.Rope.String() != "Line1\nLine2" {
 			t.Errorf("Expected 'Line1\\nLine2', got '%s'", buf.Rope.String())
@@ -292,7 +292,7 @@ func TestMultilineOperations(t *testing.T) {
 		buf := NewBuffer("Line1\nLine2", "", config.IndentTabs, 4)
 		
 		// Delete from middle of Line1 to middle of Line2
-		buf.History.Execute(buf, NewDeleteTextEntry(0, 3, "e1\nLi"))
+		_, _ = buf.History.Execute(buf, NewDeleteTextEntry(0, 3, "e1\nLi"))
 		
 		if buf.Rope.String() != "Linne2" {
 			t.Errorf("Expected 'Linne2', got '%s'", buf.Rope.String())
@@ -313,7 +313,7 @@ func TestCursorPosition(t *testing.T) {
 		
 		// Insert at position 2
 		entry := NewInsertTextEntry(0, 2, "X")
-		buf.History.Execute(buf, entry)
+		_, _ = buf.History.Execute(buf, entry)
 		
 		// Check cursor moved forward
 		if buf.CursorX != 3 {
@@ -338,7 +338,7 @@ func TestCursorPosition(t *testing.T) {
 		
 		// Delete character before cursor
 		entry := NewDeleteTextEntry(0, 3, "t")
-		buf.History.Execute(buf, entry)
+		_, _ = buf.History.Execute(buf, entry)
 		
 		// Check cursor moved back
 		if buf.CursorX != 3 {
@@ -380,10 +380,10 @@ func TestEdgeCases(t *testing.T) {
 		buf := NewBuffer("", "", config.IndentTabs, 4)
 		
 		// Insert at beginning
-		buf.History.Execute(buf, NewInsertTextEntry(0, 0, "Start"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "Start"))
 		
 		// Insert at end
-		buf.History.Execute(buf, NewInsertTextEntry(0, 5, "End"))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 5, "End"))
 		
 		if buf.Rope.String() != "StartEnd" {
 			t.Errorf("Expected 'StartEnd', got '%s'", buf.Rope.String())
@@ -407,7 +407,7 @@ func TestEdgeCases(t *testing.T) {
 			largeText += "Line " + string(rune('0'+i%10)) + "\n"
 		}
 		
-		buf.History.Execute(buf, NewInsertTextEntry(0, 0, largeText))
+		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, largeText))
 		
 		// Verify insertion
 		if buf.Rope.String() != largeText {
