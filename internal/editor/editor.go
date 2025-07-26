@@ -933,6 +933,9 @@ func (e *Editor) repeatLastChange() error {
 	// Save the original lastChange before executing
 	originalLastChange := e.lastChange
 	
+	// Remember the view position before we make changes
+	viewLine := e.buffer.ViewIterator.LineNumber()
+	
 	// Execute the new entry (this will also update lastChange)
 	if _, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
 		return err
@@ -940,6 +943,40 @@ func (e *Editor) repeatLastChange() error {
 	
 	// Restore the original lastChange to maintain it for future repeats
 	e.lastChange = originalLastChange
+	
+	// Recreate iterators to ensure they're valid after buffer changes
+	// This is especially important for ViewIterator which can become invalid
+	
+	// Recreate cursor iterator
+	cursorLine := e.buffer.CursorIterator.LineNumber()
+	if cursorLine >= e.buffer.LineCount {
+		cursorLine = e.buffer.LineCount - 1
+		if cursorLine < 0 {
+			cursorLine = 0
+		}
+	}
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+	
+	// Recreate view iterator
+	if viewLine >= e.buffer.LineCount {
+		viewLine = e.buffer.LineCount - 1
+		if viewLine < 0 {
+			viewLine = 0
+		}
+	}
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	
+	// Ensure cursor X is within bounds
+	line := e.buffer.CursorIterator.Line()
+	if e.buffer.CursorX > len(line) {
+		e.buffer.CursorX = len(line)
+		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+			e.buffer.CursorX--
+		}
+	}
+	
+	// Update cursor state
+	e.updateCursorState()
 	
 	return nil
 }

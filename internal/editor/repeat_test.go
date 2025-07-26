@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"testing"
 	"veda/internal/buffer"
 )
@@ -188,5 +189,65 @@ func TestRepeatLastChange(t *testing.T) {
 		te.ExecuteCommand("repeat-last-change")
 		// After insert, cursor is at position 4 (on 'B')
 		AssertBufferEquals(t, te, "XXAXBC")
+	})
+	
+	t.Run("repeat dw without crash", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "word1 word2 word3 word4")
+		
+		// Delete first word with dw
+		te.TypeKeys("dw")
+		AssertBufferEquals(t, te, "word2 word3 word4")
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Repeat with . should delete "word2 " without crashing
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "word3 word4")
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Repeat again
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "word4")
+		AssertCursorAt(t, te, 0, 0)
+	})
+	
+	t.Run("repeat dw with ViewIterator check", func(t *testing.T) {
+		// Create a larger buffer to ensure ViewIterator is in use
+		content := ""
+		for i := 0; i < 50; i++ {
+			content += fmt.Sprintf("Line %d with some text\n", i+1)
+		}
+		te := NewTestEditorWithContent(80, 24, content)
+		
+		// Move to middle of buffer to ensure ViewIterator is not at line 0
+		for i := 0; i < 25; i++ {
+			te.ExecuteCommand("down")
+		}
+		
+		// Ensure ViewIterator is valid
+		viewGen := te.buffer.ViewIterator.Generation
+		bufGen := te.buffer.Generation
+		if viewGen != bufGen {
+			t.Fatalf("ViewIterator generation mismatch before dw: iterator has %d, buffer has %d", viewGen, bufGen)
+		}
+		
+		// Delete a word with dw
+		te.TypeKeys("dw")
+		
+		// Check ViewIterator is still valid after dw
+		viewGen = te.buffer.ViewIterator.Generation
+		bufGen = te.buffer.Generation
+		if viewGen != bufGen {
+			t.Fatalf("ViewIterator generation mismatch after dw: iterator has %d, buffer has %d", viewGen, bufGen)
+		}
+		
+		// Repeat with . - this is where the crash happens
+		te.ExecuteCommand("repeat-last-change")
+		
+		// Check ViewIterator is still valid after repeat
+		viewGen = te.buffer.ViewIterator.Generation
+		bufGen = te.buffer.Generation
+		if viewGen != bufGen {
+			t.Fatalf("ViewIterator generation mismatch after repeat: iterator has %d, buffer has %d", viewGen, bufGen)
+		}
 	})
 }
