@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"unicode"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 )
@@ -64,51 +63,16 @@ func (e *Editor) moveRight() error {
 
 // wordForward moves the cursor to the beginning of the next word
 func (e *Editor) wordForward() error {
-	// Start from current position
-	iter := e.buffer.CursorIterator
-	x := e.buffer.CursorX + 1 // Start searching from next character
-	currentLine := iter.Line()
-
-	// Track if we've seen a non-alphanumeric character
-	seenNonAlnum := false
-
-	// If we start on a non-alphanumeric character, we're ready to find the next word
-	if e.buffer.CursorX < len(currentLine) {
-		ch := rune(currentLine[e.buffer.CursorX])
-		seenNonAlnum = !unicode.IsLetter(ch) && !unicode.IsDigit(ch) && ch != '_'
+	currentLine := e.buffer.CursorIterator.LineNumber()
+	nextWord := FindNextWordBoundary(e.buffer, currentLine, e.buffer.CursorX)
+	
+	if nextWord != nil {
+		// Move cursor to the next word
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, nextWord.StartLine)
+		e.buffer.CursorX = nextWord.StartChar
 	}
-
-	// Loop through characters until we find a transition from non-alnum to alnum
-	for !iter.IsEOF() {
-		line := iter.Line()
-
-		for x < len(line) {
-			ch := rune(line[x])
-			isAlnum := unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_'
-
-			if seenNonAlnum && isAlnum {
-				// Found transition from non-alnum to alnum
-				e.buffer.CursorX = x
-				e.buffer.CursorIterator = iter
-				return nil
-			}
-
-			if !isAlnum {
-				seenNonAlnum = true
-			}
-
-			x++
-		}
-
-		// Move to next line
-		iter = iter.Next()
-		if !iter.IsEOF() {
-			x = 0
-			seenNonAlnum = true // Line break counts as non-alnum
-		}
-	}
-
-	// No more words found, stay at current position
+	
+	e.updateCursorState()
 	return nil
 }
 
@@ -124,10 +88,6 @@ func (e *Editor) wordBackward() error {
 	x := e.buffer.CursorX
 	currentLine := iter.Line()
 
-	// Helper to check if character is word character
-	isWordChar := func(ch rune) bool {
-		return unicode.IsLetter(ch) || unicode.IsDigit(ch) || ch == '_'
-	}
 
 	// Move left one position
 	x--

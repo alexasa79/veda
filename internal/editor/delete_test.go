@@ -53,8 +53,8 @@ func TestDeleteOperations(t *testing.T) {
 		// Execute dw at beginning
 		te.TypeKeys("dw")
 		
-		// Should delete "Hello" (entire word)
-		AssertBufferEquals(t, te, " world test")
+		// Should delete "Hello " (word + trailing space)
+		AssertBufferEquals(t, te, "world test")
 		AssertCursorAt(t, te, 0, 0)
 	})
 	
@@ -68,8 +68,8 @@ func TestDeleteOperations(t *testing.T) {
 		// Execute dw
 		te.TypeKeys("dw")
 		
-		// Should delete entire word "Hello"
-		AssertBufferEquals(t, te, " world test")
+		// Should delete entire word "Hello " (word + trailing space)
+		AssertBufferEquals(t, te, "world test")
 		AssertCursorAt(t, te, 0, 0)
 	})
 	
@@ -177,7 +177,7 @@ func TestDeleteOperations(t *testing.T) {
 		
 		// Delete word
 		te.TypeKeys("dw")
-		AssertBufferEquals(t, te, " world")
+		AssertBufferEquals(t, te, "world")
 		
 		// Undo
 		te.ExecuteCommand("undo")
@@ -185,7 +185,7 @@ func TestDeleteOperations(t *testing.T) {
 		
 		// Redo
 		te.ExecuteCommand("redo")
-		AssertBufferEquals(t, te, " world")
+		AssertBufferEquals(t, te, "world")
 	})
 	
 	t.Run("delete operations are repeatable", func(t *testing.T) {
@@ -193,14 +193,11 @@ func TestDeleteOperations(t *testing.T) {
 		
 		// Delete first word
 		te.TypeKeys("dw")
-		AssertBufferEquals(t, te, " word2 word3")
-		
-		// Move to next word
-		te.ExecuteCommand("right")
+		AssertBufferEquals(t, te, "word2 word3")
 		
 		// Repeat with .
 		te.ExecuteCommand("repeat-last-change")
-		AssertBufferEquals(t, te, "  word3")
+		AssertBufferEquals(t, te, "word3")
 	})
 	
 	t.Run("dW in middle of WORD", func(t *testing.T) {
@@ -242,14 +239,14 @@ func TestDeleteOperations(t *testing.T) {
 		}
 		AssertCursorAt(t, te, 9, 0)
 		
-		// First dw should delete "false"
+		// First dw should delete "false " (word + space)
 		te.TypeKeys("dw")
-		AssertBufferEquals(t, te, `Enable: " is the value"`)
-		AssertCursorAt(t, te, 9, 0) // Cursor should stay at the space after quote
+		AssertBufferEquals(t, te, `Enable: "is the value"`)
+		AssertCursorAt(t, te, 9, 0) // Cursor should stay at 'i'
 		
-		// Second dw should delete " is" from current position (including the space)
+		// Second dw should delete "is " (word + space)
 		te.TypeKeys("dw")
-		AssertBufferEquals(t, te, `Enable: " the value"`)
+		AssertBufferEquals(t, te, `Enable: "the value"`)
 		AssertCursorAt(t, te, 9, 0) // Cursor should still be at same position
 	})
 	
@@ -262,14 +259,34 @@ func TestDeleteOperations(t *testing.T) {
 		}
 		AssertCursorAt(t, te, 4, 0)
 		
-		// dw should delete "word1" since we're on the last character
+		// dw should delete "word1 " (word + space)
 		te.TypeKeys("dw")
-		AssertBufferEquals(t, te, " word2 word3")
+		AssertBufferEquals(t, te, "word2 word3")
 		AssertCursorAt(t, te, 0, 0)
 		
-		// Now on space, dw should delete " word2"
+		// Now on 'w', dw should delete "word2 "
 		te.TypeKeys("dw")
-		AssertBufferEquals(t, te, " word3")
+		AssertBufferEquals(t, te, "word3")
 		AssertCursorAt(t, te, 0, 0)
+	})
+	
+	t.Run("dw includes trailing whitespace like vim", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, `debugFlag := flag.Bool("d", false, "Enable debug logging")`)
+		
+		// Move to 'f' in "false"
+		for i := 0; i < 28; i++ {
+			te.ExecuteCommand("right")
+		}
+		AssertCursorAt(t, te, 28, 0)
+		
+		// First dw should delete "false" and the space after it
+		te.TypeKeys("dw")
+		AssertBufferEquals(t, te, `debugFlag := flag.Bool("d", , "Enable debug logging")`)
+		AssertCursorAt(t, te, 28, 0) // Cursor at comma
+		
+		// Second dw should delete just the comma (punctuation)
+		te.TypeKeys("dw")
+		AssertBufferEquals(t, te, `debugFlag := flag.Bool("d", "Enable debug logging")`)
+		AssertCursorAt(t, te, 28, 0) // Cursor at space
 	})
 }

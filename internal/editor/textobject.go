@@ -50,88 +50,46 @@ type WordTextObject struct {
 }
 
 func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
-	if iter.IsEOF() {
-		return 0, 0, 0, 0, false
-	}
-	
-	line := iter.Line()
-	if cursorChar >= len(line) {
-		return 0, 0, 0, 0, false
-	}
-	
-	// For 'dw' (no modifier), delete the current word
-	// If on a word character: delete the entire word (like vim's diw)
-	// If on whitespace: delete from cursor through the next word
+	// For 'dw' (no modifier), use shared logic with trailing space
 	if w.modifier == ModifierNone {
-		start := cursorChar
-		end := cursorChar
-		
-		// If we're not on a word character, we're on whitespace/punctuation
-		if cursorChar < len(line) && !isWordChar(line[cursorChar]) {
-			// Delete from cursor position through the next word
-			// Skip whitespace/punctuation to find next word
-			for end < len(line) && !isWordChar(line[end]) {
-				end++
-			}
-			if end >= len(line) {
-				return 0, 0, 0, 0, false
-			}
-			// Now skip the word itself
-			for end < len(line) && isWordChar(line[end]) {
-				end++
-			}
-			// start stays at cursorChar (don't jump back)
-		} else {
-			// We're on a word character - delete the entire word
-			// Find start of word
-			for start > 0 && isWordChar(line[start-1]) {
-				start--
-			}
-			// Find end of word  
-			for end < len(line) && isWordChar(line[end]) {
-				end++
-			}
-		}
-		
-		return cursorLine, start, cursorLine, end, true
-	}
-	
-	// For 'diw' and 'daw', operate on the current word
-	start := cursorChar
-	end := cursorChar
-	
-	// If we're not on a word character, find the next word
-	if !isWordChar(line[cursorChar]) {
-		// Find next word
-		for end < len(line) && !isWordChar(line[end]) {
-			end++
-		}
-		if end >= len(line) {
+		boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, true)
+		if boundary == nil {
 			return 0, 0, 0, 0, false
 		}
-		start = end
-		cursorChar = end
+		return boundary.StartLine, boundary.StartChar, boundary.EndLine, boundary.EndChar, true
 	}
 	
-	// Find start of word
-	for start > 0 && isWordChar(line[start-1]) {
-		start--
+	// For 'diw' and 'daw', use shared logic without trailing space for 'inside'
+	// and with trailing space for 'around'
+	includeTrailing := w.modifier == ModifierAround
+	boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, includeTrailing)
+	if boundary == nil {
+		return 0, 0, 0, 0, false
 	}
 	
-	// Find end of word  
-	for end < len(line) && isWordChar(line[end]) {
-		end++
-	}
-	
-	// For "around" modifier, include trailing whitespace
-	if w.modifier == ModifierAround {
-		for end < len(line) && (line[end] == ' ' || line[end] == '\t') {
-			end++
+	// For 'diw', we need to handle the case where cursor is not on a word
+	if w.modifier == ModifierInside || w.modifier == ModifierAround {
+		iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+		if iter.IsEOF() {
+			return 0, 0, 0, 0, false
+		}
+		line := iter.Line()
+		
+		// If we're not on a word character, find the next word
+		if cursorChar < len(line) && !isWordCharByte(line[cursorChar]) {
+			nextWord := FindNextWordBoundary(buf, cursorLine, cursorChar)
+			if nextWord == nil {
+				return 0, 0, 0, 0, false
+			}
+			// Get the boundary of the next word
+			boundary = FindCurrentWordBoundary(buf, nextWord.StartLine, nextWord.StartChar, includeTrailing)
+			if boundary == nil {
+				return 0, 0, 0, 0, false
+			}
 		}
 	}
 	
-	return cursorLine, start, cursorLine, end, true
+	return boundary.StartLine, boundary.StartChar, boundary.EndLine, boundary.EndChar, true
 }
 
 func (w WordTextObject) GetType() string {
@@ -325,14 +283,3 @@ func (b BracketTextObject) GetType() string {
 	return fmt.Sprintf("around-%s", bracket)
 }
 
-// Helper functions
-func isWordChar(ch byte) bool {
-	return (ch >= 'a' && ch <= 'z') || 
-		(ch >= 'A' && ch <= 'Z') || 
-		(ch >= '0' && ch <= '9') || 
-		ch == '_'
-}
-
-func isWhitespace(ch byte) bool {
-	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
-}

@@ -35,15 +35,27 @@ func TestWordNavigation(t *testing.T) {
 		// Start at beginning
 		AssertCursorAt(t, te, 0, 0)
 		
-		// Jump to "world" (skip comma)
+		// Jump to comma (punctuation is a word)
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 5, 0)
+		
+		// Jump to "world"
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 7, 0)
+		
+		// Jump to "!"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 12, 0)
 		
 		// Jump to "foo"
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 14, 0)
 		
-		// Jump to "bar" (after hyphen)
+		// Jump to "-"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 17, 0)
+		
+		// Jump to "bar"
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 18, 0)
 	})
@@ -110,9 +122,25 @@ func TestWordNavigation(t *testing.T) {
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 5, 0)
 		
+		// Jump to "("
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 9, 0)
+		
+		// Jump to ")"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 10, 0)
+		
+		// Jump to "{"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 12, 0)
+		
 		// Jump to "return"
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 14, 0)
+		
+		// Jump to "}"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 21, 0)
 	})
 	
 	t.Run("word forward with underscores", func(t *testing.T) {
@@ -128,5 +156,37 @@ func TestWordNavigation(t *testing.T) {
 		// Jump to "some_long_variable_name"
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 16, 0)
+	})
+	
+	t.Run("word forward with punctuation like vim", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, `Enable: "false", "second"`)
+		
+		// Start at 'E' in Enable
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Move through each word/punctuation
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 6, 0) // Start of ":"
+		
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 8, 0) // Start of first quote
+		
+		te.ExecuteCommand("word-forward") 
+		AssertCursorAt(t, te, 9, 0) // Start of "false"
+		
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 14, 0) // Start of closing quote
+		
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 15, 0) // Start of comma
+		
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 17, 0) // Start of second quote
+		
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 18, 0) // Start of "second"
+		
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 24, 0) // Start of closing quote
 	})
 }
