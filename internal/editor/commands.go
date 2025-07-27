@@ -67,4 +67,8 @@ func (e *Editor) registerCommands() {
 	
 	// Delete commands
 	e.commandRegistry.Register("start-delete", e.startDeleteOperation)
+	
+	// Search commands
+	e.commandRegistry.Register("find-next", e.findNextCmd)
+	e.commandRegistry.Register("find-previous", e.findPreviousCmd)
 }

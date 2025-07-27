@@ -437,6 +437,32 @@ func (e *Editor) ScrollToShowAtBottom() {
 		e.buffer.ViewIterator, e.buffer.CursorIterator, visibleHeight)
 }
 
+// scrollToCenter positions the view so the cursor line appears in the middle of the screen
+func (e *Editor) scrollToCenter() {
+	visibleHeight := e.getVisibleHeight()
+	cursorLine := e.buffer.CursorIterator.LineNumber()
+	
+	// Calculate the desired view start line to center the cursor
+	desiredViewLine := cursorLine - visibleHeight/2
+	
+	// Handle edge cases
+	if desiredViewLine < 0 {
+		desiredViewLine = 0
+	} else {
+		// Don't scroll past the end of the buffer
+		maxViewLine := e.buffer.LineCount - visibleHeight
+		if maxViewLine < 0 {
+			maxViewLine = 0
+		}
+		if desiredViewLine > maxViewLine {
+			desiredViewLine = maxViewLine
+		}
+	}
+	
+	// Create iterator at the desired view line
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
+}
+
 func (e *Editor) handleCommandMode(ev *events.KeyEvent) {
 	switch ev.Key {
 	case events.KeyEscape:
@@ -659,8 +685,86 @@ func (e *Editor) findNext() {
 	LL.Debug("Pattern not found: %s", e.searchPattern)
 }
 
+// findPrevious finds the previous occurrence of the search pattern
+func (e *Editor) findPrevious() {
+	if e.searchPattern == "" {
+		return
+	}
+	
+	// Get current position
+	startPos := e.getAbsolutePosition()
+	
+	// Convert buffer content to string for searching
+	content := e.buffer.Rope.String()
+	
+	// Search backward from current position
+	searchEnd := startPos
+	if searchEnd <= 0 {
+		searchEnd = len(content) // Wrap around
+	}
+	
+	// Find the last occurrence before current position
+	foundPos := -1
+	searchContent := content[:searchEnd]
+	
+	// Find all occurrences and take the last one
+	lastPos := -1
+	searchStart := 0
+	for {
+		pos := strings.Index(searchContent[searchStart:], e.searchPattern)
+		if pos == -1 {
+			break
+		}
+		lastPos = searchStart + pos
+		searchStart = lastPos + 1
+	}
+	
+	if lastPos != -1 {
+		foundPos = lastPos
+	} else if searchEnd < len(content) {
+		// Not found before cursor, try after cursor (wrap around)
+		afterContent := content[startPos:]
+		// Find the last occurrence after cursor
+		lastPos = -1
+		searchStart = 0
+		for {
+			pos := strings.Index(afterContent[searchStart:], e.searchPattern)
+			if pos == -1 {
+				break
+			}
+			lastPos = searchStart + pos
+			searchStart = lastPos + 1
+		}
+		if lastPos != -1 {
+			foundPos = startPos + lastPos
+		}
+	}
+	
+	if foundPos != -1 {
+		e.moveCursorToPosition(foundPos)
+	} else {
+		// Pattern not found
+		LL.Debug("Pattern not found: %s", e.searchPattern)
+	}
+}
+
+// findNextCmd is the command handler for the 'n' key
+func (e *Editor) findNextCmd() error {
+	e.findNext()
+	return nil
+}
+
+// findPreviousCmd is the command handler for the 'N' key
+func (e *Editor) findPreviousCmd() error {
+	e.findPrevious()
+	return nil
+}
+
 // moveCursorToPosition moves the cursor to an absolute position in the buffer
 func (e *Editor) moveCursorToPosition(pos int) {
+	// Remember the current view line before moving cursor
+	oldViewLine := e.buffer.ViewIterator.LineNumber()
+	
 	// Create an iterator at the beginning
 	iter := buffer.NewBufferIterator(e.buffer)
 	lineNum := 0
@@ -691,8 +795,26 @@ func (e *Editor) moveCursorToPosition(pos int) {
 		}
 	}
 	
-	// Ensure the cursor is visible
-	e.scrollToShowAtTop()
+	// Check if the cursor is already visible
+	visibleHeight := e.getVisibleHeight()
+	viewLine := e.buffer.ViewIterator.LineNumber()
+	cursorLine := e.buffer.CursorIterator.LineNumber()
+	
+	// Check if cursor is within visible range
+	if cursorLine >= viewLine && cursorLine < viewLine + visibleHeight {
+		// Cursor is already visible, no need to scroll
+		return
+	}
+	
+	// Cursor is not visible, center it on screen
+	e.scrollToCenter()
+	
+	// Check if the view actually changed
+	newViewLine := e.buffer.ViewIterator.LineNumber()
+	if newViewLine == oldViewLine {
+		// View didn't change, use default scrolling instead
+		e.scrollToShowAtTop()
+	}
 }
 
 // handleResize processes screen resize events

@@ -88,4 +88,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
 	e.registerKeyBinding(commands.NormalMode, "g g", "go-to-beginning")
 	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
+	
+	// Search navigation
+	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
+	e.registerKeyBinding(commands.NormalMode, "N", "find-previous")
 }
