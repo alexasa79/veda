@@ -252,6 +252,9 @@ func (e *Editor) drawStatusBar() {
 	if e.mode == commands.CommandMode {
 		// Draw the command line widget
 		e.commandLine.Draw(e.screen)
+	} else if e.mode == commands.SearchMode {
+		// Draw the search line widget
+		e.searchLine.Draw(e.screen)
 	} else {
 		// Status bar content
 		// Left side: mode and filename

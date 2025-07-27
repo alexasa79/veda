@@ -11,6 +11,7 @@ const (
 	NormalMode  Mode = "NORMAL"
 	CommandMode Mode = "COMMAND"
 	InsertMode  Mode = "INSERT"
+	SearchMode  Mode = "SEARCH"
 )
 
 // Key represents a key with modifiers

@@ -37,6 +37,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Mode switching
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
+	e.registerKeyBinding(commands.NormalMode, "/", "enter-search-mode")
 	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
 	e.registerKeyBinding(commands.NormalMode, "o", "open-line-below")
 	e.registerKeyBinding(commands.NormalMode, "O", "open-line-above")

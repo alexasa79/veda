@@ -29,6 +29,7 @@ type Editor struct {
 	config          *config.Config
 	mode            commands.Mode
 	commandLine     *widgets.CommandLineWidget
+	searchLine      *widgets.CommandLineWidget  // For search mode (/)
 	proxyClient     *proxy.Client
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
@@ -94,6 +95,10 @@ type Editor struct {
 	pendingOperator Operator                // Current operator waiting for text object
 	pendingModifier TextObjectModifier      // Modifier for text object (a/i)
 	pendingKeys     []string                // Accumulated keys for current operation
+	
+	// Search state
+	searchPattern   string                  // Current search pattern
+	searchDirection bool                    // true = forward, false = backward
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -108,6 +113,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	statusBarY := height - 1 // Status bar is always on the last line
 	commandLine := widgets.NewCommandLineWidget(0, statusBarY, width)
 	commandLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
+	
+	// Initialize search line widget (also at bottom of screen, shown in search mode)
+	searchLine := widgets.NewCommandLineWidget(0, statusBarY, width)
+	searchLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
 
 	// Start proxy client
 	proxyClient, err := proxy.NewClient()
@@ -131,6 +140,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		config:          config,
 		mode:            commands.NormalMode,
 		commandLine:     commandLine,
+		searchLine:      searchLine,
 		proxyClient:     proxyClient,
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
@@ -232,6 +242,10 @@ func (e *Editor) Run() {
 					// Command mode is special - it's a line editor
 					e.handleCommandMode(ev)
 					t0 = e.perfTracker.ReportSince("handleCommandMode", t0)
+				} else if e.mode == commands.SearchMode {
+					// Search mode is also a line editor
+					e.handleSearchMode(ev)
+					t0 = e.perfTracker.ReportSince("handleSearchMode", t0)
 				} else {
 					// Normal and Insert modes both use key mapping
 					LL.Debug("Key event: Key=%d, Rune=%c, Modifiers=%d, Mode=%s", ev.Key, ev.Rune, ev.Modifiers, e.mode)
@@ -314,6 +328,10 @@ func (e *Editor) updateCursor() {
 	if e.mode == commands.CommandMode {
 		// Show cursor in command line
 		cursorX, cursorY := e.commandLine.GetCursorPosition()
+		e.screen.ShowCursor(cursorX, cursorY)
+	} else if e.mode == commands.SearchMode {
+		// Show cursor in search line
+		cursorX, cursorY := e.searchLine.GetCursorPosition()
 		e.screen.ShowCursor(cursorX, cursorY)
 	} else {
 		// Show cursor in editor
@@ -545,6 +563,138 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 }
 
 
+// handleSearchMode processes key events in search mode
+func (e *Editor) handleSearchMode(ev *events.KeyEvent) {
+	switch ev.Key {
+	case events.KeyEscape:
+		// Exit search mode without searching
+		e.exitSearchMode()
+	case events.KeyEnter:
+		// Execute search and stay in normal mode
+		e.executeSearch()
+		e.exitSearchMode()
+	default:
+		// Pass other keys to the search line widget
+		e.searchLine.HandleKey(ev)
+		
+		// Check if the user deleted all text including the slash
+		// If so, exit search mode automatically
+		if e.searchLine.GetText() == "" {
+			e.exitSearchMode()
+		}
+	}
+}
+
+// enterSearchMode switches to search mode and initializes the search line
+func (e *Editor) enterSearchMode() {
+	e.mode = commands.SearchMode
+	e.searchLine.SetText("/")
+	// Position cursor after the slash
+	e.searchLine.SetCursor(1)
+	e.searchDirection = true // Forward search by default
+}
+
+// exitSearchMode switches back to normal mode
+func (e *Editor) exitSearchMode() {
+	e.mode = commands.NormalMode
+	e.searchLine.SetText("")
+}
+
+// executeSearch performs the search operation
+func (e *Editor) executeSearch() {
+	fullSearch := e.searchLine.GetText()
+	
+	// Remove the leading "/"
+	pattern := fullSearch
+	if len(pattern) > 1 {
+		pattern = pattern[1:]
+	} else {
+		// Empty search, do nothing
+		return
+	}
+	
+	// Store the search pattern
+	e.searchPattern = pattern
+	
+	// Perform the search
+	e.findNext()
+}
+
+// findNext finds the next occurrence of the search pattern
+func (e *Editor) findNext() {
+	if e.searchPattern == "" {
+		return
+	}
+	
+	// Get current position
+	startPos := e.getAbsolutePosition()
+	
+	// Convert buffer content to string for searching
+	content := e.buffer.Rope.String()
+	
+	// Search forward from current position + 1
+	searchStart := startPos + 1
+	if searchStart >= len(content) {
+		searchStart = 0 // Wrap around
+	}
+	
+	// Find the pattern
+	foundPos := strings.Index(content[searchStart:], e.searchPattern)
+	
+	if foundPos == -1 && searchStart > 0 {
+		// Not found after cursor, try from beginning
+		foundPos = strings.Index(content[:startPos], e.searchPattern)
+		if foundPos >= 0 {
+			// Found before cursor (wrapped around)
+			e.moveCursorToPosition(foundPos)
+			return
+		}
+	} else if foundPos >= 0 {
+		// Found after cursor
+		e.moveCursorToPosition(searchStart + foundPos)
+		return
+	}
+	
+	// Pattern not found
+	LL.Debug("Pattern not found: %s", e.searchPattern)
+}
+
+// moveCursorToPosition moves the cursor to an absolute position in the buffer
+func (e *Editor) moveCursorToPosition(pos int) {
+	// Create an iterator at the beginning
+	iter := buffer.NewBufferIterator(e.buffer)
+	lineNum := 0
+	lineStart := 0
+	
+	// Find the line containing the position
+	for !iter.IsEOF() {
+		lineEnd := iter.LineEnd()
+		if pos <= lineEnd {
+			// Position is on this line
+			break
+		}
+		lineStart = lineEnd + 1 // +1 for newline
+		iter = iter.Next()
+		lineNum++
+	}
+	
+	// Set cursor position
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.CursorX = pos - lineStart
+	
+	// Ensure cursor X is within bounds
+	line := e.buffer.CursorIterator.Line()
+	if e.buffer.CursorX > len(line) {
+		e.buffer.CursorX = len(line)
+		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+			e.buffer.CursorX--
+		}
+	}
+	
+	// Ensure the cursor is visible
+	e.scrollToShowAtTop()
+}
+
 // handleResize processes screen resize events
 func (e *Editor) handleResize() {
 	width, _ := e.screen.Size()
@@ -552,6 +702,10 @@ func (e *Editor) handleResize() {
 	// Update the command line widget's dimensions and position
 	e.commandLine.SetWidth(width)
 	e.commandLine.SetPosition(0, e.getStatusBarY())
+	
+	// Also update search line widget
+	e.searchLine.SetWidth(width)
+	e.searchLine.SetPosition(0, e.getStatusBarY())
 }
 
 // Close finalizes the screen and proxy client.
@@ -1570,6 +1724,11 @@ func (e *Editor) updateSyntaxHighlighting() {
 
 func (e *Editor) enterCommandModeCmd() error {
 	e.enterCommandMode()
+	return nil
+}
+
+func (e *Editor) enterSearchModeCmd() error {
+	e.enterSearchMode()
 	return nil
 }
 
