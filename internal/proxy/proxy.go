@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
-	"time"
 	"veda/internal/log"
 )
 
@@ -181,8 +180,6 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response JSONRPCResponse
@@ -246,8 +243,6 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response JSONRPCResponse
@@ -311,8 +306,6 @@ func (c *Client) GetFile(path string) (string, error) {
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -354,8 +347,6 @@ func (c *Client) StartLSPServer(language string) error {
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -397,8 +388,6 @@ func (c *Client) StopLSPServer(language string) error {
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -448,8 +437,6 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -558,8 +545,6 @@ func (c *Client) GetLSPMessages(language string) ([]interface{}, error) {
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -604,8 +589,6 @@ func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{},
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -663,8 +646,6 @@ func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 		return nil, fmt.Errorf("failed to flush request: %w", err)
 	}
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -747,8 +728,6 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 		return nil, fmt.Errorf("failed to flush request: %w", err)
 	}
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
@@ -825,8 +804,6 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(200 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		responseText := c.stdout.Text()
@@ -876,8 +853,6 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 	c.stdin.WriteString(string(requestBytes) + "\n")
 	c.stdin.Flush()
 
-	// Simulate remote proxy delay
-	time.Sleep(500 * time.Millisecond)
 
 	if c.stdout.Scan() {
 		var response struct {
