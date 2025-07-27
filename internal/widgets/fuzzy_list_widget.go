@@ -390,6 +390,49 @@ func (flw *FuzzyListWidget) MoveSelectionDown() {
 	}
 }
 
+// MoveSelectionPageUp moves the selection up by one page
+func (flw *FuzzyListWidget) MoveSelectionPageUp() {
+	pageSize := flw.getTopSectionHeight()
+	if pageSize <= 0 {
+		return
+	}
+	
+	// Move selection up by one page
+	flw.selectedIndex -= pageSize
+	if flw.selectedIndex < 0 {
+		flw.selectedIndex = 0
+	}
+	
+	// Adjust scroll to keep selection visible
+	if flw.selectedIndex < flw.topScroll {
+		flw.topScroll = flw.selectedIndex
+	}
+}
+
+// MoveSelectionPageDown moves the selection down by one page
+func (flw *FuzzyListWidget) MoveSelectionPageDown() {
+	pageSize := flw.getTopSectionHeight()
+	if pageSize <= 0 {
+		return
+	}
+	
+	// Move selection down by one page
+	flw.selectedIndex += pageSize
+	maxIndex := len(flw.topLines) - 1
+	if flw.selectedIndex > maxIndex {
+		flw.selectedIndex = maxIndex
+	}
+	if flw.selectedIndex < 0 {
+		flw.selectedIndex = 0
+	}
+	
+	// Adjust scroll to keep selection visible
+	topHeight := flw.getTopSectionHeight()
+	if flw.selectedIndex >= flw.topScroll+topHeight {
+		flw.topScroll = flw.selectedIndex - topHeight + 1
+	}
+}
+
 // GetSelectedIndex returns the currently selected index
 func (flw *FuzzyListWidget) GetSelectedIndex() int {
 	return flw.selectedIndex
@@ -497,6 +540,10 @@ func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender fu
 				flw.MoveSelectionUp()
 			case events.KeyDown:
 				flw.MoveSelectionDown()
+			case events.KeyPgUp:
+				flw.MoveSelectionPageUp()
+			case events.KeyPgDn:
+				flw.MoveSelectionPageDown()
 			case events.KeyEnter:
 				// Return the raw (undecorated) selected item
 				if flw.selectedIndex >= 0 && flw.selectedIndex < len(flw.topIndices) {
