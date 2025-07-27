@@ -24,12 +24,19 @@ func (e *Editor) showFuzzyListWidget() {
 	fuzzyListWidget.SetTitle("Open File")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 
-	// Get recursive directory listing from proxy
-	files, err := e.proxyClient.ListDirectoryRecursive(".")
+	// Get recursive directory listing from proxy, relative to working directory
+	files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
 	if err != nil {
 		fuzzyListWidget.SetContent([]string{"Error: " + err.Error()})
 	} else {
 		var paths []string
+		// Extract the base path for making relative paths
+		_, basePath, isRemote := parsePathComponents(e.workingDirectory)
+		if !isRemote {
+			basePath = e.workingDirectory
+		}
+		LL.Debug("File browser: workingDirectory=%s, basePath=%s, isRemote=%v", e.workingDirectory, basePath, isRemote)
+
 		for _, file := range files {
 			// Filter out hidden files and directories (starting with .)
 			// Check if any component of the path starts with .
@@ -50,7 +57,29 @@ func (e *Editor) showFuzzyListWidget() {
 				continue
 			}
 
-			paths = append(paths, file.Path)
+			// For remote paths, we need to handle the fact that the proxy might have expanded ~/
+			// So if basePath is "~/", we should just use the basename of the file path
+			displayPath := file.Path
+
+			if basePath == "~/" || basePath == "~" {
+				// For home directory, just show paths relative to home
+				// The proxy returns absolute paths like /home/user/file.txt
+				// We want to show them as file.txt or subdir/file.txt
+				homePrefix := "/home/"
+				if idx := strings.Index(file.Path, homePrefix); idx >= 0 {
+					// Find the next slash after /home/username/
+					afterHome := file.Path[idx+len(homePrefix):]
+					if slashIdx := strings.Index(afterHome, "/"); slashIdx >= 0 {
+						displayPath = afterHome[slashIdx+1:]
+					}
+				}
+			} else if strings.HasPrefix(file.Path, basePath) {
+				// For other paths, make relative as before
+				displayPath = strings.TrimPrefix(file.Path, basePath)
+				displayPath = strings.TrimPrefix(displayPath, "/")
+			}
+
+			paths = append(paths, displayPath)
 		}
 		fuzzyListWidget.SetContent(paths)
 	}
@@ -80,28 +109,31 @@ func (e *Editor) OpenFile(filePath string) {
 
 // openFile loads a file's content into the editor buffer
 func (e *Editor) openFile(filePath string) {
+	// Resolve relative paths
+	resolvedPath := e.resolvePath(filePath)
+
 	// First save the current buffer state
 	e.saveCurrentBufferState()
 
 	// Check if this file is already open
-	if buf, exists := e.buffers[filePath]; exists {
+	if buf, exists := e.buffers[resolvedPath]; exists {
 		// Switch to existing buffer
 		e.switchToBuffer(buf)
 		return
 	}
 
 	// Read file content using proxy
-	content, err := e.proxyClient.GetFile(filePath)
+	content, err := e.proxyManager.GetFile(resolvedPath)
 	if err != nil {
 		// TODO: Show error to user
 		return
 	}
 
 	// Create a new buffer with the file content
-	newBuffer := buffer.NewBuffer(content, filePath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+	newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 
 	// Add to buffers map and order
-	e.buffers[filePath] = newBuffer
+	e.buffers[resolvedPath] = newBuffer
 
 	// If this is replacing the empty buffer AND it's still empty, remove it
 	// We should keep the unnamed buffer if the user has typed anything into it
@@ -121,7 +153,7 @@ func (e *Editor) openFile(filePath string) {
 	}
 
 	// Add new buffer to order
-	e.bufferOrder = append(e.bufferOrder, filePath)
+	e.bufferOrder = append(e.bufferOrder, resolvedPath)
 
 	// Switch to the new buffer
 	e.switchToBuffer(newBuffer)
@@ -130,7 +162,7 @@ func (e *Editor) openFile(filePath string) {
 	newBuffer.Indentation = e.detectIndentation()
 
 	// Request folding ranges from LSP worker thread
-	e.requestFoldingRanges(filePath)
+	e.requestFoldingRanges(resolvedPath)
 }
 
 // openFileCmd implements the open-file command

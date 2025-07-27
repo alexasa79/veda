@@ -30,7 +30,7 @@ type Editor struct {
 	mode            commands.Mode
 	commandLine     *widgets.CommandLineWidget
 	searchLine      *widgets.CommandLineWidget  // For search mode (/)
-	proxyClient     *proxy.Client
+	proxyManager    *proxy.ProxyManager
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
 	highlighter     *syntax.Highlighter
@@ -99,6 +99,12 @@ type Editor struct {
 	// Search state
 	searchPattern   string                  // Current search pattern
 	searchDirection bool                    // true = forward, false = backward
+	
+	// Working directory
+	workingDirectory string                 // Current working directory (can include HOST: prefix)
+	
+	// Ex-command support
+	lastCommandArgs  []string               // Arguments from the last ex-command
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -118,10 +124,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	searchLine := widgets.NewCommandLineWidget(0, statusBarY, width)
 	searchLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
 
-	// Start proxy client
-	proxyClient, err := proxy.NewClient()
+	// Start proxy manager
+	proxyManager, err := proxy.NewProxyManager()
 	if err != nil {
-		return nil, fmt.Errorf("failed to start proxy client: %v", err)
+		return nil, fmt.Errorf("failed to start proxy manager: %v", err)
 	}
 
 	// Create initial empty buffer
@@ -132,7 +138,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	lspResponseChan := make(chan lsp.LSPResponse, 10)
 
 	// Start LSP worker thread
-	lsp.StartLSPWorker(proxyClient, lspRequestChan, lspResponseChan)
+	lsp.StartLSPWorker(proxyManager, lspRequestChan, lspResponseChan)
 
 	editor := &Editor{
 		screen:          screen,
@@ -141,7 +147,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		mode:            commands.NormalMode,
 		commandLine:     commandLine,
 		searchLine:      searchLine,
-		proxyClient:     proxyClient,
+		proxyManager:    proxyManager,
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
 		highlighter:     syntax.NewHighlighter(),
@@ -156,6 +162,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
 		lspRequestChan:  lspRequestChan,
 		lspResponseChan: lspResponseChan,
+		workingDirectory: ".", // Default to current directory
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -520,20 +527,52 @@ func (e *Editor) executeCommand() {
 		return
 	}
 
-	// First try to execute from the command registry
-	if e.commandRegistry.Has(command) {
-		err := e.commandRegistry.Execute(command)
+	// Parse command and arguments
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return
+	}
+	cmd := parts[0]
+	args := parts[1:]
+	
+	// Store command arguments for handlers that need them
+	e.lastCommandArgs = args
+	
+	// Try to execute from the command registry
+	if e.commandRegistry.Has(cmd) {
+		err := e.commandRegistry.Execute(cmd)
 		if err != nil {
 			LL.Debug("Command execution failed: %v", err)
 		}
 		return
 	}
-
+	
 	// Handle basic commands that aren't in the registry
-	switch command {
+	switch cmd {
 	case "q", "quit":
 		e.Close()
 		os.Exit(0)
+	case "cd":
+		if len(args) == 0 {
+			// Show current directory
+			LL.Info("Current directory: %s", e.workingDirectory)
+		} else {
+			// Change directory
+			newPath := strings.Join(args, " ")
+			// Resolve relative paths
+			if !strings.HasPrefix(newPath, "/") && !strings.Contains(newPath, ":") {
+				newPath = e.resolvePath(newPath)
+			}
+			
+			// Try to list the directory to verify it exists
+			_, err := e.proxyManager.ListDirectory(newPath)
+			if err != nil {
+				LL.Error("Failed to change directory to %s: %v", newPath, err)
+			} else {
+				e.workingDirectory = newPath
+				LL.Info("Changed directory to: %s", e.workingDirectory)
+			}
+		}
 	}
 }
 
@@ -838,9 +877,100 @@ func (e *Editor) Close() {
 	}
 
 	e.screen.Fini()
-	if e.proxyClient != nil {
-		e.proxyClient.Close()
+	if e.proxyManager != nil {
+		e.proxyManager.Close()
 	}
+}
+
+// SetWorkingDirectory sets the editor's working directory
+// This handles both the initial argument and directory detection
+func (e *Editor) SetWorkingDirectory(path string) {
+	LL.Debug("SetWorkingDirectory called with: %s", path)
+	
+	// Check if the path is a directory by trying to list it
+	files, err := e.proxyManager.ListDirectory(path)
+	if err == nil && len(files) >= 0 {
+		// It's a directory (listing succeeded)
+		e.workingDirectory = path
+		LL.Info("Set working directory to: %s", e.workingDirectory)
+	} else {
+		LL.Debug("ListDirectory failed, assuming file path: %v", err)
+		// It might be a file path, extract the directory part
+		// For HOST:PATH format, we need to be careful
+		host, remotePath, isRemote := parsePathComponents(path)
+		if isRemote {
+			// For remote paths, extract directory
+			lastSlash := strings.LastIndex(remotePath, "/")
+			if lastSlash > 0 {
+				dirPath := remotePath[:lastSlash]
+				e.workingDirectory = host + ":" + dirPath
+			} else {
+				// Use the home directory or root
+				e.workingDirectory = host + ":~/"
+			}
+		} else {
+			// For local paths, extract directory
+			lastSlash := strings.LastIndex(path, "/")
+			if lastSlash > 0 {
+				e.workingDirectory = path[:lastSlash]
+			} else {
+				e.workingDirectory = "."
+			}
+		}
+		LL.Info("Inferred working directory: %s", e.workingDirectory)
+	}
+}
+
+// parsePathComponents is a helper to parse HOST:PATH format
+func parsePathComponents(path string) (string, string, bool) {
+	colonIdx := strings.Index(path, ":")
+	if colonIdx > 0 {
+		// Check if it's not a Windows drive letter
+		if colonIdx != 1 || (colonIdx == 1 && len(path) > 2 && path[2] != '/' && path[2] != '\\') {
+			host := path[:colonIdx]
+			remotePath := path[colonIdx+1:]
+			// Basic validation - host should not contain slashes
+			if !strings.Contains(host, "/") && !strings.Contains(host, "\\") {
+				return host, remotePath, true
+			}
+		}
+	}
+	return "", path, false
+}
+
+// resolvePath resolves a path relative to the working directory
+func (e *Editor) resolvePath(path string) string {
+	LL.Debug("resolvePath: input=%s, workingDirectory=%s", path, e.workingDirectory)
+	
+	// If path is already absolute or has HOST: prefix, return as is
+	if strings.HasPrefix(path, "/") || strings.Contains(path, ":") {
+		LL.Debug("resolvePath: path is absolute or has HOST:, returning as is")
+		return path
+	}
+	
+	// If path is relative, prepend working directory
+	if e.workingDirectory == "." {
+		return path
+	}
+	
+	// Handle working directory with HOST: prefix
+	if strings.Contains(e.workingDirectory, ":") {
+		// For remote working directory, just append the path
+		var result string
+		if strings.HasSuffix(e.workingDirectory, "/") {
+			result = e.workingDirectory + path
+		} else {
+			result = e.workingDirectory + "/" + path
+		}
+		LL.Debug("resolvePath: remote working directory, result=%s", result)
+		return result
+	}
+	
+	// For local working directory
+	if strings.HasSuffix(e.workingDirectory, "/") {
+		return e.workingDirectory + path
+	}
+	return e.workingDirectory + "/" + path
 }
 
 // visualWidth calculates the visual width of a string accounting for tabs
@@ -1861,7 +1991,7 @@ func (e *Editor) showLSPBufferGo() error {
 	e.saveCurrentBufferState()
 
 	// Get LSP messages for Go
-	messages, err := e.proxyClient.GetLSPMessages("go")
+	messages, err := e.proxyManager.GetLSPMessages("go")
 	if err != nil {
 		LL.Debug("Failed to get LSP messages: %v", err)
 		return err
@@ -1927,7 +2057,7 @@ func (e *Editor) goToDefinition() error {
 	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
 
 	// Get definition location from LSP
-	locations, err := e.proxyClient.GoToDefinition(e.buffer.FilePath, line, character)
+	locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
 	if err != nil {
 		// TODO: Show error to user
 		LL.Debug("goToDefinition failed: %v", err)

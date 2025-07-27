@@ -1,9 +1,81 @@
 package proxy
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestProxyManager(t *testing.T) {
+	// Test that ProxyManager can be created with local proxy
+	pm, err := NewProxyManager()
+	if err != nil {
+		t.Fatalf("Failed to create ProxyManager: %v", err)
+	}
+	defer pm.Close()
+	
+	// Test local file access
+	t.Run("LocalFile", func(t *testing.T) {
+		// Try to read a known file (this test file)
+		content, err := pm.GetFile("proxy_test.go")
+		if err != nil {
+			t.Errorf("Failed to read local file: %v", err)
+		}
+		if !strings.Contains(content, "TestProxyManager") {
+			t.Error("File content doesn't contain expected text")
+		}
+	})
+	
+	// Test remote path detection (should fail with "not yet implemented")
+	t.Run("RemotePath", func(t *testing.T) {
+		_, err := pm.GetFile("testhost:/tmp/test.txt")
+		if err == nil {
+			t.Error("Expected error for remote path, got nil")
+		}
+		// For now, we expect it to fail with remote proxy creation error
+		if !strings.Contains(err.Error(), "failed to create remote proxy") {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+}
+
+func TestParseRemotePath(t *testing.T) {
+	tests := []struct {
+		input      string
+		wantHost   string
+		wantPath   string
+		wantRemote bool
+	}{
+		// Remote paths
+		{"host:/path/to/file", "host", "/path/to/file", true},
+		{"server:file.txt", "server", "file.txt", true},
+		{"remote.host:~/documents/test.go", "remote.host", "~/documents/test.go", true},
+		
+		// Local paths
+		{"/home/user/file.txt", "", "/home/user/file.txt", false},
+		{"./file.txt", "", "./file.txt", false},
+		{"file.txt", "", "file.txt", false},
+		
+		// Windows-style paths (should be local)
+		{"C:/Windows/System32", "", "C:/Windows/System32", false},
+		{"D:\\Documents\\file.txt", "", "D:\\Documents\\file.txt", false},
+		
+		// Edge cases
+		{"host/with/slash:path", "", "host/with/slash:path", false}, // Invalid host
+		{":nohost", "", ":nohost", false}, // No host part
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			gotHost, gotPath, gotRemote := parseRemotePath(tt.input)
+			if gotHost != tt.wantHost || gotPath != tt.wantPath || gotRemote != tt.wantRemote {
+				t.Errorf("parseRemotePath(%q) = (%q, %q, %v), want (%q, %q, %v)",
+					tt.input, gotHost, gotPath, gotRemote,
+					tt.wantHost, tt.wantPath, tt.wantRemote)
+			}
+		})
+	}
+}
 
 func TestProxyBasic(t *testing.T) {
 	// Basic test to ensure proxy starts correctly

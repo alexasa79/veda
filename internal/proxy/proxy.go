@@ -7,11 +7,276 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"veda/internal/log"
 )
 
 var LL *log.Logger = log.NewLogger("PROXY")
+
+// maxScanTokenSize defines the maximum size for scanner buffers (1 GiB)
+const maxScanTokenSize = 1024 * 1024 * 1024 // 1 GiB
+
+// ProxyManager manages multiple proxy instances for different hosts
+type ProxyManager struct {
+	clients map[string]*Client // key is hostname, empty string for local
+}
+
+// NewProxyManager creates a new proxy manager
+func NewProxyManager() (*ProxyManager, error) {
+	pm := &ProxyManager{
+		clients: make(map[string]*Client),
+	}
+	
+	// Start local proxy
+	localClient, err := NewClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start local proxy: %w", err)
+	}
+	pm.clients[""] = localClient
+	
+	return pm, nil
+}
+
+// getClient returns the appropriate client for the given path
+func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
+	host, actualPath, isRemote := parseRemotePath(path)
+	
+	LL.Debug("getClient: path=%s, host=%s, actualPath=%s, isRemote=%v", path, host, actualPath, isRemote)
+	
+	if !isRemote {
+		return pm.clients[""], path, nil
+	}
+	
+	// Check if we already have a client for this host
+	if client, exists := pm.clients[host]; exists {
+		return client, actualPath, nil
+	}
+	
+	// Create a new remote proxy for this host
+	client, err := pm.createRemoteClient(host)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create remote proxy for %s: %w", host, err)
+	}
+	
+	pm.clients[host] = client
+	return client, actualPath, nil
+}
+
+// createRemoteClient creates a new proxy client connected to a remote host
+func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
+	LL.Info("Creating remote proxy connection to %s", host)
+	
+	// First, copy the proxy script to the remote host
+	if err := copyProxyToRemote(host); err != nil {
+		return nil, fmt.Errorf("failed to copy proxy to remote: %w", err)
+	}
+	
+	// Start SSH connection and run the proxy
+	sshArgs := []string{
+		host,
+		"-o", "ControlMaster=no",
+		"-o", "ControlPath=none",
+		"python3", "/tmp/veda-proxy.py",
+	}
+	
+	cmd := exec.Command("ssh", sshArgs...)
+	
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	
+	// Log any stderr output from SSH/proxy
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			LL.Debug("Remote proxy stderr [%s]: %s", host, line)
+			fmt.Fprintf(os.Stderr, "REMOTE PROXY STDERR [%s]: %s\n", host, line)
+		}
+	}()
+	
+	stdin := bufio.NewWriter(stdinPipe)
+	stdout := bufio.NewScanner(stdoutPipe)
+	
+	// Increase scanner buffer size to handle large responses
+	buf := make([]byte, 0, maxScanTokenSize)
+	stdout.Buffer(buf, maxScanTokenSize)
+	
+	return &Client{
+		cmd:       cmd,
+		stdin:     stdin,
+		stdout:    stdout,
+		requestID: 0,
+	}, nil
+}
+
+// copyProxyToRemote copies the embedded proxy script to the remote host
+func copyProxyToRemote(host string) error {
+	// Create a temporary file with the proxy script
+	tmpFile, err := os.CreateTemp("", "veda-proxy-*.py")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpFile.Name())
+	
+	// Write the embedded proxy script to the temp file
+	if _, err := tmpFile.Write([]byte(embeddedProxy)); err != nil {
+		tmpFile.Close()
+		return err
+	}
+	tmpFile.Close()
+	
+	// Use scp to copy the file to remote /tmp/
+	scpCmd := exec.Command("scp", 
+		"-o", "ControlMaster=no",
+		"-o", "ControlPath=none",
+		tmpFile.Name(), 
+		fmt.Sprintf("%s:/tmp/veda-proxy.py", host))
+	
+	// Capture output for debugging
+	output, err := scpCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("scp failed: %w, output: %s", err, output)
+	}
+	
+	// Make the script executable on the remote host
+	chmodCmd := exec.Command("ssh",
+		host,
+		"-o", "ControlMaster=no", 
+		"-o", "ControlPath=none",
+		"chmod", "+x", "/tmp/veda-proxy.py")
+	
+	output, err = chmodCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("chmod failed: %w, output: %s", err, output)
+	}
+	
+	LL.Debug("Successfully copied proxy script to %s:/tmp/veda-proxy.py", host)
+	return nil
+}
+
+// Close shuts down all proxy instances
+func (pm *ProxyManager) Close() error {
+	var lastErr error
+	for host, client := range pm.clients {
+		if err := client.Close(); err != nil {
+			LL.Error("Failed to close proxy for host %s: %v", host, err)
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
+// GetFile reads the contents of a file (supports HOST:PATH format)
+func (pm *ProxyManager) GetFile(path string) (string, error) {
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return "", err
+	}
+	
+	LL.Debug("ProxyManager.GetFile: path=%s, actualPath=%s", path, actualPath)
+	
+	// Call the original GetFile with the actual path (without HOST: prefix)
+	return client.GetFile(actualPath)
+}
+
+// ListDirectory lists directory contents (supports HOST:PATH format)
+func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.ListDirectory(actualPath)
+}
+
+// ListDirectoryRecursive lists directory contents recursively (supports HOST:PATH format)
+func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) {
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.ListDirectoryRecursive(actualPath)
+}
+
+// GoToDefinition gets the definition location for a symbol (supports HOST:PATH format)
+func (pm *ProxyManager) GoToDefinition(filePath string, line int, character int) ([]Location, error) {
+	client, actualPath, err := pm.getClient(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.GoToDefinition(actualPath, line, character)
+}
+
+// GetDocumentSymbols gets document symbols for a file (supports HOST:PATH format)
+func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
+	client, actualPath, err := pm.getClient(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.GetDocumentSymbols(actualPath)
+}
+
+// GetLSPMessages gets LSP messages for a language
+// Note: This doesn't use file paths, so it uses the local proxy
+func (pm *ProxyManager) GetLSPMessages(language string) ([]interface{}, error) {
+	client := pm.clients[""] // Always use local proxy for LSP messages
+	if client == nil {
+		return nil, fmt.Errorf("local proxy not initialized")
+	}
+	
+	return client.GetLSPMessages(language)
+}
+
+// GetFoldingRanges gets folding ranges for a file (supports HOST:PATH format)
+func (pm *ProxyManager) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
+	client, actualPath, err := pm.getClient(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.GetFoldingRanges(actualPath)
+}
+
+// GetSignatureHelp gets signature help for a function (supports HOST:PATH format)
+func (pm *ProxyManager) GetSignatureHelp(filePath string, line int, character int) (interface{}, error) {
+	client, actualPath, err := pm.getClient(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.GetSignatureHelp(actualPath, line, character)
+}
+
+// ListProjectSymbols gets all symbols across the project
+// Note: This uses the local proxy for now, could be extended for remote projects
+func (pm *ProxyManager) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
+	client := pm.clients[""] // Use local proxy for project symbols
+	if client == nil {
+		return nil, fmt.Errorf("local proxy not initialized")
+	}
+	
+	return client.ListProjectSymbols(query)
+}
 
 //go:embed veda-proxy.py
 var embeddedProxy string
@@ -150,8 +415,6 @@ func NewClient() (*Client, error) {
 	stdout := bufio.NewScanner(stdoutPipe)
 
 	// Increase scanner buffer size to handle large responses
-	// Default is 64KB, we'll set it to 1MB
-	const maxScanTokenSize = 1024 * 1024 // 1MB
 	buf := make([]byte, 0, maxScanTokenSize)
 	stdout.Buffer(buf, maxScanTokenSize)
 
@@ -290,8 +553,30 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 	return nil, fmt.Errorf("failed to read proxy response: no data received")
 }
 
+// parseRemotePath parses a path and returns (host, path, isRemote)
+// Examples: "host:path/to/file" -> ("host", "path/to/file", true)
+//           "/local/path" -> ("", "/local/path", false)
+func parseRemotePath(path string) (string, string, bool) {
+	// Check if path contains a colon that's not part of a Windows drive (C:)
+	colonIdx := strings.Index(path, ":")
+	if colonIdx > 0 {
+		// Check if it's not a Windows drive letter
+		if colonIdx != 1 || (colonIdx == 1 && len(path) > 2 && path[2] != '/' && path[2] != '\\') {
+			host := path[:colonIdx]
+			remotePath := path[colonIdx+1:]
+			// Basic validation - host should not contain slashes
+			if !strings.Contains(host, "/") && !strings.Contains(host, "\\") {
+				return host, remotePath, true
+			}
+		}
+	}
+	return "", path, false
+}
+
 // GetFile reads the contents of a file
 func (c *Client) GetFile(path string) (string, error) {
+	LL.Debug("Client.GetFile: path=%s", path)
+	
 	request := JSONRPCRequest{
 		Method: "get_file",
 		Params: map[string]interface{}{"path": path},

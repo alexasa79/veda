@@ -52,14 +52,14 @@ type LSPResponse struct {
 }
 
 // lspWorker is the main function that runs in the LSP worker thread
-func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseChan chan LSPResponse) {
+func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, responseChan chan LSPResponse) {
 	LL.Debug("LSP worker thread started")
 	for request := range requestChan {
 		LL.Trace("Processing LSP request: type=%d, filePath=%s", request.Type, request.FilePath)
 
 		switch request.Type {
 		case RequestFoldingRanges:
-			ranges, err := proxyClient.GetFoldingRanges(request.FilePath)
+			ranges, err := proxyManager.GetFoldingRanges(request.FilePath)
 			response := LSPResponse{
 				Type:          RequestFoldingRanges,
 				FilePath:      request.FilePath,
@@ -78,7 +78,7 @@ func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseC
 			responseChan <- response
 
 		case RequestSignatureHelp:
-			sigHelp, err := proxyClient.GetSignatureHelp(request.FilePath, request.Line, request.Character)
+			sigHelp, err := proxyManager.GetSignatureHelp(request.FilePath, request.Line, request.Character)
 			response := LSPResponse{
 				Type:          RequestSignatureHelp,
 				FilePath:      request.FilePath,
@@ -97,7 +97,7 @@ func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseC
 			responseChan <- response
 
 		case RequestProjectSymbols:
-			symbols, err := proxyClient.ListProjectSymbols(request.Query)
+			symbols, err := proxyManager.ListProjectSymbols(request.Query)
 			response := LSPResponse{
 				Type:           RequestProjectSymbols,
 				FilePath:       request.FilePath,
@@ -133,7 +133,7 @@ func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseC
 			}
 
 		case RequestDocumentSymbols:
-			symbols, err := proxyClient.GetDocumentSymbols(request.FilePath)
+			symbols, err := proxyManager.GetDocumentSymbols(request.FilePath)
 			response := LSPResponse{
 				Type:            RequestDocumentSymbols,
 				FilePath:        request.FilePath,
@@ -175,6 +175,6 @@ func lspWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseC
 }
 
 // StartLSPWorker starts the LSP worker thread that handles all LSP communication
-func StartLSPWorker(proxyClient *proxy.Client, requestChan chan LSPRequest, responseChan chan LSPResponse) {
-	go lspWorker(proxyClient, requestChan, responseChan)
+func StartLSPWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, responseChan chan LSPResponse) {
+	go lspWorker(proxyManager, requestChan, responseChan)
 }

@@ -737,10 +737,22 @@ class VedaProxy:
             
         entries = []
         
+        # Directories to skip for performance and relevance
+        skip_dirs = {
+            '.git', 'node_modules', '.cache', '.local', '.npm', '.cargo',
+            'target', 'dist', 'build', '__pycache__', '.venv', 'venv',
+            '.mypy_cache', '.pytest_cache', '.tox', 'coverage', '.coverage'
+        }
+        
         def _walk_directory(current_path: Path):
+                
             try:
                 for entry in current_path.iterdir():
                     try:
+                        # Skip certain directories
+                        if entry.is_dir() and entry.name in skip_dirs:
+                            continue
+                            
                         # Create simplified file info for fuzzy listing
                         file_info = {
                             'name': entry.name,

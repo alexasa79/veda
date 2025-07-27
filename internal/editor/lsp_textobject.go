@@ -98,23 +98,23 @@ func (b BlockTextObject) GetType() string {
 // ArgumentTextObject represents a function argument
 type ArgumentTextObject struct {
 	modifier TextObjectModifier
-	proxyClient *proxy.Client
+	proxyManager *proxy.ProxyManager
 }
 
-func NewArgumentTextObject(modifier TextObjectModifier, proxyClient *proxy.Client) *ArgumentTextObject {
+func NewArgumentTextObject(modifier TextObjectModifier, proxyManager *proxy.ProxyManager) *ArgumentTextObject {
 	return &ArgumentTextObject{
 		modifier: modifier,
-		proxyClient: proxyClient,
+		proxyManager: proxyManager,
 	}
 }
 
 func (a ArgumentTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	if a.proxyClient == nil || buf.FilePath == "" {
+	if a.proxyManager == nil || buf.FilePath == "" {
 		return 0, 0, 0, 0, false
 	}
 	
 	// Get document symbols to find the enclosing function
-	symbols, err := a.proxyClient.GetDocumentSymbols(buf.FilePath)
+	symbols, err := a.proxyManager.GetDocumentSymbols(buf.FilePath)
 	if err != nil {
 		return 0, 0, 0, 0, false
 	}
@@ -168,23 +168,23 @@ func (a ArgumentTextObject) GetType() string {
 // FunctionTextObject represents an entire function
 type FunctionTextObject struct {
 	modifier TextObjectModifier
-	proxyClient *proxy.Client
+	proxyManager *proxy.ProxyManager
 }
 
-func NewFunctionTextObject(modifier TextObjectModifier, proxyClient *proxy.Client) *FunctionTextObject {
+func NewFunctionTextObject(modifier TextObjectModifier, proxyManager *proxy.ProxyManager) *FunctionTextObject {
 	return &FunctionTextObject{
 		modifier: modifier,
-		proxyClient: proxyClient,
+		proxyManager: proxyManager,
 	}
 }
 
 func (f FunctionTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	if f.proxyClient == nil || buf.FilePath == "" {
+	if f.proxyManager == nil || buf.FilePath == "" {
 		return 0, 0, 0, 0, false
 	}
 	
 	// Get document symbols
-	symbols, err := f.proxyClient.GetDocumentSymbols(buf.FilePath)
+	symbols, err := f.proxyManager.GetDocumentSymbols(buf.FilePath)
 	if err != nil {
 		return 0, 0, 0, 0, false
 	}
