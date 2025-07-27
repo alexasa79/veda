@@ -250,4 +250,214 @@ func TestRepeatLastChange(t *testing.T) {
 			t.Fatalf("ViewIterator generation mismatch after repeat: iterator has %d, buffer has %d", viewGen, bufGen)
 		}
 	})
+	
+	t.Run("repeat dw with undo inserts correct text", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "apple banana cherry")
+		
+		// Delete "apple "
+		te.TypeKeys("dw")
+		AssertBufferEquals(t, te, "banana cherry")
+		
+		// Repeat to delete "banana "
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "cherry")
+		
+		// Undo should restore "banana ", not "apple "
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, "banana cherry")
+		
+		// Another undo should restore "apple "
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, "apple banana cherry")
+	})
+	
+	t.Run("repeat same text object type", func(t *testing.T) {
+		// Our implementation repeats the exact same text object, not a smart contextual one
+		te := NewTestEditorWithContent(80, 24, "func test() { return 42 } and { more }")
+		
+		// Move to inside the first braces
+		for i := 0; i < 14; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Delete inside braces
+		te.TypeKeys("di{")
+		AssertBufferEquals(t, te, "func test() {} and { more }")
+		
+		// Move to inside second braces
+		te.ExecuteCommand("end-of-line")
+		for i := 0; i < 3; i++ {
+			te.ExecuteCommand("left")
+		}
+		
+		// Repeat should delete inside the second braces
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "func test() {} and {}")
+	})
+	
+	t.Run("repeat diw on different words", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello world foo bar")
+		
+		// Move to middle of "hello"
+		te.ExecuteCommand("right")
+		te.ExecuteCommand("right")
+		
+		// Delete inside word (just "hello", not the space)
+		te.TypeKeys("diw")
+		AssertBufferEquals(t, te, " world foo bar")
+		AssertCursorAt(t, te, 0, 0) // Cursor at space
+		
+		// Move to middle of "world"
+		for i := 0; i < 3; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Repeat should delete "world"
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "  foo bar")
+		
+		// Undo should restore "world"
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, " world foo bar")
+	})
+	
+	t.Run("repeat dd line deletion", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "line1\nline2\nline3\nline4")
+		
+		// Delete first line
+		te.TypeKeys("dd")
+		AssertBufferEquals(t, te, "line2\nline3\nline4")
+		
+		// Move to line3
+		te.ExecuteCommand("down")
+		
+		// Repeat should delete current line (line3)
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "line2\nline4")
+		
+		// Undo should restore line3
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, "line2\nline3\nline4")
+		
+		// Another undo should restore line1
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, "line1\nline2\nline3\nline4")
+	})
+	
+	t.Run("repeat dW on WORDS", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "func(arg1, arg2) result")
+		
+		// Delete first WORD - dW deletes from cursor to end of WORD
+		te.TypeKeys("dW")
+		AssertBufferEquals(t, te, " arg2) result")
+		AssertCursorAt(t, te, 0, 0) // Cursor at space
+		
+		// Repeat on whitespace should delete the space
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "arg2) result")
+		AssertCursorAt(t, te, 0, 0) // Cursor at 'a'
+		
+		// Another repeat to delete "arg2)"
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, " result")
+		
+		// Undo all
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, "arg2) result")
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, " arg2) result")
+		te.ExecuteCommand("undo") 
+		AssertBufferEquals(t, te, "func(arg1, arg2) result")
+	})
+	
+	t.Run("repeat daw includes surrounding whitespace", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "one two three four")
+		
+		// Move to "two"
+		for i := 0; i < 4; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Delete around word (includes trailing space)
+		te.TypeKeys("daw")
+		AssertBufferEquals(t, te, "one three four")
+		
+		// Move to "three"
+		for i := 0; i < 4; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Repeat
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "one four")
+		
+		// Undo should restore "three "
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, "one three four")
+	})
+	
+	t.Run("delete character command", func(t *testing.T) {
+		// First test delete-character on its own
+		te := NewTestEditorWithContent(80, 24, "world test")
+		
+		// Delete character at cursor (should delete 'w')
+		te.ExecuteCommand("delete-current-character")
+		AssertBufferEquals(t, te, "orld test")
+		AssertCursorAt(t, te, 0, 0) // Cursor should stay at position 0, now on 'o'
+		
+		// Delete another character (should delete 'o')
+		te.ExecuteCommand("delete-current-character")
+		AssertBufferEquals(t, te, "rld test")
+		AssertCursorAt(t, te, 0, 0) // Cursor still at 0, now on 'r'
+	})
+	
+	t.Run("repeat clears operator command", func(t *testing.T) {
+		// This test verifies that non-operator commands clear the lastCommand
+		te := NewTestEditorWithContent(80, 24, "abc def ghi")
+		
+		// Do an operator command (delete word)
+		te.TypeKeys("dw")
+		AssertBufferEquals(t, te, "def ghi")
+		
+		// Verify lastCommand is set
+		if te.lastCommand == nil {
+			t.Fatal("lastCommand should be set after dw")
+		}
+		
+		// Do a non-operator command (insert mode and add text)
+		te.ExecuteCommand("enter-insert-mode")
+		te.InsertChar('X')
+		te.ExecuteCommand("exit-insert-mode")
+		AssertBufferEquals(t, te, "Xdef ghi")
+		
+		// Verify lastCommand is cleared
+		if te.lastCommand != nil {
+			t.Fatal("lastCommand should be nil after insert mode")
+		}
+		
+		// Move cursor and repeat - should repeat the insert, not the dw
+		te.ExecuteCommand("right")
+		te.ExecuteCommand("right")
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "XdXef ghi")
+	})
+	
+	t.Run("repeat operator on different lines", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "word1 extra\nword2 stuff\nword3 things")
+		
+		// Delete first word
+		te.TypeKeys("dw")
+		AssertBufferEquals(t, te, "extra\nword2 stuff\nword3 things")
+		
+		// Move to word2
+		te.ExecuteCommand("down")
+		
+		// Repeat should delete "word2 "
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "extra\nstuff\nword3 things")
+		
+		// Undo
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, "extra\nword2 stuff\nword3 things")
+	})
 }

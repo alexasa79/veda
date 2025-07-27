@@ -56,7 +56,39 @@ type Editor struct {
 	lspResponseChan chan lsp.LSPResponse    // Channel for LSP responses
 	
 	// Repeat last change
+	// We need two separate fields to handle vim's "." (repeat) command correctly:
+	//
+	// lastChange (buffer.HistoryEntry):
+	//   - Stores the actual text modification that was made (e.g., inserted "hello", deleted "world")
+	//   - Used for simple operations where repeat means "do the exact same text change"
+	//   - Examples: inserting text, deleting a character, joining lines
+	//   - When repeated, replays the exact same text modification at the cursor position
+	//
+	// lastCommand (*RepeatableCommand):
+	//   - Stores the operator+text object combination (e.g., delete + word)
+	//   - Used for complex operations that need to be re-evaluated at the new cursor position
+	//   - Examples: dw (delete word), di{ (delete inside braces), daw (delete around word)
+	//   - When repeated, finds the text object at the NEW cursor position and applies the operator
+	//
+	// Why we can't use just one field:
+	// 1. Different repeat semantics:
+	//    - "dw" on "apple banana" deletes "apple "
+	//    - Move cursor to "banana" and press "." 
+	//    - Should delete "banana ", NOT try to delete "apple " again
+	//
+	// 2. Context requirements:
+	//    - HistoryEntry only has access to the buffer
+	//    - Operator commands need the full Editor context (for scrolling, syntax highlighting, etc.)
+	//
+	// 3. Lifecycle differences:
+	//    - lastChange is set by ALL text modifications (for undo/redo)
+	//    - lastCommand is ONLY set by operator+text object commands
+	//    - Non-operator commands clear lastCommand but set lastChange
+	//
+	// The repeat command checks lastCommand first, then falls back to lastChange,
+	// providing the correct vim-like behavior for all command types.
 	lastChange      buffer.HistoryEntry     // Last text modification for repeat command
+	lastCommand     *RepeatableCommand      // Last operator+text object command for repeat
 	
 	// Pending operation for multi-key commands
 	pendingOperator Operator                // Current operator waiting for text object
@@ -747,6 +779,12 @@ func (e *Editor) enterInsertMode() error {
 	return nil
 }
 
+// setLastChange sets the last change and clears any lastCommand
+func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
+	e.lastChange = entry
+	e.lastCommand = nil // Clear operator+text object command
+}
+
 func (e *Editor) exitInsertMode() error {
 	e.mode = commands.NormalMode
 	
@@ -759,7 +797,7 @@ func (e *Editor) exitInsertMode() error {
 	// Finalize insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		if compositeEntry := e.buffer.History.EndInsertSession(); compositeEntry != nil {
-			e.lastChange = compositeEntry
+			e.setLastChange(compositeEntry)
 		}
 	}
 	return nil
@@ -854,6 +892,13 @@ func (e *Editor) redo() error {
 
 // repeatLastChange repeats the last text modification at the current cursor position
 func (e *Editor) repeatLastChange() error {
+	// First check if we have a repeatable command (operator + text object)
+	if e.lastCommand != nil {
+		// Repeat the operator+text object combination
+		return e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject)
+	}
+	
+	// Otherwise fall back to repeating the last change
 	if e.lastChange == nil {
 		return nil // Nothing to repeat
 	}
@@ -1006,7 +1051,7 @@ func (e *Editor) openLineBelow() error {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
 		} else if executed != nil {
-			e.lastChange = executed
+			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -1065,7 +1110,7 @@ func (e *Editor) openLineAbove() error {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
 		} else if executed != nil {
-			e.lastChange = executed
+			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -1088,7 +1133,7 @@ func (e *Editor) openLineAbove() error {
 			if executed, err := e.buffer.History.Execute(e.buffer, indentEntry); err != nil {
 				return err
 			} else if executed != nil {
-				e.lastChange = executed
+				e.setLastChange(executed)
 			}
 		} else {
 			// Fallback if history is not initialized
@@ -1139,7 +1184,7 @@ func (e *Editor) insertChar(ch rune) error {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
 		} else if executed != nil {
-			e.lastChange = executed
+			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -1211,7 +1256,7 @@ func (e *Editor) insertNewline() error {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
 		} else if executed != nil {
-			e.lastChange = executed
+			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -1266,7 +1311,7 @@ func (e *Editor) backspace() error {
 				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 					return err
 				} else if executed != nil {
-					e.lastChange = executed
+					e.setLastChange(executed)
 				}
 			} else {
 				// Fallback if history is not initialized
@@ -1299,7 +1344,7 @@ func (e *Editor) backspace() error {
 				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 					return err
 				} else if executed != nil {
-					e.lastChange = executed
+					e.setLastChange(executed)
 				}
 			} else {
 				// Fallback if history is not initialized
@@ -1351,7 +1396,7 @@ func (e *Editor) deleteCurrentCharacter() error {
 				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 					return err
 				} else if executed != nil {
-					e.lastChange = executed
+					e.setLastChange(executed)
 				}
 			} else {
 				// Fallback if history is not initialized
@@ -1387,7 +1432,7 @@ func (e *Editor) deleteCurrentCharacter() error {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
 			return err
 		} else if executed != nil {
-			e.lastChange = executed
+			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized

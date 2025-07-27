@@ -86,6 +86,12 @@ func (e *Editor) executeOperatorWithTextObject(op Operator, textObj TextObject) 
 		return nil
 	}
 	
+	// Store the operator+text object combination for repeat
+	e.lastCommand = &RepeatableCommand{
+		Operator:   op,
+		TextObject: textObj,
+	}
+	
 	// Get current cursor position
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 	cursorChar := e.buffer.CursorX

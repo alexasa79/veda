@@ -5,6 +5,12 @@ import (
 	"veda/internal/commands"
 )
 
+// RepeatableCommand stores an operator and text object combination that can be repeated
+type RepeatableCommand struct {
+	Operator   Operator
+	TextObject TextObject
+}
+
 // Operator represents an action that can be performed on a text object
 type Operator interface {
 	// Execute performs the operation on the given range
@@ -72,7 +78,8 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 		if executed, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
 			return err
 		} else if executed != nil {
-			editor.lastChange = executed
+			// Don't set lastChange here - it's handled by executeOperatorWithTextObject
+			// which sets lastCommand instead
 		}
 	} else {
 		if err := entry.Execute(editor.buffer); err != nil {
