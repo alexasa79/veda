@@ -42,6 +42,8 @@ func (e *Editor) registerCommands() {
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd)
 	e.commandRegistry.Register("quit", e.quit)
+	e.commandRegistry.Register("q", e.quit)  // Alias for quit
+	e.commandRegistry.Register("cd", e.changeDirectory)
 
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition)

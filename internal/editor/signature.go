@@ -54,7 +54,7 @@ func (e *Editor) requestSignatureHelpAsync() {
 }
 
 // showSignature initiates signature help display
-func (e *Editor) showSignature() error {
+func (e *Editor) showSignature(args []string) error {
 	// Increment generation for this new request
 	e.buffer.SignatureGeneration++
 	

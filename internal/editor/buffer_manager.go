@@ -31,7 +31,7 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 }
 
 // showBuffers shows the buffer list using the fuzzy list widget
-func (e *Editor) showBuffers() error {
+func (e *Editor) showBuffers(args []string) error {
 	if len(e.buffers) == 0 {
 		return nil
 	}

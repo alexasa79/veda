@@ -13,7 +13,7 @@ func TestShowSignature(t *testing.T) {
 	te.buffer.FilePath = "test.go"
 	
 	// Execute show-signature command
-	err := te.showSignature()
+	err := te.showSignature(nil)
 	if err != nil {
 		t.Errorf("showSignature() returned error: %v", err)
 	}

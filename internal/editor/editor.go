@@ -269,7 +269,7 @@ func (e *Editor) Run() {
 						t0 = e.perfTracker.ReportSince("handlePendingOperation", t0)
 					} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 						LL.Debug("Found command: %s", command)
-						err := e.commandRegistry.Execute(command)
+						err := e.commandRegistry.Execute(command, nil)
 						t0 = e.perfTracker.ReportSince("command:"+command, t0)
 
 						if err != nil {
@@ -540,39 +540,11 @@ func (e *Editor) executeCommand() {
 	
 	// Try to execute from the command registry
 	if e.commandRegistry.Has(cmd) {
-		err := e.commandRegistry.Execute(cmd)
+		err := e.commandRegistry.Execute(cmd, args)
 		if err != nil {
 			LL.Debug("Command execution failed: %v", err)
 		}
 		return
-	}
-	
-	// Handle basic commands that aren't in the registry
-	switch cmd {
-	case "q", "quit":
-		e.Close()
-		os.Exit(0)
-	case "cd":
-		if len(args) == 0 {
-			// Show current directory
-			LL.Info("Current directory: %s", e.workingDirectory)
-		} else {
-			// Change directory
-			newPath := strings.Join(args, " ")
-			// Resolve relative paths
-			if !strings.HasPrefix(newPath, "/") && !strings.Contains(newPath, ":") {
-				newPath = e.resolvePath(newPath)
-			}
-			
-			// Try to list the directory to verify it exists
-			_, err := e.proxyManager.ListDirectory(newPath)
-			if err != nil {
-				LL.Error("Failed to change directory to %s: %v", newPath, err)
-			} else {
-				e.workingDirectory = newPath
-				LL.Info("Changed directory to: %s", e.workingDirectory)
-			}
-		}
 	}
 }
 
@@ -788,13 +760,13 @@ func (e *Editor) findPrevious() {
 }
 
 // findNextCmd is the command handler for the 'n' key
-func (e *Editor) findNextCmd() error {
+func (e *Editor) findNextCmd(args []string) error {
 	e.findNext()
 	return nil
 }
 
 // findPreviousCmd is the command handler for the 'N' key
-func (e *Editor) findPreviousCmd() error {
+func (e *Editor) findPreviousCmd(args []string) error {
 	e.findPrevious()
 	return nil
 }
@@ -1012,9 +984,34 @@ func (e *Editor) updateCursorState() {
 	e.checkSignatureUpdate()
 }
 
-func (e *Editor) quit() error {
+func (e *Editor) quit(args []string) error {
 	e.Close()
 	os.Exit(0)
+	return nil
+}
+
+func (e *Editor) changeDirectory(args []string) error {
+	if len(args) == 0 {
+		// Show current directory
+		LL.Info("Current directory: %s", e.workingDirectory)
+	} else {
+		// Change directory
+		newPath := strings.Join(args, " ")
+		// Resolve relative paths
+		if !strings.HasPrefix(newPath, "/") && !strings.Contains(newPath, ":") {
+			newPath = e.resolvePath(newPath)
+		}
+		
+		// Try to list the directory to verify it exists
+		_, err := e.proxyManager.ListDirectory(newPath)
+		if err != nil {
+			LL.Error("Failed to change directory to %s: %v", newPath, err)
+			return err
+		} else {
+			e.workingDirectory = newPath
+			LL.Info("Changed directory to: %s", e.workingDirectory)
+		}
+	}
 	return nil
 }
 
@@ -1176,7 +1173,7 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 
 
 // Insert mode commands
-func (e *Editor) enterInsertMode() error {
+func (e *Editor) enterInsertMode(args []string) error {
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
@@ -1191,7 +1188,7 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 	e.lastCommand = nil // Clear operator+text object command
 }
 
-func (e *Editor) exitInsertMode() error {
+func (e *Editor) exitInsertMode(args []string) error {
 	e.mode = commands.NormalMode
 	
 	// Adjust cursor position for normal mode
@@ -1210,7 +1207,7 @@ func (e *Editor) exitInsertMode() error {
 }
 
 // Undo/Redo commands
-func (e *Editor) undo() error {
+func (e *Editor) undo(args []string) error {
 	if e.buffer == nil || e.buffer.History == nil {
 		return nil
 	}
@@ -1253,7 +1250,7 @@ func (e *Editor) undo() error {
 	return nil
 }
 
-func (e *Editor) redo() error {
+func (e *Editor) redo(args []string) error {
 	if e.buffer == nil || e.buffer.History == nil {
 		return nil
 	}
@@ -1297,7 +1294,7 @@ func (e *Editor) redo() error {
 }
 
 // repeatLastChange repeats the last text modification at the current cursor position
-func (e *Editor) repeatLastChange() error {
+func (e *Editor) repeatLastChange(args []string) error {
 	// First check if we have a repeatable command (operator + text object)
 	if e.lastCommand != nil {
 		// Repeat the operator+text object combination
@@ -1433,7 +1430,7 @@ func (e *Editor) repeatLastChange() error {
 }
 
 // openLineBelow opens a new line below the current line and enters insert mode
-func (e *Editor) openLineBelow() error {
+func (e *Editor) openLineBelow(args []string) error {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -1486,7 +1483,7 @@ func (e *Editor) openLineBelow() error {
 }
 
 // openLineAbove opens a new line above the current line and enters insert mode
-func (e *Editor) openLineAbove() error {
+func (e *Editor) openLineAbove(args []string) error {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -1638,7 +1635,7 @@ func (e *Editor) getPairedChar(ch rune) (rune, bool) {
 	}
 }
 
-func (e *Editor) insertNewline() error {
+func (e *Editor) insertNewline(args []string) error {
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -1686,7 +1683,7 @@ func (e *Editor) insertNewline() error {
 	return nil
 }
 
-func (e *Editor) backspace() error {
+func (e *Editor) backspace(args []string) error {
 	// If at beginning of buffer, nothing to delete
 	if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
 		return nil
@@ -1775,7 +1772,7 @@ func (e *Editor) backspace() error {
 }
 
 // deleteCurrentCharacter deletes the character at the current cursor position
-func (e *Editor) deleteCurrentCharacter() error {
+func (e *Editor) deleteCurrentCharacter(args []string) error {
 	// If at EOF or empty buffer, nothing to delete
 	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
 		return nil
@@ -1974,19 +1971,19 @@ func (e *Editor) updateSyntaxHighlighting() {
 }
 
 
-func (e *Editor) enterCommandModeCmd() error {
+func (e *Editor) enterCommandModeCmd(args []string) error {
 	e.enterCommandMode()
 	return nil
 }
 
-func (e *Editor) enterSearchModeCmd() error {
+func (e *Editor) enterSearchModeCmd(args []string) error {
 	e.enterSearchMode()
 	return nil
 }
 
 
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
-func (e *Editor) showLSPBufferGo() error {
+func (e *Editor) showLSPBufferGo(args []string) error {
 	// Save current buffer state first
 	e.saveCurrentBufferState()
 
@@ -2043,7 +2040,7 @@ func (e *Editor) showLSPBufferGo() error {
 	return nil
 }
 
-func (e *Editor) goToDefinition() error {
+func (e *Editor) goToDefinition(args []string) error {
 	// Only works if we have a file open
 	if !e.buffer.HasFile() {
 		// TODO: Show error to user

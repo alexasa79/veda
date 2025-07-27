@@ -166,7 +166,7 @@ func (e *Editor) openFile(filePath string) {
 }
 
 // openFileCmd implements the open-file command
-func (e *Editor) openFileCmd() error {
+func (e *Editor) openFileCmd(args []string) error {
 	e.showFuzzyListWidget()
 	return nil
 }
@@ -347,7 +347,7 @@ func (e *Editor) navigateToLocation(line, character int) {
 }
 
 // listProjectSymbolsCmd implements the list-project-symbols command
-func (e *Editor) listProjectSymbolsCmd() error {
+func (e *Editor) listProjectSymbolsCmd(args []string) error {
 	LL.Debug("listProjectSymbolsCmd called")
 	e.showProjectSymbolsList()
 	return nil
@@ -477,7 +477,7 @@ func (e *Editor) showDocumentSymbolsList() {
 }
 
 // listDocumentSymbolsCmd implements the list-document-symbols command
-func (e *Editor) listDocumentSymbolsCmd() error {
+func (e *Editor) listDocumentSymbolsCmd(args []string) error {
 	LL.Debug("listDocumentSymbolsCmd called")
 	e.showDocumentSymbolsList()
 	return nil

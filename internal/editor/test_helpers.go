@@ -59,7 +59,7 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
-	return te.commandRegistry.Execute(command)
+	return te.commandRegistry.Execute(command, nil)
 }
 
 // InsertChar simulates inserting a character in insert mode
@@ -78,7 +78,7 @@ func (te *TestEditor) TypeKeys(keys string) {
 		if te.mode == commands.NormalMode && te.hasPendingOperation() {
 			te.handlePendingOperation(string(ch))
 		} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
-			te.commandRegistry.Execute(command)
+			te.commandRegistry.Execute(command, nil)
 		}
 	}
 }
@@ -93,7 +93,7 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 	if te.mode == commands.NormalMode && te.hasPendingOperation() && key == events.KeyEscape {
 		te.cancelPendingOperation()
 	} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
-		te.commandRegistry.Execute(command)
+		te.commandRegistry.Execute(command, nil)
 	}
 }
 

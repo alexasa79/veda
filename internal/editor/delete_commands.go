@@ -1,7 +1,7 @@
 package editor
 
 // startDeleteOperation begins a delete operation, waiting for a text object
-func (e *Editor) startDeleteOperation() error {
+func (e *Editor) startDeleteOperation(args []string) error {
 	e.pendingOperator = DeleteOperator{}
 	e.pendingModifier = ModifierNone
 	e.pendingKeys = []string{"d"}

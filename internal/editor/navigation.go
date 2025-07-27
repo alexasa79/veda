@@ -36,7 +36,7 @@ func (e *Editor) pushNavigationHistory() {
 }
 
 // goBack navigates to the previous position in history
-func (e *Editor) goBack() error {
+func (e *Editor) goBack(args []string) error {
 	if len(e.navHistory) == 0 {
 		return nil
 	}

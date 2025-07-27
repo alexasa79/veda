@@ -32,7 +32,7 @@ type Binding struct {
 }
 
 // HandlerFunc is the type for command handler functions
-type HandlerFunc func() error
+type HandlerFunc func(args []string) error
 
 // CommandInfo contains metadata about a command
 type CommandInfo struct {
@@ -58,13 +58,13 @@ func (cr *CommandRegistry) Register(command string, handler HandlerFunc) {
 	}
 }
 
-// Execute executes a command by name
-func (cr *CommandRegistry) Execute(command string) error {
+// Execute executes a command by name with arguments
+func (cr *CommandRegistry) Execute(command string, args []string) error {
 	info, exists := cr.commands[command]
 	if !exists {
 		return nil // Command not found, ignore
 	}
-	return info.Handler()
+	return info.Handler(args)
 }
 
 // Has checks if a command exists in the registry

@@ -6,7 +6,7 @@ import (
 )
 
 // Movement commands
-func (e *Editor) moveUp() error {
+func (e *Editor) moveUp(args []string) error {
 	if e.buffer.CursorIterator.LineNumber() > 0 {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
 		// Adjust cursor X if the new line is shorter
@@ -23,7 +23,7 @@ func (e *Editor) moveUp() error {
 	return nil
 }
 
-func (e *Editor) moveDown() error {
+func (e *Editor) moveDown(args []string) error {
 	if e.buffer.CursorIterator.LineNumber() < e.buffer.LineCount-1 {
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
 		// Adjust cursor X if the new line is shorter
@@ -40,7 +40,7 @@ func (e *Editor) moveDown() error {
 	return nil
 }
 
-func (e *Editor) moveLeft() error {
+func (e *Editor) moveLeft(args []string) error {
 	if e.buffer.CursorX > 0 {
 		e.buffer.CursorX--
 	}
@@ -48,7 +48,7 @@ func (e *Editor) moveLeft() error {
 	return nil
 }
 
-func (e *Editor) moveRight() error {
+func (e *Editor) moveRight(args []string) error {
 	line := e.buffer.CursorIterator.Line()
 	maxX := len(line)
 	if maxX > 0 {
@@ -62,7 +62,7 @@ func (e *Editor) moveRight() error {
 }
 
 // wordForward moves the cursor to the beginning of the next word
-func (e *Editor) wordForward() error {
+func (e *Editor) wordForward(args []string) error {
 	currentLine := e.buffer.CursorIterator.LineNumber()
 	nextWord := FindNextWordBoundary(e.buffer, currentLine, e.buffer.CursorX)
 	
@@ -77,7 +77,7 @@ func (e *Editor) wordForward() error {
 }
 
 // wordBackward moves the cursor to the beginning of the previous word
-func (e *Editor) wordBackward() error {
+func (e *Editor) wordBackward(args []string) error {
 	// If we're at the very beginning, can't go back
 	if e.buffer.CursorIterator.LineNumber() == 0 && e.buffer.CursorX == 0 {
 		return nil
@@ -163,14 +163,14 @@ func (e *Editor) wordBackward() error {
 }
 
 // beginningOfLine moves cursor to the beginning of the current line
-func (e *Editor) beginningOfLine() error {
+func (e *Editor) beginningOfLine(args []string) error {
 	e.buffer.CursorX = 0
 	e.updateCursorState()
 	return nil
 }
 
 // endOfLine moves cursor to the end of the current line
-func (e *Editor) endOfLine() error {
+func (e *Editor) endOfLine(args []string) error {
 	line := e.buffer.CursorIterator.Line()
 	lineLen := len(line)
 	if lineLen > 0 {
@@ -181,7 +181,7 @@ func (e *Editor) endOfLine() error {
 	return nil
 }
 
-func (e *Editor) pageUp() error {
+func (e *Editor) pageUp(args []string) error {
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor up by visible lines
@@ -200,7 +200,7 @@ func (e *Editor) pageUp() error {
 	return nil
 }
 
-func (e *Editor) pageDown() error {
+func (e *Editor) pageDown(args []string) error {
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor down by visible lines
@@ -221,7 +221,7 @@ func (e *Editor) pageDown() error {
 }
 
 // goToBeginning moves the cursor to the beginning of the file
-func (e *Editor) goToBeginning() error {
+func (e *Editor) goToBeginning(args []string) error {
 	e.buffer.CursorX = 0
 	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
 	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
@@ -230,7 +230,7 @@ func (e *Editor) goToBeginning() error {
 }
 
 // goToEnd moves the cursor to the end of the file
-func (e *Editor) goToEnd() error {
+func (e *Editor) goToEnd(args []string) error {
 	// Create iterator at EOF
 	endIter := buffer.NewBufferIteratorAtEnd(e.buffer)
 

@@ -92,7 +92,7 @@ func TestGoBack(t *testing.T) {
 	te.SetCursorPosition(25, 30)
 	
 	// Go back once
-	err := te.goBack()
+	err := te.goBack(nil)
 	if err != nil {
 		t.Errorf("goBack returned error: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestGoBack(t *testing.T) {
 	}
 	
 	// Go back again
-	err = te.goBack()
+	err = te.goBack(nil)
 	if err != nil {
 		t.Errorf("goBack returned error: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestGoBackEmptyHistory(t *testing.T) {
 	te := NewTestEditor(80, 24)
 	
 	// Going back with empty history should not error
-	err := te.goBack()
+	err := te.goBack(nil)
 	if err != nil {
 		t.Errorf("goBack with empty history returned error: %v", err)
 	}
