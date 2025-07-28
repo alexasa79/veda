@@ -1943,7 +1943,7 @@ func (e *Editor) updateContext() {
 	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
 
 	// Get context line numbers, limited by scroll offset
-	e.contextCache = getContextLineNumbers(ranges, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+	e.contextCache = getContextLineNumbers(e.buffer, ranges, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
 	e.contextLine = currentLine
 }
 
