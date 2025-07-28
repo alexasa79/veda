@@ -12,7 +12,7 @@ import (
 	"veda/internal/config"
 	"veda/internal/events"
 	"veda/internal/log"
-	"veda/internal/lsp"
+	"veda/internal/proxyworker"
 	"veda/internal/perf"
 	"veda/internal/proxy"
 	"veda/internal/syntax"
@@ -53,8 +53,8 @@ type Editor struct {
 	asyncEvents     chan events.Event       // Channel for async events
 
 	// LSP communication
-	lspRequestChan  chan lsp.LSPRequest     // Channel for LSP requests
-	lspResponseChan chan lsp.LSPResponse    // Channel for LSP responses
+	lspRequestChan  chan proxyworker.ProxyRequest     // Channel for proxy requests
+	lspResponseChan chan proxyworker.ProxyResponse    // Channel for proxy responses
 	
 	// Repeat last change
 	// We need two separate fields to handle vim's "." (repeat) command correctly:
@@ -135,11 +135,11 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	initialBuffer := buffer.NewBuffer("", "", config.DefaultIndentType, config.DefaultIndentWidth)
 
 	// Create LSP channels
-	lspRequestChan := make(chan lsp.LSPRequest, 10)
-	lspResponseChan := make(chan lsp.LSPResponse, 10)
+	lspRequestChan := make(chan proxyworker.ProxyRequest, 10)
+	lspResponseChan := make(chan proxyworker.ProxyResponse, 10)
 
 	// Start LSP worker thread
-	lsp.StartLSPWorker(proxyManager, lspRequestChan, lspResponseChan)
+	proxyworker.StartProxyWorker(proxyManager, lspRequestChan, lspResponseChan)
 
 	editor := &Editor{
 		screen:          screen,
@@ -1058,12 +1058,12 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 	}
 }
 
-// handleLSPResponse processes responses from the LSP worker thread
-func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
+// handleLSPResponse processes responses from the proxy worker thread
+func (e *Editor) handleLSPResponse(response proxyworker.ProxyResponse) {
 	LL.Trace("Received LSP response: type=%d, filePath=%s", response.Type, response.FilePath)
 
 	switch response.Type {
-	case lsp.RequestFoldingRanges:
+	case proxyworker.RequestFoldingRanges:
 		// Find the buffer that requested this
 		if buf, exists := e.buffers[response.FilePath]; exists {
 			if response.Error != nil {
@@ -1082,7 +1082,7 @@ func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
 			}
 		}
 
-	case lsp.RequestSignatureHelp:
+	case proxyworker.RequestSignatureHelp:
 		// Find the buffer that requested this
 		if buf, exists := e.buffers[response.FilePath]; exists {
 			// Only apply response if generation matches current state
@@ -1101,12 +1101,12 @@ func (e *Editor) handleLSPResponse(response lsp.LSPResponse) {
 			}
 		}
 
-	case lsp.RequestProjectSymbols:
+	case proxyworker.RequestProjectSymbols:
 		// Project symbols responses are handled by specific widgets via ResponseTo channel
 		// This case is here to prevent "unknown response type" warnings
 		LL.Trace("Received project symbols response for query '%s', forwarded to widget", response.Query)
 
-	case lsp.RequestDocumentSymbols:
+	case proxyworker.RequestDocumentSymbols:
 		// Document symbols responses are handled by specific widgets via ResponseTo channel
 		// This case is here to prevent "unknown response type" warnings
 		LL.Trace("Received document symbols response for file '%s', forwarded to widget", response.FilePath)
@@ -1125,8 +1125,8 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 		return
 	}
 
-	request := lsp.LSPRequest{
-		Type:     lsp.RequestFoldingRanges,
+	request := proxyworker.ProxyRequest{
+		Type:     proxyworker.RequestFoldingRanges,
 		FilePath: filePath,
 		Buffer:   buf,
 	}

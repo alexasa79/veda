@@ -1,7 +1,7 @@
 package editor
 
 import (
-	"veda/internal/lsp"
+	"veda/internal/proxyworker"
 )
 
 
@@ -34,8 +34,8 @@ func (e *Editor) requestSignatureHelpAsync() {
 	LL.Debug("Requesting async signature help for %s at %d:%d", e.buffer.FilePath, line, col)
 
 	// Create LSP request with current generation
-	request := lsp.LSPRequest{
-		Type:       lsp.RequestSignatureHelp,
+	request := proxyworker.ProxyRequest{
+		Type:       proxyworker.RequestSignatureHelp,
 		FilePath:   e.buffer.FilePath,
 		Buffer:     e.buffer,
 		Generation: e.buffer.SignatureGeneration,

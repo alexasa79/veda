@@ -6,12 +6,19 @@ import (
 	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
-	"veda/internal/lsp"
+	"veda/internal/proxyworker"
 	"veda/internal/proxy"
 	"veda/internal/widgets"
 )
 
-func (e *Editor) ShowFuzzyListWidget() {
+// fileListingResult contains the processed file paths
+type fileListingResult struct {
+	paths     []string
+	filePaths map[string]string
+}
+
+// createFuzzyListWidget creates and configures the fuzzy list widget
+func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 	width, height := e.screen.Size()
 
 	// Create fuzzy list widget (centered overlay)
@@ -23,79 +30,201 @@ func (e *Editor) ShowFuzzyListWidget() {
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
 	fuzzyListWidget.SetTitle("Open File")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
+	fuzzyListWidget.SetContent([]string{"Loading..."})
 
-	// Get recursive directory listing from proxy, relative to working directory
-	files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
-	if err != nil {
-		fuzzyListWidget.SetContent([]string{"Error: " + err.Error()})
-	} else {
-		var paths []string
-		// Extract the base path for making relative paths
-		_, basePath, isRemote := parsePathComponents(e.workingDirectory)
-		if !isRemote {
-			basePath = e.workingDirectory
-		}
-		LL.Debug("File browser: workingDirectory=%s, basePath=%s, isRemote=%v", e.workingDirectory, basePath, isRemote)
+	return fuzzyListWidget
+}
 
-		for _, file := range files {
-			// Filter out hidden files and directories (starting with .)
-			// Check if any component of the path starts with .
-			skipFile := false
-			pathComponents := strings.Split(file.Path, "/")
-			for _, component := range pathComponents {
-				if len(component) > 0 && component[0] == '.' {
-					skipFile = true
-					break
-				}
-			}
-			if skipFile {
-				continue
-			}
-
-			// Only include files, not directories
-			if file.Type != "file" {
-				continue
-			}
-
-			// For remote paths, we need to handle the fact that the proxy might have expanded ~/
-			// So if basePath is "~/", we should just use the basename of the file path
-			displayPath := file.Path
-
-			if basePath == "~/" || basePath == "~" {
-				// For home directory, just show paths relative to home
-				// The proxy returns absolute paths like /home/user/file.txt
-				// We want to show them as file.txt or subdir/file.txt
-				homePrefix := "/home/"
-				if idx := strings.Index(file.Path, homePrefix); idx >= 0 {
-					// Find the next slash after /home/username/
-					afterHome := file.Path[idx+len(homePrefix):]
-					if slashIdx := strings.Index(afterHome, "/"); slashIdx >= 0 {
-						displayPath = afterHome[slashIdx+1:]
-					}
-				}
-			} else if strings.HasPrefix(file.Path, basePath) {
-				// For other paths, make relative as before
-				displayPath = strings.TrimPrefix(file.Path, basePath)
-				displayPath = strings.TrimPrefix(displayPath, "/")
-			}
-
-			paths = append(paths, displayPath)
-		}
-		fuzzyListWidget.SetContent(paths)
+// sendDirectoryListingRequest sends an async request for directory listing
+func (e *Editor) sendDirectoryListingRequest(fileResponseChan chan proxyworker.ProxyResponse, contentUpdateChan chan []string) {
+	request := proxyworker.ProxyRequest{
+		Type:          proxyworker.RequestListDirectoryRecursive,
+		DirectoryPath: e.workingDirectory,
+		ResponseTo:    fileResponseChan,
 	}
 
-	// Show the widget with a background render function
+	select {
+	case e.lspRequestChan <- request:
+		LL.Trace("Sent directory listing request for %s", e.workingDirectory)
+	default:
+		LL.Debug("Proxy request channel full, dropping request")
+		contentUpdateChan <- []string{"Error: Could not send request"}
+	}
+}
+
+// shouldSkipFile checks if a file should be filtered out
+func shouldSkipFile(file proxy.FileInfo) bool {
+	// Filter out hidden files and directories (starting with .)
+	pathComponents := strings.Split(file.Path, "/")
+	for _, component := range pathComponents {
+		if len(component) > 0 && component[0] == '.' {
+			return true
+		}
+	}
+
+	// Only include files, not directories
+	return file.Type != "file"
+}
+
+// calculateDisplayPath converts a file path to its display representation
+func (e *Editor) calculateDisplayPath(filePath string, basePath string) string {
+	displayPath := filePath
+
+	if basePath == "~/" || basePath == "~" {
+		// For home directory, just show paths relative to home
+		// The proxy returns absolute paths like /home/user/file.txt
+		// We want to show them as file.txt or subdir/file.txt
+		homePrefix := "/home/"
+		if idx := strings.Index(filePath, homePrefix); idx >= 0 {
+			// Find the next slash after /home/username/
+			afterHome := filePath[idx+len(homePrefix):]
+			if slashIdx := strings.Index(afterHome, "/"); slashIdx >= 0 {
+				displayPath = afterHome[slashIdx+1:]
+			}
+		}
+	} else if strings.HasPrefix(filePath, basePath) {
+		// For other paths, make relative as before
+		displayPath = strings.TrimPrefix(filePath, basePath)
+		displayPath = strings.TrimPrefix(displayPath, "/")
+	}
+
+	return displayPath
+}
+
+// processFileList processes the raw file list from proxy into display paths
+func (e *Editor) processFileList(files []proxy.FileInfo) fileListingResult {
+	var paths []string
+	filePaths := make(map[string]string)
+
+	// Extract the base path for making relative paths
+	_, basePath, isRemote := parsePathComponents(e.workingDirectory)
+	if !isRemote {
+		basePath = e.workingDirectory
+	}
+	LL.Debug("File browser: workingDirectory=%s, basePath=%s, isRemote=%v", e.workingDirectory, basePath, isRemote)
+
+	for _, file := range files {
+		if shouldSkipFile(file) {
+			continue
+		}
+
+		displayPath := e.calculateDisplayPath(file.Path, basePath)
+		paths = append(paths, displayPath)
+		filePaths[displayPath] = file.Path
+	}
+
+	return fileListingResult{
+		paths:     paths,
+		filePaths: filePaths,
+	}
+}
+
+// handleDirectoryListingResponse processes the async response from proxy
+func (e *Editor) handleDirectoryListingResponse(fileResponseChan chan proxyworker.ProxyResponse, contentUpdateChan chan []string) map[string]string {
+	var filePaths map[string]string
+
+	select {
+	case response := <-fileResponseChan:
+		if response.Type == proxyworker.RequestListDirectoryRecursive {
+			if response.Error != nil {
+				LL.Debug("Directory listing error: %v", response.Error)
+				contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+			} else {
+				LL.Debug("Got %d files from proxy", len(response.Files))
+
+				result := e.processFileList(response.Files)
+				filePaths = result.filePaths
+
+				if len(result.paths) == 0 {
+					contentUpdateChan <- []string{"No files found"}
+				} else {
+					contentUpdateChan <- result.paths
+				}
+			}
+		}
+	case <-time.After(10 * time.Second):
+		LL.Debug("Timeout waiting for directory listing response")
+		contentUpdateChan <- []string{"Error: Timeout waiting for response"}
+	}
+
+	return filePaths
+}
+
+// resolveSelectedPath converts the selected display path back to full path
+func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]string) string {
+	// Get the full path from our mapping
+	fullPath := ""
+	if filePaths != nil {
+		if mapped, ok := filePaths[selectedPath]; ok {
+			fullPath = mapped
+		}
+	}
+
+	// If no mapping found (shouldn't happen), reconstruct path
+	if fullPath == "" {
+		fullPath = selectedPath
+		if !strings.HasPrefix(selectedPath, "/") {
+			// Make it absolute again
+			_, basePath, isRemote := parsePathComponents(e.workingDirectory)
+			if !isRemote {
+				basePath = e.workingDirectory
+			}
+			fullPath = basePath + "/" + selectedPath
+		}
+	}
+
+	// If it's a remote path, prepend the host
+	host, _, isRemote := parsePathComponents(e.workingDirectory)
+	if isRemote {
+		// Only prepend host if not already present
+		if !strings.Contains(fullPath, ":") {
+			fullPath = host + ":" + fullPath
+		}
+	}
+
+	return fullPath
+}
+
+// ShowFuzzyListWidget displays a fuzzy search widget for file selection
+func (e *Editor) ShowFuzzyListWidget() {
+	fuzzyListWidget := e.createFuzzyListWidget()
+
 	// Cast our Screen to widgets.Screen interface
 	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
-		selection := fuzzyListWidget.Show(widgetScreen, func() {
-			e.drawEditor()
-			e.drawStatusBar()
-		})
+		// Create a channel to receive proxy responses for this widget
+		fileResponseChan := make(chan proxyworker.ProxyResponse, 1)
 
-		// If a file was selected, open it
-		if selection != "" {
-			e.openFile(selection)
+		// Create a channel for content updates
+		contentUpdateChan := make(chan []string, 1)
+
+		// Send async proxy request for directory listing
+		e.sendDirectoryListingRequest(fileResponseChan, contentUpdateChan)
+
+		// Store file paths for mapping back from display names
+		var filePaths map[string]string
+
+		// Start a goroutine to handle proxy response
+		go func() {
+			filePaths = e.handleDirectoryListingResponse(fileResponseChan, contentUpdateChan)
+			close(fileResponseChan)
+		}()
+
+		// Show the fuzzy list with async content updates
+		selectedPath := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
+			e.drawEditor()
+			e.drawContext()
+			e.drawSignature()
+			e.drawStatusBar()
+		}, nil, contentUpdateChan)
+
+		if selectedPath != "" {
+			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
+			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
+			e.openFile(fullPath)
 		}
+
+		// Close channels
+		close(contentUpdateChan)
 	} else {
 		// Screen doesn't implement widgets.Screen, return
 		return
@@ -235,7 +364,7 @@ func (e *Editor) showProjectSymbolsList() {
 		var symbolMap = make(map[string]int) // Map display name to index
 
 		// Create a channel to receive LSP responses for this widget
-		symbolResponseChan := make(chan lsp.LSPResponse, 10)
+		symbolResponseChan := make(chan proxyworker.ProxyResponse, 10)
 
 		// Create a channel for content updates
 		contentUpdateChan := make(chan []string, 10)
@@ -250,7 +379,7 @@ func (e *Editor) showProjectSymbolsList() {
 		// Start a goroutine to handle LSP responses
 		go func() {
 			for response := range symbolResponseChan {
-				if response.Type == lsp.RequestProjectSymbols && response.Query == pendingQuery {
+				if response.Type == proxyworker.RequestProjectSymbols && response.Query == pendingQuery {
 					if response.Error != nil {
 						LL.Debug("LSP query error: %v", response.Error)
 						contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
@@ -300,8 +429,8 @@ func (e *Editor) showProjectSymbolsList() {
 					pendingQuery = newText
 					LL.Debug("Sending async LSP query for symbols with: %s", newText)
 
-					request := lsp.LSPRequest{
-						Type:       lsp.RequestProjectSymbols,
+					request := proxyworker.ProxyRequest{
+						Type:       proxyworker.RequestProjectSymbols,
 						FilePath:   e.buffer.FilePath,
 						Buffer:     e.buffer,
 						Generation: e.buffer.SignatureGeneration,
@@ -414,14 +543,14 @@ func (e *Editor) showDocumentSymbolsList() {
 		var symbolMap = make(map[string]int) // Map display name to index
 
 		// Create a channel to receive LSP responses for this widget
-		symbolResponseChan := make(chan lsp.LSPResponse, 1)
+		symbolResponseChan := make(chan proxyworker.ProxyResponse, 1)
 
 		// Create a channel for content updates
 		contentUpdateChan := make(chan []string, 1)
 
 		// Send async LSP request for document symbols
-		request := lsp.LSPRequest{
-			Type:       lsp.RequestDocumentSymbols,
+		request := proxyworker.ProxyRequest{
+			Type:       proxyworker.RequestDocumentSymbols,
 			FilePath:   e.buffer.FilePath,
 			Buffer:     e.buffer,
 			Generation: e.buffer.SignatureGeneration,
@@ -441,7 +570,7 @@ func (e *Editor) showDocumentSymbolsList() {
 		go func() {
 			select {
 			case response := <-symbolResponseChan:
-				if response.Type == lsp.RequestDocumentSymbols {
+				if response.Type == proxyworker.RequestDocumentSymbols {
 					if response.Error != nil {
 						LL.Debug("LSP document symbols error: %v", response.Error)
 						contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}

@@ -15,6 +15,7 @@ const (
 	RequestSignatureHelp
 	RequestProjectSymbols
 	RequestDocumentSymbols
+	RequestListDirectoryRecursive
 	// Future: RequestGoToDefinition, etc.
 )
 
@@ -33,6 +34,9 @@ type ProxyRequest struct {
 	Query      string      // Search query for symbols
 	ResponseTo interface{} // Widget or component to send response to
 
+	// Directory listing specific fields
+	DirectoryPath string // Path to list recursively
+
 	// Future: add other request-specific fields for different proxy operations
 }
 // ProxyResponse represents a response from the proxy worker thread
@@ -47,6 +51,7 @@ type ProxyResponse struct {
 	DocumentSymbols []proxy.DocumentSymbol // Document symbols response
 	Query         string      // The query that was used for project/document symbols
 	ResponseTo    interface{} // Widget or component to send response to
+	Files         []proxy.FileInfo // Directory listing response
 	Error         error
 	// Future: add other response fields for different proxy operations
 }
@@ -156,6 +161,39 @@ func proxyWorker(proxyManager *proxy.ProxyManager, requestChan chan ProxyRequest
 					select {
 					case ch <- response:
 						LL.Trace("Sent document symbols response to specific channel")
+					default:
+						LL.Debug("Specific response channel full, sending to general channel")
+						responseChan <- response
+					}
+				} else {
+					responseChan <- response
+				}
+			} else {
+				responseChan <- response
+			}
+
+		case RequestListDirectoryRecursive:
+			files, err := proxyManager.ListDirectoryRecursive(request.DirectoryPath)
+			response := ProxyResponse{
+				Type:       RequestListDirectoryRecursive,
+				FilePath:   request.DirectoryPath,
+				ResponseTo: request.ResponseTo,
+				Files:      files,
+				Error:      err,
+			}
+
+			if err != nil {
+				LL.Debug("ListDirectoryRecursive failed for %s: %v", request.DirectoryPath, err)
+			} else {
+				LL.Trace("ListDirectoryRecursive succeeded for %s: got %d files", request.DirectoryPath, len(files))
+			}
+
+			// Send to specific channel if provided, otherwise to general response channel
+			if request.ResponseTo != nil {
+				if ch, ok := request.ResponseTo.(chan ProxyResponse); ok {
+					select {
+					case ch <- response:
+						LL.Trace("Sent directory listing response to specific channel")
 					default:
 						LL.Debug("Specific response channel full, sending to general channel")
 						responseChan <- response

@@ -3,7 +3,7 @@ package editor
 import (
 	"testing"
 	"veda/internal/buffer"
-	"veda/internal/lsp"
+	"veda/internal/proxyworker"
 )
 
 func TestShowSignature(t *testing.T) {
@@ -223,8 +223,8 @@ func TestSignatureHelpGeneration(t *testing.T) {
 	te.buffer.SignatureGeneration = 5
 	
 	// Simulate receiving a response with old generation
-	response := lsp.LSPResponse{
-		Type:       lsp.RequestSignatureHelp,
+	response := proxyworker.ProxyResponse{
+		Type:       proxyworker.RequestSignatureHelp,
 		FilePath:   "test.go",
 		Generation: 4, // Old generation
 		SignatureHelp: map[string]interface{}{
