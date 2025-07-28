@@ -1,26 +1,26 @@
-package lsp
+package proxyworker
 
 import (
 	"veda/internal/log"
 	"veda/internal/proxy"
 )
 
-var LL *log.Logger = log.NewLogger("LSP")
+var LL *log.Logger = log.NewLogger("ProxyWorker")
 
-// LSPRequestType represents the type of LSP request
-type LSPRequestType int
+// ProxyRequestType represents the type of proxy request
+type ProxyRequestType int
 
 const (
-	RequestFoldingRanges LSPRequestType = iota
+	RequestFoldingRanges ProxyRequestType = iota
 	RequestSignatureHelp
 	RequestProjectSymbols
 	RequestDocumentSymbols
 	// Future: RequestGoToDefinition, etc.
 )
 
-// LSPRequest represents a request to the LSP worker thread
-type LSPRequest struct {
-	Type       LSPRequestType
+// ProxyRequest represents a request to the proxy worker thread
+type ProxyRequest struct {
+	Type       ProxyRequestType
 	FilePath   string
 	Buffer     interface{} // Reference to the buffer that made the request
 	Generation uint64      // Generation number for request validation
@@ -33,34 +33,34 @@ type LSPRequest struct {
 	Query      string      // Search query for symbols
 	ResponseTo interface{} // Widget or component to send response to
 
-	// Future: add other request-specific fields for different LSP operations
+	// Future: add other request-specific fields for different proxy operations
 }
-// LSPResponse represents a response from the LSP worker thread
-type LSPResponse struct {
-	Type          LSPRequestType
+// ProxyResponse represents a response from the proxy worker thread
+type ProxyResponse struct {
+	Type          ProxyRequestType
 	FilePath      string
 	Buffer        interface{} // Reference to the buffer that made the request
 	Generation    uint64      // Generation number from the original request
 	FoldingRanges []proxy.FoldingRange
-	SignatureHelp interface{} // Raw signature help response from LSP
+	SignatureHelp interface{} // Raw signature help response from proxy
 	ProjectSymbols []proxy.ProjectSymbol // Project symbols response
 	DocumentSymbols []proxy.DocumentSymbol // Document symbols response
 	Query         string      // The query that was used for project/document symbols
 	ResponseTo    interface{} // Widget or component to send response to
 	Error         error
-	// Future: add other response fields for different LSP operations
+	// Future: add other response fields for different proxy operations
 }
 
-// lspWorker is the main function that runs in the LSP worker thread
-func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, responseChan chan LSPResponse) {
-	LL.Debug("LSP worker thread started")
+// proxyWorker is the main function that runs in the proxy worker thread
+func proxyWorker(proxyManager *proxy.ProxyManager, requestChan chan ProxyRequest, responseChan chan ProxyResponse) {
+	LL.Debug("Proxy worker thread started")
 	for request := range requestChan {
-		LL.Trace("Processing LSP request: type=%d, filePath=%s", request.Type, request.FilePath)
+		LL.Trace("Processing proxy request: type=%d, filePath=%s", request.Type, request.FilePath)
 
 		switch request.Type {
 		case RequestFoldingRanges:
 			ranges, err := proxyManager.GetFoldingRanges(request.FilePath)
-			response := LSPResponse{
+			response := ProxyResponse{
 				Type:          RequestFoldingRanges,
 				FilePath:      request.FilePath,
 				Buffer:        request.Buffer,
@@ -79,7 +79,7 @@ func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, re
 
 		case RequestSignatureHelp:
 			sigHelp, err := proxyManager.GetSignatureHelp(request.FilePath, request.Line, request.Character)
-			response := LSPResponse{
+			response := ProxyResponse{
 				Type:          RequestSignatureHelp,
 				FilePath:      request.FilePath,
 				Buffer:        request.Buffer,
@@ -98,7 +98,7 @@ func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, re
 
 		case RequestProjectSymbols:
 			symbols, err := proxyManager.ListProjectSymbols(request.Query)
-			response := LSPResponse{
+			response := ProxyResponse{
 				Type:           RequestProjectSymbols,
 				FilePath:       request.FilePath,
 				Buffer:         request.Buffer,
@@ -117,7 +117,7 @@ func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, re
 
 			// Send to specific channel if provided, otherwise to general response channel
 			if request.ResponseTo != nil {
-				if ch, ok := request.ResponseTo.(chan LSPResponse); ok {
+				if ch, ok := request.ResponseTo.(chan ProxyResponse); ok {
 					select {
 					case ch <- response:
 						LL.Trace("Sent project symbols response to specific channel")
@@ -134,7 +134,7 @@ func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, re
 
 		case RequestDocumentSymbols:
 			symbols, err := proxyManager.GetDocumentSymbols(request.FilePath)
-			response := LSPResponse{
+			response := ProxyResponse{
 				Type:            RequestDocumentSymbols,
 				FilePath:        request.FilePath,
 				Buffer:          request.Buffer,
@@ -152,7 +152,7 @@ func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, re
 
 			// Send to specific channel if provided, otherwise to general response channel
 			if request.ResponseTo != nil {
-				if ch, ok := request.ResponseTo.(chan LSPResponse); ok {
+				if ch, ok := request.ResponseTo.(chan ProxyResponse); ok {
 					select {
 					case ch <- response:
 						LL.Trace("Sent document symbols response to specific channel")
@@ -168,13 +168,13 @@ func lspWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, re
 			}
 
 		default:
-			LL.Error("Unknown LSP request type: %d", request.Type)
+			LL.Error("Unknown proxy request type: %d", request.Type)
 		}
 	}
-	LL.Debug("LSP worker thread stopped")
+	LL.Debug("Proxy worker thread stopped")
 }
 
-// StartLSPWorker starts the LSP worker thread that handles all LSP communication
-func StartLSPWorker(proxyManager *proxy.ProxyManager, requestChan chan LSPRequest, responseChan chan LSPResponse) {
-	go lspWorker(proxyManager, requestChan, responseChan)
+// StartProxyWorker starts the proxy worker thread that handles all proxy communication
+func StartProxyWorker(proxyManager *proxy.ProxyManager, requestChan chan ProxyRequest, responseChan chan ProxyResponse) {
+	go proxyWorker(proxyManager, requestChan, responseChan)
 }
