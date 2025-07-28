@@ -160,7 +160,7 @@ func (flw *FuzzyListWidget) applyDecorations() {
 	}
 
 	// Re-apply filter with new decorations
-	flw.applyFilter()
+	flw.ApplyFilter()
 }
 
 // SetContent sets the content of the top section
@@ -456,8 +456,8 @@ func (flw *FuzzyListWidget) GetSelectedRawLine() string {
 	return ""
 }
 
-// applyFilter filters the content based on the search text
-func (flw *FuzzyListWidget) applyFilter() {
+// ApplyFilter filters the content based on the search text
+func (flw *FuzzyListWidget) ApplyFilter() {
 	searchText := flw.bottomEditor.GetText()
 
 	// Clear the filtered lists
@@ -578,7 +578,7 @@ func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender fu
 						if onTextChanged != nil {
 							onTextChanged(newText)
 						}
-						flw.applyFilter()
+						flw.ApplyFilter()
 					}
 				}
 			default:
@@ -591,7 +591,7 @@ func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender fu
 					if onTextChanged != nil {
 						onTextChanged(newText)
 					}
-					flw.applyFilter()
+					flw.ApplyFilter()
 				}
 			}
 		}

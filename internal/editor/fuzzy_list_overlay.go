@@ -75,9 +75,12 @@ func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
 				oldText := flo.widget.GetBottomEditor().GetText()
 				flo.widget.GetBottomEditor().HandleKey(keyEv)
 				newText := flo.widget.GetBottomEditor().GetText()
-				// If text changed, notify callback
-				if oldText != newText && flo.onTextChanged != nil {
-					flo.onTextChanged(newText)
+				// If text changed, re-apply filter and notify callback
+				if oldText != newText {
+					flo.widget.ApplyFilter()
+					if flo.onTextChanged != nil {
+						flo.onTextChanged(newText)
+					}
 				}
 			}
 		default:
@@ -85,9 +88,12 @@ func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
 			oldText := flo.widget.GetBottomEditor().GetText()
 			flo.widget.GetBottomEditor().HandleKey(keyEv)
 			newText := flo.widget.GetBottomEditor().GetText()
-			// If text changed, notify callback
-			if oldText != newText && flo.onTextChanged != nil {
-				flo.onTextChanged(newText)
+			// If text changed, re-apply filter and notify callback
+			if oldText != newText {
+				flo.widget.ApplyFilter()
+				if flo.onTextChanged != nil {
+					flo.onTextChanged(newText)
+				}
 			}
 		}
 	}
