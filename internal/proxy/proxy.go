@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 	"veda/internal/log"
 )
 
@@ -65,6 +66,7 @@ func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 
 // createRemoteClient creates a new proxy client connected to a remote host
 func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
+	startTime := time.Now()
 	LL.Info("Creating remote proxy connection to %s", host)
 	
 	// First, copy the proxy script to the remote host
@@ -118,16 +120,23 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	buf := make([]byte, 0, maxScanTokenSize)
 	stdout.Buffer(buf, maxScanTokenSize)
 	
-	return &Client{
+	client := &Client{
 		cmd:       cmd,
 		stdin:     stdin,
 		stdout:    stdout,
 		requestID: 0,
-	}, nil
+	}
+	
+	duration := time.Since(startTime)
+	LL.Info("Created remote proxy connection to %s in %v", host, duration)
+	
+	return client, nil
 }
 
 // copyProxyToRemote copies the embedded proxy script to the remote host
 func copyProxyToRemote(host string) error {
+	startTime := time.Now()
+	
 	// Create a temporary file with the proxy script
 	tmpFile, err := os.CreateTemp("", "veda-proxy-*.py")
 	if err != nil {
@@ -167,7 +176,8 @@ func copyProxyToRemote(host string) error {
 		return fmt.Errorf("chmod failed: %w, output: %s", err, output)
 	}
 	
-	LL.Debug("Successfully copied proxy script to %s:/tmp/veda-proxy.py", host)
+	duration := time.Since(startTime)
+	LL.Info("Copied proxy script to %s:/tmp/veda-proxy.py in %v", host, duration)
 	return nil
 }
 
@@ -185,6 +195,8 @@ func (pm *ProxyManager) Close() error {
 
 // GetFile reads the contents of a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetFile(path string) (string, error) {
+	startTime := time.Now()
+	
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return "", err
@@ -193,27 +205,49 @@ func (pm *ProxyManager) GetFile(path string) (string, error) {
 	LL.Debug("ProxyManager.GetFile: path=%s, actualPath=%s", path, actualPath)
 	
 	// Call the original GetFile with the actual path (without HOST: prefix)
-	return client.GetFile(actualPath)
+	content, err := client.GetFile(actualPath)
+	if err == nil {
+		duration := time.Since(startTime)
+		LL.Info("Read file %s (%d bytes) in %v", path, len(content), duration)
+	}
+	
+	return content, err
 }
 
 // ListDirectory lists directory contents (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
+	startTime := time.Now()
+	
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
 	
-	return client.ListDirectory(actualPath)
+	files, err := client.ListDirectory(actualPath)
+	if err == nil {
+		duration := time.Since(startTime)
+		LL.Info("Listed directory %s (%d files) in %v", path, len(files), duration)
+	}
+	
+	return files, err
 }
 
 // ListDirectoryRecursive lists directory contents recursively (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) {
+	startTime := time.Now()
+	
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
 	
-	return client.ListDirectoryRecursive(actualPath)
+	files, err := client.ListDirectoryRecursive(actualPath)
+	if err == nil {
+		duration := time.Since(startTime)
+		LL.Info("Listed directory recursively %s (%d files) in %v", path, len(files), duration)
+	}
+	
+	return files, err
 }
 
 // GoToDefinition gets the definition location for a symbol (supports HOST:PATH format)
