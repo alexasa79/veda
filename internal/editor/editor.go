@@ -12,9 +12,9 @@ import (
 	"veda/internal/config"
 	"veda/internal/events"
 	"veda/internal/log"
-	"veda/internal/proxyworker"
 	"veda/internal/perf"
 	"veda/internal/proxy"
+	"veda/internal/proxyworker"
 	"veda/internal/syntax"
 	"veda/internal/ui"
 	"veda/internal/widgets"
@@ -54,7 +54,7 @@ type Editor struct {
 
 	// LSP communication
 	lspRequestChan  chan proxyworker.ProxyRequest     // Channel for proxy requests
-	lspResponseChan chan proxyworker.ProxyResponse    // Channel for proxy responses
+	proxyResponseChan chan proxyworker.ProxyResponse    // Channel for proxy responses
 
 	// Repeat last change
 	// We need two separate fields to handle vim's "." (repeat) command correctly:
@@ -166,7 +166,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		contextLine:     -1,
 		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
 		lspRequestChan:  lspRequestChan,
-		lspResponseChan: lspResponseChan,
+		proxyResponseChan: lspResponseChan,
 		workingDirectory: ".", // Default to current directory
 	}
 
@@ -232,9 +232,9 @@ func (e *Editor) Run() {
 			// Timer fired - ev remains nil, will trigger redraw
 		case ev = <-e.asyncEvents:
 			// Got an async event
-		case lspResponse := <-e.lspResponseChan:
+		case proxyResponse := <-e.proxyResponseChan:
 			// Got an LSP response
-			e.handleLSPResponse(lspResponse)
+			e.handleLSPResponse(proxyResponse)
 			// Continue to redraw
 		}
 
