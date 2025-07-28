@@ -102,6 +102,7 @@ type Editor struct {
 	
 	// Working directory
 	workingDirectory string                 // Current working directory (can include HOST: prefix)
+	pendingDirectoryOpen bool              // Flag to show fuzzy list after editor starts
 	
 	// Ex-command support
 	lastCommandArgs  []string               // Arguments from the last ex-command
@@ -207,6 +208,12 @@ func (e *Editor) Run() {
 	e.drawStatusBar()
 	e.updateCursor()
 	e.screen.Show()
+
+	// Check if we need to show the fuzzy list for a directory
+	if e.pendingDirectoryOpen {
+		e.pendingDirectoryOpen = false
+		e.ShowFuzzyListWidget()
+	}
 
 	// Get the screen event channel
 	screenEvents := e.screen.EventChannel()
@@ -854,44 +861,6 @@ func (e *Editor) Close() {
 	}
 }
 
-// SetWorkingDirectory sets the editor's working directory
-// This handles both the initial argument and directory detection
-func (e *Editor) SetWorkingDirectory(path string) {
-	LL.Debug("SetWorkingDirectory called with: %s", path)
-	
-	// Check if the path is a directory by trying to list it
-	files, err := e.proxyManager.ListDirectory(path)
-	if err == nil && len(files) >= 0 {
-		// It's a directory (listing succeeded)
-		e.workingDirectory = path
-		LL.Info("Set working directory to: %s", e.workingDirectory)
-	} else {
-		LL.Debug("ListDirectory failed, assuming file path: %v", err)
-		// It might be a file path, extract the directory part
-		// For HOST:PATH format, we need to be careful
-		host, remotePath, isRemote := parsePathComponents(path)
-		if isRemote {
-			// For remote paths, extract directory
-			lastSlash := strings.LastIndex(remotePath, "/")
-			if lastSlash > 0 {
-				dirPath := remotePath[:lastSlash]
-				e.workingDirectory = host + ":" + dirPath
-			} else {
-				// Use the home directory or root
-				e.workingDirectory = host + ":~/"
-			}
-		} else {
-			// For local paths, extract directory
-			lastSlash := strings.LastIndex(path, "/")
-			if lastSlash > 0 {
-				e.workingDirectory = path[:lastSlash]
-			} else {
-				e.workingDirectory = "."
-			}
-		}
-		LL.Info("Inferred working directory: %s", e.workingDirectory)
-	}
-}
 
 // parsePathComponents is a helper to parse HOST:PATH format
 func parsePathComponents(path string) (string, string, bool) {

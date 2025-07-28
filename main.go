@@ -58,12 +58,7 @@ func main() {
 	args := flag.Args()
 	if len(args) > 0 {
 		path := args[0]
-		// Set the working directory based on the argument
-		ed.SetWorkingDirectory(path)
-		
-		// If it's not a directory, try to open it as a file
-		// The SetWorkingDirectory method will handle extracting the directory part
-		ed.OpenFile(path)
+		ed.OpenPath(path)
 	}
 
 	ed.Run()

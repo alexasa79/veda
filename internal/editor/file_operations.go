@@ -11,7 +11,7 @@ import (
 	"veda/internal/widgets"
 )
 
-func (e *Editor) showFuzzyListWidget() {
+func (e *Editor) ShowFuzzyListWidget() {
 	width, height := e.screen.Size()
 
 	// Create fuzzy list widget (centered overlay)
@@ -107,6 +107,43 @@ func (e *Editor) OpenFile(filePath string) {
 	e.openFile(filePath)
 }
 
+// OpenPath opens either a file or shows the fuzzy list for a directory
+func (e *Editor) OpenPath(path string) {
+	// Check if the path is a directory by trying to list it recursively
+	files, err := e.proxyManager.ListDirectoryRecursive(path)
+	if err == nil && len(files) >= 0 {
+		// It's a directory - set working directory and show fuzzy list
+		e.workingDirectory = path
+		LL.Info("Opening directory: %s", e.workingDirectory)
+		// Show the fuzzy list widget after the editor starts running
+		e.pendingDirectoryOpen = true
+	} else {
+		// It's a file or doesn't exist - extract directory and open file
+		host, remotePath, isRemote := parsePathComponents(path)
+		if isRemote {
+			// For remote paths, extract directory
+			lastSlash := strings.LastIndex(remotePath, "/")
+			if lastSlash > 0 {
+				dirPath := remotePath[:lastSlash]
+				e.workingDirectory = host + ":" + dirPath
+			} else {
+				e.workingDirectory = host + ":~/"
+			}
+		} else {
+			// For local paths, extract directory
+			lastSlash := strings.LastIndex(path, "/")
+			if lastSlash > 0 {
+				e.workingDirectory = path[:lastSlash]
+			} else {
+				e.workingDirectory = "."
+			}
+		}
+		LL.Info("Set working directory to: %s", e.workingDirectory)
+		// Open the file
+		e.openFile(path)
+	}
+}
+
 // openFile loads a file's content into the editor buffer
 func (e *Editor) openFile(filePath string) {
 	// Resolve relative paths
@@ -167,7 +204,7 @@ func (e *Editor) openFile(filePath string) {
 
 // openFileCmd implements the open-file command
 func (e *Editor) openFileCmd(args []string) error {
-	e.showFuzzyListWidget()
+	e.ShowFuzzyListWidget()
 	return nil
 }
 
