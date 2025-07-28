@@ -37,6 +37,10 @@ func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 
 // sendDirectoryListingRequest sends an async request for directory listing
 func (e *Editor) sendDirectoryListingRequest(fileResponseChan chan proxyworker.ProxyResponse, contentUpdateChan chan []string) {
+	// Start async operation tracking
+	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
+	e.startAsyncOperation(operationID)
+	
 	request := proxyworker.ProxyRequest{
 		Type:          proxyworker.RequestListDirectoryRecursive,
 		DirectoryPath: e.workingDirectory,
@@ -49,6 +53,7 @@ func (e *Editor) sendDirectoryListingRequest(fileResponseChan chan proxyworker.P
 	default:
 		LL.Debug("Proxy request channel full, dropping request")
 		contentUpdateChan <- []string{"Error: Could not send request"}
+		e.endAsyncOperation(operationID)
 	}
 }
 
@@ -122,6 +127,10 @@ func (e *Editor) processFileList(files []proxy.FileInfo) fileListingResult {
 // handleDirectoryListingResponse processes the async response from proxy
 func (e *Editor) handleDirectoryListingResponse(fileResponseChan chan proxyworker.ProxyResponse, contentUpdateChan chan []string) map[string]string {
 	var filePaths map[string]string
+	
+	// End async operation tracking when done
+	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
+	defer e.endAsyncOperation(operationID)
 	
 	LL.Debug("Waiting for directory listing response...")
 
@@ -374,6 +383,10 @@ func (e *Editor) showProjectSymbolsList() {
 	go func() {
 		for response := range symbolResponseChan {
 			if response.Type == proxyworker.RequestProjectSymbols && response.Query == pendingQuery {
+				// End async operation for this query
+				operationID := fmt.Sprintf("project-symbols-%s", response.Query)
+				e.endAsyncOperation(operationID)
+				
 				if response.Error != nil {
 					LL.Debug("LSP query error: %v", response.Error)
 					contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
@@ -422,6 +435,10 @@ func (e *Editor) showProjectSymbolsList() {
 				// Send async LSP request for symbols
 				pendingQuery = newText
 				LL.Debug("Sending async LSP query for symbols with: %s", newText)
+				
+				// Start async operation tracking
+				operationID := fmt.Sprintf("project-symbols-%s", newText)
+				e.startAsyncOperation(operationID)
 
 				request := proxyworker.ProxyRequest{
 					Type:       proxyworker.RequestProjectSymbols,
@@ -439,6 +456,7 @@ func (e *Editor) showProjectSymbolsList() {
 					// Don't clear the list - keep current results displayed
 				default:
 					LL.Debug("LSP request channel full, dropping request")
+					e.endAsyncOperation(operationID)
 				}
 			} else {
 				// Empty query - clear the list
@@ -545,6 +563,9 @@ func (e *Editor) showDocumentSymbolsList() {
 	contentUpdateChan := make(chan []string, 1)
 
 	// Send async LSP request for document symbols
+	operationID := fmt.Sprintf("doc-symbols-%s", e.buffer.FilePath)
+	e.startAsyncOperation(operationID)
+	
 	request := proxyworker.ProxyRequest{
 		Type:       proxyworker.RequestDocumentSymbols,
 		FilePath:   e.buffer.FilePath,
@@ -560,10 +581,13 @@ func (e *Editor) showDocumentSymbolsList() {
 	default:
 		LL.Debug("LSP request channel full, dropping request")
 		contentUpdateChan <- []string{"Error: Could not send request"}
+		e.endAsyncOperation(operationID)
 	}
 
 	// Start a goroutine to handle LSP response
 	go func() {
+		defer e.endAsyncOperation(operationID)
+		
 		select {
 		case response := <-symbolResponseChan:
 			if response.Type == proxyworker.RequestDocumentSymbols {

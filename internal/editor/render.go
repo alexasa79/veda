@@ -324,6 +324,13 @@ func (e *Editor) drawStatusBar() {
 		if e.buffer.HasLSP {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
 		}
+		
+		// Add spinner if async operations are in progress
+		if e.hasAsyncOperations() {
+			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, e.getSpinnerChar(), 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
+		}
 
 		// Right side: indentation and line:col
 

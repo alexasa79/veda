@@ -109,6 +109,11 @@ type Editor struct {
 
 	// Rendering state
 	renderingState  *RenderingState        // Manages overlay/modal state
+	
+	// Async operation tracking
+	asyncOperations map[string]bool        // Track active async operations by ID
+	spinnerIndex    int                    // Current spinner animation frame
+	lastSpinnerTime time.Time              // Last time spinner was updated
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -168,6 +173,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		lspRequestChan:  lspRequestChan,
 		proxyResponseChan: lspResponseChan,
 		workingDirectory: ".", // Default to current directory
+		asyncOperations: make(map[string]bool),
+		lastSpinnerTime: time.Now(),
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -857,6 +864,36 @@ func (e *Editor) handleResize() {
 	// Also update search line widget
 	e.searchLine.SetWidth(width)
 	e.searchLine.SetPosition(0, e.getStatusBarY())
+}
+
+// startAsyncOperation registers a new async operation
+func (e *Editor) startAsyncOperation(id string) {
+	e.asyncOperations[id] = true
+}
+
+// endAsyncOperation marks an async operation as complete
+func (e *Editor) endAsyncOperation(id string) {
+	delete(e.asyncOperations, id)
+}
+
+// hasAsyncOperations returns true if any async operations are in progress
+func (e *Editor) hasAsyncOperations() bool {
+	return len(e.asyncOperations) > 0
+}
+
+// getSpinnerChar returns the current spinner character and advances the animation
+func (e *Editor) getSpinnerChar() string {
+	// Unicode spinner characters: ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+	spinnerChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	
+	// Update spinner every 100ms
+	now := time.Now()
+	if now.Sub(e.lastSpinnerTime) > 100*time.Millisecond {
+		e.spinnerIndex = (e.spinnerIndex + 1) % len(spinnerChars)
+		e.lastSpinnerTime = now
+	}
+	
+	return spinnerChars[e.spinnerIndex]
 }
 
 // Close finalizes the screen and proxy client.
