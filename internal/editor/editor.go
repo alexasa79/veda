@@ -1931,19 +1931,20 @@ func (e *Editor) updateContext() {
 		return
 	}
 
-	// Use cached folding ranges from buffer instead of calling LSP directly
-	ranges := e.buffer.FoldingRanges
-	if len(ranges) == 0 {
-		e.contextCache = nil
-		return
-	}
-
 	// Calculate visible range
 	viewStartLine := e.buffer.ViewIterator.LineNumber()
 	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
 
-	// Get context line numbers, limited by scroll offset
-	e.contextCache = getContextLineNumbers(e.buffer, ranges, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+	// Try to use tree-sitter for context if available
+	if e.highlighter != nil && e.highlighter.GetTree() != nil {
+		// Use tree-sitter based context detection
+		e.contextCache = getTreeSitterContext(e.buffer, e.highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+	} else {
+		// No tree-sitter available, no context
+		e.contextCache = nil
+		return
+	}
+	
 	e.contextLine = currentLine
 }
 
