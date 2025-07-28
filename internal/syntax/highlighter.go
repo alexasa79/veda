@@ -357,7 +357,7 @@ func (h *Highlighter) mergeOverlappingTokens(tokens []Token) []Token {
 						TokenType: last.TokenType,
 					})
 				}
-				merged[len(merged)-1] = curr
+				merged = append(merged, curr)
 				if curr.End < last.End {
 					merged = append(merged, Token{
 						Start:     curr.End,
@@ -365,6 +365,11 @@ func (h *Highlighter) mergeOverlappingTokens(tokens []Token) []Token {
 						TokenType: last.TokenType,
 					})
 				}
+			}
+		} else {
+			// Other overlap cases - just keep the more specific one
+			if h.isMoreSpecific(curr.TokenType, last.TokenType) {
+				merged[len(merged)-1] = curr
 			}
 		}
 	}
@@ -433,10 +438,15 @@ func (h *Highlighter) mapCNodeToTokenType(node *sitter.Node, nodeType string, so
 		}
 		return TokenTypeVariable
 
-	// Preprocessor directives
+	// Preprocessor directives - don't tokenize the whole line, let children be processed
 	case "preproc_include", "preproc_def", "preproc_function_def",
 		"preproc_call", "preproc_if", "preproc_ifdef", "preproc_else",
-		"preproc_elif", "preproc_directive":
+		"preproc_elif":
+		return TokenTypeText
+		
+	// Preprocessor directive keywords
+	case "#include", "#define", "#ifdef", "#ifndef", "#if", "#else", "#elif", "#endif", 
+		"#undef", "preproc_directive":
 		return TokenTypeAttribute
 
 	// Punctuation
@@ -528,10 +538,15 @@ func (h *Highlighter) mapCppNodeToTokenType(node *sitter.Node, nodeType string, 
 		}
 		return TokenTypeVariable
 
-	// Preprocessor directives
+	// Preprocessor directives - don't tokenize the whole line, let children be processed
 	case "preproc_include", "preproc_def", "preproc_function_def",
 		"preproc_call", "preproc_if", "preproc_ifdef", "preproc_else",
-		"preproc_elif", "preproc_directive":
+		"preproc_elif":
+		return TokenTypeText
+		
+	// Preprocessor directive keywords
+	case "#include", "#define", "#ifdef", "#ifndef", "#if", "#else", "#elif", "#endif", 
+		"#undef", "preproc_directive":
 		return TokenTypeAttribute
 
 	// Punctuation

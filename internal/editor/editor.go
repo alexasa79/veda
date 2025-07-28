@@ -2095,26 +2095,37 @@ func (e *Editor) goToDefinition(args []string) error {
 	}
 
 	filePath := strings.TrimPrefix(location.URI, "file://")
+	
+	// If we're working with a remote file, preserve the host prefix
+	if strings.Contains(e.buffer.FilePath, ":") {
+		// Extract host from current buffer path
+		parts := strings.SplitN(e.buffer.FilePath, ":", 2)
+		if len(parts) == 2 {
+			host := parts[0]
+			// Add host prefix to the file path from LSP
+			filePath = host + ":" + filePath
+		}
+	}
+	
+	LL.Debug("goToDefinition: location URI=%s, filePath=%s, current buffer=%s", location.URI, filePath, e.buffer.FilePath)
 
 	// Push current position to navigation history before jumping
 	e.pushNavigationHistory()
 
 	// If it's a different file, open it
 	if filePath != e.buffer.FilePath {
+		LL.Debug("goToDefinition: opening different file: %s", filePath)
 		e.openFile(filePath)
+	} else {
+		LL.Debug("goToDefinition: staying in same file")
 	}
 
 	// Jump to the location
 	targetLine := location.Range.Start.Line
 	e.buffer.CursorX = location.Range.Start.Character
 
-	// Create iterator and advance to target line
-	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
-
-	// Move iterator to target line
-	for i := 0; i < targetLine && !e.buffer.CursorIterator.IsEOF(); i++ {
-		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	}
+	// Create iterator at the target line directly
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
 
 	// Ensure cursor X is within bounds
 	currentLine := e.buffer.CursorIterator.Line()
