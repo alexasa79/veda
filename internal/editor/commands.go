@@ -74,6 +74,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("find-next", e.findNextCmd)
 	e.commandRegistry.Register("find-previous", e.findPreviousCmd)
 	
-	// Help command
+	// Help commands
 	e.commandRegistry.Register("help", e.showHelp)
+	e.commandRegistry.Register("help-keys", e.showHelpKeys)
 }
