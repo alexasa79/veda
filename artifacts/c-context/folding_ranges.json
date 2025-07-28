@@ -1,0 +1,31 @@
+{
+  "file": "/Users/sasandl/hobbies/veda/artifacts/c-context/file.c",
+  "ranges": [
+    {
+      "startLine": 3,
+      "startCharacter": 1,
+      "endLine": 73,
+      "kind": "region"
+    },
+    {
+      "startLine": 6,
+      "startCharacter": 16,
+      "endLine": 67,
+      "endCharacter": 4,
+      "kind": "region"
+    },
+    {
+      "startLine": 75,
+      "startCharacter": 8,
+      "endLine": 77,
+      "endCharacter": 16,
+      "kind": "region"
+    },
+    {
+      "startLine": 78,
+      "startCharacter": 1,
+      "endLine": 145,
+      "kind": "region"
+    }
+  ]
+}

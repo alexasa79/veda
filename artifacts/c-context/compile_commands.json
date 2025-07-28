@@ -1,0 +1,16 @@
+[
+  {
+    "arguments": [
+      "clang",
+      "-c",
+      "-std=c11",
+      "-Wall",
+      "-Wextra",
+      "-o",
+      "file.o",
+      "file.c"
+    ],
+    "directory": "/Users/sasandl/hobbies/veda/artifacts/c-context",
+    "file": "file.c"
+  }
+]
