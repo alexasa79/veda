@@ -445,6 +445,17 @@ func (flw *FuzzyListWidget) SetSelectedIndex(index int) {
 	}
 }
 
+// GetSelectedRawLine returns the raw (undecorated) line for the current selection
+func (flw *FuzzyListWidget) GetSelectedRawLine() string {
+	if flw.selectedIndex >= 0 && flw.selectedIndex < len(flw.topIndices) {
+		rawIndex := flw.topIndices[flw.selectedIndex]
+		if rawIndex >= 0 && rawIndex < len(flw.rawLines) {
+			return flw.rawLines[rawIndex]
+		}
+	}
+	return ""
+}
+
 // applyFilter filters the content based on the search text
 func (flw *FuzzyListWidget) applyFilter() {
 	searchText := flw.bottomEditor.GetText()

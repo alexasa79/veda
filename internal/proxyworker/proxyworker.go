@@ -185,7 +185,7 @@ func proxyWorker(proxyManager *proxy.ProxyManager, requestChan chan ProxyRequest
 			if err != nil {
 				LL.Debug("ListDirectoryRecursive failed for %s: %v", request.DirectoryPath, err)
 			} else {
-				LL.Trace("ListDirectoryRecursive succeeded for %s: got %d files", request.DirectoryPath, len(files))
+				LL.Debug("ListDirectoryRecursive succeeded for %s: got %d files", request.DirectoryPath, len(files))
 			}
 
 			// Send to specific channel if provided, otherwise to general response channel

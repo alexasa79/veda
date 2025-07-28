@@ -67,15 +67,14 @@ func (e *Editor) showBuffers(args []string) error {
 	
 	fuzzyListWidget.SetContent(bufferDisplays)
 	
-	// Show the widget with a background render function
-	// Cast our Screen to widgets.Screen interface
-	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
-		selection := fuzzyListWidget.Show(widgetScreen, func() {
-			e.drawEditor()
-			e.drawStatusBar()
-		})
+	// Create overlay and get result channel
+	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
+	resultChan := e.renderingState.SetOverlay(overlay)
+	
+	// Wait for result in a goroutine
+	go func() {
+		selection := <-resultChan
 		
-		// Process selection after the Show method returns
 		// If a buffer was selected, switch to it
 		if selection != "" {
 			// Remove the " [current]" suffix if present
@@ -92,10 +91,7 @@ func (e *Editor) showBuffers(args []string) error {
 				}
 			}
 		}
-		
-		return nil
-	}
+	}()
 	
-	// If screen doesn't implement widgets.Screen, return nil
 	return nil
 }

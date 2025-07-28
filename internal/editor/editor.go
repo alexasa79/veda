@@ -55,7 +55,7 @@ type Editor struct {
 	// LSP communication
 	lspRequestChan  chan proxyworker.ProxyRequest     // Channel for proxy requests
 	lspResponseChan chan proxyworker.ProxyResponse    // Channel for proxy responses
-	
+
 	// Repeat last change
 	// We need two separate fields to handle vim's "." (repeat) command correctly:
 	//
@@ -74,7 +74,7 @@ type Editor struct {
 	// Why we can't use just one field:
 	// 1. Different repeat semantics:
 	//    - "dw" on "apple banana" deletes "apple "
-	//    - Move cursor to "banana" and press "." 
+	//    - Move cursor to "banana" and press "."
 	//    - Should delete "banana ", NOT try to delete "apple " again
 	//
 	// 2. Context requirements:
@@ -90,22 +90,25 @@ type Editor struct {
 	// providing the correct vim-like behavior for all command types.
 	lastChange      buffer.HistoryEntry     // Last text modification for repeat command
 	lastCommand     *RepeatableCommand      // Last operator+text object command for repeat
-	
+
 	// Pending operation for multi-key commands
 	pendingOperator Operator                // Current operator waiting for text object
 	pendingModifier TextObjectModifier      // Modifier for text object (a/i)
 	pendingKeys     []string                // Accumulated keys for current operation
-	
+
 	// Search state
 	searchPattern   string                  // Current search pattern
 	searchDirection bool                    // true = forward, false = backward
-	
+
 	// Working directory
 	workingDirectory string                 // Current working directory (can include HOST: prefix)
 	pendingDirectoryOpen bool              // Flag to show fuzzy list after editor starts
-	
+
 	// Ex-command support
 	lastCommandArgs  []string               // Arguments from the last ex-command
+
+	// Rendering state
+	renderingState  *RenderingState        // Manages overlay/modal state
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -120,7 +123,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	statusBarY := height - 1 // Status bar is always on the last line
 	commandLine := widgets.NewCommandLineWidget(0, statusBarY, width)
 	commandLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
-	
+
 	// Initialize search line widget (also at bottom of screen, shown in search mode)
 	searchLine := widgets.NewCommandLineWidget(0, statusBarY, width)
 	searchLine.SetStyle(config.Theme.GetStyle(config.Theme.CommandLine))
@@ -147,6 +150,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		config:          config,
 		mode:            commands.NormalMode,
 		commandLine:     commandLine,
+		renderingState:  NewRenderingState(),
 		searchLine:      searchLine,
 		proxyManager:    proxyManager,
 		commandRegistry: commands.NewCommandRegistry(),
@@ -190,11 +194,10 @@ func New() (*Editor, error) {
 	return NewWithScreen(screen)
 }
 
-// Run starts the editor's main event loop.
+// Run starts the editor's main event loop with unified rendering.
 func (e *Editor) Run() {
 	// Initialize the screen
 	if err := e.screen.Init(); err != nil {
-		// TODO: Better error handling
 		panic(err)
 	}
 
@@ -202,12 +205,7 @@ func (e *Editor) Run() {
 	e.screen.Clear()
 
 	// Initial draw
-	e.drawEditor()
-	e.drawContext()
-	e.drawSignature()
-	e.drawStatusBar()
-	e.updateCursor()
-	e.screen.Show()
+	e.render()
 
 	// Check if we need to show the fuzzy list for a directory
 	if e.pendingDirectoryOpen {
@@ -226,9 +224,6 @@ func (e *Editor) Run() {
 	for {
 		var ev events.Event
 
-		LL.Debug("Rendering buffer %+v from top line %+v, cursor line %+v, cursor %d",
-			e.buffer, e.buffer.ViewIterator, e.buffer.CursorIterator, e.buffer.CursorX)
-
 		// Use select to handle multiple event sources
 		select {
 		case ev = <-screenEvents:
@@ -236,96 +231,112 @@ func (e *Editor) Run() {
 		case <-ticker.C:
 			// Timer fired - ev remains nil, will trigger redraw
 		case ev = <-e.asyncEvents:
-			// Got an async event from somewhere else
+			// Got an async event
 		case lspResponse := <-e.lspResponseChan:
 			// Got an LSP response
 			e.handleLSPResponse(lspResponse)
 			// Continue to redraw
 		}
 
-		LL.Trace("Received event: %+v", ev)
+		// Handle overlay events first
+		if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
+			// Always check for content updates (even without events)
+			e.renderingState.GetOverlay().CheckContentUpdates()
 
-		// Start performance tracking for this iteration
-		t0 := e.perfTracker.Start()
-
-		// Only handle event if we got one
-		if ev != nil {
-			switch ev := ev.(type) {
-			case *events.KeyEvent:
-				if e.mode == commands.CommandMode {
-					// Command mode is special - it's a line editor
-					e.handleCommandMode(ev)
-					t0 = e.perfTracker.ReportSince("handleCommandMode", t0)
-				} else if e.mode == commands.SearchMode {
-					// Search mode is also a line editor
-					e.handleSearchMode(ev)
-					t0 = e.perfTracker.ReportSince("handleSearchMode", t0)
-				} else {
-					// Normal and Insert modes both use key mapping
-					LL.Debug("Key event: Key=%d, Rune=%c, Modifiers=%d, Mode=%s", ev.Key, ev.Rune, ev.Modifiers, e.mode)
-
-					// Check for escape to cancel pending operations
-					if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyEscape {
-						e.cancelPendingOperation()
-						t0 = e.perfTracker.ReportSince("cancelPendingOperation", t0)
-					} else if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyRune {
-						// Handle as part of pending operation
-						if err := e.handlePendingOperation(string(ev.Rune)); err != nil {
-							LL.Debug("Pending operation error: %v", err)
-						}
-						t0 = e.perfTracker.ReportSince("handlePendingOperation", t0)
-					} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
-						LL.Debug("Found command: %s", command)
-						err := e.commandRegistry.Execute(command, nil)
-						t0 = e.perfTracker.ReportSince("command:"+command, t0)
-
-						if err != nil {
-							LL.Debug("Command execution error: %v", err)
-						}
-					} else {
-						LL.Debug("No command found for key")
-						if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
-							// In insert mode, insert unmapped rune keys
-							e.insertChar(ev.Rune)
-							t0 = e.perfTracker.ReportSince("insertChar", t0)
-						}
-					}
+			if ev != nil {
+				done, result := e.renderingState.GetOverlay().HandleEvent(ev)
+				if done {
+					e.renderingState.CompleteOverlay(result)
 				}
-			case *events.ResizeEvent:
-				// Handle screen resize events
-				e.handleResize()
-				t0 = e.perfTracker.ReportSince("handleResize", t0)
-			default:
-				LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
+			}
+		} else {
+			// Handle normal editor events
+			if ev != nil {
+				e.handleEvent(ev)
 			}
 		}
 
 		// Check if scrolling occurred
 		e.scroll()
-		t0 = e.perfTracker.ReportSince("scroll", t0)
 
-		LL.Trace("Redrawing the screen")
-
-		// Always redraw the entire screen
-		e.drawEditor()
-		t0 = e.perfTracker.ReportSince("drawEditor", t0)
-
-		// Draw context lines
-		e.drawContext()
-		t0 = e.perfTracker.ReportSince("drawContext", t0)
-
-		// Always redraw signature and status bar to show updated cursor position
-		e.drawSignature()
-		e.drawStatusBar()
-		t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
-
-		// Always update cursor position and show
-		e.updateCursor()
-		t0 = e.perfTracker.ReportSince("updateCursor", t0)
-		e.screen.Show()
-		e.perfTracker.ReportSince("screen.Show", t0)
+		// Render the entire screen
+		e.render()
 	}
 }
+
+// render performs the complete screen rendering
+func (e *Editor) render() {
+	t0 := e.perfTracker.Start()
+
+	// Render base editor
+	e.drawEditor()
+	t0 = e.perfTracker.ReportSince("drawEditor", t0)
+
+	e.drawContext()
+	t0 = e.perfTracker.ReportSince("drawContext", t0)
+
+	e.drawSignature()
+	e.drawStatusBar()
+	t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
+
+	// Render overlay if active
+	if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
+		if widgetScreen, ok := e.screen.(widgets.Screen); ok {
+			e.renderingState.GetOverlay().Draw(widgetScreen)
+		}
+	}
+	t0 = e.perfTracker.ReportSince("drawOverlay", t0)
+
+	// Update cursor position
+	if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
+		// Get cursor from overlay
+		x, y := e.renderingState.GetOverlay().GetCursorPosition()
+		e.screen.ShowCursor(x, y)
+	} else {
+		// Normal cursor update
+		e.updateCursor()
+	}
+	t0 = e.perfTracker.ReportSince("updateCursor", t0)
+
+	e.screen.Show()
+	e.perfTracker.ReportSince("screen.Show", t0)
+}
+
+// handleEvent processes a single event in normal (non-overlay) mode
+func (e *Editor) handleEvent(ev events.Event) {
+	switch ev := ev.(type) {
+	case *events.KeyEvent:
+		if e.mode == commands.CommandMode {
+			e.handleCommandMode(ev)
+		} else if e.mode == commands.SearchMode {
+			e.handleSearchMode(ev)
+		} else {
+			// Normal and Insert modes
+			if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyEscape {
+				e.cancelPendingOperation()
+			} else if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyRune {
+				if err := e.handlePendingOperation(string(ev.Rune)); err != nil {
+					LL.Debug("Pending operation error: %v", err)
+				}
+			} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+				LL.Debug("Found command: %s", command)
+				if err := e.commandRegistry.Execute(command, nil); err != nil {
+					LL.Debug("Command execution error: %v", err)
+				}
+			} else {
+				LL.Debug("No command found for key")
+				if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
+					e.insertChar(ev.Rune)
+				}
+			}
+		}
+	case *events.ResizeEvent:
+		e.handleResize()
+	default:
+		LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
+	}
+}
+
 
 // updateCursor updates the cursor position and style
 func (e *Editor) updateCursor() {
@@ -433,21 +444,21 @@ func (e *Editor) scrollToShowAtTop() {
 func (e *Editor) ScrollToShowAtBottom() {
 	visibleHeight := e.getVisibleHeight()
 	cursorLine := e.buffer.CursorIterator.LineNumber()
-	
+
 	// Calculate the desired view start line
 	// If cursor is below screen, we need to move view up by 1
 	// View should start at: cursorLine - visibleHeight + 1 - 1
 	desiredViewLine := cursorLine - visibleHeight + 2
-	
+
 	// Handle edge case where desired view would be negative
 	if desiredViewLine < 0 {
 		desiredViewLine = 0
 	}
-	
+
 	// Create iterator at the desired view line
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
 
-	LL.Debug("After going to the end, the view iterator is at %+v, cursor iterator at %+v, visible height is %d", 
+	LL.Debug("After going to the end, the view iterator is at %+v, cursor iterator at %+v, visible height is %d",
 		e.buffer.ViewIterator, e.buffer.CursorIterator, visibleHeight)
 }
 
@@ -455,10 +466,10 @@ func (e *Editor) ScrollToShowAtBottom() {
 func (e *Editor) scrollToCenter() {
 	visibleHeight := e.getVisibleHeight()
 	cursorLine := e.buffer.CursorIterator.LineNumber()
-	
+
 	// Calculate the desired view start line to center the cursor
 	desiredViewLine := cursorLine - visibleHeight/2
-	
+
 	// Handle edge cases
 	if desiredViewLine < 0 {
 		desiredViewLine = 0
@@ -472,7 +483,7 @@ func (e *Editor) scrollToCenter() {
 			desiredViewLine = maxViewLine
 		}
 	}
-	
+
 	// Create iterator at the desired view line
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
 }
@@ -504,7 +515,7 @@ func (e *Editor) enterCommandMode() {
 	e.commandLine.SetText(":")
 	// Position cursor after the colon
 	e.commandLine.SetCursor(1)
-	
+
 	// Set up command completion function
 	e.commandLine.SetCompletionFunc(e.getCommandCompletions)
 }
@@ -518,10 +529,10 @@ func (e *Editor) exitCommandMode() {
 // executeCommand processes the command entered in the command line
 func (e *Editor) executeCommand() {
 	fullCommand := e.commandLine.GetText()
-	
+
 	// Add to history before executing
 	e.commandLine.AddToHistory(fullCommand)
-	
+
 	// Remove the leading ":"
 	command := fullCommand
 	if len(command) > 1 {
@@ -541,10 +552,10 @@ func (e *Editor) executeCommand() {
 	}
 	cmd := parts[0]
 	args := parts[1:]
-	
+
 	// Store command arguments for handlers that need them
 	e.lastCommandArgs = args
-	
+
 	// Try to execute from the command registry
 	if e.commandRegistry.Has(cmd) {
 		err := e.commandRegistry.Execute(cmd, args)
@@ -561,10 +572,10 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 	if len(parts) != 2 {
 		return
 	}
-	
+
 	varName := strings.TrimSpace(parts[0])
 	value := strings.TrimSpace(parts[1])
-	
+
 	switch varName {
 	case "expandtab":
 		// Boolean value
@@ -620,7 +631,7 @@ func (e *Editor) handleSearchMode(ev *events.KeyEvent) {
 	default:
 		// Pass other keys to the search line widget
 		e.searchLine.HandleKey(ev)
-		
+
 		// Check if the user deleted all text including the slash
 		// If so, exit search mode automatically
 		if e.searchLine.GetText() == "" {
@@ -647,7 +658,7 @@ func (e *Editor) exitSearchMode() {
 // executeSearch performs the search operation
 func (e *Editor) executeSearch() {
 	fullSearch := e.searchLine.GetText()
-	
+
 	// Remove the leading "/"
 	pattern := fullSearch
 	if len(pattern) > 1 {
@@ -656,10 +667,10 @@ func (e *Editor) executeSearch() {
 		// Empty search, do nothing
 		return
 	}
-	
+
 	// Store the search pattern
 	e.searchPattern = pattern
-	
+
 	// Perform the search
 	e.findNext()
 }
@@ -669,22 +680,22 @@ func (e *Editor) findNext() {
 	if e.searchPattern == "" {
 		return
 	}
-	
+
 	// Get current position
 	startPos := e.getAbsolutePosition()
-	
+
 	// Convert buffer content to string for searching
 	content := e.buffer.Rope.String()
-	
+
 	// Search forward from current position + 1
 	searchStart := startPos + 1
 	if searchStart >= len(content) {
 		searchStart = 0 // Wrap around
 	}
-	
+
 	// Find the pattern
 	foundPos := strings.Index(content[searchStart:], e.searchPattern)
-	
+
 	if foundPos == -1 && searchStart > 0 {
 		// Not found after cursor, try from beginning
 		foundPos = strings.Index(content[:startPos], e.searchPattern)
@@ -698,7 +709,7 @@ func (e *Editor) findNext() {
 		e.moveCursorToPosition(searchStart + foundPos)
 		return
 	}
-	
+
 	// Pattern not found
 	LL.Debug("Pattern not found: %s", e.searchPattern)
 }
@@ -708,23 +719,23 @@ func (e *Editor) findPrevious() {
 	if e.searchPattern == "" {
 		return
 	}
-	
+
 	// Get current position
 	startPos := e.getAbsolutePosition()
-	
+
 	// Convert buffer content to string for searching
 	content := e.buffer.Rope.String()
-	
+
 	// Search backward from current position
 	searchEnd := startPos
 	if searchEnd <= 0 {
 		searchEnd = len(content) // Wrap around
 	}
-	
+
 	// Find the last occurrence before current position
 	foundPos := -1
 	searchContent := content[:searchEnd]
-	
+
 	// Find all occurrences and take the last one
 	lastPos := -1
 	searchStart := 0
@@ -736,7 +747,7 @@ func (e *Editor) findPrevious() {
 		lastPos = searchStart + pos
 		searchStart = lastPos + 1
 	}
-	
+
 	if lastPos != -1 {
 		foundPos = lastPos
 	} else if searchEnd < len(content) {
@@ -757,7 +768,7 @@ func (e *Editor) findPrevious() {
 			foundPos = startPos + lastPos
 		}
 	}
-	
+
 	if foundPos != -1 {
 		e.moveCursorToPosition(foundPos)
 	} else {
@@ -782,12 +793,12 @@ func (e *Editor) findPreviousCmd(args []string) error {
 func (e *Editor) moveCursorToPosition(pos int) {
 	// Remember the current view line before moving cursor
 	oldViewLine := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Create an iterator at the beginning
 	iter := buffer.NewBufferIterator(e.buffer)
 	lineNum := 0
 	lineStart := 0
-	
+
 	// Find the line containing the position
 	for !iter.IsEOF() {
 		lineEnd := iter.LineEnd()
@@ -799,11 +810,11 @@ func (e *Editor) moveCursorToPosition(pos int) {
 		iter = iter.Next()
 		lineNum++
 	}
-	
+
 	// Set cursor position
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.CursorX = pos - lineStart
-	
+
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()
 	if e.buffer.CursorX > len(line) {
@@ -812,21 +823,21 @@ func (e *Editor) moveCursorToPosition(pos int) {
 			e.buffer.CursorX--
 		}
 	}
-	
+
 	// Check if the cursor is already visible
 	visibleHeight := e.getVisibleHeight()
 	viewLine := e.buffer.ViewIterator.LineNumber()
 	cursorLine := e.buffer.CursorIterator.LineNumber()
-	
+
 	// Check if cursor is within visible range
 	if cursorLine >= viewLine && cursorLine < viewLine + visibleHeight {
 		// Cursor is already visible, no need to scroll
 		return
 	}
-	
+
 	// Cursor is not visible, center it on screen
 	e.scrollToCenter()
-	
+
 	// Check if the view actually changed
 	newViewLine := e.buffer.ViewIterator.LineNumber()
 	if newViewLine == oldViewLine {
@@ -842,7 +853,7 @@ func (e *Editor) handleResize() {
 	// Update the command line widget's dimensions and position
 	e.commandLine.SetWidth(width)
 	e.commandLine.SetPosition(0, e.getStatusBarY())
-	
+
 	// Also update search line widget
 	e.searchLine.SetWidth(width)
 	e.searchLine.SetPosition(0, e.getStatusBarY())
@@ -882,18 +893,18 @@ func parsePathComponents(path string) (string, string, bool) {
 // resolvePath resolves a path relative to the working directory
 func (e *Editor) resolvePath(path string) string {
 	LL.Debug("resolvePath: input=%s, workingDirectory=%s", path, e.workingDirectory)
-	
+
 	// If path is already absolute or has HOST: prefix, return as is
 	if strings.HasPrefix(path, "/") || strings.Contains(path, ":") {
 		LL.Debug("resolvePath: path is absolute or has HOST:, returning as is")
 		return path
 	}
-	
+
 	// If path is relative, prepend working directory
 	if e.workingDirectory == "." {
 		return path
 	}
-	
+
 	// Handle working directory with HOST: prefix
 	if strings.Contains(e.workingDirectory, ":") {
 		// For remote working directory, just append the path
@@ -906,7 +917,7 @@ func (e *Editor) resolvePath(path string) string {
 		LL.Debug("resolvePath: remote working directory, result=%s", result)
 		return result
 	}
-	
+
 	// For local working directory
 	if strings.HasSuffix(e.workingDirectory, "/") {
 		return e.workingDirectory + path
@@ -970,7 +981,7 @@ func (e *Editor) changeDirectory(args []string) error {
 		if !strings.HasPrefix(newPath, "/") && !strings.Contains(newPath, ":") {
 			newPath = e.resolvePath(newPath)
 		}
-		
+
 		// Try to list the directory to verify it exists
 		_, err := e.proxyManager.ListDirectory(newPath)
 		if err != nil {
@@ -1021,7 +1032,7 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 					for _, p := range params {
 						if param, ok := p.(map[string]interface{}); ok {
 							paramInfo := buffer.ParameterInfo{}
-							
+
 							// Handle label - can be string or [start, end] array
 							if label, ok := param["label"].(string); ok {
 								paramInfo.Label = label
@@ -1034,7 +1045,7 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 									paramInfo.LabelEnd = int(end)
 								}
 							}
-							
+
 							if doc, ok := param["documentation"].(string); ok {
 								paramInfo.Documentation = doc
 							}
@@ -1159,13 +1170,13 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 
 func (e *Editor) exitInsertMode(args []string) error {
 	e.mode = commands.NormalMode
-	
+
 	// Adjust cursor position for normal mode
 	// In vim, when exiting insert mode, if cursor is not at position 0, move back one
 	if e.buffer != nil && e.buffer.CursorX > 0 {
 		e.buffer.CursorX--
 	}
-	
+
 	// Finalize insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		if compositeEntry := e.buffer.History.EndInsertSession(); compositeEntry != nil {
@@ -1180,16 +1191,16 @@ func (e *Editor) undo(args []string) error {
 	if e.buffer == nil || e.buffer.History == nil {
 		return nil
 	}
-	
+
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Perform undo
 	if err := e.buffer.History.Undo(e.buffer); err != nil {
 		return err
 	}
-	
+
 	// Ensure iterators are valid after undo
 	// If cursor line is beyond buffer, move to last line
 	maxLine := e.buffer.LineCount - 1
@@ -1199,11 +1210,11 @@ func (e *Editor) undo(args []string) error {
 	if viewLineNum > maxLine {
 		viewLineNum = maxLine
 	}
-	
+
 	// Recreate iterators
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()
 	if e.buffer.CursorX > len(line) {
@@ -1212,10 +1223,10 @@ func (e *Editor) undo(args []string) error {
 			e.buffer.CursorX--
 		}
 	}
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -1223,16 +1234,16 @@ func (e *Editor) redo(args []string) error {
 	if e.buffer == nil || e.buffer.History == nil {
 		return nil
 	}
-	
+
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Perform redo
 	if err := e.buffer.History.Redo(e.buffer); err != nil {
 		return err
 	}
-	
+
 	// Ensure iterators are valid after redo
 	// If cursor line is beyond buffer, move to last line
 	maxLine := e.buffer.LineCount - 1
@@ -1242,11 +1253,11 @@ func (e *Editor) redo(args []string) error {
 	if viewLineNum > maxLine {
 		viewLineNum = maxLine
 	}
-	
+
 	// Recreate iterators
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()
 	if e.buffer.CursorX > len(line) {
@@ -1255,10 +1266,10 @@ func (e *Editor) redo(args []string) error {
 			e.buffer.CursorX--
 		}
 	}
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -1269,38 +1280,38 @@ func (e *Editor) repeatLastChange(args []string) error {
 		// Repeat the operator+text object combination
 		return e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject)
 	}
-	
+
 	// Otherwise fall back to repeating the last change
 	if e.lastChange == nil {
 		return nil // Nothing to repeat
 	}
-	
+
 	if e.buffer == nil || e.buffer.History == nil {
 		return nil
 	}
-	
+
 	// Get current cursor position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	cursorX := e.buffer.CursorX
-	
+
 	// Create a new entry based on the type of the last change
 	var newEntry buffer.HistoryEntry
-	
+
 	switch original := e.lastChange.(type) {
 	case *buffer.InsertTextEntry:
 		// For insert, we need to insert after the current cursor position in normal mode
 		// This mimics pressing 'i' which inserts before the cursor
 		newEntry = buffer.NewInsertTextEntry(lineNum, cursorX, original.Text)
-		
+
 	case *buffer.DeleteTextEntry:
 		// Delete happens at the current cursor position
 		newEntry = buffer.NewDeleteTextEntry(lineNum, cursorX, original.Text)
-		
+
 	case *buffer.CompositeEntry:
 		// For composite entries (like insert mode sessions), replay all operations
 		// starting from the current cursor position
 		composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
-		
+
 		// Calculate the base position offset
 		var baseLineOffset, baseCharOffset int
 		var firstLine int
@@ -1317,7 +1328,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 				baseCharOffset = cursorX - first.Character
 			}
 		}
-		
+
 		// Translate each sub-entry
 		for _, subEntry := range original.Entries {
 			switch se := subEntry.(type) {
@@ -1329,7 +1340,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 					newChar = se.Character + baseCharOffset
 				}
 				composite.Add(buffer.NewInsertTextEntry(newLine, newChar, se.Text))
-				
+
 			case *buffer.DeleteTextEntry:
 				newLine := se.Line + baseLineOffset
 				newChar := se.Character
@@ -1341,29 +1352,29 @@ func (e *Editor) repeatLastChange(args []string) error {
 			}
 		}
 		newEntry = composite
-		
+
 	default:
 		// Unknown entry type, cannot repeat
 		return nil
 	}
-	
+
 	// Save the original lastChange before executing
 	originalLastChange := e.lastChange
-	
+
 	// Remember the view position before we make changes
 	viewLine := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Execute the new entry (this will also update lastChange)
 	if _, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
 		return err
 	}
-	
+
 	// Restore the original lastChange to maintain it for future repeats
 	e.lastChange = originalLastChange
-	
+
 	// Recreate iterators to ensure they're valid after buffer changes
 	// This is especially important for ViewIterator which can become invalid
-	
+
 	// Recreate cursor iterator
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 	if cursorLine >= e.buffer.LineCount {
@@ -1373,7 +1384,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 		}
 	}
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
-	
+
 	// Recreate view iterator
 	if viewLine >= e.buffer.LineCount {
 		viewLine = e.buffer.LineCount - 1
@@ -1382,7 +1393,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 		}
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-	
+
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()
 	if e.buffer.CursorX > len(line) {
@@ -1391,10 +1402,10 @@ func (e *Editor) repeatLastChange(args []string) error {
 			e.buffer.CursorX--
 		}
 	}
-	
+
 	// Update cursor state
 	e.updateCursorState()
-	
+
 	return nil
 }
 
@@ -1417,7 +1428,7 @@ func (e *Editor) openLineBelow(args []string) error {
 	// Create history entry for the newline and indentation
 	textToInsert := "\n" + autoIndent.IndentStr
 	entry := buffer.NewInsertTextEntry(lineNum, e.buffer.CursorX, textToInsert)
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -1476,7 +1487,7 @@ func (e *Editor) openLineAbove(args []string) error {
 
 	// Create history entry for the newline
 	entry := buffer.NewInsertTextEntry(lineNum, 0, "\n")
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -1499,7 +1510,7 @@ func (e *Editor) openLineAbove(args []string) error {
 	if autoIndent.IndentStr != "" {
 		// Create history entry for the indentation
 		indentEntry := buffer.NewInsertTextEntry(lineNum, 0, autoIndent.IndentStr)
-		
+
 		// Execute through history
 		if e.buffer.History != nil {
 			if executed, err := e.buffer.History.Execute(e.buffer, indentEntry); err != nil {
@@ -1548,9 +1559,9 @@ func (e *Editor) insertChar(ch rune) error {
 	if isPaired {
 		textToInsert = string(ch) + string(pairedChar)
 	}
-	
+
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
-	
+
 	// Execute through history (this handles both direct execution and insert mode tracking)
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -1622,7 +1633,7 @@ func (e *Editor) insertNewline(args []string) error {
 	// Create history entry for newline + indentation
 	textToInsert := "\n" + autoIndent.IndentStr
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -1677,7 +1688,7 @@ func (e *Editor) backspace(args []string) error {
 			// We're deleting a newline character
 			deletedText := "\n"
 			entry := buffer.NewDeleteTextEntry(lineNum-1, prevLineLen, deletedText)
-			
+
 			// Execute through history
 			if e.buffer.History != nil {
 				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -1708,9 +1719,9 @@ func (e *Editor) backspace(args []string) error {
 			// Get the character being deleted
 			deletedChar := e.buffer.Rope.ByteAt(pos - 1)
 			deletedText := string(deletedChar)
-			
+
 			entry := buffer.NewDeleteTextEntry(lineNum, cursorX-1, deletedText)
-			
+
 			// Execute through history
 			if e.buffer.History != nil {
 				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -1762,7 +1773,7 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 			// We can delete the newline
 			deletedText := "\n"
 			entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
-			
+
 			// Execute through history
 			if e.buffer.History != nil {
 				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -1776,11 +1787,11 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 					return err
 				}
 			}
-			
+
 			// Recreate iterators at the same position
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-			
+
 			// Update syntax highlighting
 			e.updateSyntaxHighlighting()
 			return nil
@@ -1795,10 +1806,10 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 	pos := e.getAbsolutePosition()
 	deletedChar := e.buffer.Rope.ByteAt(pos)
 	deletedText := string(deletedChar)
-	
+
 	// Create history entry
 	entry := buffer.NewDeleteTextEntry(lineNum, cursorX, deletedText)
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -2091,7 +2102,7 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 		parts := strings.SplitN(prefix, "=", 2)
 		if len(parts) == 2 {
 			varName := parts[0]
-			
+
 			switch varName {
 			case "expandtab":
 				values := []string{"true", "false", "yes", "no", "1", "0"}
@@ -2128,27 +2139,27 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 			}
 		}
 	}
-	
+
 	// Variable names for assignment
 	variables := []string{
 		"expandtab", "tabstop", "ts", "shiftwidth", "sw",
 		"number", "relativenumber", "autoindent", "smartindent",
 		"log",
 	}
-	
+
 	// Add registered commands
 	var commands []string
 	for cmd := range e.commandRegistry.GetAll() {
 		commands = append(commands, cmd)
 	}
-	
+
 	// Add built-in commands
 	builtinCommands := []string{"q", "quit"}
 	commands = append(commands, builtinCommands...)
-	
+
 	// Combine all possible completions
 	allCompletions := append(commands, variables...)
-	
+
 	// Filter based on prefix
 	var completions []string
 	for _, item := range allCompletions {
@@ -2156,6 +2167,6 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 			completions = append(completions, item)
 		}
 	}
-	
+
 	return completions
 }

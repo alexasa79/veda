@@ -45,7 +45,7 @@ func (e *Editor) sendDirectoryListingRequest(fileResponseChan chan proxyworker.P
 
 	select {
 	case e.lspRequestChan <- request:
-		LL.Trace("Sent directory listing request for %s", e.workingDirectory)
+		LL.Debug("Sent directory listing request for %s", e.workingDirectory)
 	default:
 		LL.Debug("Proxy request channel full, dropping request")
 		contentUpdateChan <- []string{"Error: Could not send request"}
@@ -101,7 +101,7 @@ func (e *Editor) processFileList(files []proxy.FileInfo) fileListingResult {
 	if !isRemote {
 		basePath = e.workingDirectory
 	}
-	LL.Debug("File browser: workingDirectory=%s, basePath=%s, isRemote=%v", e.workingDirectory, basePath, isRemote)
+	LL.Debug("File browser: workingDirectory=%s, basePath=%s, isRemote=%v, fileCount=%d", e.workingDirectory, basePath, isRemote, len(files))
 
 	for _, file := range files {
 		if shouldSkipFile(file) {
@@ -122,9 +122,12 @@ func (e *Editor) processFileList(files []proxy.FileInfo) fileListingResult {
 // handleDirectoryListingResponse processes the async response from proxy
 func (e *Editor) handleDirectoryListingResponse(fileResponseChan chan proxyworker.ProxyResponse, contentUpdateChan chan []string) map[string]string {
 	var filePaths map[string]string
+	
+	LL.Debug("Waiting for directory listing response...")
 
 	select {
 	case response := <-fileResponseChan:
+		LL.Debug("Received response: type=%v, error=%v", response.Type, response.Error)
 		if response.Type == proxyworker.RequestListDirectoryRecursive {
 			if response.Error != nil {
 				LL.Debug("Directory listing error: %v", response.Error)
@@ -189,46 +192,39 @@ func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]s
 func (e *Editor) ShowFuzzyListWidget() {
 	fuzzyListWidget := e.createFuzzyListWidget()
 
-	// Cast our Screen to widgets.Screen interface
-	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
-		// Create a channel to receive proxy responses for this widget
-		fileResponseChan := make(chan proxyworker.ProxyResponse, 1)
+	// Create a channel to receive proxy responses for this widget
+	fileResponseChan := make(chan proxyworker.ProxyResponse, 1)
 
-		// Create a channel for content updates
-		contentUpdateChan := make(chan []string, 1)
+	// Create a channel for content updates
+	contentUpdateChan := make(chan []string, 1)
 
-		// Send async proxy request for directory listing
-		e.sendDirectoryListingRequest(fileResponseChan, contentUpdateChan)
+	// Send async proxy request for directory listing
+	e.sendDirectoryListingRequest(fileResponseChan, contentUpdateChan)
 
-		// Store file paths for mapping back from display names
-		var filePaths map[string]string
+	// Store file paths for mapping back from display names
+	var filePaths map[string]string
 
-		// Start a goroutine to handle proxy response
-		go func() {
-			filePaths = e.handleDirectoryListingResponse(fileResponseChan, contentUpdateChan)
-			close(fileResponseChan)
-		}()
+	// Start a goroutine to handle proxy response
+	go func() {
+		filePaths = e.handleDirectoryListingResponse(fileResponseChan, contentUpdateChan)
+		close(fileResponseChan)
+	}()
 
-		// Show the fuzzy list with async content updates
-		selectedPath := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
-			e.drawEditor()
-			e.drawContext()
-			e.drawSignature()
-			e.drawStatusBar()
-		}, nil, contentUpdateChan)
+	// Create overlay and get result channel
+	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
+	resultChan := e.renderingState.SetOverlay(overlay)
 
+	// Wait for result in a goroutine
+	go func() {
+		selectedPath := <-resultChan
 		if selectedPath != "" {
 			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
 			e.openFile(fullPath)
 		}
-
-		// Close channels
+		// Close channel
 		close(contentUpdateChan)
-	} else {
-		// Screen doesn't implement widgets.Screen, return
-		return
-	}
+	}()
 }
 
 // OpenFile loads a file's content into the editor buffer (exported for main.go)
@@ -354,117 +350,119 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Start with empty content
 	fuzzyListWidget.SetContent([]string{})
+	
+	// Track the last query to avoid redundant LSP calls
+	var lastQuery string
+	var pendingQuery string // Query that is currently being processed
+	var symbols []proxy.ProjectSymbol // Store the actual symbol objects
+	var symbolMap = make(map[string]int) // Map display name to index
 
-	// Cast our Screen to widgets.Screen interface
-	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
-		// Track the last query to avoid redundant LSP calls
-		var lastQuery string
-		var pendingQuery string // Query that is currently being processed
-		var symbols []proxy.ProjectSymbol // Store the actual symbol objects
-		var symbolMap = make(map[string]int) // Map display name to index
+	// Create a channel to receive LSP responses for this widget
+	symbolResponseChan := make(chan proxyworker.ProxyResponse, 10)
 
-		// Create a channel to receive LSP responses for this widget
-		symbolResponseChan := make(chan proxyworker.ProxyResponse, 10)
+	// Create a channel for content updates
+	contentUpdateChan := make(chan []string, 10)
 
-		// Create a channel for content updates
-		contentUpdateChan := make(chan []string, 10)
+	// Create a channel to pass symbol data back from the goroutine
+	type symbolUpdate struct {
+		symbols []proxy.ProjectSymbol
+		symbolMap map[string]int
+	}
+	symbolUpdateChan := make(chan symbolUpdate, 1)
 
-		// Create a channel to pass symbol data back from the goroutine
-		type symbolUpdate struct {
-			symbols []proxy.ProjectSymbol
-			symbolMap map[string]int
-		}
-		symbolUpdateChan := make(chan symbolUpdate, 1)
-
-		// Start a goroutine to handle LSP responses
-		go func() {
-			for response := range symbolResponseChan {
-				if response.Type == proxyworker.RequestProjectSymbols && response.Query == pendingQuery {
-					if response.Error != nil {
-						LL.Debug("LSP query error: %v", response.Error)
-						contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
-						symbolUpdateChan <- symbolUpdate{nil, make(map[string]int)}
-					} else {
-						LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
-
-						// Convert to display strings
-						var displayNames []string
-						newSymbolMap := make(map[string]int)
-
-						for i, sym := range response.ProjectSymbols {
-							displayNames = append(displayNames, sym.Name)
-							newSymbolMap[sym.Name] = i
-						}
-
-						// Send the symbol data update
-						symbolUpdateChan <- symbolUpdate{response.ProjectSymbols, newSymbolMap}
-
-						if len(displayNames) == 0 {
-							contentUpdateChan <- []string{"No symbols found"}
-						} else {
-							// Send all symbols - the widget will apply filtering
-							contentUpdateChan <- displayNames
-						}
-					}
-				}
-			}
-			close(symbolUpdateChan)
-		}()
-
-		// Start another goroutine to handle symbol updates
-		go func() {
-			for update := range symbolUpdateChan {
-				symbols = update.symbols
-				symbolMap = update.symbolMap
-			}
-		}()
-
-		// Define the text change handler
-		onTextChanged := func(newText string) {
-			if newText != lastQuery {
-				lastQuery = newText
-
-				if len(newText) > 0 {
-					// Send async LSP request for symbols
-					pendingQuery = newText
-					LL.Debug("Sending async LSP query for symbols with: %s", newText)
-
-					request := proxyworker.ProxyRequest{
-						Type:       proxyworker.RequestProjectSymbols,
-						FilePath:   e.buffer.FilePath,
-						Buffer:     e.buffer,
-						Generation: e.buffer.SignatureGeneration,
-						Query:      newText,
-						ResponseTo: symbolResponseChan,
-					}
-
-					// Send request to LSP worker (non-blocking)
-					select {
-					case e.lspRequestChan <- request:
-						LL.Trace("Sent project symbols request for query '%s'", newText)
-						// Don't clear the list - keep current results displayed
-					default:
-						LL.Debug("LSP request channel full, dropping request")
-					}
+	// Start a goroutine to handle LSP responses
+	go func() {
+		for response := range symbolResponseChan {
+			if response.Type == proxyworker.RequestProjectSymbols && response.Query == pendingQuery {
+				if response.Error != nil {
+					LL.Debug("LSP query error: %v", response.Error)
+					contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+					symbolUpdateChan <- symbolUpdate{nil, make(map[string]int)}
 				} else {
-					// Empty query - clear the list
-					contentUpdateChan <- []string{}
-					symbols = nil
-					symbolMap = make(map[string]int)
-					pendingQuery = ""
+					LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
+
+					// Convert to display strings
+					var displayNames []string
+					newSymbolMap := make(map[string]int)
+
+					for i, sym := range response.ProjectSymbols {
+						displayNames = append(displayNames, sym.Name)
+						newSymbolMap[sym.Name] = i
+					}
+
+					// Send the symbol data update
+					symbolUpdateChan <- symbolUpdate{response.ProjectSymbols, newSymbolMap}
+
+					if len(displayNames) == 0 {
+						contentUpdateChan <- []string{"No symbols found"}
+					} else {
+						// Send all symbols - the widget will apply filtering
+						contentUpdateChan <- displayNames
+					}
 				}
 			}
 		}
+		close(symbolUpdateChan)
+	}()
 
-		// Show the widget with async support
-		selection := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
-			e.drawEditor()
-			e.drawStatusBar()
-		}, onTextChanged, contentUpdateChan)
+	// Start another goroutine to handle symbol updates
+	go func() {
+		for update := range symbolUpdateChan {
+			symbols = update.symbols
+			symbolMap = update.symbolMap
+		}
+	}()
 
-		// Close the channels
-		close(symbolResponseChan)
-		close(contentUpdateChan)
+	// Define the text change handler
+	onTextChanged := func(newText string) {
+		if newText != lastQuery {
+			lastQuery = newText
+
+			if len(newText) > 0 {
+				// Send async LSP request for symbols
+				pendingQuery = newText
+				LL.Debug("Sending async LSP query for symbols with: %s", newText)
+
+				request := proxyworker.ProxyRequest{
+					Type:       proxyworker.RequestProjectSymbols,
+					FilePath:   e.buffer.FilePath,
+					Buffer:     e.buffer,
+					Generation: e.buffer.SignatureGeneration,
+					Query:      newText,
+					ResponseTo: symbolResponseChan,
+				}
+
+				// Send request to LSP worker (non-blocking)
+				select {
+				case e.lspRequestChan <- request:
+					LL.Trace("Sent project symbols request for query '%s'", newText)
+					// Don't clear the list - keep current results displayed
+				default:
+					LL.Debug("LSP request channel full, dropping request")
+				}
+			} else {
+				// Empty query - clear the list
+				contentUpdateChan <- []string{}
+				symbols = nil
+				symbolMap = make(map[string]int)
+				pendingQuery = ""
+			}
+		}
+	}
+
+	// Create overlay and get result channel
+	overlay := NewFuzzyListOverlay(fuzzyListWidget, onTextChanged, contentUpdateChan)
+	resultChan := e.renderingState.SetOverlay(overlay)
+
+	// Wait for result in a goroutine
+	go func() {
+		defer func() {
+			// Close the channels when done
+			close(symbolResponseChan)
+			close(contentUpdateChan)
+		}()
+		
+		selection := <-resultChan
 
 		// If a symbol was selected, navigate to it
 		if selection != "" {
@@ -483,7 +481,7 @@ func (e *Editor) showProjectSymbolsList() {
 				e.navigateToLocation(sym.Line, sym.Character)
 			}
 		}
-	}
+	}()
 }
 
 // navigateToLocation moves cursor to specific line and character position
@@ -537,96 +535,99 @@ func (e *Editor) showDocumentSymbolsList() {
 	// Start with loading message
 	fuzzyListWidget.SetContent([]string{"Loading symbols..."})
 
-	// Cast our Screen to widgets.Screen interface
-	if widgetScreen, ok := e.screen.(widgets.Screen); ok {
-		var symbols []proxy.DocumentSymbol // Store the actual symbol objects
-		var symbolMap = make(map[string]int) // Map display name to index
+	var symbols []proxy.DocumentSymbol // Store the actual symbol objects
+	var symbolMap = make(map[string]int) // Map display name to index
 
-		// Create a channel to receive LSP responses for this widget
-		symbolResponseChan := make(chan proxyworker.ProxyResponse, 1)
+	// Create a channel to receive LSP responses for this widget
+	symbolResponseChan := make(chan proxyworker.ProxyResponse, 1)
 
-		// Create a channel for content updates
-		contentUpdateChan := make(chan []string, 1)
+	// Create a channel for content updates
+	contentUpdateChan := make(chan []string, 1)
 
-		// Send async LSP request for document symbols
-		request := proxyworker.ProxyRequest{
-			Type:       proxyworker.RequestDocumentSymbols,
-			FilePath:   e.buffer.FilePath,
-			Buffer:     e.buffer,
-			Generation: e.buffer.SignatureGeneration,
-			ResponseTo: symbolResponseChan,
-		}
+	// Send async LSP request for document symbols
+	request := proxyworker.ProxyRequest{
+		Type:       proxyworker.RequestDocumentSymbols,
+		FilePath:   e.buffer.FilePath,
+		Buffer:     e.buffer,
+		Generation: e.buffer.SignatureGeneration,
+		ResponseTo: symbolResponseChan,
+	}
 
-		// Send request to LSP worker (non-blocking)
+	// Send request to LSP worker (non-blocking)
+	select {
+	case e.lspRequestChan <- request:
+		LL.Trace("Sent document symbols request for %s", e.buffer.FilePath)
+	default:
+		LL.Debug("LSP request channel full, dropping request")
+		contentUpdateChan <- []string{"Error: Could not send request"}
+	}
+
+	// Start a goroutine to handle LSP response
+	go func() {
 		select {
-		case e.lspRequestChan <- request:
-			LL.Trace("Sent document symbols request for %s", e.buffer.FilePath)
-		default:
-			LL.Debug("LSP request channel full, dropping request")
-			contentUpdateChan <- []string{"Error: Could not send request"}
-		}
+		case response := <-symbolResponseChan:
+			if response.Type == proxyworker.RequestDocumentSymbols {
+				if response.Error != nil {
+					LL.Debug("LSP document symbols error: %v", response.Error)
+					contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+				} else {
+					LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
 
-		// Start a goroutine to handle LSP response
-		go func() {
-			select {
-			case response := <-symbolResponseChan:
-				if response.Type == proxyworker.RequestDocumentSymbols {
-					if response.Error != nil {
-						LL.Debug("LSP document symbols error: %v", response.Error)
-						contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+					// Convert to display strings
+					var displayNames []string
+					newSymbolMap := make(map[string]int)
+
+					// Symbol kind names
+					kindNames := map[int]string{
+						1: "File", 2: "Module", 3: "Namespace", 4: "Package",
+						5: "Class", 6: "Method", 7: "Property", 8: "Field",
+						9: "Constructor", 10: "Enum", 11: "Interface", 12: "Function",
+						13: "Variable", 14: "Constant", 15: "String", 16: "Number",
+						17: "Boolean", 18: "Array", 19: "Object", 20: "Key",
+						21: "Null", 22: "EnumMember", 23: "Struct", 24: "Event",
+						25: "Operator", 26: "TypeParameter",
+					}
+
+					for i, sym := range response.DocumentSymbols {
+						kindName := kindNames[sym.Kind]
+						if kindName == "" {
+							kindName = fmt.Sprintf("Unknown(%d)", sym.Kind)
+						}
+						displayName := fmt.Sprintf("%s [%s] (line %d)", sym.Name, kindName, sym.Range.Start.Line+1)
+						displayNames = append(displayNames, displayName)
+						newSymbolMap[displayName] = i
+					}
+
+					// Update symbol data
+					symbols = response.DocumentSymbols
+					symbolMap = newSymbolMap
+
+					if len(displayNames) == 0 {
+						contentUpdateChan <- []string{"No symbols found"}
 					} else {
-						LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
-
-						// Convert to display strings
-						var displayNames []string
-						newSymbolMap := make(map[string]int)
-
-						// Symbol kind names
-						kindNames := map[int]string{
-							1: "File", 2: "Module", 3: "Namespace", 4: "Package",
-							5: "Class", 6: "Method", 7: "Property", 8: "Field",
-							9: "Constructor", 10: "Enum", 11: "Interface", 12: "Function",
-							13: "Variable", 14: "Constant", 15: "String", 16: "Number",
-							17: "Boolean", 18: "Array", 19: "Object", 20: "Key",
-							21: "Null", 22: "EnumMember", 23: "Struct", 24: "Event",
-							25: "Operator", 26: "TypeParameter",
-						}
-
-						for i, sym := range response.DocumentSymbols {
-							kindName := kindNames[sym.Kind]
-							if kindName == "" {
-								kindName = fmt.Sprintf("Unknown(%d)", sym.Kind)
-							}
-							displayName := fmt.Sprintf("%s [%s] (line %d)", sym.Name, kindName, sym.Range.Start.Line+1)
-							displayNames = append(displayNames, displayName)
-							newSymbolMap[displayName] = i
-						}
-
-						// Update symbol data
-						symbols = response.DocumentSymbols
-						symbolMap = newSymbolMap
-
-						if len(displayNames) == 0 {
-							contentUpdateChan <- []string{"No symbols found"}
-						} else {
-							contentUpdateChan <- displayNames
-						}
+						contentUpdateChan <- displayNames
 					}
 				}
-			case <-time.After(5 * time.Second):
-				contentUpdateChan <- []string{"Error: Timeout waiting for symbols"}
 			}
+		case <-time.After(5 * time.Second):
+			contentUpdateChan <- []string{"Error: Timeout waiting for symbols"}
+		}
+		// Don't close symbolResponseChan here - it's managed by the caller
+	}()
+
+	// Create overlay and get result channel
+	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
+	resultChan := e.renderingState.SetOverlay(overlay)
+
+	// Wait for result in a goroutine
+	go func() {
+		defer func() {
+			// Close the channels when done
+			close(contentUpdateChan)
 			close(symbolResponseChan)
 		}()
-
-		// Show the widget with async support (no text change handler needed)
-		selection := fuzzyListWidget.ShowWithCallbacks(widgetScreen, func() {
-			e.drawEditor()
-			e.drawStatusBar()
-		}, nil, contentUpdateChan)
-
-		// Close the channel
-		close(contentUpdateChan)
+		
+		selection := <-resultChan
 
 		// If a symbol was selected, navigate to it
 		if selection != "" {
@@ -639,7 +640,7 @@ func (e *Editor) showDocumentSymbolsList() {
 				e.navigateToLocation(sym.Range.Start.Line, sym.Range.Start.Character)
 			}
 		}
-	}
+	}()
 }
 
 // listDocumentSymbolsCmd implements the list-document-symbols command
