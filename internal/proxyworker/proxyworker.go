@@ -16,6 +16,7 @@ const (
 	RequestProjectSymbols
 	RequestDocumentSymbols
 	RequestListDirectoryRecursive
+	RequestResolvePath
 	// Future: RequestGoToDefinition, etc.
 )
 
@@ -37,6 +38,9 @@ type ProxyRequest struct {
 	// Directory listing specific fields
 	DirectoryPath string // Path to list recursively
 
+	// Path resolution specific fields
+	PathToResolve string // Path to check if it's a file or directory
+
 	// Future: add other request-specific fields for different proxy operations
 }
 // ProxyResponse represents a response from the proxy worker thread
@@ -53,6 +57,12 @@ type ProxyResponse struct {
 	ResponseTo    interface{} // Widget or component to send response to
 	Files         []proxy.FileInfo // Directory listing response
 	Error         error
+	
+	// Path resolution response fields
+	IsDirectory   bool   // Whether the path is a directory
+	ResolvedPath  string // The resolved path
+	WorkingDirectory string // Extracted working directory for files
+	
 	// Future: add other response fields for different proxy operations
 }
 

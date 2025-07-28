@@ -14,7 +14,6 @@ import (
 	"veda/internal/log"
 	"veda/internal/perf"
 	"veda/internal/proxy"
-	"veda/internal/proxyworker"
 	"veda/internal/syntax"
 	"veda/internal/ui"
 	"veda/internal/widgets"
@@ -52,9 +51,7 @@ type Editor struct {
 	// Async notifications
 	asyncEvents     chan events.Event       // Channel for async events
 
-	// LSP communication
-	lspRequestChan  chan proxyworker.ProxyRequest     // Channel for proxy requests
-	proxyResponseChan chan proxyworker.ProxyResponse    // Channel for proxy responses
+	// LSP communication - removed channels, using goroutines on demand
 
 	// Repeat last change
 	// We need two separate fields to handle vim's "." (repeat) command correctly:
@@ -111,7 +108,7 @@ type Editor struct {
 
 	// Rendering state
 	renderingState  *RenderingState        // Manages overlay/modal state
-	
+
 	// Async operation tracking
 	asyncOperations map[string]bool        // Track active async operations by ID
 	spinnerIndex    int                    // Current spinner animation frame
@@ -144,12 +141,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// Create initial empty buffer
 	initialBuffer := buffer.NewBuffer("", "", config.DefaultIndentType, config.DefaultIndentWidth)
 
-	// Create LSP channels
-	lspRequestChan := make(chan proxyworker.ProxyRequest, 10)
-	lspResponseChan := make(chan proxyworker.ProxyResponse, 10)
-
-	// Start LSP worker thread
-	proxyworker.StartProxyWorker(proxyManager, lspRequestChan, lspResponseChan)
+	// LSP channels will be removed - using goroutines on demand instead
 
 	editor := &Editor{
 		screen:          screen,
@@ -172,8 +164,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		contextCache:    nil,
 		contextLine:     -1,
 		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
-		lspRequestChan:  lspRequestChan,
-		proxyResponseChan: lspResponseChan,
+		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
 		workingDirectory: ".", // Default to current directory
 		asyncOperations: make(map[string]bool),
 		lastSpinnerTime: time.Now(),
@@ -219,6 +210,7 @@ func (e *Editor) Run() {
 
 	// Check if we have a pending path to open
 	if e.pendingPath != "" {
+		LL.Debug("Editor.Run: Found pendingPath: %s", e.pendingPath)
 		// Handle the pending path asynchronously
 		go e.handlePendingPath()
 	} else if e.pendingDirectoryOpen {
@@ -246,10 +238,6 @@ func (e *Editor) Run() {
 			// Timer fired - ev remains nil, will trigger redraw
 		case ev = <-e.asyncEvents:
 			// Got an async event
-		case proxyResponse := <-e.proxyResponseChan:
-			// Got an LSP response
-			e.handleLSPResponse(proxyResponse)
-			// Continue to redraw
 		}
 
 		// Handle overlay events first
@@ -347,12 +335,16 @@ func (e *Editor) handleEvent(ev events.Event) {
 	case *events.ResizeEvent:
 		e.handleResize()
 	case *events.CustomEvent:
+		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
 		switch ev.Type {
 		case "show-fuzzy-list":
 			e.ShowFuzzyListWidget()
 		case "open-file":
 			if path, ok := ev.Data.(string); ok {
+				LL.Debug("handleEvent: Opening file: %s", path)
 				e.openFile(path)
+			} else {
+				LL.Debug("handleEvent: open-file event data is not a string")
 			}
 		}
 	default:
@@ -901,14 +893,14 @@ func (e *Editor) hasAsyncOperations() bool {
 func (e *Editor) getSpinnerChar() string {
 	// Unicode spinner characters: ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
 	spinnerChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	
+
 	// Update spinner every 100ms
 	now := time.Now()
 	if now.Sub(e.lastSpinnerTime) > 100*time.Millisecond {
 		e.spinnerIndex = (e.spinnerIndex + 1) % len(spinnerChars)
 		e.lastSpinnerTime = now
 	}
-	
+
 	return spinnerChars[e.spinnerIndex]
 }
 
@@ -1122,60 +1114,6 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 	}
 }
 
-// handleLSPResponse processes responses from the proxy worker thread
-func (e *Editor) handleLSPResponse(response proxyworker.ProxyResponse) {
-	LL.Trace("Received LSP response: type=%d, filePath=%s", response.Type, response.FilePath)
-
-	switch response.Type {
-	case proxyworker.RequestFoldingRanges:
-		// Find the buffer that requested this
-		if buf, exists := e.buffers[response.FilePath]; exists {
-			if response.Error != nil {
-				LL.Debug("LSP folding ranges error for %s: %v", response.FilePath, response.Error)
-				buf.HasLSP = false
-				buf.FoldingRanges = nil
-			} else {
-				LL.Trace("Updated folding ranges for %s: got %d ranges", response.FilePath, len(response.FoldingRanges))
-				buf.HasLSP = true
-				buf.FoldingRanges = response.FoldingRanges
-			}
-
-			// If this is the current buffer, invalidate context cache to trigger redraw
-			if buf == e.buffer {
-				e.contextLine = -1 // Force context update
-			}
-		}
-
-	case proxyworker.RequestSignatureHelp:
-		// Find the buffer that requested this
-		if buf, exists := e.buffers[response.FilePath]; exists {
-			// Only apply response if generation matches current state
-			if response.Generation == buf.SignatureGeneration {
-				if response.Error != nil {
-					LL.Debug("LSP signature help error for %s: %v", response.FilePath, response.Error)
-					buf.CurrentSignature = nil
-				} else {
-					// Parse and store the signature help
-					e.parseSignatureHelpResponse(buf, response.SignatureHelp)
-				}
-			} else {
-				// Stale response - ignore it
-				LL.Debug("Ignoring stale signature help response: gen=%d, current=%d",
-					response.Generation, buf.SignatureGeneration)
-			}
-		}
-
-	case proxyworker.RequestProjectSymbols:
-		// Project symbols responses are handled by specific widgets via ResponseTo channel
-		// This case is here to prevent "unknown response type" warnings
-		LL.Trace("Received project symbols response for query '%s', forwarded to widget", response.Query)
-
-	case proxyworker.RequestDocumentSymbols:
-		// Document symbols responses are handled by specific widgets via ResponseTo channel
-		// This case is here to prevent "unknown response type" warnings
-		LL.Trace("Received document symbols response for file '%s', forwarded to widget", response.FilePath)
-	}
-}
 
 // requestFoldingRanges sends a request to the LSP worker for folding ranges
 func (e *Editor) requestFoldingRanges(filePath string) {
@@ -1189,19 +1127,28 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 		return
 	}
 
-	request := proxyworker.ProxyRequest{
-		Type:     proxyworker.RequestFoldingRanges,
-		FilePath: filePath,
-		Buffer:   buf,
-	}
-
-	// Send request to LSP worker (non-blocking)
-	select {
-	case e.lspRequestChan <- request:
-		LL.Trace("Sent folding ranges request for %s", filePath)
-	default:
-		LL.Debug("LSP request channel full, dropping folding ranges request for %s", filePath)
-	}
+	// Launch goroutine to fetch folding ranges
+	go func() {
+		ranges, err := e.proxyManager.GetFoldingRanges(filePath)
+		
+		// Update the buffer directly if it still exists
+		if b, exists := e.buffers[filePath]; exists && b == buf {
+			if err != nil {
+				LL.Debug("LSP folding ranges error for %s: %v", filePath, err)
+				buf.HasLSP = false
+				buf.FoldingRanges = nil
+			} else {
+				LL.Trace("Updated folding ranges for %s: got %d ranges", filePath, len(ranges))
+				buf.HasLSP = true
+				buf.FoldingRanges = ranges
+			}
+			
+			// If this is the current buffer, invalidate context cache to trigger redraw
+			if buf == e.buffer {
+				e.contextLine = -1 // Force context update
+			}
+		}
+	}()
 }
 
 
@@ -1960,7 +1907,7 @@ func (e *Editor) updateContext() {
 		e.contextCache = nil
 		return
 	}
-	
+
 	e.contextLine = currentLine
 }
 
@@ -2112,7 +2059,7 @@ func (e *Editor) goToDefinition(args []string) error {
 	}
 
 	filePath := strings.TrimPrefix(location.URI, "file://")
-	
+
 	// If we're working with a remote file, preserve the host prefix
 	if strings.Contains(e.buffer.FilePath, ":") {
 		// Extract host from current buffer path
@@ -2123,7 +2070,7 @@ func (e *Editor) goToDefinition(args []string) error {
 			filePath = host + ":" + filePath
 		}
 	}
-	
+
 	LL.Debug("goToDefinition: location URI=%s, filePath=%s, current buffer=%s", location.URI, filePath, e.buffer.FilePath)
 
 	// Push current position to navigation history before jumping
@@ -2164,37 +2111,42 @@ func (e *Editor) goToDefinition(args []string) error {
 func (e *Editor) handlePendingPath() {
 	path := e.pendingPath
 	e.pendingPath = "" // Clear it
-	
+	LL.Debug("handlePendingPath: Processing path: %s", path)
+
 	// Parse the path to check if it's remote
 	host, remotePath, isRemote := parsePathComponents(path)
-	
+	LL.Debug("handlePendingPath: host=%s, remotePath=%s, isRemote=%v", host, remotePath, isRemote)
+
 	// Start async operation
 	operationID := "path-resolution"
 	e.startAsyncOperation(operationID)
 	defer e.endAsyncOperation(operationID)
-	
+
 	// Update connection status
 	if isRemote {
 		e.connectionStatus = fmt.Sprintf("Connecting to %s...", host)
 	} else {
 		e.connectionStatus = "Loading..."
 	}
-	
+
 	// Try to list the path to determine if it's a directory
-	files, err := e.proxyManager.ListDirectoryRecursive(path)
-	
+	_, err := e.proxyManager.ListDirectoryRecursive(path)
+	LL.Debug("handlePendingPath: ListDirectoryRecursive returned err=%v", err)
+
 	// Clear connection status
 	e.connectionStatus = ""
-	
-	if err == nil && len(files) >= 0 {
+
+	if err == nil {
 		// It's a directory
 		e.workingDirectory = path
-		LL.Info("Opening directory: %s", e.workingDirectory)
-		
+		LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
+
 		// Send async event to show fuzzy list
-		e.asyncEvents <- &events.CustomEvent{Type: "show-fuzzy-list"}
+		LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
+		e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
 	} else {
 		// It's a file or doesn't exist - extract directory and open file
+		LL.Debug("handlePendingPath: Path is a file, will open it")
 		if isRemote {
 			// For remote paths, extract directory
 			lastSlash := strings.LastIndex(remotePath, "/")
@@ -2205,18 +2157,16 @@ func (e *Editor) handlePendingPath() {
 				e.workingDirectory = host + ":~/"
 			}
 		} else {
-			// For local paths, extract directory
-			lastSlash := strings.LastIndex(path, "/")
-			if lastSlash > 0 {
-				e.workingDirectory = path[:lastSlash]
-			} else {
-				e.workingDirectory = "."
-			}
+			// For local paths, keep current directory
+			// We don't want to change the working directory just because
+			// we're opening a file in a subdirectory
+			e.workingDirectory = "."
 		}
-		LL.Info("Set working directory to: %s", e.workingDirectory)
-		
+		LL.Debug("Set working directory to: %s", e.workingDirectory)
+
 		// Send async event to open the file
-		e.asyncEvents <- &events.CustomEvent{Type: "open-file", Data: path}
+		LL.Debug("handlePendingPath: Sending open-file event for path: %s", path)
+		e.asyncEvents <- events.NewCustomEvent("open-file", path)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"veda/internal/log"
@@ -21,6 +22,7 @@ const maxScanTokenSize = 1024 * 1024 * 1024 // 1 GiB
 // ProxyManager manages multiple proxy instances for different hosts
 type ProxyManager struct {
 	clients map[string]*Client // key is hostname, empty string for local
+	mu      sync.Mutex         // mutex to ensure only one proxy call at a time
 }
 
 // NewProxyManager creates a new proxy manager
@@ -195,6 +197,9 @@ func (pm *ProxyManager) Close() error {
 
 // GetFile reads the contents of a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetFile(path string) (string, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
 	startTime := time.Now()
 	
 	client, actualPath, err := pm.getClient(path)
@@ -216,6 +221,9 @@ func (pm *ProxyManager) GetFile(path string) (string, error) {
 
 // ListDirectory lists directory contents (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
 	startTime := time.Now()
 	
 	client, actualPath, err := pm.getClient(path)
@@ -234,6 +242,9 @@ func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
 
 // ListDirectoryRecursive lists directory contents recursively (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
 	startTime := time.Now()
 	
 	client, actualPath, err := pm.getClient(path)
