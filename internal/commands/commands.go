@@ -78,6 +78,12 @@ func (cr *CommandRegistry) GetAll() map[string]CommandInfo {
 	return cr.commands
 }
 
+// GetCommand returns a specific command info by name
+func (cr *CommandRegistry) GetCommand(command string) (CommandInfo, bool) {
+	info, exists := cr.commands[command]
+	return info, exists
+}
+
 // KeyMapper manages key bindings
 type KeyMapper struct {
 	bindings []Binding
@@ -197,4 +203,9 @@ func (km *KeyMapper) keyEquals(k1, k2 Key) bool {
 // ResetPending resets the pending key sequence
 func (km *KeyMapper) ResetPending() {
 	km.pending = KeySequence{}
+}
+
+// GetAllBindings returns all registered key bindings
+func (km *KeyMapper) GetAllBindings() []Binding {
+	return km.bindings
 }

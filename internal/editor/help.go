@@ -69,7 +69,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("== Command Mode Commands ==\n")
 	helpText.WriteString(":q or :quit  - Quit the editor\n")
 	helpText.WriteString(":cd <path>   - Change working directory\n")
-	helpText.WriteString(":help        - Show this help\n\n")
+	helpText.WriteString(":help        - Show this help\n")
+	helpText.WriteString(":help-keys   - Show all key bindings\n\n")
 	
 	helpText.WriteString("== Configuration ==\n")
 	helpText.WriteString(":expandtab=true/false     - Use spaces instead of tabs\n")
