@@ -1,9 +1,5 @@
 package editor
 
-import (
-	"veda/internal/proxyworker"
-)
-
 
 // getSignatureY returns the Y position where signature should be drawn
 func (e *Editor) getSignatureY() int {
@@ -33,24 +29,25 @@ func (e *Editor) requestSignatureHelpAsync() {
 
 	LL.Debug("Requesting async signature help for %s at %d:%d", e.buffer.FilePath, line, col)
 
-	// Create LSP request with current generation
-	request := proxyworker.ProxyRequest{
-		Type:       proxyworker.RequestSignatureHelp,
-		FilePath:   e.buffer.FilePath,
-		Buffer:     e.buffer,
-		Generation: e.buffer.SignatureGeneration,
-		Line:       line,
-		Character:  col,
-	}
-
-	// Send request to LSP worker (non-blocking)
-	select {
-	case e.lspRequestChan <- request:
-		LL.Trace("Sent async signature help request for %s at %d:%d (gen=%d)",
-			e.buffer.FilePath, line, col, e.buffer.SignatureGeneration)
-	default:
-		LL.Debug("LSP request channel full, dropping signature help request for %s", e.buffer.FilePath)
-	}
+	// Launch goroutine to fetch signature help
+	go func(generation uint64) {
+		sigHelp, err := e.proxyManager.GetSignatureHelp(e.buffer.FilePath, line, col)
+		
+		// Only apply response if generation matches current state
+		if generation == e.buffer.SignatureGeneration {
+			if err != nil {
+				LL.Debug("LSP signature help error for %s: %v", e.buffer.FilePath, err)
+				e.buffer.CurrentSignature = nil
+			} else {
+				// Parse and store the signature help
+				e.parseSignatureHelpResponse(e.buffer, sigHelp)
+			}
+		} else {
+			// Stale response - ignore it
+			LL.Debug("Ignoring stale signature help response: gen=%d, current=%d",
+				generation, e.buffer.SignatureGeneration)
+		}
+	}(e.buffer.SignatureGeneration)
 }
 
 // showSignature initiates signature help display

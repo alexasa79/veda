@@ -42,25 +42,41 @@ func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 }
 
 // sendDirectoryListingRequest sends an async request for directory listing
-func (e *Editor) sendDirectoryListingRequest(fileResponseChan chan proxyworker.ProxyResponse, contentUpdateChan chan []string) {
+func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string) chan fileListingResult {
 	// Start async operation tracking
 	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
 	e.startAsyncOperation(operationID)
 	
-	request := proxyworker.ProxyRequest{
-		Type:          proxyworker.RequestListDirectoryRecursive,
-		DirectoryPath: e.workingDirectory,
-		ResponseTo:    fileResponseChan,
-	}
-
-	select {
-	case e.lspRequestChan <- request:
-		LL.Debug("Sent directory listing request for %s", e.workingDirectory)
-	default:
-		LL.Debug("Proxy request channel full, dropping request")
-		contentUpdateChan <- []string{"Error: Could not send request"}
-		e.endAsyncOperation(operationID)
-	}
+	// Create a channel for the result
+	resultChan := make(chan fileListingResult, 1)
+	
+	// Start goroutine to fetch directory listing
+	go func() {
+		defer e.endAsyncOperation(operationID)
+		
+		LL.Debug("Fetching directory listing for %s", e.workingDirectory)
+		files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
+		
+		if err != nil {
+			LL.Debug("Directory listing error: %v", err)
+			contentUpdateChan <- []string{fmt.Sprintf("Error: %v", err)}
+			resultChan <- fileListingResult{paths: []string{}, filePaths: nil}
+			return
+		}
+		
+		LL.Debug("Got %d files from proxy", len(files))
+		result := e.processFileList(files)
+		
+		if len(result.paths) == 0 {
+			contentUpdateChan <- []string{"No files found"}
+		} else {
+			contentUpdateChan <- result.paths
+		}
+		
+		resultChan <- result
+	}()
+	
+	return resultChan
 }
 
 // shouldSkipFile checks if a file should be filtered out
@@ -130,43 +146,6 @@ func (e *Editor) processFileList(files []proxy.FileInfo) fileListingResult {
 	}
 }
 
-// handleDirectoryListingResponse processes the async response from proxy
-func (e *Editor) handleDirectoryListingResponse(fileResponseChan chan proxyworker.ProxyResponse, contentUpdateChan chan []string) map[string]string {
-	var filePaths map[string]string
-	
-	// End async operation tracking when done
-	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
-	defer e.endAsyncOperation(operationID)
-	
-	LL.Debug("Waiting for directory listing response...")
-
-	select {
-	case response := <-fileResponseChan:
-		LL.Debug("Received response: type=%v, error=%v", response.Type, response.Error)
-		if response.Type == proxyworker.RequestListDirectoryRecursive {
-			if response.Error != nil {
-				LL.Debug("Directory listing error: %v", response.Error)
-				contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
-			} else {
-				LL.Debug("Got %d files from proxy", len(response.Files))
-
-				result := e.processFileList(response.Files)
-				filePaths = result.filePaths
-
-				if len(result.paths) == 0 {
-					contentUpdateChan <- []string{"No files found"}
-				} else {
-					contentUpdateChan <- result.paths
-				}
-			}
-		}
-	case <-time.After(10 * time.Second):
-		LL.Debug("Timeout waiting for directory listing response")
-		contentUpdateChan <- []string{"Error: Timeout waiting for response"}
-	}
-
-	return filePaths
-}
 
 // resolveSelectedPath converts the selected display path back to full path
 func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]string) string {
@@ -207,31 +186,29 @@ func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]s
 func (e *Editor) ShowFuzzyListWidget() {
 	fuzzyListWidget := e.createFuzzyListWidget()
 
-	// Create a channel to receive proxy responses for this widget
-	fileResponseChan := make(chan proxyworker.ProxyResponse, 1)
-
 	// Create a channel for content updates
 	contentUpdateChan := make(chan []string, 1)
 
-	// Send async proxy request for directory listing
-	e.sendDirectoryListingRequest(fileResponseChan, contentUpdateChan)
+	// Send async request for directory listing and get result channel
+	resultChan := e.sendDirectoryListingRequest(contentUpdateChan)
 
 	// Store file paths for mapping back from display names
 	var filePaths map[string]string
 
-	// Start a goroutine to handle proxy response
+	// Start a goroutine to handle the result
 	go func() {
-		filePaths = e.handleDirectoryListingResponse(fileResponseChan, contentUpdateChan)
-		close(fileResponseChan)
+		result := <-resultChan
+		filePaths = result.filePaths
+		close(resultChan)
 	}()
 
 	// Create overlay and get result channel
 	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
-	resultChan := e.renderingState.SetOverlay(overlay)
+	overlayResultChan := e.renderingState.SetOverlay(overlay)
 
 	// Wait for result in a goroutine
 	go func() {
-		selectedPath := <-resultChan
+		selectedPath := <-overlayResultChan
 		if selectedPath != "" {
 			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
@@ -256,8 +233,10 @@ func (e *Editor) OpenPath(path string) {
 
 // openFile loads a file's content into the editor buffer
 func (e *Editor) openFile(filePath string) {
+	LL.Debug("openFile: Called with filePath=%s", filePath)
 	// Resolve relative paths
 	resolvedPath := e.resolvePath(filePath)
+	LL.Debug("openFile: resolvedPath=%s", resolvedPath)
 
 	// First save the current buffer state
 	e.saveCurrentBufferState()
@@ -416,24 +395,30 @@ func (e *Editor) showProjectSymbolsList() {
 				operationID := fmt.Sprintf("project-symbols-%s", newText)
 				e.startAsyncOperation(operationID)
 
-				request := proxyworker.ProxyRequest{
-					Type:       proxyworker.RequestProjectSymbols,
-					FilePath:   e.buffer.FilePath,
-					Buffer:     e.buffer,
-					Generation: e.buffer.SignatureGeneration,
-					Query:      newText,
-					ResponseTo: symbolResponseChan,
-				}
-
-				// Send request to LSP worker (non-blocking)
-				select {
-				case e.lspRequestChan <- request:
-					LL.Trace("Sent project symbols request for query '%s'", newText)
-					// Don't clear the list - keep current results displayed
-				default:
-					LL.Debug("LSP request channel full, dropping request")
-					e.endAsyncOperation(operationID)
-				}
+				// Launch goroutine to fetch symbols
+				go func(query string) {
+					defer e.endAsyncOperation(operationID)
+					
+					projectSymbols, err := e.proxyManager.ListProjectSymbols(query)
+					
+					response := proxyworker.ProxyResponse{
+						Type:           proxyworker.RequestProjectSymbols,
+						FilePath:       e.buffer.FilePath,
+						Buffer:         e.buffer,
+						Generation:     e.buffer.SignatureGeneration,
+						ProjectSymbols: projectSymbols,
+						Query:          query,
+						Error:          err,
+					}
+					
+					// Send response to the channel
+					select {
+					case symbolResponseChan <- response:
+						LL.Trace("Sent project symbols response for query '%s'", query)
+					default:
+						LL.Debug("Symbol response channel full, dropping response")
+					}
+				}(newText)
 			} else {
 				// Empty query - clear the list
 				contentUpdateChan <- []string{}
@@ -542,23 +527,27 @@ func (e *Editor) showDocumentSymbolsList() {
 	operationID := fmt.Sprintf("doc-symbols-%s", e.buffer.FilePath)
 	e.startAsyncOperation(operationID)
 	
-	request := proxyworker.ProxyRequest{
-		Type:       proxyworker.RequestDocumentSymbols,
-		FilePath:   e.buffer.FilePath,
-		Buffer:     e.buffer,
-		Generation: e.buffer.SignatureGeneration,
-		ResponseTo: symbolResponseChan,
-	}
-
-	// Send request to LSP worker (non-blocking)
-	select {
-	case e.lspRequestChan <- request:
-		LL.Trace("Sent document symbols request for %s", e.buffer.FilePath)
-	default:
-		LL.Debug("LSP request channel full, dropping request")
-		contentUpdateChan <- []string{"Error: Could not send request"}
-		e.endAsyncOperation(operationID)
-	}
+	// Launch goroutine to fetch document symbols
+	go func() {
+		documentSymbols, err := e.proxyManager.GetDocumentSymbols(e.buffer.FilePath)
+		
+		response := proxyworker.ProxyResponse{
+			Type:            proxyworker.RequestDocumentSymbols,
+			FilePath:        e.buffer.FilePath,
+			Buffer:          e.buffer,
+			Generation:      e.buffer.SignatureGeneration,
+			DocumentSymbols: documentSymbols,
+			Error:           err,
+		}
+		
+		// Send response to the channel
+		select {
+		case symbolResponseChan <- response:
+			LL.Trace("Sent document symbols response for %s", e.buffer.FilePath)
+		default:
+			LL.Debug("Symbol response channel full, dropping response")
+		}
+	}()
 
 	// Start a goroutine to handle LSP response
 	go func() {
