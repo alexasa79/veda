@@ -103,6 +103,8 @@ type Editor struct {
 	// Working directory
 	workingDirectory string                 // Current working directory (can include HOST: prefix)
 	pendingDirectoryOpen bool              // Flag to show fuzzy list after editor starts
+	pendingPath      string                 // Path to open after editor starts
+	connectionStatus string                 // Status message for ongoing connections
 
 	// Ex-command support
 	lastCommandArgs  []string               // Arguments from the last ex-command
@@ -175,6 +177,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		workingDirectory: ".", // Default to current directory
 		asyncOperations: make(map[string]bool),
 		lastSpinnerTime: time.Now(),
+		connectionStatus: "",
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -214,8 +217,12 @@ func (e *Editor) Run() {
 	// Initial draw
 	e.render()
 
-	// Check if we need to show the fuzzy list for a directory
-	if e.pendingDirectoryOpen {
+	// Check if we have a pending path to open
+	if e.pendingPath != "" {
+		// Handle the pending path asynchronously
+		go e.handlePendingPath()
+	} else if e.pendingDirectoryOpen {
+		// Legacy support for direct directory open
 		e.pendingDirectoryOpen = false
 		e.ShowFuzzyListWidget()
 	}
@@ -223,8 +230,8 @@ func (e *Editor) Run() {
 	// Get the screen event channel
 	screenEvents := e.screen.EventChannel()
 
-	// Start a timer that fires every second
-	ticker := time.NewTicker(1 * time.Second)
+	// Start a timer that fires every 100ms for smooth animations
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	// Event loop
@@ -339,6 +346,15 @@ func (e *Editor) handleEvent(ev events.Event) {
 		}
 	case *events.ResizeEvent:
 		e.handleResize()
+	case *events.CustomEvent:
+		switch ev.Type {
+		case "show-fuzzy-list":
+			e.ShowFuzzyListWidget()
+		case "open-file":
+			if path, ok := ev.Data.(string); ok {
+				e.openFile(path)
+			}
+		}
 	default:
 		LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
 	}
@@ -2144,6 +2160,66 @@ func (e *Editor) goToDefinition(args []string) error {
 }
 
 // getCommandCompletions returns possible completions for the given command prefix
+// handlePendingPath processes the pending path asynchronously after UI is shown
+func (e *Editor) handlePendingPath() {
+	path := e.pendingPath
+	e.pendingPath = "" // Clear it
+	
+	// Parse the path to check if it's remote
+	host, remotePath, isRemote := parsePathComponents(path)
+	
+	// Start async operation
+	operationID := "path-resolution"
+	e.startAsyncOperation(operationID)
+	defer e.endAsyncOperation(operationID)
+	
+	// Update connection status
+	if isRemote {
+		e.connectionStatus = fmt.Sprintf("Connecting to %s...", host)
+	} else {
+		e.connectionStatus = "Loading..."
+	}
+	
+	// Try to list the path to determine if it's a directory
+	files, err := e.proxyManager.ListDirectoryRecursive(path)
+	
+	// Clear connection status
+	e.connectionStatus = ""
+	
+	if err == nil && len(files) >= 0 {
+		// It's a directory
+		e.workingDirectory = path
+		LL.Info("Opening directory: %s", e.workingDirectory)
+		
+		// Send async event to show fuzzy list
+		e.asyncEvents <- &events.CustomEvent{Type: "show-fuzzy-list"}
+	} else {
+		// It's a file or doesn't exist - extract directory and open file
+		if isRemote {
+			// For remote paths, extract directory
+			lastSlash := strings.LastIndex(remotePath, "/")
+			if lastSlash > 0 {
+				dirPath := remotePath[:lastSlash]
+				e.workingDirectory = host + ":" + dirPath
+			} else {
+				e.workingDirectory = host + ":~/"
+			}
+		} else {
+			// For local paths, extract directory
+			lastSlash := strings.LastIndex(path, "/")
+			if lastSlash > 0 {
+				e.workingDirectory = path[:lastSlash]
+			} else {
+				e.workingDirectory = "."
+			}
+		}
+		LL.Info("Set working directory to: %s", e.workingDirectory)
+		
+		// Send async event to open the file
+		e.asyncEvents <- &events.CustomEvent{Type: "open-file", Data: path}
+	}
+}
+
 func (e *Editor) getCommandCompletions(prefix string) []string {
 	// Check if this is a variable assignment
 	if strings.Contains(prefix, "=") {

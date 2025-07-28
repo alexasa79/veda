@@ -304,3 +304,21 @@ func (k Key) String() string {
 		return "Unknown"
 	}
 }
+
+// CustomEvent represents a custom application event
+type CustomEvent struct {
+	timestamp time.Time
+	Type      string
+	Data      interface{}
+}
+
+func (e *CustomEvent) When() time.Time { return e.timestamp }
+
+// NewCustomEvent creates a new custom event
+func NewCustomEvent(eventType string, data interface{}) *CustomEvent {
+	return &CustomEvent{
+		timestamp: time.Now(),
+		Type:      eventType,
+		Data:      data,
+	}
+}

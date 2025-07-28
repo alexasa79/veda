@@ -325,8 +325,13 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
 		}
 		
-		// Add spinner if async operations are in progress
-		if e.hasAsyncOperations() {
+		// Add connection status or spinner if async operations are in progress
+		if e.connectionStatus != "" {
+			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, e.getSpinnerChar(), 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, e.connectionStatus, 0, nil)
+		} else if e.hasAsyncOperations() {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
 			x += e.drawText(x, statusBarY, statusBarStyle, e.getSpinnerChar(), 0, nil)
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
