@@ -165,3 +165,11 @@ func ParseStyleDef(def StyleDef) (ui.Style, error) {
 
 	return CombineStyles(fg, bg), nil
 }
+
+// ApplyBackgroundStyle takes an existing style and applies only the background from another style
+// This preserves the original foreground color and attributes
+func ApplyBackgroundStyle(originalStyle ui.Style, backgroundStyle ui.Style) ui.Style {
+	fg, _, attrs := originalStyle.Decompose()
+	_, bg, _ := backgroundStyle.Decompose()
+	return originalStyle.Foreground(fg).Background(bg).Attributes(attrs)
+}

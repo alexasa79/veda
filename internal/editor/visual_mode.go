@@ -1,0 +1,127 @@
+package editor
+
+import (
+	"veda/internal/buffer"
+	"veda/internal/commands"
+)
+
+// deleteSelection deletes the current visual selection
+func (e *Editor) deleteSelection(args []string) error {
+	if e.mode != commands.VisualMode {
+		return nil
+	}
+	
+	// Get selection range
+	start, end, hasSelection := e.getSelectionRange()
+	if !hasSelection {
+		return nil
+	}
+	
+	// Calculate line and character position for history entry
+	// Find the line containing the start position
+	iter := buffer.NewBufferIterator(e.buffer)
+	lineNum := 0
+	lineStart := 0
+	
+	for !iter.IsEOF() {
+		lineEnd := iter.LineEnd()
+		if start <= lineEnd {
+			// Position is on this line
+			break
+		}
+		lineStart = lineEnd + 1 // +1 for newline
+		iter = iter.Next()
+		lineNum++
+	}
+	
+	charPos := start - lineStart
+	
+	// Extract text that will be deleted
+	deletedText := e.buffer.Rope.Extract(start, end)
+	
+	// Create delete history entry
+	deleteEntry := buffer.NewDeleteTextEntry(lineNum, charPos, deletedText)
+	
+	// Execute the delete through history
+	if _, err := e.buffer.History.Execute(e.buffer, deleteEntry); err != nil {
+		return err
+	}
+	
+	// Move cursor to start of deletion
+	e.moveCursorToPosition(start)
+	
+	// Exit visual mode
+	e.exitVisualMode(nil)
+	
+	// Mark buffer as modified
+	e.buffer.IsModified = true
+	
+	// Track this as a repeatable change
+	e.lastChange = deleteEntry
+	
+	return nil
+}
+
+// yankSelection yanks (copies) the current visual selection
+func (e *Editor) yankSelection(args []string) error {
+	// Not implemented yet
+	return nil
+}
+
+// changeSelection deletes the selection and enters insert mode
+func (e *Editor) changeSelection(args []string) error {
+	if e.mode != commands.VisualMode {
+		return nil
+	}
+	
+	// Get selection range
+	start, end, hasSelection := e.getSelectionRange()
+	if !hasSelection {
+		return nil
+	}
+	
+	// Calculate line and character position for history entry
+	// Find the line containing the start position
+	iter := buffer.NewBufferIterator(e.buffer)
+	lineNum := 0
+	lineStart := 0
+	
+	for !iter.IsEOF() {
+		lineEnd := iter.LineEnd()
+		if start <= lineEnd {
+			// Position is on this line
+			break
+		}
+		lineStart = lineEnd + 1 // +1 for newline
+		iter = iter.Next()
+		lineNum++
+	}
+	
+	charPos := start - lineStart
+	
+	// Extract text that will be deleted
+	deletedText := e.buffer.Rope.Extract(start, end)
+	
+	// Create delete history entry
+	deleteEntry := buffer.NewDeleteTextEntry(lineNum, charPos, deletedText)
+	
+	// Execute the delete through history
+	if _, err := e.buffer.History.Execute(e.buffer, deleteEntry); err != nil {
+		return err
+	}
+	
+	// Move cursor to start of deletion
+	e.moveCursorToPosition(start)
+	
+	// Exit visual mode and enter insert mode
+	e.exitVisualMode(nil)
+	e.enterInsertMode(nil)
+	
+	// Mark buffer as modified
+	e.buffer.IsModified = true
+	
+	// Track this as part of the change (delete + upcoming insert)
+	e.lastChange = deleteEntry
+	
+	return nil
+}

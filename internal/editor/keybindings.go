@@ -39,6 +39,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
 	e.registerKeyBinding(commands.NormalMode, "/", "enter-search-mode")
 	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
+	e.registerKeyBinding(commands.NormalMode, "v", "enter-visual-mode")
 	e.registerKeyBinding(commands.NormalMode, "o", "open-line-below")
 	e.registerKeyBinding(commands.NormalMode, "O", "open-line-above")
 
@@ -93,4 +94,32 @@ func (e *Editor) setupDefaultBindings() {
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
 	e.registerKeyBinding(commands.NormalMode, "N", "find-previous")
+	
+	// Visual mode keys
+	e.registerKeyBinding(commands.VisualMode, "escape", "exit-visual-mode")
+	// Movement in visual mode - reuse same commands
+	e.registerKeyBinding(commands.VisualMode, "up", "up")
+	e.registerKeyBinding(commands.VisualMode, "down", "down")
+	e.registerKeyBinding(commands.VisualMode, "left", "left")
+	e.registerKeyBinding(commands.VisualMode, "right", "right")
+	e.registerKeyBinding(commands.VisualMode, "h", "left")
+	e.registerKeyBinding(commands.VisualMode, "j", "down")
+	e.registerKeyBinding(commands.VisualMode, "k", "up")
+	e.registerKeyBinding(commands.VisualMode, "l", "right")
+	e.registerKeyBinding(commands.VisualMode, "w", "word-forward")
+	e.registerKeyBinding(commands.VisualMode, "b", "word-backward")
+	e.registerKeyBinding(commands.VisualMode, "0", "beginning-of-line")
+	e.registerKeyBinding(commands.VisualMode, "$", "end-of-line")
+	e.registerKeyBinding(commands.VisualMode, "home", "beginning-of-line")
+	e.registerKeyBinding(commands.VisualMode, "end", "end-of-line")
+	e.registerKeyBinding(commands.VisualMode, "g g", "go-to-beginning")
+	e.registerKeyBinding(commands.VisualMode, "G", "go-to-end")
+	e.registerKeyBinding(commands.VisualMode, "pageup", "page-up")
+	e.registerKeyBinding(commands.VisualMode, "pagedown", "page-down")
+	
+	// Visual mode operations
+	e.registerKeyBinding(commands.VisualMode, "d", "delete-selection")
+	e.registerKeyBinding(commands.VisualMode, "x", "delete-selection")
+	e.registerKeyBinding(commands.VisualMode, "y", "yank-selection")
+	e.registerKeyBinding(commands.VisualMode, "c", "change-selection")
 }

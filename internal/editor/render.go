@@ -7,25 +7,34 @@ import (
 	"veda/internal/commands"
 	"veda/internal/config"
 	"veda/internal/syntax"
+	"veda/internal/theme"
 	"veda/internal/ui"
 )
 
-// drawText draws text with optional search highlighting
+// drawText draws text with optional search highlighting and selection
 // Returns the number of screen columns consumed
 func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int, searchMatches []int) int {
 	searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 	screenX := x
 	charPos := textOffset
+	
+	// Get selection range once for efficiency
+	selStart, selEnd, hasSelection := e.getSelectionRange()
 	
 	for _, r := range text {
 		// Check if this character is part of a search match
 		useSearchStyle := e.isInSearchMatch(charPos, searchMatches)
+		// Check if this character is part of the selection
+		inSelection := hasSelection && charPos >= selStart && charPos < selEnd
+		
 		currentStyle := style
-		if useSearchStyle {
+		if inSelection {
+			// Selection takes precedence over search
+			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
+		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
-			fg, _, _ := style.Decompose()
-			_, searchBg, _ := searchStyle.Decompose()
-			currentStyle = style.Foreground(fg).Background(searchBg)
+			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
 		}
 		
 		if r == '\t' {
@@ -122,9 +131,12 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 		}
 	}
 
+	// Get the absolute offset of the start of this line
+	lineStartOffset := iter.Position()
+	
 	// If no highlighter is set up, just draw normally
 	if e.highlighter == nil || !e.buffer.HasFile() {
-		e.drawText(startX, screenY, normalStyle, line, 0, searchMatches)
+		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches)
 		return
 	}
 
@@ -133,7 +145,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
-		e.drawText(startX, screenY, normalStyle, line, 0, searchMatches)
+		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches)
 		return
 	}
 
@@ -149,7 +161,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 				endPos = len(line)
 			}
 			prefix := line[lastEnd:endPos]
-			x += e.drawText(x, screenY, normalStyle, prefix, lastEnd, searchMatches)
+			x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches)
 		}
 
 		// Draw the token with its style
@@ -169,7 +181,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 				tokenStyle = tokenStyle.Background(lineBg)
 			}
 
-			x += e.drawText(x, screenY, tokenStyle, tokenText, token.Start, searchMatches)
+			x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches)
 			lastEnd = endPos
 		}
 	}
@@ -177,7 +189,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 	// Draw any remaining text with normal style
 	if lastEnd < len(line) {
 		suffix := line[lastEnd:]
-		e.drawText(x, screenY, normalStyle, suffix, lastEnd, searchMatches)
+		e.drawText(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches)
 	}
 }
 
@@ -313,6 +325,8 @@ func (e *Editor) drawStatusBar() {
 		modeText := "NORMAL  "
 		if e.mode == commands.InsertMode {
 			modeText = "INSERT  "
+		} else if e.mode == commands.VisualMode {
+			modeText = "VISUAL  "
 		}
 		x += e.drawText(x, statusBarY, statusBarStyle, modeText, 0, nil)
 
