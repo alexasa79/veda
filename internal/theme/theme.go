@@ -7,8 +7,9 @@ type Theme struct {
 	Name string
 
 	// Editor colors
-	StatusBar   StyleDef
-	CommandLine StyleDef
+	StatusBar       StyleDef
+	StatusBarSubdued StyleDef
+	CommandLine     StyleDef
 
 	// Dialog colors
 	DialogBorder  StyleDef
@@ -24,7 +25,6 @@ type Theme struct {
 	Selection        StyleDef
 	LineNumber       StyleDef
 	CurrentLine      StyleDef
-	LineColumn       StyleDef // Line and column display in status bar
 	Context StyleDef // Style for context lines and signature help
 	SearchHighlight  StyleDef // Style for search matches
 
@@ -63,6 +63,11 @@ func NewTheme() *Theme {
 		StatusBar: StyleDef{
 			Foreground: "#000",
 			Background: "#fff",
+		},
+
+		StatusBarSubdued: StyleDef{
+			Foreground: "#666",
+			Background: "#ddd",
 		},
 
 		CommandLine: StyleDef{
@@ -113,11 +118,6 @@ func NewTheme() *Theme {
 		CurrentLine: StyleDef{
 			Foreground: "#f8f8f2",
 			Background: "#3e3d32", // Slightly brighter than #272822
-		},
-
-		LineColumn: StyleDef{
-			Foreground: "#000000[B]",
-			Background: "#a0a0a0", // Darker gray background to make it stand out
 		},
 
 		Context: StyleDef{

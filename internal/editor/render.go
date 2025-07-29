@@ -18,16 +18,16 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 	screenX := x
 	charPos := textOffset
-	
+
 	// Get selection range once for efficiency
 	selStart, selEnd, hasSelection := e.getSelectionRange()
-	
+
 	for _, r := range text {
 		// Check if this character is part of a search match
 		useSearchStyle := e.isInSearchMatch(charPos, searchMatches)
 		// Check if this character is part of the selection
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd
-		
+
 		currentStyle := style
 		if inSelection {
 			// Selection takes precedence over search
@@ -36,7 +36,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			// Use search highlight style but preserve the foreground color
 			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
 		}
-		
+
 		if r == '\t' {
 			// Render tab as 4 spaces
 			for i := 0; i < 4; i++ {
@@ -67,7 +67,7 @@ func (e *Editor) findSearchMatches(line string) []int {
 	if e.searchPattern == "" {
 		return nil
 	}
-	
+
 	var matches []int
 	start := 0
 	for {
@@ -86,7 +86,7 @@ func (e *Editor) isInSearchMatch(pos int, matches []int) bool {
 	if len(matches) == 0 || e.searchPattern == "" {
 		return false
 	}
-	
+
 	patternLen := len(e.searchPattern)
 	for _, matchStart := range matches {
 		if pos >= matchStart && pos < matchStart+patternLen {
@@ -102,7 +102,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	isCurrentLine := lineIndex == e.buffer.CursorIterator.LineNumber()
-	
+
 	// Find search matches in this line
 	searchMatches := e.findSearchMatches(line)
 
@@ -133,7 +133,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 
 	// Get the absolute offset of the start of this line
 	lineStartOffset := iter.Position()
-	
+
 	// If no highlighter is set up, just draw normally
 	if e.highlighter == nil || !e.buffer.HasFile() {
 		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches)
@@ -298,7 +298,7 @@ func (e *Editor) drawEditor() {
 func (e *Editor) drawStatusBar() {
 	width, height := e.screen.Size()
 	statusBarStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBar)
-	lineColStyle := e.config.Theme.GetStyle(e.config.Theme.LineColumn)
+	statusBarStyle.Attrs |= ui.AttrBold // Make status bar text bold by default
 	statusBarY := e.getStatusBarY()
 
 	// Debug: ensure statusBarY is valid
@@ -322,13 +322,19 @@ func (e *Editor) drawStatusBar() {
 		// Status bar content
 		// Left side: mode and filename
 		x := 0
-		modeText := "NORMAL  "
+		
+		// Draw mode with inverted colors for highlighting
+		modeStyle := statusBarStyle
+		modeStyle.Fg, modeStyle.Bg = modeStyle.Bg, modeStyle.Fg // Invert colors
+		
+		modeText := " NORMAL "
 		if e.mode == commands.InsertMode {
-			modeText = "INSERT  "
+			modeText = " INSERT "
 		} else if e.mode == commands.VisualMode {
-			modeText = "VISUAL  "
+			modeText = " VISUAL "
 		}
-		x += e.drawText(x, statusBarY, statusBarStyle, modeText, 0, nil)
+		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil)
+		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil) // Space after mode
 
 		// Show filename and LSP indicator
 		filename := e.buffer.FileName()
@@ -338,17 +344,22 @@ func (e *Editor) drawStatusBar() {
 		if e.buffer.HasLSP {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
 		}
-		
+
 		// Add connection status or spinner if async operations are in progress
-		if e.connectionStatus != "" {
-			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, e.getSpinnerChar(), 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, e.connectionStatus, 0, nil)
-		} else if e.hasAsyncOperations() {
-			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, e.getSpinnerChar(), 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
+		if e.connectionStatus != "" || e.hasAsyncOperations() {
+			// Use inverted colors for spinner/status
+			spinnerStyle := statusBarStyle
+			spinnerStyle.Fg, spinnerStyle.Bg = spinnerStyle.Bg, spinnerStyle.Fg
+			
+			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil) // Spacing
+			
+			if e.connectionStatus != "" {
+				statusText := fmt.Sprintf(" %s %s ", e.getSpinnerChar(), e.connectionStatus)
+				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil)
+			} else {
+				statusText := fmt.Sprintf(" %s ", e.getSpinnerChar())
+				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil)
+			}
 		}
 
 		// Right side: indentation and line:col
@@ -382,23 +393,43 @@ func (e *Editor) drawStatusBar() {
 			lineIndentDisplay = "L0"
 		}
 
-		// Add absolute position to the display
-		absPos := e.getAbsolutePosition()
-		lineColInfo := fmt.Sprintf("  %d:%d [%d]  ", e.buffer.CursorIterator.LineNumber()+1, visualCol, absPos)
-		rightInfo := fmt.Sprintf("%s  %s%s", indentInfo, lineIndentDisplay, lineColInfo)
-
+		// Get current line length
+		currentLine := ""
+		if !e.buffer.CursorIterator.IsEOF() {
+			currentLine = e.buffer.CursorIterator.Line()
+		}
+		lineLength := len(currentLine)
+		
+		// Get subdued style for total counts (without bold)
+		subduedStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBarSubdued)
+		
+		// Build line info with mixed styles
+		// Format: "40/65:1/16 [1234]"
+		currentLineNum := e.buffer.CursorIterator.LineNumber() + 1
+		totalLines := e.buffer.LineCount
+		
+		// Calculate the full right info for positioning
+		fullRightInfo := fmt.Sprintf("%s  %s  %d/%d:%d/%d [%d]  ", 
+			indentInfo, lineIndentDisplay, 
+			currentLineNum, totalLines,
+			visualCol, lineLength,
+			e.getAbsolutePosition())
+		
 		// Calculate position for right-aligned text
-		rightX := width - len(rightInfo)
+		rightX := width - len(fullRightInfo)
 
 		if rightX > x { // Only draw if there's space
-			// Draw indentation info
-			rightX += e.drawText(rightX, statusBarY, statusBarStyle, indentInfo, 0, nil)
-			// Add spacing
-			rightX += e.drawText(rightX, statusBarY, statusBarStyle, "  ", 0, nil)
-			// Draw line indentation level
-			rightX += e.drawText(rightX, statusBarY, statusBarStyle, lineIndentDisplay, 0, nil)
-			// Draw line:col with different style (already includes spacing)
-			e.drawText(rightX, statusBarY, lineColStyle, lineColInfo, 0, nil)
+			// Draw each part separately with appropriate styles
+			x = rightX
+			x += e.drawText(x, statusBarY, statusBarStyle, indentInfo+"  ", 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, lineIndentDisplay+"  ", 0, nil)
+			
+			// Line info with mixed styles
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", currentLineNum), 0, nil)
+			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", totalLines), 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(":%d", visualCol), 0, nil)
+			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", lineLength), 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil)
 		}
 	}
 }
