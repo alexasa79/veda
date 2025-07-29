@@ -17,6 +17,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("== Modes ==\n")
 	helpText.WriteString("Normal Mode  - Default mode for navigation and commands (ESC to enter)\n")
 	helpText.WriteString("Insert Mode  - Mode for inserting text (i to enter)\n")
+	helpText.WriteString("Visual Mode  - Mode for selecting text (v to enter)\n")
 	helpText.WriteString("Command Mode - Mode for executing commands (: to enter)\n\n")
 	
 	// Key bindings by category
@@ -41,7 +42,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("d<motion>    - Delete with motion (e.g., dw = delete word)\n")
 	helpText.WriteString("u            - Undo last change\n")
 	helpText.WriteString("U            - Redo undone change\n")
-	helpText.WriteString(".            - Repeat last change\n\n")
+	helpText.WriteString(".            - Repeat last change\n")
+	helpText.WriteString("v            - Enter visual mode for text selection\n\n")
 	
 	helpText.WriteString("= Search =\n")
 	helpText.WriteString("/            - Enter search mode\n")
@@ -60,6 +62,13 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space s w    - List project symbols\n")
 	helpText.WriteString("Space s d    - List document symbols\n\n")
 	
+	helpText.WriteString("= Visual Mode =\n")
+	helpText.WriteString("v            - Enter visual mode\n")
+	helpText.WriteString("ESC          - Exit visual mode\n")
+	helpText.WriteString("d or x       - Delete selected text\n")
+	helpText.WriteString("c            - Change selected text (delete and enter insert mode)\n")
+	helpText.WriteString("All movement keys work in visual mode\n\n")
+	
 	helpText.WriteString("= Insert Mode =\n")
 	helpText.WriteString("ESC          - Exit insert mode\n")
 	helpText.WriteString("Enter        - Insert newline\n")
@@ -68,7 +77,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Home/End     - Move to beginning/end of line\n\n")
 	
 	helpText.WriteString("== Command Mode Commands ==\n")
-	helpText.WriteString(":q           - Close current buffer\n")
+	helpText.WriteString(":q           - Close current buffer (quits if last buffer)\n")
 	helpText.WriteString(":q!          - Force quit (same as :Q)\n")
 	helpText.WriteString(":Q or :Quit  - Quit the editor\n")
 	helpText.WriteString(":w or :write - Write current file\n")

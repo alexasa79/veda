@@ -103,22 +103,9 @@ func (e *Editor) showBuffers(args []string) error {
 
 // closeBuffer closes the current buffer
 func (e *Editor) closeBuffer(args []string) error {
-	// Don't close if it's the only buffer
+	// If it's the only buffer, quit the editor
 	if len(e.buffers) <= 1 {
-		// Create a new empty buffer instead
-		emptyBuffer := buffer.NewBuffer("", "", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-		e.buffers[""] = emptyBuffer
-		if !contains(e.bufferOrder, "") {
-			e.bufferOrder = append(e.bufferOrder, "")
-		}
-		e.switchToBuffer(emptyBuffer)
-		
-		// Remove the old buffer if it wasn't the empty buffer
-		if e.previousBuffer != nil && e.previousBuffer.FilePath != "" {
-			delete(e.buffers, e.previousBuffer.FilePath)
-			e.bufferOrder = removeFromSlice(e.bufferOrder, e.previousBuffer.FilePath)
-		}
-		return nil
+		return e.actuallyQuit(args)
 	}
 	
 	// Find the buffer to switch to
