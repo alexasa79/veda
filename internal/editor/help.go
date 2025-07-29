@@ -44,7 +44,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("U            - Redo undone change\n")
 	helpText.WriteString(".            - Repeat last change\n")
 	helpText.WriteString("v            - Enter visual mode for text selection\n")
-	helpText.WriteString("yy           - Yank (copy) current line to clipboard\n\n")
+	helpText.WriteString("yy           - Yank (copy) current line to clipboard\n")
+	helpText.WriteString("J            - Join current line with next line\n\n")
 	
 	helpText.WriteString("= Search =\n")
 	helpText.WriteString("/            - Enter search mode\n")

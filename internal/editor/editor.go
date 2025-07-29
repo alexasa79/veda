@@ -1627,6 +1627,87 @@ func (e *Editor) openLineAbove(args []string) error {
 	return nil
 }
 
+// joinLines joins the current line with the next line
+func (e *Editor) joinLines(args []string) error {
+	// Get current line info
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	
+	// Can't join if we're on the last line
+	if lineNum >= e.buffer.LineCount - 1 {
+		return nil
+	}
+	
+	// Get current line and next line
+	currentLine := e.buffer.CursorIterator.Line()
+	nextIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
+	if nextIter.IsEOF() {
+		return nil
+	}
+	nextLine := nextIter.Line()
+	
+	// Determine what to delete and what to insert
+	// We need to delete the newline and any leading whitespace on the next line
+	leadingSpaces := 0
+	for i, ch := range nextLine {
+		if ch != ' ' && ch != '\t' {
+			leadingSpaces = i
+			break
+		}
+		if i == len(nextLine) - 1 {
+			// Next line is all whitespace
+			leadingSpaces = len(nextLine)
+		}
+	}
+	
+	// Determine what text to insert between the lines
+	insertText := ""
+	if len(currentLine) > 0 && currentLine[len(currentLine)-1] != ' ' && 
+	   leadingSpaces < len(nextLine) && nextLine[leadingSpaces] != ' ' {
+		// Add a space if current line doesn't end with space and next line content doesn't start with space
+		insertText = " "
+	}
+	
+	// Create a composite entry for the join operation
+	compositeEntry := buffer.NewCompositeEntry("Join lines")
+	
+	// First, insert the space if needed
+	if insertText != "" {
+		insertEntry := buffer.NewInsertTextEntry(lineNum, len(currentLine), insertText)
+		compositeEntry.Add(insertEntry)
+	}
+	
+	// Then delete the newline and leading whitespace
+	deleteEntry := buffer.NewDeleteTextEntry(lineNum, len(currentLine) + len(insertText), "\n" + nextLine[:leadingSpaces])
+	compositeEntry.Add(deleteEntry)
+	
+	// Execute through history
+	if e.buffer.History != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, compositeEntry); err != nil {
+			return err
+		} else if executed != nil {
+			e.setLastChange(executed)
+		}
+	}
+	
+	// Remember where we want the cursor to be (at the join point)
+	cursorX := len(currentLine)
+	if insertText != "" {
+		cursorX++ // Account for the added space
+	}
+	
+	// Recreate iterators
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, e.buffer.ViewIterator.LineNumber())
+	
+	// Set cursor position to the join point
+	e.buffer.CursorX = cursorX
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
+	return nil
+}
+
 func (e *Editor) insertChar(ch rune) error {
 	// Check for auto-pair characters
 	pairedChar, isPaired := e.getPairedChar(ch)

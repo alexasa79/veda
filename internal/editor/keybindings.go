@@ -42,6 +42,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "v", "enter-visual-mode")
 	e.registerKeyBinding(commands.NormalMode, "o", "open-line-below")
 	e.registerKeyBinding(commands.NormalMode, "O", "open-line-above")
+	e.registerKeyBinding(commands.NormalMode, "J", "join-lines")
 
 	// Delete commands
 	e.registerKeyBinding(commands.NormalMode, "x", "delete-current-character")
@@ -77,13 +78,13 @@ func (e *Editor) setupDefaultBindings() {
 	// Undo/Redo operations
 	e.registerKeyBinding(commands.NormalMode, "u", "undo")
 	e.registerKeyBinding(commands.NormalMode, "U", "redo")
-	
+
 	// Yank operations
 	e.registerKeyBinding(commands.NormalMode, "y y", "yank-line")
-	
+
 	// Repeat last change
 	e.registerKeyBinding(commands.NormalMode, ".", "repeat-last-change")
-	
+
 	// Delete operations
 	e.registerKeyBinding(commands.NormalMode, "d", "start-delete")
 	e.registerKeyBinding(commands.NormalMode, "ctrl+shift+space", "show-signature")
@@ -93,11 +94,11 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
 	e.registerKeyBinding(commands.NormalMode, "g g", "go-to-beginning")
 	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
-	
+
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
 	e.registerKeyBinding(commands.NormalMode, "N", "find-previous")
-	
+
 	// Visual mode keys
 	e.registerKeyBinding(commands.VisualMode, "escape", "exit-visual-mode")
 	// Movement in visual mode - reuse same commands
@@ -105,10 +106,6 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.VisualMode, "down", "down")
 	e.registerKeyBinding(commands.VisualMode, "left", "left")
 	e.registerKeyBinding(commands.VisualMode, "right", "right")
-	e.registerKeyBinding(commands.VisualMode, "h", "left")
-	e.registerKeyBinding(commands.VisualMode, "j", "down")
-	e.registerKeyBinding(commands.VisualMode, "k", "up")
-	e.registerKeyBinding(commands.VisualMode, "l", "right")
 	e.registerKeyBinding(commands.VisualMode, "w", "word-forward")
 	e.registerKeyBinding(commands.VisualMode, "b", "word-backward")
 	e.registerKeyBinding(commands.VisualMode, "0", "beginning-of-line")
@@ -119,7 +116,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.VisualMode, "G", "go-to-end")
 	e.registerKeyBinding(commands.VisualMode, "pageup", "page-up")
 	e.registerKeyBinding(commands.VisualMode, "pagedown", "page-down")
-	
+
 	// Visual mode operations
 	e.registerKeyBinding(commands.VisualMode, "d", "delete-selection")
 	e.registerKeyBinding(commands.VisualMode, "x", "delete-selection")
