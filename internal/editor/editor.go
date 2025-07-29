@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 	"veda/internal/buffer"
+	"veda/internal/clipboard"
 	"veda/internal/commands"
 	"veda/internal/config"
 	"veda/internal/events"
@@ -1328,6 +1329,29 @@ func (e *Editor) redo(args []string) error {
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
+	return nil
+}
+
+// yankCurrentLine yanks (copies) the current line to the system clipboard
+func (e *Editor) yankCurrentLine(args []string) error {
+	// Get current line
+	line := e.buffer.CursorIterator.Line()
+	
+	// Add newline if we're not at the last line
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	textToYank := line
+	if lineNum < e.buffer.LineCount - 1 {
+		textToYank += "\n"
+	}
+	
+	// Copy to system clipboard
+	if err := clipboard.Copy(textToYank); err != nil {
+		LL.Error("Failed to copy to clipboard: %v", err)
+		return fmt.Errorf("failed to copy to clipboard: %w", err)
+	}
+	
+	LL.Debug("Yanked line %d (%d characters) to clipboard", lineNum + 1, len(textToYank))
+	
 	return nil
 }
 

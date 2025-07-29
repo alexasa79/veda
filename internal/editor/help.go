@@ -43,7 +43,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("u            - Undo last change\n")
 	helpText.WriteString("U            - Redo undone change\n")
 	helpText.WriteString(".            - Repeat last change\n")
-	helpText.WriteString("v            - Enter visual mode for text selection\n\n")
+	helpText.WriteString("v            - Enter visual mode for text selection\n")
+	helpText.WriteString("yy           - Yank (copy) current line to clipboard\n\n")
 	
 	helpText.WriteString("= Search =\n")
 	helpText.WriteString("/            - Enter search mode\n")
@@ -66,6 +67,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("v            - Enter visual mode\n")
 	helpText.WriteString("ESC          - Exit visual mode\n")
 	helpText.WriteString("d or x       - Delete selected text\n")
+	helpText.WriteString("y            - Yank (copy) selected text to clipboard\n")
 	helpText.WriteString("c            - Change selected text (delete and enter insert mode)\n")
 	helpText.WriteString("All movement keys work in visual mode\n\n")
 	
