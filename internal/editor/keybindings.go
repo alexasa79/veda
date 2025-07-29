@@ -63,6 +63,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Buffer operations
 	e.registerKeyBinding(commands.NormalMode, "space s b", "show-buffers")
+	e.registerKeyBinding(commands.NormalMode, "space space", "switch-to-previous-buffer")
 
 	// Symbol operations
 	e.registerKeyBinding(commands.NormalMode, "space s w", "list-project-symbols")

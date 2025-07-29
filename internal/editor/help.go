@@ -50,7 +50,8 @@ func (e *Editor) showHelp(args []string) error {
 	
 	helpText.WriteString("= File Operations =\n")
 	helpText.WriteString("Space s f    - Open file browser\n")
-	helpText.WriteString("Space s b    - Show open buffers\n\n")
+	helpText.WriteString("Space s b    - Show open buffers\n")
+	helpText.WriteString("Space Space  - Switch to previous buffer\n\n")
 	
 	helpText.WriteString("= Code Navigation =\n")
 	helpText.WriteString("gd           - Go to definition (requires LSP)\n")
@@ -67,7 +68,11 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Home/End     - Move to beginning/end of line\n\n")
 	
 	helpText.WriteString("== Command Mode Commands ==\n")
-	helpText.WriteString(":q or :quit  - Quit the editor\n")
+	helpText.WriteString(":q           - Close current buffer\n")
+	helpText.WriteString(":q!          - Force quit (same as :Q)\n")
+	helpText.WriteString(":Q or :Quit  - Quit the editor\n")
+	helpText.WriteString(":w or :write - Write current file\n")
+	helpText.WriteString(":e <path>    - Edit file or directory\n")
 	helpText.WriteString(":cd <path>   - Change working directory\n")
 	helpText.WriteString(":help        - Show this help\n")
 	helpText.WriteString(":help-keys   - Show all key bindings\n\n")

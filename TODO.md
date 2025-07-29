@@ -30,9 +30,10 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 
 # Features
 - [ ] Multi-line support
-- [ ] Go to specific line
-- [ ] Search
+- [x] Go to specific line
+- [x] Search
 - [ ] Find references
-- [ ] List methods in the file
-- [ ] List methods in the folder
+- [x] List methods in the file
+- [x] List methods in the folder
 - [ ] Render tab characters and trailing space characters.
+- [ ] Completion
