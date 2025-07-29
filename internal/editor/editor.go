@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 	"veda/internal/buffer"
@@ -98,7 +97,7 @@ type Editor struct {
 	// Search state
 	searchPattern   string                  // Current search pattern
 	searchDirection bool                    // true = forward, false = backward
-	
+
 	// Visual mode state
 	visualAnchorLine   int                  // Line number where visual selection started
 	visualAnchorX      int                  // X position where visual selection started
@@ -362,7 +361,6 @@ func (e *Editor) handleEvent(ev events.Event) {
 	}
 }
 
-
 // updateCursor updates the cursor position and style
 func (e *Editor) updateCursor() {
 	// Set cursor style based on mode
@@ -393,546 +391,10 @@ func (e *Editor) updateCursor() {
 	}
 }
 
-func (e *Editor) scroll() {
-	visibleHeight := e.getVisibleHeight()
-	bufferLines := e.buffer.LineCount
-	topLine := e.buffer.ViewIterator.LineNumber()
-
-	// Adjust scroll offset for top margin only (to account for context lines)
-	topScrollOffset := e.config.ScrollOffset - len(e.contextCache)
-	if topScrollOffset < 0 {
-		topScrollOffset = 0
-	}
-
-	// Scroll up when cursor is too close to top
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	if cursorLine < topLine+topScrollOffset {
-		linesToMove := topLine - (cursorLine - topScrollOffset)
-		if linesToMove > 0 {
-			for i := 0; i < linesToMove; i++ {
-				e.buffer.ViewIterator = e.buffer.ViewIterator.Previous()
-			}
-		}
-	}
-
-	// Scroll down when cursor is too close to bottom, but allow cursor to reach
-	// the bottom of the screen when at the end of the buffer
-	// Bottom scroll offset remains unchanged
-	if cursorLine >= topLine+visibleHeight-e.config.ScrollOffset {
-		// If we're near the end of the buffer, allow the last line to be at the bottom
-		maxTopLine := bufferLines - visibleHeight
-		if maxTopLine < 0 {
-			maxTopLine = 0
-		}
-
-		desiredTopLine := cursorLine - visibleHeight + e.config.ScrollOffset
-		linesToMove := desiredTopLine - topLine
-
-		// Don't scroll past the maximum allowed top line
-		if topLine + linesToMove > maxTopLine {
-			linesToMove = maxTopLine - topLine
-		}
-
-		if linesToMove > 0 {
-			for i := 0; i < linesToMove; i++ {
-				e.buffer.ViewIterator = e.buffer.ViewIterator.Next()
-			}
-		}
-	}
-}
-
-// scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top
-func (e *Editor) scrollToShowAtTop() {
-	// Create a new iterator at the beginning
-	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
-
-	// Adjust scroll offset for top margin only (to account for context lines)
-	topScrollOffset := e.config.ScrollOffset - len(e.contextCache)
-	if topScrollOffset < 0 {
-		topScrollOffset = 0
-	}
-
-	// Move down to position cursor at ScrollOffset from the top
-	targetLine := e.buffer.CursorIterator.LineNumber() - topScrollOffset
-	if targetLine < 0 {
-		targetLine = 0
-	}
-
-	// Move iterator to target line
-	for i := 0; i < targetLine && !e.buffer.ViewIterator.IsEOF(); i++ {
-		e.buffer.ViewIterator = e.buffer.ViewIterator.Next()
-	}
-}
-
-// ScrollToShowAtBottom positions the view so the cursor line appears at the bottom of the screen
-// This method calculates the view position so that the cursor is on the last visible line
-func (e *Editor) ScrollToShowAtBottom() {
-	visibleHeight := e.getVisibleHeight()
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-
-	// Calculate the desired view start line
-	// If cursor is below screen, we need to move view up by 1
-	// View should start at: cursorLine - visibleHeight + 1 - 1
-	desiredViewLine := cursorLine - visibleHeight + 2
-
-	// Handle edge case where desired view would be negative
-	if desiredViewLine < 0 {
-		desiredViewLine = 0
-	}
-
-	// Create iterator at the desired view line
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
-
-	LL.Debug("After going to the end, the view iterator is at %+v, cursor iterator at %+v, visible height is %d",
-		e.buffer.ViewIterator, e.buffer.CursorIterator, visibleHeight)
-}
-
-// scrollToCenter positions the view so the cursor line appears in the middle of the screen
-func (e *Editor) scrollToCenter() {
-	visibleHeight := e.getVisibleHeight()
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-
-	// Calculate the desired view start line to center the cursor
-	desiredViewLine := cursorLine - visibleHeight/2
-
-	// Handle edge cases
-	if desiredViewLine < 0 {
-		desiredViewLine = 0
-	} else {
-		// Don't scroll past the end of the buffer
-		maxViewLine := e.buffer.LineCount - visibleHeight
-		if maxViewLine < 0 {
-			maxViewLine = 0
-		}
-		if desiredViewLine > maxViewLine {
-			desiredViewLine = maxViewLine
-		}
-	}
-
-	// Create iterator at the desired view line
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
-}
-
-func (e *Editor) handleCommandMode(ev *events.KeyEvent) {
-	switch ev.Key {
-	case events.KeyEscape:
-		// Exit command mode
-		e.exitCommandMode()
-	case events.KeyEnter:
-		// Execute command and exit command mode
-		e.executeCommand()
-		e.exitCommandMode()
-	default:
-		// Pass other keys to the command line widget
-		e.commandLine.HandleKey(ev)
-
-		// Check if the user deleted all text including the colon
-		// If so, exit command mode automatically
-		if e.commandLine.GetText() == "" {
-			e.exitCommandMode()
-		}
-	}
-}
-
 // enterCommandMode switches to command mode and initializes the command line
-func (e *Editor) enterCommandMode() {
-	e.mode = commands.CommandMode
-	e.commandLine.SetText(":")
-	// Position cursor after the colon
-	e.commandLine.SetCursor(1)
-
-	// Set up command completion function
-	e.commandLine.SetCompletionFunc(e.getCommandCompletions)
-}
-
 // exitCommandMode switches back to normal mode
-func (e *Editor) exitCommandMode() {
-	e.mode = commands.NormalMode
-	e.commandLine.SetText("")
-}
-
 // executeCommand processes the command entered in the command line
-func (e *Editor) executeCommand() {
-	fullCommand := e.commandLine.GetText()
-
-	// Add to history before executing
-	e.commandLine.AddToHistory(fullCommand)
-
-	// Remove the leading ":"
-	command := fullCommand
-	if len(command) > 1 {
-		command = command[1:]
-	}
-
-	// Check if this is a variable assignment (VAR=VALUE)
-	if strings.Contains(command, "=") && !strings.HasPrefix(command, " ") {
-		e.handleVariableAssignment(command)
-		return
-	}
-
-	// Check if the command is a line number
-	if lineNum, err := strconv.Atoi(command); err == nil {
-		// Jump to line number (1-based, but 0 also goes to line 1)
-		if lineNum <= 0 {
-			e.goToLine(0) // Line 0 or negative goes to first line
-		} else {
-			e.goToLine(lineNum - 1) // Convert to 0-based
-		}
-		return
-	}
-
-	// Parse command and arguments
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
-		return
-	}
-	cmd := parts[0]
-	args := parts[1:]
-
-	// Store command arguments for handlers that need them
-	e.lastCommandArgs = args
-
-	// Try to execute from the command registry
-	if e.commandRegistry.Has(cmd) {
-		err := e.commandRegistry.Execute(cmd, args)
-		if err != nil {
-			LL.Debug("Command execution failed: %v", err)
-		}
-		return
-	}
-}
-
 // handleVariableAssignment processes variable assignments in VAR=VALUE format
-func (e *Editor) handleVariableAssignment(assignment string) {
-	parts := strings.SplitN(assignment, "=", 2)
-	if len(parts) != 2 {
-		return
-	}
-
-	varName := strings.TrimSpace(parts[0])
-	value := strings.TrimSpace(parts[1])
-
-	switch varName {
-	case "expandtab":
-		// Boolean value
-		if value == "true" || value == "1" || value == "yes" {
-			e.buffer.SetIndentationType(config.IndentSpaces)
-		} else if value == "false" || value == "0" || value == "no" {
-			e.buffer.SetIndentationType(config.IndentTabs)
-		}
-	case "tabstop", "ts":
-		// Set tab width
-		if width, err := strconv.Atoi(value); err == nil && width > 0 && width <= 8 {
-			e.buffer.SetIndentationWidth(width)
-		}
-	case "shiftwidth", "sw":
-		// Set indent width (same as tabstop for now)
-		if width, err := strconv.Atoi(value); err == nil && width > 0 && width <= 8 {
-			e.buffer.SetIndentationWidth(width)
-		}
-	case "number":
-		// Show line numbers (future feature)
-		// TODO: implement line numbers
-	case "relativenumber":
-		// Show relative line numbers (future feature)
-		// TODO: implement relative line numbers
-	case "autoindent":
-		// Auto indent (already implemented by default)
-		// TODO: make this configurable
-	case "smartindent":
-		// Smart indent (already implemented by default)
-		// TODO: make this configurable
-	case "log":
-		// Set log level
-		if level, err := log.ParseLogLevel(value); err == nil {
-			log.SetAllLogLevel(level)
-			LL.Info("Log level set to %s", value)
-		} else {
-			LL.Warning("Invalid log level: %s (use: info, debug, trace)", value)
-		}
-	}
-}
-
-
-// handleSearchMode processes key events in search mode
-func (e *Editor) handleSearchMode(ev *events.KeyEvent) {
-	switch ev.Key {
-	case events.KeyEscape:
-		// Exit search mode without searching
-		e.exitSearchMode()
-	case events.KeyEnter:
-		// Execute search and stay in normal mode
-		e.executeSearch()
-		e.exitSearchMode()
-	default:
-		// Pass other keys to the search line widget
-		e.searchLine.HandleKey(ev)
-
-		// Check if the user deleted all text including the slash
-		// If so, exit search mode automatically
-		if e.searchLine.GetText() == "" {
-			e.exitSearchMode()
-		}
-	}
-}
-
-// enterSearchMode switches to search mode and initializes the search line
-func (e *Editor) enterSearchMode() {
-	e.mode = commands.SearchMode
-	e.searchLine.SetText("/")
-	// Position cursor after the slash
-	e.searchLine.SetCursor(1)
-	e.searchDirection = true // Forward search by default
-}
-
-// exitSearchMode switches back to normal mode
-func (e *Editor) exitSearchMode() {
-	e.mode = commands.NormalMode
-	e.searchLine.SetText("")
-}
-
-// executeSearch performs the search operation
-func (e *Editor) executeSearch() {
-	fullSearch := e.searchLine.GetText()
-
-	// Remove the leading "/"
-	pattern := fullSearch
-	if len(pattern) > 1 {
-		pattern = pattern[1:]
-	} else {
-		// Empty search, do nothing
-		return
-	}
-
-	// Store the search pattern
-	e.searchPattern = pattern
-
-	// Perform the search
-	e.findNext()
-}
-
-// findNext finds the next occurrence of the search pattern
-func (e *Editor) findNext() {
-	if e.searchPattern == "" {
-		return
-	}
-
-	// Get current position
-	startPos := e.getAbsolutePosition()
-
-	// Convert buffer content to string for searching
-	content := e.buffer.Rope.String()
-
-	// Search forward from current position + 1
-	searchStart := startPos + 1
-	if searchStart >= len(content) {
-		searchStart = 0 // Wrap around
-	}
-
-	// Find the pattern
-	foundPos := strings.Index(content[searchStart:], e.searchPattern)
-
-	if foundPos == -1 && searchStart > 0 {
-		// Not found after cursor, try from beginning
-		foundPos = strings.Index(content[:startPos], e.searchPattern)
-		if foundPos >= 0 {
-			// Found before cursor (wrapped around)
-			e.moveCursorToPosition(foundPos)
-			return
-		}
-	} else if foundPos >= 0 {
-		// Found after cursor
-		e.moveCursorToPosition(searchStart + foundPos)
-		return
-	}
-
-	// Pattern not found
-	LL.Debug("Pattern not found: %s", e.searchPattern)
-}
-
-// findPrevious finds the previous occurrence of the search pattern
-func (e *Editor) findPrevious() {
-	if e.searchPattern == "" {
-		return
-	}
-
-	// Get current position
-	startPos := e.getAbsolutePosition()
-
-	// Convert buffer content to string for searching
-	content := e.buffer.Rope.String()
-
-	// Search backward from current position
-	searchEnd := startPos
-	if searchEnd <= 0 {
-		searchEnd = len(content) // Wrap around
-	}
-
-	// Find the last occurrence before current position
-	foundPos := -1
-	searchContent := content[:searchEnd]
-
-	// Find all occurrences and take the last one
-	lastPos := -1
-	searchStart := 0
-	for {
-		pos := strings.Index(searchContent[searchStart:], e.searchPattern)
-		if pos == -1 {
-			break
-		}
-		lastPos = searchStart + pos
-		searchStart = lastPos + 1
-	}
-
-	if lastPos != -1 {
-		foundPos = lastPos
-	} else if searchEnd < len(content) {
-		// Not found before cursor, try after cursor (wrap around)
-		afterContent := content[startPos:]
-		// Find the last occurrence after cursor
-		lastPos = -1
-		searchStart = 0
-		for {
-			pos := strings.Index(afterContent[searchStart:], e.searchPattern)
-			if pos == -1 {
-				break
-			}
-			lastPos = searchStart + pos
-			searchStart = lastPos + 1
-		}
-		if lastPos != -1 {
-			foundPos = startPos + lastPos
-		}
-	}
-
-	if foundPos != -1 {
-		e.moveCursorToPosition(foundPos)
-	} else {
-		// Pattern not found
-		LL.Debug("Pattern not found: %s", e.searchPattern)
-	}
-}
-
-// findNextCmd is the command handler for the 'n' key
-func (e *Editor) findNextCmd(args []string) error {
-	e.findNext()
-	return nil
-}
-
-// findPreviousCmd is the command handler for the 'N' key
-func (e *Editor) findPreviousCmd(args []string) error {
-	e.findPrevious()
-	return nil
-}
-
-// moveCursorToPosition moves the cursor to an absolute position in the buffer
-func (e *Editor) moveCursorToPosition(pos int) {
-	// Remember the current view line before moving cursor (if iterator is still valid)
-	oldViewLine := 0
-	if e.buffer.ViewIterator != nil && e.buffer.ViewIterator.Generation == e.buffer.Generation {
-		oldViewLine = e.buffer.ViewIterator.LineNumber()
-	}
-
-	// Create an iterator at the beginning
-	iter := buffer.NewBufferIterator(e.buffer)
-	lineNum := 0
-	lineStart := 0
-
-	// Find the line containing the position
-	for !iter.IsEOF() {
-		lineEnd := iter.LineEnd()
-		if pos <= lineEnd {
-			// Position is on this line
-			break
-		}
-		lineStart = lineEnd + 1 // +1 for newline
-		iter = iter.Next()
-		lineNum++
-	}
-
-	// Set cursor position
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.CursorX = pos - lineStart
-
-	// Ensure cursor X is within bounds
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(line) {
-		e.buffer.CursorX = len(line)
-		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-			e.buffer.CursorX--
-		}
-	}
-
-	// Check if the cursor is already visible
-	visibleHeight := e.getVisibleHeight()
-	
-	// Ensure ViewIterator is valid
-	if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, oldViewLine)
-	}
-	
-	viewLine := e.buffer.ViewIterator.LineNumber()
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-
-	// Check if cursor is within visible range
-	if cursorLine >= viewLine && cursorLine < viewLine + visibleHeight {
-		// Cursor is already visible, no need to scroll
-		return
-	}
-
-	// Cursor is not visible, center it on screen
-	e.scrollToCenter()
-
-	// Check if the view actually changed
-	newViewLine := e.buffer.ViewIterator.LineNumber()
-	if newViewLine == oldViewLine {
-		// View didn't change, use default scrolling instead
-		e.scrollToShowAtTop()
-	}
-}
-
-// handleResize processes screen resize events
-func (e *Editor) handleResize() {
-	width, _ := e.screen.Size()
-
-	// Update the command line widget's dimensions and position
-	e.commandLine.SetWidth(width)
-	e.commandLine.SetPosition(0, e.getStatusBarY())
-
-	// Also update search line widget
-	e.searchLine.SetWidth(width)
-	e.searchLine.SetPosition(0, e.getStatusBarY())
-}
-
-// startAsyncOperation registers a new async operation
-func (e *Editor) startAsyncOperation(id string) {
-	e.asyncOperations[id] = true
-}
-
-// endAsyncOperation marks an async operation as complete
-func (e *Editor) endAsyncOperation(id string) {
-	delete(e.asyncOperations, id)
-}
-
-// hasAsyncOperations returns true if any async operations are in progress
-func (e *Editor) hasAsyncOperations() bool {
-	return len(e.asyncOperations) > 0
-}
-
-// getSpinnerChar returns the current spinner character and advances the animation
-func (e *Editor) getSpinnerChar() string {
-	// Unicode spinner characters: ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
-	spinnerChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
-	// Update spinner every 100ms
-	now := time.Now()
-	if now.Sub(e.lastSpinnerTime) > 100*time.Millisecond {
-		e.spinnerIndex = (e.spinnerIndex + 1) % len(spinnerChars)
-		e.lastSpinnerTime = now
-	}
-
-	return spinnerChars[e.spinnerIndex]
-}
 
 // Close finalizes the screen and proxy client.
 func (e *Editor) Close() {
@@ -946,7 +408,6 @@ func (e *Editor) Close() {
 		e.proxyManager.Close()
 	}
 }
-
 
 // parsePathComponents is a helper to parse HOST:PATH format
 func parsePathComponents(path string) (string, string, bool) {
@@ -1025,7 +486,6 @@ func (e *Editor) getVisualCursorX() int {
 	return e.visualWidth(line[:e.buffer.CursorX])
 }
 
-
 // getLineTokens returns syntax tokens for a line using iterator position
 func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
 	// Pass the iterator positions directly to the highlighter
@@ -1047,36 +507,17 @@ func (e *Editor) actuallyQuit(args []string) error {
 }
 
 // enterVisualMode enters visual mode and sets the anchor point
-func (e *Editor) enterVisualMode(args []string) error {
-	e.mode = commands.VisualMode
-	// Set anchor to current cursor position
-	e.visualAnchorLine = e.buffer.CursorIterator.LineNumber()
-	e.visualAnchorX = e.buffer.CursorX
-	// Calculate the byte offset of the anchor
-	e.visualAnchorOffset = e.buffer.CursorIterator.Position() + e.buffer.CursorX
-	return nil
-}
-
 // exitVisualMode exits visual mode and returns to normal mode
-func (e *Editor) exitVisualMode(args []string) error {
-	e.mode = commands.NormalMode
-	// Clear visual selection state
-	e.visualAnchorLine = -1
-	e.visualAnchorX = -1
-	e.visualAnchorOffset = -1
-	return nil
-}
-
 // getSelectionRange returns the start and end byte offsets of the current selection
 // Returns (start, end, hasSelection)
 func (e *Editor) getSelectionRange() (int, int, bool) {
 	if e.mode != commands.VisualMode || e.visualAnchorOffset < 0 {
 		return 0, 0, false
 	}
-	
+
 	// Calculate current cursor byte offset
 	currentOffset := e.buffer.CursorIterator.Position() + e.buffer.CursorX
-	
+
 	// Return in order (start, end)
 	if e.visualAnchorOffset <= currentOffset {
 		return e.visualAnchorOffset, currentOffset + 1, true // +1 for inclusive selection
@@ -1184,7 +625,6 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 	}
 }
 
-
 // requestFoldingRanges sends a request to the LSP worker for folding ranges
 func (e *Editor) requestFoldingRanges(filePath string) {
 	if filePath == "" {
@@ -1200,7 +640,7 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 	// Launch goroutine to fetch folding ranges
 	go func() {
 		ranges, err := e.proxyManager.GetFoldingRanges(filePath)
-		
+
 		// Update the buffer directly if it still exists
 		if b, exists := e.buffers[filePath]; exists && b == buf {
 			if err != nil {
@@ -1212,7 +652,7 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 				buf.HasLSP = true
 				buf.FoldingRanges = ranges
 			}
-			
+
 			// If this is the current buffer, invalidate context cache to trigger redraw
 			if buf == e.buffer {
 				e.contextLine = -1 // Force context update
@@ -1221,17 +661,7 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 	}()
 }
 
-
 // Insert mode commands
-func (e *Editor) enterInsertMode(args []string) error {
-	e.mode = commands.InsertMode
-	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("i")
-	}
-	return nil
-}
-
 // appendAfterCursor enters insert mode after the current cursor position
 func (e *Editor) appendAfterCursor(args []string) error {
 	// Move cursor one position to the right if not at end of line
@@ -1241,7 +671,7 @@ func (e *Editor) appendAfterCursor(args []string) error {
 			e.buffer.CursorX++
 		}
 	}
-	
+
 	// Enter insert mode
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
@@ -1258,7 +688,7 @@ func (e *Editor) appendAtEndOfLine(args []string) error {
 		line := e.buffer.CursorIterator.Line()
 		e.buffer.CursorX = len(line)
 	}
-	
+
 	// Enter insert mode
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
@@ -1272,28 +702,6 @@ func (e *Editor) appendAtEndOfLine(args []string) error {
 func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 	e.lastChange = entry
 	e.lastCommand = nil // Clear operator+text object command
-}
-
-func (e *Editor) exitInsertMode(args []string) error {
-	e.mode = commands.NormalMode
-
-	// Adjust cursor position for normal mode
-	// In vim, when exiting insert mode, if cursor is not at position 0, move back one
-	if e.buffer != nil && e.buffer.CursorX > 0 {
-		e.buffer.CursorX--
-	}
-
-	// Finalize insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		if compositeEntry := e.buffer.History.EndInsertSession(); compositeEntry != nil {
-			e.setLastChange(compositeEntry)
-		}
-	}
-	
-	// Update syntax highlighting after exiting insert mode
-	e.updateSyntaxHighlighting()
-	
-	return nil
 }
 
 // Undo/Redo commands
@@ -1387,22 +795,22 @@ func (e *Editor) redo(args []string) error {
 func (e *Editor) yankCurrentLine(args []string) error {
 	// Get current line
 	line := e.buffer.CursorIterator.Line()
-	
+
 	// Add newline if we're not at the last line
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	textToYank := line
 	if lineNum < e.buffer.LineCount - 1 {
 		textToYank += "\n"
 	}
-	
+
 	// Copy to system clipboard
 	if err := clipboard.Copy(textToYank); err != nil {
 		LL.Error("Failed to copy to clipboard: %v", err)
 		return fmt.Errorf("failed to copy to clipboard: %w", err)
 	}
-	
+
 	LL.Debug("Yanked line %d (%d characters) to clipboard", lineNum + 1, len(textToYank))
-	
+
 	return nil
 }
 
@@ -1447,10 +855,10 @@ func (e *Editor) repeatLastChange(args []string) error {
 			line := e.buffer.CursorIterator.Line()
 			cursorX = len(line)
 		}
-		
+
 		// Then replay the composite entry
 		composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
-		
+
 		// Calculate the base position offset
 		var baseLineOffset, baseCharOffset int
 		var firstLine int
@@ -1491,7 +899,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 			}
 		}
 		newEntry = composite
-		
+
 	case *buffer.CompositeEntry:
 		// For composite entries (like insert mode sessions), replay all operations
 		// starting from the current cursor position
@@ -1594,675 +1002,12 @@ func (e *Editor) repeatLastChange(args []string) error {
 	return nil
 }
 
-// openLineBelow opens a new line below the current line and enters insert mode
-func (e *Editor) openLineBelow(args []string) error {
-	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
 
-	// Get the current line and move to end
-	currentLine := ""
-	if !e.buffer.CursorIterator.IsEOF() {
-		currentLine = e.buffer.CursorIterator.Line()
-		e.buffer.CursorX = len(currentLine)
-	}
 
-	// Calculate auto-indent for the new line
-	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
 
-	// Create history entry for the newline and indentation
-	textToInsert := "\n" + autoIndent.IndentStr
-	entry := buffer.NewInsertTextEntry(lineNum, e.buffer.CursorX, textToInsert)
 
-	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
-		}
-	} else {
-		// Fallback if history is not initialized
-		pos := e.getAbsolutePosition()
-		e.buffer.Insert(pos, textToInsert)
-	}
 
-	// Recreate iterators - cursor moves to next line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-	// Move cursor to end of indentation
-	e.buffer.CursorX = len(autoIndent.IndentStr)
-
-	// Enter insert mode
-	e.mode = commands.InsertMode
-	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("o")
-	}
-
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
-
-	return nil
-}
-
-// openLineAbove opens a new line above the current line and enters insert mode
-func (e *Editor) openLineAbove(args []string) error {
-	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-
-	// Get the previous line for auto-indent calculation (if we're not on the first line)
-	previousLine := ""
-	if lineNum > 0 {
-		// Temporarily move to previous line to get its content
-		prevIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum - 1)
-		if !prevIter.IsEOF() {
-			previousLine = prevIter.Line()
-		}
-	}
-
-	// Calculate auto-indent based on the previous line
-	// Use the length of the previous line as cursor position for calculation
-	autoIndent := e.buffer.CalculateAutoIndent(previousLine, len(previousLine))
-
-	// Move to beginning of current line
-	e.buffer.CursorX = 0
-
-	// Create history entry for the newline
-	entry := buffer.NewInsertTextEntry(lineNum, 0, "\n")
-
-	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
-		}
-	} else {
-		// Fallback if history is not initialized
-		pos := e.getAbsolutePosition()
-		e.buffer.Insert(pos, "\n")
-	}
-
-	// The cursor stays at the same line number (which is now the new empty line)
-	// because we inserted before the current position
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-
-	// Insert indentation at the beginning of the new line
-	if autoIndent.IndentStr != "" {
-		// Create history entry for the indentation
-		indentEntry := buffer.NewInsertTextEntry(lineNum, 0, autoIndent.IndentStr)
-
-		// Execute through history
-		if e.buffer.History != nil {
-			if executed, err := e.buffer.History.Execute(e.buffer, indentEntry); err != nil {
-				return err
-			} else if executed != nil {
-				e.setLastChange(executed)
-			}
-		} else {
-			// Fallback if history is not initialized
-			pos := e.getAbsolutePosition()
-			e.buffer.Insert(pos, autoIndent.IndentStr)
-		}
-
-		// Recreate iterators after insertion
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	}
-
-	// Move cursor to end of indentation
-	e.buffer.CursorX = len(autoIndent.IndentStr)
-
-	// Enter insert mode
-	e.mode = commands.InsertMode
-	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("O")
-	}
-
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
-
-	return nil
-}
-
-// joinLines joins the current line with the next line
-func (e *Editor) joinLines(args []string) error {
-	// Get current line info
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	
-	// Can't join if we're on the last line
-	if lineNum >= e.buffer.LineCount - 1 {
-		return nil
-	}
-	
-	// Get current line and next line
-	currentLine := e.buffer.CursorIterator.Line()
-	nextIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
-	if nextIter.IsEOF() {
-		return nil
-	}
-	nextLine := nextIter.Line()
-	
-	// Determine what to delete and what to insert
-	// We need to delete the newline and any leading whitespace on the next line
-	leadingSpaces := 0
-	for i, ch := range nextLine {
-		if ch != ' ' && ch != '\t' {
-			leadingSpaces = i
-			break
-		}
-		if i == len(nextLine) - 1 {
-			// Next line is all whitespace
-			leadingSpaces = len(nextLine)
-		}
-	}
-	
-	// Determine what text to insert between the lines
-	insertText := ""
-	if len(currentLine) > 0 && currentLine[len(currentLine)-1] != ' ' && 
-	   leadingSpaces < len(nextLine) && nextLine[leadingSpaces] != ' ' {
-		// Add a space if current line doesn't end with space and next line content doesn't start with space
-		insertText = " "
-	}
-	
-	// Create a composite entry for the join operation
-	compositeEntry := buffer.NewCompositeEntry("Join lines")
-	
-	// First, insert the space if needed
-	if insertText != "" {
-		insertEntry := buffer.NewInsertTextEntry(lineNum, len(currentLine), insertText)
-		compositeEntry.Add(insertEntry)
-	}
-	
-	// Then delete the newline and leading whitespace
-	deleteEntry := buffer.NewDeleteTextEntry(lineNum, len(currentLine) + len(insertText), "\n" + nextLine[:leadingSpaces])
-	compositeEntry.Add(deleteEntry)
-	
-	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, compositeEntry); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
-		}
-	}
-	
-	// Remember where we want the cursor to be (at the join point)
-	cursorX := len(currentLine)
-	if insertText != "" {
-		cursorX++ // Account for the added space
-	}
-	
-	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, e.buffer.ViewIterator.LineNumber())
-	
-	// Set cursor position to the join point
-	e.buffer.CursorX = cursorX
-	
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
-	
-	return nil
-}
-
-func (e *Editor) insertChar(ch rune) error {
-	// Check if we should skip over a closing character
-	if e.shouldSkipClosingChar(ch) {
-		// Just move cursor forward without inserting
-		e.buffer.CursorX++
-		return nil
-	}
-
-	// Check for auto-pair characters
-	pairedChar, isPaired := e.getPairedChar(ch)
-
-	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	cursorX := e.buffer.CursorX
-
-	// Create history entry
-	textToInsert := string(ch)
-	if isPaired {
-		textToInsert = string(ch) + string(pairedChar)
-	}
-
-	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
-
-	// Execute through history (this handles both direct execution and insert mode tracking)
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
-		}
-	} else {
-		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
-			return err
-		}
-	}
-
-	// Recreate iterators at the same line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-
-	// Move cursor appropriately
-	if isPaired {
-		// Move cursor between the pair (only forward by 1)
-		e.buffer.CursorX = cursorX + 1
-	} else {
-		// Move cursor forward
-		e.buffer.CursorX = cursorX + 1
-	}
-
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
-
-	return nil
-}
-
-// shouldSkipClosingChar checks if we should skip over a closing character
-// This happens when the character at the cursor position matches what we're trying to type
-// and it's a closing character from auto-pairing
-func (e *Editor) shouldSkipClosingChar(ch rune) bool {
-	// Check if this is a closing character
-	isClosing := false
-	switch ch {
-	case ')', ']', '}', '"', '\'', '`':
-		isClosing = true
-	}
-	
-	if !isClosing {
-		return false
-	}
-	
-	// Check if cursor is at a position where we have this character
-	if e.buffer.CursorIterator.IsEOF() {
-		return false
-	}
-	
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX >= len(line) {
-		return false
-	}
-	
-	// Check if the character at cursor position matches what we're typing
-	return rune(line[e.buffer.CursorX]) == ch
-}
-
-// getPairedChar returns the closing character for auto-pairing and whether the character should be paired
-func (e *Editor) getPairedChar(ch rune) (rune, bool) {
-	switch ch {
-	case '(':
-		return ')', true
-	case '[':
-		return ']', true
-	case '{':
-		return '}', true
-	case '"':
-		return '"', true
-	case '\'':
-		return '\'', true
-	case '`':
-		return '`', true
-	default:
-		return 0, false
-	}
-}
-
-func (e *Editor) insertNewline(args []string) error {
-	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	cursorX := e.buffer.CursorX
-
-	// Get the current line for auto-indent calculation
-	currentLine := ""
-	if !e.buffer.CursorIterator.IsEOF() {
-		currentLine = e.buffer.CursorIterator.Line()
-	}
-
-	// Calculate auto-indent for the new line
-	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
-
-	// Create history entry for newline + indentation
-	textToInsert := "\n" + autoIndent.IndentStr
-	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
-
-	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
-		}
-	} else {
-		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
-			return err
-		}
-	}
-
-	// Recreate iterators after buffer modification
-	// Cursor moves to next line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
-	// View iterator stays at its current line
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-
-	// Move cursor to end of indentation
-	e.buffer.CursorX = len(autoIndent.IndentStr)
-
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
-
-	return nil
-}
-
-func (e *Editor) backspace(args []string) error {
-	// If at beginning of buffer, nothing to delete
-	if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
-		return nil
-	}
-
-	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	cursorX := e.buffer.CursorX
-	pos := e.getAbsolutePosition()
-
-	if cursorX == 0 {
-		// At beginning of line, join with previous line
-		if pos > 0 && lineNum > 0 {
-			// Store the length of the previous line before joining
-			prevIter := e.buffer.CursorIterator.Previous()
-			prevLineLen := 0
-			if !prevIter.Equals(e.buffer.CursorIterator) {
-				prevLineLen = len(prevIter.Line())
-			}
-
-			// We're deleting a newline character
-			deletedText := "\n"
-			entry := buffer.NewDeleteTextEntry(lineNum-1, prevLineLen, deletedText)
-
-			// Execute through history
-			if e.buffer.History != nil {
-				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-					return err
-				} else if executed != nil {
-					e.setLastChange(executed)
-				}
-			} else {
-				// Fallback if history is not initialized
-				if err := entry.Execute(e.buffer); err != nil {
-					return err
-				}
-			}
-
-			// Recreate iterators - cursor moves to previous line
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum-1)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-
-			// Position cursor at end of previous line
-			e.buffer.CursorX = prevLineLen
-
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
-		}
-	} else {
-		// Delete character before cursor
-		if pos > 0 {
-			// Get the character being deleted
-			deletedChar := e.buffer.Rope.ByteAt(pos - 1)
-			deletedText := string(deletedChar)
-
-			entry := buffer.NewDeleteTextEntry(lineNum, cursorX-1, deletedText)
-
-			// Execute through history
-			if e.buffer.History != nil {
-				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-					return err
-				} else if executed != nil {
-					e.setLastChange(executed)
-				}
-			} else {
-				// Fallback if history is not initialized
-				if err := entry.Execute(e.buffer); err != nil {
-					return err
-				}
-			}
-
-			// Recreate iterators at the same line
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-
-			// Move cursor back one position
-			e.buffer.CursorX = cursorX - 1
-
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
-		}
-	}
-
-	return nil
-}
-
-// deleteCurrentCharacter deletes the character at the current cursor position
-func (e *Editor) deleteCurrentCharacter(args []string) error {
-	// If at EOF or empty buffer, nothing to delete
-	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
-		return nil
-	}
-
-	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-
-	// Get current line to check bounds
-	line := e.buffer.CursorIterator.Line()
-
-	// If cursor is past the end of the line, check if we can delete newline
-	if e.buffer.CursorX >= len(line) {
-		// Check if there's a newline character at the end of this line
-		pos := e.getAbsolutePosition()
-		if pos < e.buffer.Rope.Length() && e.buffer.Rope.ByteAt(pos) == '\n' {
-			// We can delete the newline
-			deletedText := "\n"
-			entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
-
-			// Execute through history
-			if e.buffer.History != nil {
-				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-					return err
-				} else if executed != nil {
-					e.setLastChange(executed)
-				}
-			} else {
-				// Fallback if history is not initialized
-				if err := entry.Execute(e.buffer); err != nil {
-					return err
-				}
-			}
-
-			// Recreate iterators at the same position
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
-			return nil
-		}
-		return nil
-	}
-
-	// Get cursor X position
-	cursorX := e.buffer.CursorX
-
-	// Get the character being deleted
-	pos := e.getAbsolutePosition()
-	deletedChar := e.buffer.Rope.ByteAt(pos)
-	deletedText := string(deletedChar)
-
-	// Create history entry
-	entry := buffer.NewDeleteTextEntry(lineNum, cursorX, deletedText)
-
-	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
-		}
-	} else {
-		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
-			return err
-		}
-	}
-
-	// Recreate iterators at the same line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-
-	// Cursor position stays the same, but we need to ensure it's not past the end of the line
-	newLine := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(newLine) {
-		if len(newLine) > 0 {
-			e.buffer.CursorX = len(newLine) - 1 // Stay on last character in normal mode
-		} else {
-			e.buffer.CursorX = 0
-		}
-	}
-
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
-
-	return nil
-}
-
-// Layout calculation methods
-// These methods centralize the calculation of screen areas, making it easy to change
-// the layout (e.g., status bar height) without modifying code throughout the editor.
-
-// getVisibleHeight returns the height of the visible editing area (excluding status bar and context)
-func (e *Editor) getVisibleHeight() int {
-	_, height := e.screen.Size()
-	reserved := 1 // Status bar
-	reserved += len(e.contextCache) // Context lines
-	// Reserve space for signature if shown
-	if e.buffer.CurrentSignature != nil {
-		reserved += e.getSignatureLines()
-	}
-	return height - reserved
-}
-
-// getContentStartY returns the Y position where content starts
-func (e *Editor) getContentStartY() int {
-	return len(e.contextCache) // Start after context lines
-}
-
-// shouldShowContext determines if context should be shown
-func (e *Editor) shouldShowContext() bool {
-	if !e.showContext {
-		return false
-	}
-
-	// Always show context if we have it
-	// The scroll offset will handle limiting the number of lines
-	return true
-}
-
-// updateContext updates the cached context for the current cursor position
-func (e *Editor) updateContext() {
-	// Get current cursor line
-	cursorIter := e.buffer.CursorIterator
-	currentLine := cursorIter.LineNumber()
-
-	// Only update if line changed
-	if currentLine == e.contextLine && len(e.contextCache) > 0 {
-		return
-	}
-
-	// Get file path
-	filePath := e.buffer.FilePath
-	if filePath == "" {
-		e.contextCache = nil
-		return
-	}
-
-	// Calculate visible range
-	viewStartLine := e.buffer.ViewIterator.LineNumber()
-	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
-
-	// Try to use tree-sitter for context if available
-	if e.highlighter != nil && e.highlighter.GetTree() != nil {
-		// Use tree-sitter based context detection
-		e.contextCache = getTreeSitterContext(e.buffer, e.highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
-	} else {
-		// No tree-sitter available, no context
-		e.contextCache = nil
-		return
-	}
-
-	e.contextLine = currentLine
-}
-
-// getStatusBarY returns the Y position of the status bar
-func (e *Editor) getStatusBarY() int {
-	_, height := e.screen.Size()
-	return height - 1
-}
-
-
-// getVisibleLines returns the number of lines that can be displayed in the editor
-func (e *Editor) getVisibleLines() int {
-	return e.getVisibleHeight()
-}
-
-// getAbsolutePosition returns the absolute position in the buffer for the current cursor
-func (e *Editor) getAbsolutePosition() int {
-	// Get the position at the start of the current line
-	pos := e.buffer.CursorIterator.Position()
-
-	// Add current X position
-	// Need to get current line length to validate cursorX
-	if !e.buffer.CursorIterator.IsEOF() {
-		line := e.buffer.CursorIterator.Line()
-		if e.buffer.CursorX > len(line) {
-			pos += len(line)
-		} else {
-			pos += e.buffer.CursorX
-		}
-	}
-
-	return pos
-}
-
-// updateSyntaxHighlighting re-parses the buffer for syntax highlighting
-func (e *Editor) updateSyntaxHighlighting() {
-	if e.highlighter != nil && e.buffer.HasFile() {
-		content := e.buffer.Rope.String()
-		// Force a full reparse by not reusing the old tree
-		e.highlighter.ParseFull([]byte(content))
-	}
-}
-
-
-func (e *Editor) enterCommandModeCmd(args []string) error {
-	e.enterCommandMode()
-	return nil
-}
-
-func (e *Editor) enterSearchModeCmd(args []string) error {
-	e.enterSearchMode()
-	return nil
-}
 
 
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
@@ -2470,80 +1215,4 @@ func (e *Editor) handlePendingPath() {
 		LL.Debug("handlePendingPath: Sending open-file event for path: %s", path)
 		e.asyncEvents <- events.NewCustomEvent("open-file", path)
 	}
-}
-
-func (e *Editor) getCommandCompletions(prefix string) []string {
-	// Check if this is a variable assignment
-	if strings.Contains(prefix, "=") {
-		// Complete variable values
-		parts := strings.SplitN(prefix, "=", 2)
-		if len(parts) == 2 {
-			varName := parts[0]
-
-			switch varName {
-			case "expandtab":
-				values := []string{"true", "false", "yes", "no", "1", "0"}
-				var completions []string
-				for _, v := range values {
-					completion := varName + "=" + v
-					if strings.HasPrefix(completion, prefix) {
-						completions = append(completions, completion)
-					}
-				}
-				return completions
-			case "tabstop", "ts", "shiftwidth", "sw":
-				// Suggest common values
-				values := []string{"2", "4", "8"}
-				var completions []string
-				for _, v := range values {
-					completion := varName + "=" + v
-					if strings.HasPrefix(completion, prefix) {
-						completions = append(completions, completion)
-					}
-				}
-				return completions
-			case "log":
-				// Suggest log levels
-				values := []string{"info", "debug", "trace"}
-				var completions []string
-				for _, v := range values {
-					completion := varName + "=" + v
-					if strings.HasPrefix(completion, prefix) {
-						completions = append(completions, completion)
-					}
-				}
-				return completions
-			}
-		}
-	}
-
-	// Variable names for assignment
-	variables := []string{
-		"expandtab", "tabstop", "ts", "shiftwidth", "sw",
-		"number", "relativenumber", "autoindent", "smartindent",
-		"log",
-	}
-
-	// Add registered commands
-	var commands []string
-	for cmd := range e.commandRegistry.GetAll() {
-		commands = append(commands, cmd)
-	}
-
-	// Add built-in commands
-	builtinCommands := []string{"q", "quit"}
-	commands = append(commands, builtinCommands...)
-
-	// Combine all possible completions
-	allCompletions := append(commands, variables...)
-
-	// Filter based on prefix
-	var completions []string
-	for _, item := range allCompletions {
-		if strings.HasPrefix(item, prefix) {
-			completions = append(completions, item)
-		}
-	}
-
-	return completions
 }
