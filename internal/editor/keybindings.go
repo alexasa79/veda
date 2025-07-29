@@ -87,6 +87,9 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Delete operations
 	e.registerKeyBinding(commands.NormalMode, "d", "start-delete")
+	
+	// Change operations
+	e.registerKeyBinding(commands.NormalMode, "c", "start-change")
 	e.registerKeyBinding(commands.NormalMode, "ctrl+shift+space", "show-signature")
 	e.registerKeyBinding(commands.InsertMode, "ctrl+shift+space", "show-signature")
 

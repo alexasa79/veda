@@ -8,6 +8,14 @@ func (e *Editor) startDeleteOperation(args []string) error {
 	return nil
 }
 
+// startChangeOperation begins a change operation, waiting for a text object
+func (e *Editor) startChangeOperation(args []string) error {
+	e.pendingOperator = ChangeOperator{}
+	e.pendingModifier = ModifierNone
+	e.pendingKeys = []string{"c"}
+	return nil
+}
+
 // handlePendingOperation processes keys when there's a pending operation
 func (e *Editor) handlePendingOperation(key string) error {
 	if e.pendingOperator == nil {
@@ -20,6 +28,11 @@ func (e *Editor) handlePendingOperation(key string) error {
 	// Check for special cases first
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "d" && e.pendingKeys[1] == "d" {
 		// dd - delete line
+		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
+	}
+	
+	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "c" && e.pendingKeys[1] == "c" {
+		// cc - change line
 		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
 	}
 	
