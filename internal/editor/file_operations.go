@@ -6,8 +6,8 @@ import (
 	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
-	"veda/internal/proxyworker"
 	"veda/internal/proxy"
+	"veda/internal/proxyworker"
 	"veda/internal/widgets"
 )
 
@@ -46,36 +46,36 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string) ch
 	// Start async operation tracking
 	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
 	e.startAsyncOperation(operationID)
-	
+
 	// Create a channel for the result
 	resultChan := make(chan fileListingResult, 1)
-	
+
 	// Start goroutine to fetch directory listing
 	go func() {
 		defer e.endAsyncOperation(operationID)
-		
+
 		LL.Debug("Fetching directory listing for %s", e.workingDirectory)
 		files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
-		
+
 		if err != nil {
 			LL.Debug("Directory listing error: %v", err)
 			contentUpdateChan <- []string{fmt.Sprintf("Error: %v", err)}
 			resultChan <- fileListingResult{paths: []string{}, filePaths: nil}
 			return
 		}
-		
+
 		LL.Debug("Got %d files from proxy", len(files))
 		result := e.processFileList(files)
-		
+
 		if len(result.paths) == 0 {
 			contentUpdateChan <- []string{"No files found"}
 		} else {
 			contentUpdateChan <- result.paths
 		}
-		
+
 		resultChan <- result
 	}()
-	
+
 	return resultChan
 }
 
@@ -314,7 +314,7 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Start with empty content
 	fuzzyListWidget.SetContent([]string{})
-	
+
 	// Track the last query to avoid redundant LSP calls
 	var lastQuery string
 	var pendingQuery string // Query that is currently being processed
@@ -341,7 +341,7 @@ func (e *Editor) showProjectSymbolsList() {
 				// End async operation for this query
 				operationID := fmt.Sprintf("project-symbols-%s", response.Query)
 				e.endAsyncOperation(operationID)
-				
+
 				if response.Error != nil {
 					LL.Debug("LSP query error: %v", response.Error)
 					contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
@@ -390,7 +390,7 @@ func (e *Editor) showProjectSymbolsList() {
 				// Send async LSP request for symbols
 				pendingQuery = newText
 				LL.Debug("Sending async LSP query for symbols with: %s", newText)
-				
+
 				// Start async operation tracking
 				operationID := fmt.Sprintf("project-symbols-%s", newText)
 				e.startAsyncOperation(operationID)
@@ -398,9 +398,9 @@ func (e *Editor) showProjectSymbolsList() {
 				// Launch goroutine to fetch symbols
 				go func(query string) {
 					defer e.endAsyncOperation(operationID)
-					
+
 					projectSymbols, err := e.proxyManager.ListProjectSymbols(query)
-					
+
 					response := proxyworker.ProxyResponse{
 						Type:           proxyworker.RequestProjectSymbols,
 						FilePath:       e.buffer.FilePath,
@@ -410,7 +410,7 @@ func (e *Editor) showProjectSymbolsList() {
 						Query:          query,
 						Error:          err,
 					}
-					
+
 					// Send response to the channel
 					select {
 					case symbolResponseChan <- response:
@@ -440,7 +440,7 @@ func (e *Editor) showProjectSymbolsList() {
 			close(symbolResponseChan)
 			close(contentUpdateChan)
 		}()
-		
+
 		selection := <-resultChan
 
 		// If a symbol was selected, navigate to it
@@ -526,11 +526,11 @@ func (e *Editor) showDocumentSymbolsList() {
 	// Send async LSP request for document symbols
 	operationID := fmt.Sprintf("doc-symbols-%s", e.buffer.FilePath)
 	e.startAsyncOperation(operationID)
-	
+
 	// Launch goroutine to fetch document symbols
 	go func() {
 		documentSymbols, err := e.proxyManager.GetDocumentSymbols(e.buffer.FilePath)
-		
+
 		response := proxyworker.ProxyResponse{
 			Type:            proxyworker.RequestDocumentSymbols,
 			FilePath:        e.buffer.FilePath,
@@ -539,7 +539,7 @@ func (e *Editor) showDocumentSymbolsList() {
 			DocumentSymbols: documentSymbols,
 			Error:           err,
 		}
-		
+
 		// Send response to the channel
 		select {
 		case symbolResponseChan <- response:
@@ -552,7 +552,7 @@ func (e *Editor) showDocumentSymbolsList() {
 	// Start a goroutine to handle LSP response
 	go func() {
 		defer e.endAsyncOperation(operationID)
-		
+
 		select {
 		case response := <-symbolResponseChan:
 			if response.Type == proxyworker.RequestDocumentSymbols {
@@ -615,7 +615,7 @@ func (e *Editor) showDocumentSymbolsList() {
 			close(contentUpdateChan)
 			close(symbolResponseChan)
 		}()
-		
+
 		selection := <-resultChan
 
 		// If a symbol was selected, navigate to it
@@ -646,22 +646,22 @@ func (e *Editor) writeFile(args []string) error {
 		// TODO: Could implement "save as" functionality here
 		return fmt.Errorf("no file name")
 	}
-	
+
 	// Get the content from the buffer
 	content := e.buffer.Rope.String()
-	
+
 	// Write the file
 	err := e.proxyManager.WriteFile(e.buffer.FilePath, content)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
-	
+
 	// Mark buffer as not modified
 	e.buffer.IsModified = false
-	
+
 	// Show success message
 	LL.Info("Wrote %s", e.buffer.FilePath)
-	
+
 	return nil
 }
 
@@ -670,9 +670,9 @@ func (e *Editor) editFile(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("no file name")
 	}
-	
+
 	path := args[0]
-	
+
 	// Check if it's a directory by attempting to list it
 	_, err := e.proxyManager.ListDirectory(path)
 	if err == nil {
@@ -682,7 +682,7 @@ func (e *Editor) editFile(args []string) error {
 		e.ShowFuzzyListWidget()
 		return nil
 	}
-	
+
 	// It's a file - open it
 	e.openFile(path)
 	return nil

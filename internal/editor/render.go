@@ -143,6 +143,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 	// Get syntax tokens for this line using iterator position
 	tokens := e.getLineTokens(iter)
 
+
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
 		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches)

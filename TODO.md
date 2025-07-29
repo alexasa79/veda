@@ -27,6 +27,7 @@ should say if it has a completion.
 - [ ] I have multiple references to Buffer.Rope.String() in the code. Each such reference serializes
 the entire buffer, which makes it inefficient. Find a solution to this.
 - [ ] When rendering file that ends with \n, the last line does not show line number.
+- [ ] New files are not saved.
 
 # Features
 - [x] Remote support
@@ -48,4 +49,5 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 - [ ] Registers support (for copy paste)
 - [ ] Macros support
 - [ ] Eye candy for icons and other elements in the fuzzy list widget
-- [ ] Add syntax highlighting for Markdown
+- [x] Add syntax highlighting for Markdown
+- [ ] Support :wq

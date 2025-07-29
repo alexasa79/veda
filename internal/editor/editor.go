@@ -1289,6 +1289,10 @@ func (e *Editor) exitInsertMode(args []string) error {
 			e.setLastChange(compositeEntry)
 		}
 	}
+	
+	// Update syntax highlighting after exiting insert mode
+	e.updateSyntaxHighlighting()
+	
 	return nil
 }
 
@@ -1808,6 +1812,13 @@ func (e *Editor) joinLines(args []string) error {
 }
 
 func (e *Editor) insertChar(ch rune) error {
+	// Check if we should skip over a closing character
+	if e.shouldSkipClosingChar(ch) {
+		// Just move cursor forward without inserting
+		e.buffer.CursorX++
+		return nil
+	}
+
 	// Check for auto-pair characters
 	pairedChar, isPaired := e.getPairedChar(ch)
 
@@ -1855,6 +1866,35 @@ func (e *Editor) insertChar(ch rune) error {
 	e.updateSyntaxHighlighting()
 
 	return nil
+}
+
+// shouldSkipClosingChar checks if we should skip over a closing character
+// This happens when the character at the cursor position matches what we're trying to type
+// and it's a closing character from auto-pairing
+func (e *Editor) shouldSkipClosingChar(ch rune) bool {
+	// Check if this is a closing character
+	isClosing := false
+	switch ch {
+	case ')', ']', '}', '"', '\'', '`':
+		isClosing = true
+	}
+	
+	if !isClosing {
+		return false
+	}
+	
+	// Check if cursor is at a position where we have this character
+	if e.buffer.CursorIterator.IsEOF() {
+		return false
+	}
+	
+	line := e.buffer.CursorIterator.Line()
+	if e.buffer.CursorX >= len(line) {
+		return false
+	}
+	
+	// Check if the character at cursor position matches what we're typing
+	return rune(line[e.buffer.CursorX]) == ch
 }
 
 // getPairedChar returns the closing character for auto-pairing and whether the character should be paired
