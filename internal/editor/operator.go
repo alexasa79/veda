@@ -172,7 +172,7 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	
 	// Start tracking insert mode changes
 	if editor.buffer != nil && editor.buffer.History != nil {
-		editor.buffer.History.StartInsertSession()
+		editor.buffer.History.StartInsertSession("c")
 	}
 	
 	return nil

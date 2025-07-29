@@ -44,6 +44,8 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 - [x] Help for key bindings
 - [ ] Indent command
 - [ ] Rewrap paragraph
-- [ ] Copy/paste, registers support
+- [x] Copy/paste
+- [ ] Registers support (for copy paste)
 - [ ] Macros support
 - [ ] Eye candy for icons and other elements in the fuzzy list widget
+- [ ] Add syntax highlighting for Markdown

@@ -174,7 +174,7 @@ func TestInsertModeSession(t *testing.T) {
 		buf := NewBuffer("", "", config.IndentTabs, 4)
 		
 		// Start insert mode session
-		buf.History.StartInsertSession()
+		buf.History.StartInsertSession("i")
 		
 		// Multiple operations in insert mode
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "H"))
@@ -212,7 +212,7 @@ func TestInsertModeSession(t *testing.T) {
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 7, " Text"))
 		
 		// Start and end empty insert session
-		buf.History.StartInsertSession()
+		buf.History.StartInsertSession("i")
 		buf.History.EndInsertSession()
 		
 		// Undo should remove " Text", not do nothing
@@ -227,7 +227,7 @@ func TestInsertModeSession(t *testing.T) {
 		buf := NewBuffer("Hello", "", config.IndentTabs, 4)
 		
 		// Start insert mode session
-		buf.History.StartInsertSession()
+		buf.History.StartInsertSession("i")
 		
 		// Mix of inserts and deletes in insert mode
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 5, " "))

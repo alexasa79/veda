@@ -28,6 +28,8 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd)
 	e.commandRegistry.Register("enter-search-mode", e.enterSearchModeCmd)
 	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode)
+	e.commandRegistry.Register("append-after-cursor", e.appendAfterCursor)
+	e.commandRegistry.Register("append-at-end-of-line", e.appendAtEndOfLine)
 	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode)
 	e.commandRegistry.Register("enter-visual-mode", e.enterVisualMode)
 	e.commandRegistry.Register("exit-visual-mode", e.exitVisualMode)

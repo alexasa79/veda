@@ -1227,7 +1227,43 @@ func (e *Editor) enterInsertMode(args []string) error {
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession()
+		e.buffer.History.StartInsertSession("i")
+	}
+	return nil
+}
+
+// appendAfterCursor enters insert mode after the current cursor position
+func (e *Editor) appendAfterCursor(args []string) error {
+	// Move cursor one position to the right if not at end of line
+	if !e.buffer.CursorIterator.IsEOF() {
+		line := e.buffer.CursorIterator.Line()
+		if e.buffer.CursorX < len(line) {
+			e.buffer.CursorX++
+		}
+	}
+	
+	// Enter insert mode
+	e.mode = commands.InsertMode
+	// Start tracking insert mode changes
+	if e.buffer != nil && e.buffer.History != nil {
+		e.buffer.History.StartInsertSession("a")
+	}
+	return nil
+}
+
+// appendAtEndOfLine enters insert mode at the end of the current line
+func (e *Editor) appendAtEndOfLine(args []string) error {
+	// Move cursor to end of line
+	if !e.buffer.CursorIterator.IsEOF() {
+		line := e.buffer.CursorIterator.Line()
+		e.buffer.CursorX = len(line)
+	}
+	
+	// Enter insert mode
+	e.mode = commands.InsertMode
+	// Start tracking insert mode changes
+	if e.buffer != nil && e.buffer.History != nil {
+		e.buffer.History.StartInsertSession("A")
 	}
 	return nil
 }
@@ -1400,6 +1436,58 @@ func (e *Editor) repeatLastChange(args []string) error {
 		// Delete happens at the current cursor position
 		newEntry = buffer.NewDeleteTextEntry(lineNum, cursorX, original.Text)
 
+	case *buffer.InsertModeEntry:
+		// For insert mode entries, check if we need to move cursor first
+		if original.InitCommand == "A" {
+			// Move to end of line first
+			line := e.buffer.CursorIterator.Line()
+			cursorX = len(line)
+		}
+		
+		// Then replay the composite entry
+		composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
+		
+		// Calculate the base position offset
+		var baseLineOffset, baseCharOffset int
+		var firstLine int
+		if len(original.Entries) > 0 {
+			// Get the first entry's position as reference
+			switch first := original.Entries[0].(type) {
+			case *buffer.InsertTextEntry:
+				firstLine = first.Line
+				baseLineOffset = lineNum - first.Line
+				baseCharOffset = cursorX - first.Character
+			case *buffer.DeleteTextEntry:
+				firstLine = first.Line
+				baseLineOffset = lineNum - first.Line
+				baseCharOffset = cursorX - first.Character
+			}
+		}
+
+		// Translate each sub-entry
+		for _, subEntry := range original.Entries {
+			switch se := subEntry.(type) {
+			case *buffer.InsertTextEntry:
+				newLine := se.Line + baseLineOffset
+				newChar := se.Character
+				// Only apply character offset to the first entry on the same line
+				if se.Line == firstLine {
+					newChar = se.Character + baseCharOffset
+				}
+				composite.Add(buffer.NewInsertTextEntry(newLine, newChar, se.Text))
+
+			case *buffer.DeleteTextEntry:
+				newLine := se.Line + baseLineOffset
+				newChar := se.Character
+				// Only apply character offset to the first entry on the same line
+				if se.Line == firstLine {
+					newChar = se.Character + baseCharOffset
+				}
+				composite.Add(buffer.NewDeleteTextEntry(newLine, newChar, se.Text))
+			}
+		}
+		newEntry = composite
+		
 	case *buffer.CompositeEntry:
 		// For composite entries (like insert mode sessions), replay all operations
 		// starting from the current cursor position
@@ -1546,7 +1634,7 @@ func (e *Editor) openLineBelow(args []string) error {
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession()
+		e.buffer.History.StartInsertSession("o")
 	}
 
 	// Update syntax highlighting
@@ -1629,7 +1717,7 @@ func (e *Editor) openLineAbove(args []string) error {
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession()
+		e.buffer.History.StartInsertSession("O")
 	}
 
 	// Update syntax highlighting
