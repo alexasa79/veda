@@ -258,3 +258,21 @@ func (e *Editor) goToEnd(args []string) error {
 
 	return nil
 }
+
+// goToLine moves the cursor to a specific line number (0-based)
+func (e *Editor) goToLine(lineNum int) {
+	// Clamp line number to valid range
+	if lineNum < 0 {
+		lineNum = 0
+	} else if lineNum >= e.buffer.LineCount {
+		lineNum = e.buffer.LineCount - 1
+	}
+	
+	// Move cursor to beginning of the target line
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.CursorX = 0
+	
+	// Update the view to ensure the cursor is visible
+	e.scrollToCenter()
+	e.updateCursorState()
+}
