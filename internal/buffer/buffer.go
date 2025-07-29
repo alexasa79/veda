@@ -329,6 +329,8 @@ func (r *Rope) insert(node *Node, pos int, text string) *Node {
 					node.parent.right = newNode
 				}
 			}
+			// Propagate offsets to ensure consistency after split
+			propagateOffsets(newNode)
 			return newNode
 		}
 		return node
@@ -358,33 +360,41 @@ func (r *Rope) insert(node *Node, pos int, text string) *Node {
 	if node.right != nil {
 		node.weight += node.right.weight
 		node.newlineCount += node.right.newlineCount
-		// Update right child's offset
+		// Set right child's offset to be after the left subtree
 		if node.left != nil {
-			newOffset := node.left.offset + node.left.weight
-			adjustNodeOffset(node.right, newOffset - node.right.offset)
+			node.right.offset = node.left.offset + node.left.weight
+		} else {
+			node.right.offset = node.offset
 		}
+		// Propagate offset changes to all descendants in right subtree
+		propagateOffsets(node.right)
 	}
 
 	return node
 }
 
-// adjustNodeOffset recursively adjusts the offset of a node and all its descendants by the given delta
-func adjustNodeOffset(node *Node, delta int) {
-	if node == nil || delta == 0 {
+// propagateOffsets ensures that all nodes in the subtree have correct offsets
+// This is called after structural changes to maintain offset consistency
+func propagateOffsets(node *Node) {
+	if node == nil || node.IsLeaf() {
 		return
 	}
 
-	// Adjust this node's offset
-	node.offset += delta
-
-	// If it's a leaf, we're done
-	if node.IsLeaf() {
-		return
+	// Set left child's offset to parent's offset
+	if node.left != nil {
+		node.left.offset = node.offset
+		propagateOffsets(node.left)
 	}
 
-	// Recursively adjust both children
-	adjustNodeOffset(node.left, delta)
-	adjustNodeOffset(node.right, delta)
+	// Set right child's offset to be after the left subtree
+	if node.right != nil {
+		if node.left != nil {
+			node.right.offset = node.left.offset + node.left.weight
+		} else {
+			node.right.offset = node.offset
+		}
+		propagateOffsets(node.right)
+	}
 }
 
 // Extract returns a substring from the rope between start and end positions
@@ -530,12 +540,6 @@ func (r *Rope) delete(node *Node, start, end int) *Node {
 		node.right = r.delete(node.right, rightStart, end-leftWeight)
 		if node.right != nil {
 			node.right.parent = node
-			// Update right offset
-			if node.left != nil {
-				node.right.offset = node.left.offset + node.left.weight
-			} else {
-				node.right.offset = node.offset
-			}
 		}
 	}
 
@@ -549,6 +553,14 @@ func (r *Rope) delete(node *Node, start, end int) *Node {
 	if node.right != nil {
 		node.weight += node.right.weight
 		node.newlineCount += node.right.newlineCount
+		// Update right offset after deletion
+		if node.left != nil {
+			node.right.offset = node.left.offset + node.left.weight
+		} else {
+			node.right.offset = node.offset
+		}
+		// Propagate offset changes to all descendants in right subtree
+		propagateOffsets(node.right)
 	}
 
 	// Handle empty nodes
