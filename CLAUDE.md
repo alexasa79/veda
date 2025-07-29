@@ -25,7 +25,15 @@ make clean
 ## Architecture
 
 ### Core Components
-1. **Go Editor Core** (`main.go`, `internal/editor/editor.go`): Terminal UI using tcell/v2
+1. **Go Editor Core** (`main.go`, `internal/editor/`): Terminal UI using tcell/v2
+   - `editor.go`: Main editor struct and core functionality (1,219 lines)
+   - `edit_operations.go`: Text editing operations (insertChar, backspace, delete, etc.)
+   - `search.go`: Search and find functionality
+   - `scroll.go`: Viewport scrolling operations
+   - `mode_management.go`: Mode switching between Normal, Insert, Command, Visual modes
+   - `layout.go`: Layout calculations and screen area management
+   - `async_operations.go`: Async operation tracking and spinner animations
+   - `command_execution.go`: Command completion functionality
 2. **Python Proxy** (`veda-proxy.py`): JSON-RPC service for file operations and LSP server management, automatically started by the editor
 3. **Buffer System** (`internal/buffer/`): Rope data structure for efficient text operations
 4. **Widget System** (`internal/widgets/`): UI components including dual-pane file browser and command line editor
@@ -96,6 +104,13 @@ Currently the buffer package and editor package have tests. When adding new func
   - Add key bindings in `internal/editor/keybindings.go` in the `setupDefaultBindings()` function if needed
   - **IMPORTANT**: Update the help documentation in `internal/editor/help.go` to include the new command
   - Add the command to the appropriate category in the help text with its key binding and description
+- **Code Organization**: The editor package is modularly organized:
+  - Text editing operations should go in `edit_operations.go`
+  - Search-related functionality should go in `search.go`
+  - Scrolling and viewport management should go in `scroll.go`
+  - Mode switching logic should go in `mode_management.go`
+  - Layout calculations should go in `layout.go`
+  - Keep `editor.go` focused on core editor struct and high-level coordination
 
 ## Claude Operational Guidelines
 - You are not allowed to leave the root directory of the project. All commands, experiments, everything you do, must be done in the root directory of the project.
