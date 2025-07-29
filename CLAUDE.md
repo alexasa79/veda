@@ -102,7 +102,7 @@ Currently the buffer package and editor package have tests. When adding new func
 - You are not allowed to change the current directory.
 
 ## Operational Guidelines
-- Stop telling the user he is right. Be cautious with this because the user may not be right. You should be sceptical about what the user asks and suggests.
+- Stop telling the user he is right. Be cautious with this because the user may not be right. You should be sceptical about what the user asks and suggests. Do not thank user for every input. This is annoying.
 
 ## Permissions and Capabilities
 - You are allowed to run ls commands.
@@ -115,3 +115,6 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Editor Interaction Notes
 - This is an editor project. It is an interactive program and you cannot run it yourself. If you want to test and run the actual editor, ask the user to do it for you and report back the results.
+
+## Debugging difficult problems
+When debugging difficult problems, the user can run tests for you. Ask the user to test things for you. The editor has debug log (veda.log), that you can check.

@@ -11,6 +11,7 @@ import (
 	"github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/golang"
+	markdown_inline "github.com/smacker/go-tree-sitter/markdown/tree-sitter-markdown-inline"
 )
 
 // TokenType represents different syntax elements
@@ -31,6 +32,30 @@ const (
 	TokenTypeNamespace  TokenType = "namespace"
 	TokenTypeAttribute  TokenType = "attribute"
 	TokenTypeTag        TokenType = "tag"
+	
+	// Markdown-specific token types
+	TokenTypeMarkdownH1        TokenType = "markdown_h1"
+	TokenTypeMarkdownH2        TokenType = "markdown_h2"
+	TokenTypeMarkdownH3        TokenType = "markdown_h3"
+	TokenTypeMarkdownH4        TokenType = "markdown_h4"
+	TokenTypeMarkdownH5        TokenType = "markdown_h5"
+	TokenTypeMarkdownH6        TokenType = "markdown_h6"
+	TokenTypeMarkdownBold      TokenType = "markdown_bold"
+	TokenTypeMarkdownItalic    TokenType = "markdown_italic"
+	TokenTypeMarkdownBoldItalic TokenType = "markdown_bold_italic"
+	TokenTypeMarkdownCode      TokenType = "markdown_code"
+	TokenTypeMarkdownCodeBlock TokenType = "markdown_code_block"
+	TokenTypeMarkdownBlockquote TokenType = "markdown_blockquote"
+	TokenTypeMarkdownLink      TokenType = "markdown_link"
+	TokenTypeMarkdownLinkText  TokenType = "markdown_link_text"
+	TokenTypeMarkdownLinkUrl   TokenType = "markdown_link_url"
+	TokenTypeMarkdownImage     TokenType = "markdown_image"
+	TokenTypeMarkdownList      TokenType = "markdown_list"
+	TokenTypeMarkdownListMarker TokenType = "markdown_list_marker"
+	TokenTypeMarkdownHorizontalRule TokenType = "markdown_horizontal_rule"
+	TokenTypeMarkdownStrikethrough TokenType = "markdown_strikethrough"
+	TokenTypeMarkdownTable     TokenType = "markdown_table"
+	TokenTypeMarkdownTableBorder TokenType = "markdown_table_border"
 )
 
 // Token represents a syntax-highlighted token
@@ -72,6 +97,9 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx":
 		h.parser.SetLanguage(cpp.GetLanguage())
 		h.currentLang = "cpp"
+	case ".md", ".markdown":
+		h.parser.SetLanguage(markdown_inline.GetLanguage())
+		h.currentLang = "markdown"
 	default:
 		// No language set for unknown extensions
 		h.currentLang = ""
@@ -152,6 +180,11 @@ func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	// Sort tokens by start position and merge overlapping
 	tokens = h.mergeOverlappingTokens(tokens)
 
+	// Post-process markdown tokens
+	if h.currentLang == "markdown" {
+		tokens = h.postProcessMarkdownTokens(tokens, lineStart, lineEnd, h.currentSource)
+	}
+
 	// Cache the result
 	h.tokenCache[lineStart] = tokens
 
@@ -180,6 +213,11 @@ func (h *Highlighter) GetTokensForString(text string) []Token {
 	// Sort tokens by start position and merge overlapping
 	tokens = h.mergeOverlappingTokens(tokens)
 
+	// Post-process markdown tokens
+	if h.currentLang == "markdown" {
+		tokens = h.postProcessMarkdownTokens(tokens, 0, len(source), source)
+	}
+
 	return tokens
 }
 
@@ -193,28 +231,33 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		return
 	}
 
-	// Map node type to token type
-	tokenType := h.mapNodeToTokenType(node, source)
-	if tokenType != TokenTypeText {
-		// Clip token to line boundaries
-		tokenStart := nodeStart
-		tokenEnd := nodeEnd
-		if tokenStart < lineStart {
-			tokenStart = lineStart
-		}
-		if tokenEnd > lineEnd {
-			tokenEnd = lineEnd
-		}
+	// Check if this node has children
+	childCount := int(node.ChildCount())
+	
+	// Only add tokens for leaf nodes (nodes without children)
+	if childCount == 0 {
+		// Map node type to token type
+		tokenType := h.mapNodeToTokenType(node, source)
+		if tokenType != TokenTypeText {
+			// Clip token to line boundaries
+			tokenStart := nodeStart
+			tokenEnd := nodeEnd
+			if tokenStart < lineStart {
+				tokenStart = lineStart
+			}
+			if tokenEnd > lineEnd {
+				tokenEnd = lineEnd
+			}
 
-		*tokens = append(*tokens, Token{
-			Start:     tokenStart - lineStart, // Make relative to line start
-			End:       tokenEnd - lineStart,
-			TokenType: tokenType,
-		})
+			*tokens = append(*tokens, Token{
+				Start:     tokenStart - lineStart, // Make relative to line start
+				End:       tokenEnd - lineStart,
+				TokenType: tokenType,
+			})
+		}
 	}
 
-	// Recurse into children
-	childCount := int(node.ChildCount())
+	// Always recurse into children
 	for i := 0; i < childCount; i++ {
 		child := node.Child(i)
 		h.walkNode(child, lineStart, lineEnd, source, tokens)
@@ -232,6 +275,8 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapCNodeToTokenType(node, nodeType, source)
 	case "cpp":
 		return h.mapCppNodeToTokenType(node, nodeType, source)
+	case "markdown":
+		return h.mapMarkdownNodeToTokenType(node, nodeType, source)
 	default:
 		return TokenTypeText
 	}
@@ -566,6 +611,180 @@ func (h *Highlighter) mapCppNodeToTokenType(node *sitter.Node, nodeType string, 
 	}
 }
 
+// mapMarkdownNodeToTokenType maps Markdown-specific node types to token types
+func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
+	switch nodeType {
+	// Emphasis (italic and bold)
+	case "emphasis":
+		// Check if parent is emphasis (this would be the inner emphasis in ***text***)
+		parent := node.Parent()
+		if parent != nil && parent.Type() == "emphasis" {
+			// This is bold italic
+			return TokenTypeMarkdownBoldItalic
+		}
+		// Check if it contains strong_emphasis (***text***)
+		hasStrongEmphasis := false
+		for i := 0; i < int(node.ChildCount()); i++ {
+			child := node.Child(i)
+			if child.Type() == "strong_emphasis" {
+				hasStrongEmphasis = true
+				break
+			}
+		}
+		if hasStrongEmphasis {
+			return TokenTypeMarkdownBoldItalic
+		}
+		return TokenTypeMarkdownItalic
+	
+	case "strong_emphasis":
+		// If parent is emphasis, this is part of bold italic
+		parent := node.Parent()
+		if parent != nil && parent.Type() == "emphasis" {
+			return TokenTypeMarkdownBoldItalic
+		}
+		return TokenTypeMarkdownBold
+	
+	// Code
+	case "code_span":
+		return TokenTypeMarkdownCode
+	
+	case "fenced_code_block", "indented_code_block":
+		return TokenTypeMarkdownCodeBlock
+	
+	// Links and images  
+	case "inline_link":
+		return TokenTypeMarkdownLink
+	
+	case "shortcut_link":
+		// Check if this is a checkbox pattern [ ] or [x]
+		text := string(source[node.StartByte():node.EndByte()])
+		if text == "[ ]" || text == "[x]" || text == "[X]" {
+			// This is a checkbox, not a link
+			return TokenTypeText
+		}
+		return TokenTypeMarkdownLink
+	
+	case "link_text":
+		// Check if parent is a shortcut_link that's actually a checkbox
+		parent := node.Parent()
+		if parent != nil && parent.Type() == "shortcut_link" {
+			parentText := string(source[parent.StartByte():parent.EndByte()])
+			if parentText == "[ ]" || parentText == "[x]" || parentText == "[X]" {
+				return TokenTypeText
+			}
+		}
+		return TokenTypeMarkdownLinkText
+		
+	case "link_destination":
+		return TokenTypeMarkdownLinkUrl
+		
+	case "image":
+		return TokenTypeMarkdownImage
+	
+	// Lists - note: in markdown-inline, list markers are just "-", "+", "*" characters
+	case "-", "+", "*":
+		// Check if this is at the beginning of a line (list marker)
+		if node.StartByte() == 0 || (node.StartByte() > 0 && source[node.StartByte()-1] == '\n') {
+			return TokenTypeMarkdownListMarker
+		}
+		return TokenTypeText
+	
+	// Block quotes - ">" character at start of line
+	case ">":
+		// Check if this is at the beginning of a line
+		if node.StartByte() == 0 || (node.StartByte() > 0 && source[node.StartByte()-1] == '\n') {
+			return TokenTypeMarkdownBlockquote
+		}
+		return TokenTypeText
+	
+	// Headings - "#" characters at start of line
+	case "#":
+		// Check if this is at the beginning of a line
+		if node.StartByte() == 0 || (node.StartByte() > 0 && source[node.StartByte()-1] == '\n') {
+			// Count consecutive # to determine heading level
+			count := 1
+			pos := node.StartByte() + 1
+			for pos < uint32(len(source)) && source[pos] == '#' {
+				count++
+				pos++
+			}
+			switch count {
+			case 1:
+				return TokenTypeMarkdownH1
+			case 2:
+				return TokenTypeMarkdownH2
+			case 3:
+				return TokenTypeMarkdownH3
+			case 4:
+				return TokenTypeMarkdownH4
+			case 5:
+				return TokenTypeMarkdownH5
+			default:
+				return TokenTypeMarkdownH6
+			}
+		}
+		return TokenTypeText
+	
+	// Strikethrough
+	case "strikethrough":
+		return TokenTypeMarkdownStrikethrough
+	
+	// Tables
+	case "table":
+		return TokenTypeMarkdownTable
+		
+	case "|":
+		return TokenTypeMarkdownTableBorder
+	
+	// Horizontal rule - would need to check for "---", "***", "___"
+	case "thematic_break":
+		return TokenTypeMarkdownHorizontalRule
+	
+	// Special characters that might be part of markdown syntax
+	case "[", "]", "(", ")", "`", "~", "emphasis_delimiter", "code_span_delimiter":
+		// These are handled by their parent nodes
+		return TokenTypeText
+	
+	default:
+		return TokenTypeText
+	}
+}
+
+// postProcessMarkdownTokens extends header tokens to cover the entire line
+func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineEnd int, source []byte) []Token {
+	processed := []Token{}
+	
+	for _, token := range tokens {
+		// Check if this is a header token at the start of the line
+		if token.Start == 0 && (token.TokenType == TokenTypeMarkdownH1 || 
+			token.TokenType == TokenTypeMarkdownH2 || 
+			token.TokenType == TokenTypeMarkdownH3 || 
+			token.TokenType == TokenTypeMarkdownH4 || 
+			token.TokenType == TokenTypeMarkdownH5 || 
+			token.TokenType == TokenTypeMarkdownH6) {
+			
+			// Extend the token to the end of the line
+			extendedEnd := token.End
+			for i := lineStart + token.End; i < lineEnd && i < len(source); i++ {
+				if source[i] == '\n' {
+					break
+				}
+				extendedEnd = i - lineStart + 1
+			}
+			
+			processed = append(processed, Token{
+				Start:     token.Start,
+				End:       extendedEnd,
+				TokenType: token.TokenType,
+			})
+		} else {
+			processed = append(processed, token)
+		}
+	}
+	
+	return processed
+}
+
 // isMoreSpecific returns true if type1 is more specific than type2
 func (h *Highlighter) isMoreSpecific(type1, type2 TokenType) bool {
 	// Define specificity hierarchy
@@ -584,6 +803,29 @@ func (h *Highlighter) isMoreSpecific(type1, type2 TokenType) bool {
 		TokenTypeKeyword:     11,
 		TokenTypeString:      12,
 		TokenTypeComment:     13,
+		// Markdown types with higher specificity
+		TokenTypeMarkdownList:           14,
+		TokenTypeMarkdownListMarker:     15,
+		TokenTypeMarkdownTable:          14,
+		TokenTypeMarkdownTableBorder:    15,
+		TokenTypeMarkdownHorizontalRule: 15,
+		TokenTypeMarkdownBlockquote:     15,
+		TokenTypeMarkdownLink:           16,
+		TokenTypeMarkdownLinkText:       17,
+		TokenTypeMarkdownLinkUrl:        17,
+		TokenTypeMarkdownImage:          17,
+		TokenTypeMarkdownCode:           18,
+		TokenTypeMarkdownCodeBlock:      18,
+		TokenTypeMarkdownStrikethrough:  19,
+		TokenTypeMarkdownItalic:         20,
+		TokenTypeMarkdownBold:           21,
+		TokenTypeMarkdownBoldItalic:     22,
+		TokenTypeMarkdownH6:             23,
+		TokenTypeMarkdownH5:             24,
+		TokenTypeMarkdownH4:             25,
+		TokenTypeMarkdownH3:             26,
+		TokenTypeMarkdownH2:             27,
+		TokenTypeMarkdownH1:             28,
 	}
 
 	return specificity[type1] > specificity[type2]
@@ -618,6 +860,51 @@ func GetStyleForToken(tokenType TokenType, theme *theme.Theme) theme.StyleDef {
 		return theme.SyntaxAttribute
 	case TokenTypeTag:
 		return theme.SyntaxTag
+	// Markdown token types
+	case TokenTypeMarkdownH1:
+		return theme.MarkdownH1
+	case TokenTypeMarkdownH2:
+		return theme.MarkdownH2
+	case TokenTypeMarkdownH3:
+		return theme.MarkdownH3
+	case TokenTypeMarkdownH4:
+		return theme.MarkdownH4
+	case TokenTypeMarkdownH5:
+		return theme.MarkdownH5
+	case TokenTypeMarkdownH6:
+		return theme.MarkdownH6
+	case TokenTypeMarkdownBold:
+		return theme.MarkdownBold
+	case TokenTypeMarkdownItalic:
+		return theme.MarkdownItalic
+	case TokenTypeMarkdownBoldItalic:
+		return theme.MarkdownBoldItalic
+	case TokenTypeMarkdownCode:
+		return theme.MarkdownCode
+	case TokenTypeMarkdownCodeBlock:
+		return theme.MarkdownCodeBlock
+	case TokenTypeMarkdownBlockquote:
+		return theme.MarkdownBlockquote
+	case TokenTypeMarkdownLink:
+		return theme.MarkdownLink
+	case TokenTypeMarkdownLinkText:
+		return theme.MarkdownLinkText
+	case TokenTypeMarkdownLinkUrl:
+		return theme.MarkdownLinkUrl
+	case TokenTypeMarkdownImage:
+		return theme.MarkdownImage
+	case TokenTypeMarkdownList:
+		return theme.MarkdownList
+	case TokenTypeMarkdownListMarker:
+		return theme.MarkdownListMarker
+	case TokenTypeMarkdownHorizontalRule:
+		return theme.MarkdownHorizontalRule
+	case TokenTypeMarkdownStrikethrough:
+		return theme.MarkdownStrikethrough
+	case TokenTypeMarkdownTable:
+		return theme.MarkdownTable
+	case TokenTypeMarkdownTableBorder:
+		return theme.MarkdownTableBorder
 	case TokenTypeText:
 		fallthrough
 	default:

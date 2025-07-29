@@ -43,6 +43,30 @@ type Theme struct {
 	SyntaxNamespace   StyleDef
 	SyntaxAttribute   StyleDef
 	SyntaxTag         StyleDef
+
+	// Markdown-specific styles
+	MarkdownH1        StyleDef
+	MarkdownH2        StyleDef
+	MarkdownH3        StyleDef
+	MarkdownH4        StyleDef
+	MarkdownH5        StyleDef
+	MarkdownH6        StyleDef
+	MarkdownBold      StyleDef
+	MarkdownItalic    StyleDef
+	MarkdownBoldItalic StyleDef
+	MarkdownCode      StyleDef
+	MarkdownCodeBlock StyleDef
+	MarkdownBlockquote StyleDef
+	MarkdownLink      StyleDef
+	MarkdownLinkText  StyleDef
+	MarkdownLinkUrl   StyleDef
+	MarkdownImage     StyleDef
+	MarkdownList      StyleDef
+	MarkdownListMarker StyleDef
+	MarkdownHorizontalRule StyleDef
+	MarkdownStrikethrough StyleDef
+	MarkdownTable     StyleDef
+	MarkdownTableBorder StyleDef
 }
 
 // GetStyle returns a ui.Style for the given style definition
@@ -198,6 +222,117 @@ func NewTheme() *Theme {
 
 		SyntaxTag: StyleDef{
 			Foreground: "#f92672",
+			Background: "#272822",
+		},
+
+		// Markdown styles
+		MarkdownH1: StyleDef{
+			Foreground: "#f92672[B]",
+			Background: "#272822",
+		},
+
+		MarkdownH2: StyleDef{
+			Foreground: "#ae81ff[B]",
+			Background: "#272822",
+		},
+
+		MarkdownH3: StyleDef{
+			Foreground: "#a6e22e[B]",
+			Background: "#272822",
+		},
+
+		MarkdownH4: StyleDef{
+			Foreground: "#66d9ef[B]",
+			Background: "#272822",
+		},
+
+		MarkdownH5: StyleDef{
+			Foreground: "#e6db74[B]",
+			Background: "#272822",
+		},
+
+		MarkdownH6: StyleDef{
+			Foreground: "#fd971f[B]",
+			Background: "#272822",
+		},
+
+		MarkdownBold: StyleDef{
+			Foreground: "#f8f8f2[B]",
+			Background: "#272822",
+		},
+
+		MarkdownItalic: StyleDef{
+			Foreground: "#f8f8f2[I]",
+			Background: "#272822",
+		},
+
+		MarkdownBoldItalic: StyleDef{
+			Foreground: "#f8f8f2[BI]",
+			Background: "#272822",
+		},
+
+		MarkdownCode: StyleDef{
+			Foreground: "#e6db74",
+			Background: "#3e3d32",
+		},
+
+		MarkdownCodeBlock: StyleDef{
+			Foreground: "#e6db74",
+			Background: "#3e3d32",
+		},
+
+		MarkdownBlockquote: StyleDef{
+			Foreground: "#24ac15ff[I]",
+			Background: "#272822",
+		},
+
+		MarkdownLink: StyleDef{
+			Foreground: "#66d9ef[U]",
+			Background: "#272822",
+		},
+
+		MarkdownLinkText: StyleDef{
+			Foreground: "#66d9ef[U]",
+			Background: "#272822",
+		},
+
+		MarkdownLinkUrl: StyleDef{
+			Foreground: "#ae81ff",
+			Background: "#272822",
+		},
+
+		MarkdownImage: StyleDef{
+			Foreground: "#a6e22e",
+			Background: "#272822",
+		},
+
+		MarkdownList: StyleDef{
+			Foreground: "#f8f8f2",
+			Background: "#272822",
+		},
+
+		MarkdownListMarker: StyleDef{
+			Foreground: "#a2a2a2",
+			Background: "#272822",
+		},
+
+		MarkdownHorizontalRule: StyleDef{
+			Foreground: "#75715e",
+			Background: "#272822",
+		},
+
+		MarkdownStrikethrough: StyleDef{
+			Foreground: "#75715e",
+			Background: "#272822",
+		},
+
+		MarkdownTable: StyleDef{
+			Foreground: "#f8f8f2",
+			Background: "#272822",
+		},
+
+		MarkdownTableBorder: StyleDef{
+			Foreground: "#75715e",
 			Background: "#272822",
 		},
 	}
