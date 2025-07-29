@@ -234,6 +234,43 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 	// Check if this node has children
 	childCount := int(node.ChildCount())
 	
+	// For markdown, we need to handle certain parent nodes as tokens
+	if h.currentLang == "markdown" {
+		nodeType := node.Type()
+		// These markdown nodes should be tokenized even if they have children
+		isMarkdownToken := nodeType == "emphasis" || nodeType == "strong_emphasis" || 
+			nodeType == "code_span" || nodeType == "strikethrough" ||
+			nodeType == "inline_link" || nodeType == "shortcut_link" ||
+			nodeType == "fenced_code_block" || nodeType == "indented_code_block" ||
+			nodeType == "link_destination"
+		
+		if isMarkdownToken {
+			tokenType := h.mapNodeToTokenType(node, source)
+			if tokenType != TokenTypeText {
+				// Clip token to line boundaries
+				tokenStart := nodeStart
+				tokenEnd := nodeEnd
+				if tokenStart < lineStart {
+					tokenStart = lineStart
+				}
+				if tokenEnd > lineEnd {
+					tokenEnd = lineEnd
+				}
+
+				*tokens = append(*tokens, Token{
+					Start:     tokenStart - lineStart, // Make relative to line start
+					End:       tokenEnd - lineStart,
+					TokenType: tokenType,
+				})
+			}
+			// For links, we need to continue processing children to get link text and URL
+			if nodeType != "inline_link" && nodeType != "link_destination" {
+				return // Don't process other children for non-link nodes
+			}
+			// For inline_link and link_destination, continue to process children
+		}
+	}
+	
 	// Only add tokens for leaf nodes (nodes without children)
 	if childCount == 0 {
 		// Map node type to token type
