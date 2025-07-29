@@ -31,7 +31,7 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 # Features
 - [x] Remote support
 - [ ] Multi-line/multi-cursor support
-- [ ] Selection support
+- [x] Selection support
 - [x] Go to specific line
 - [x] Search
 - [ ] Replace
