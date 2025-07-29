@@ -29,11 +29,21 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 - [ ] When rendering file that ends with \n, the last line does not show line number.
 
 # Features
-- [ ] Multi-line support
+- [x] Remote support
+- [ ] Multi-line/multi-cursor support
+- [ ] Selection support
 - [x] Go to specific line
 - [x] Search
+- [ ] Replace
 - [ ] Find references
 - [x] List methods in the file
 - [x] List methods in the folder
 - [ ] Render tab characters and trailing space characters.
 - [ ] Completion
+- [x] Help
+- [x] Help for key bindings
+- [ ] Indent command
+- [ ] Rewrap paragraph
+- [ ] Copy/paste, registers support
+- [ ] Macros support
+- [ ] Eye candy for icons and other elements in the fuzzy list widget
