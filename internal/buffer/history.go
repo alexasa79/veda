@@ -16,8 +16,9 @@ type History struct {
 	redoStack []HistoryEntry
 
 	// For tracking insert mode sessions
-	currentComposite *CompositeEntry
+	currentComposite *InsertModeEntry
 	inInsertMode     bool
+	insertInitCommand string // Command that initiated current insert mode
 }
 
 // NewHistory creates a new history manager
@@ -98,9 +99,10 @@ func (h *History) Redo(buf *Buffer) error {
 }
 
 // StartInsertSession begins tracking entries for insert mode
-func (h *History) StartInsertSession() {
+func (h *History) StartInsertSession(initCommand string) {
 	h.inInsertMode = true
-	h.currentComposite = NewCompositeEntry("Insert mode session")
+	h.insertInitCommand = initCommand
+	h.currentComposite = NewInsertModeEntry("Insert mode session", initCommand)
 }
 
 // EndInsertSession finalizes the insert mode session
@@ -168,6 +170,20 @@ func (ce *CompositeEntry) Undo(buf *Buffer) error {
 // Description returns the composite entry description
 func (ce *CompositeEntry) Description() string {
 	return ce.description
+}
+
+// InsertModeEntry wraps a CompositeEntry with insert mode context
+type InsertModeEntry struct {
+	*CompositeEntry
+	InitCommand string // The command that initiated insert mode ("i", "a", "A", "o", "O")
+}
+
+// NewInsertModeEntry creates a new insert mode entry
+func NewInsertModeEntry(description string, initCommand string) *InsertModeEntry {
+	return &InsertModeEntry{
+		CompositeEntry: NewCompositeEntry(description),
+		InitCommand:    initCommand,
+	}
 }
 
 // InsertTextEntry represents text insertion
