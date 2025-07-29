@@ -570,6 +570,17 @@ func (e *Editor) executeCommand() {
 		return
 	}
 
+	// Check if the command is a line number
+	if lineNum, err := strconv.Atoi(command); err == nil {
+		// Jump to line number (1-based, but 0 also goes to line 1)
+		if lineNum <= 0 {
+			e.goToLine(0) // Line 0 or negative goes to first line
+		} else {
+			e.goToLine(lineNum - 1) // Convert to 0-based
+		}
+		return
+	}
+
 	// Parse command and arguments
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
