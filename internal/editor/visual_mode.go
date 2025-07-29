@@ -1,7 +1,9 @@
 package editor
 
 import (
+	"fmt"
 	"veda/internal/buffer"
+	"veda/internal/clipboard"
 	"veda/internal/commands"
 )
 
@@ -62,9 +64,35 @@ func (e *Editor) deleteSelection(args []string) error {
 	return nil
 }
 
-// yankSelection yanks (copies) the current visual selection
+// yankSelection yanks (copies) the current visual selection to system clipboard
 func (e *Editor) yankSelection(args []string) error {
-	// Not implemented yet
+	if e.mode != commands.VisualMode {
+		return nil
+	}
+	
+	// Get selection range
+	start, end, hasSelection := e.getSelectionRange()
+	if !hasSelection {
+		return nil
+	}
+	
+	// Extract selected text
+	selectedText := e.buffer.Rope.Extract(start, end)
+	
+	// Copy to system clipboard
+	if err := clipboard.Copy(selectedText); err != nil {
+		LL.Error("Failed to copy to clipboard: %v", err)
+		return fmt.Errorf("failed to copy to clipboard: %w", err)
+	}
+	
+	// Move cursor to start of selection
+	e.moveCursorToPosition(start)
+	
+	// Exit visual mode
+	e.exitVisualMode(nil)
+	
+	LL.Debug("Yanked %d characters to clipboard", len(selectedText))
+	
 	return nil
 }
 
