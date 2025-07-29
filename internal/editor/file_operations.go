@@ -638,3 +638,52 @@ func (e *Editor) listDocumentSymbolsCmd(args []string) error {
 	e.showDocumentSymbolsList()
 	return nil
 }
+
+// writeFile writes the current buffer to disk
+func (e *Editor) writeFile(args []string) error {
+	// Check if buffer has a file path
+	if !e.buffer.HasFile() {
+		// TODO: Could implement "save as" functionality here
+		return fmt.Errorf("no file name")
+	}
+	
+	// Get the content from the buffer
+	content := e.buffer.Rope.String()
+	
+	// Write the file
+	err := e.proxyManager.WriteFile(e.buffer.FilePath, content)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+	
+	// Mark buffer as not modified
+	e.buffer.IsModified = false
+	
+	// Show success message
+	LL.Info("Wrote %s", e.buffer.FilePath)
+	
+	return nil
+}
+
+// editFile implements the :edit/:e command to open a file or directory
+func (e *Editor) editFile(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("no file name")
+	}
+	
+	path := args[0]
+	
+	// Check if it's a directory by attempting to list it
+	_, err := e.proxyManager.ListDirectory(path)
+	if err == nil {
+		// It's a directory - update working directory and show file browser
+		e.workingDirectory = path
+		LL.Info("Changed directory to: %s", e.workingDirectory)
+		e.ShowFuzzyListWidget()
+		return nil
+	}
+	
+	// It's a file - open it
+	e.openFile(path)
+	return nil
+}

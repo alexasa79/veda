@@ -91,6 +91,11 @@ Currently the buffer package and editor package have tests. When adding new func
   - Implementing the Command interface with Execute() and Undo() methods
   - Ensuring commands handle buffer iterator invalidation correctly
   - Testing undo/redo behavior for edge cases
+- **Adding New Commands**: When adding new commands to the editor:
+  - Register the command in `internal/editor/commands.go` in the `registerCommands()` function
+  - Add key bindings in `internal/editor/keybindings.go` in the `setupDefaultBindings()` function if needed
+  - **IMPORTANT**: Update the help documentation in `internal/editor/help.go` to include the new command
+  - Add the command to the appropriate category in the help text with its key binding and description
 
 ## Claude Operational Guidelines
 - You are not allowed to leave the root directory of the project. All commands, experiments, everything you do, must be done in the root directory of the project.

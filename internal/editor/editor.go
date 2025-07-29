@@ -38,6 +38,7 @@ type Editor struct {
 	// Buffer management
 	buffers         map[string]*buffer.Buffer  // Map of file path to buffer
 	bufferOrder     []string                   // Order of buffers for cycling
+	previousBuffer  *buffer.Buffer             // Previous buffer for quick switching
 
 	// Navigation history
 	navHistory      []NavigationEntry       // Stack of previous positions
@@ -1009,7 +1010,8 @@ func (e *Editor) updateCursorState() {
 	e.checkSignatureUpdate()
 }
 
-func (e *Editor) quit(args []string) error {
+// actuallyQuit exits the editor completely
+func (e *Editor) actuallyQuit(args []string) error {
 	e.Close()
 	os.Exit(0)
 	return nil

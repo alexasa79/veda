@@ -219,6 +219,29 @@ func (pm *ProxyManager) GetFile(path string) (string, error) {
 	return content, err
 }
 
+// WriteFile writes content to a file (local or remote)
+func (pm *ProxyManager) WriteFile(path string, content string) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
+	startTime := time.Now()
+	
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return err
+	}
+	
+	LL.Debug("ProxyManager.WriteFile: path=%s, actualPath=%s", path, actualPath)
+	
+	// Call the client's WriteFile with the actual path (without HOST: prefix)
+	err = client.WriteFile(actualPath, content)
+	if err == nil {
+		duration := time.Since(startTime)
+		LL.Info("Wrote file %s in %v", path, duration)
+	}
+	return err
+}
+
 // ListDirectory lists directory contents (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
 	pm.mu.Lock()
@@ -1236,6 +1259,50 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 }
 
 // Close terminates the proxy process
+// WriteFile writes content to a file
+func (c *Client) WriteFile(path string, content string) error {
+	request := JSONRPCRequest{
+		Method: "write_file",
+		Params: map[string]interface{}{
+			"path":    path,
+			"content": content,
+		},
+		ID: c.requestID,
+	}
+	c.requestID++
+	
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+	
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return err
+		}
+		
+		if response.Error != "" {
+			return fmt.Errorf("proxy error: %s", response.Error)
+		}
+		
+		if result, ok := response.Result["success"].(bool); ok && result {
+			return nil
+		}
+		
+		return fmt.Errorf("failed to write file")
+	}
+	
+	return fmt.Errorf("failed to read proxy response")
+}
+
 func (c *Client) Close() error {
 	if c.cmd != nil && c.cmd.Process != nil {
 		return c.cmd.Process.Kill()

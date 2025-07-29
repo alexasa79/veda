@@ -667,6 +667,7 @@ class VedaProxy:
             'list_directory': self.list_directory,
             'list_directory_recursive': self.list_directory_recursive,
             'get_file': self.get_file,
+            'write_file': self.write_file,
             'start_lsp_server': self.start_lsp_server,
             'stop_lsp_server': self.stop_lsp_server,
             'go_to_definition': self.go_to_definition,
@@ -820,6 +821,40 @@ class VedaProxy:
             raise ValueError(f"File is not a text file: {path}")
         except PermissionError:
             raise PermissionError(f"Permission denied: {path}")
+
+    def write_file(self, path: str, content: str) -> Dict[str, bool]:
+        """
+        Write content to a file.
+        
+        Args:
+            path: Absolute file path to write
+            content: Content to write to the file
+            
+        Returns:
+            Dictionary with 'success' key indicating if the write was successful
+        """
+        file_path = Path(path).expanduser().resolve()
+        logger.info(f"Writing file: {path} (resolved to {file_path})")
+        
+        try:
+            # Create parent directories if they don't exist
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write the content
+            file_path.write_text(content, encoding='utf-8')
+            
+            # Notify LSP server about the file change
+            language = self.lsp.get_language_for_file(str(file_path))
+            if language and language in self.lsp.servers:
+                # TODO: Send didSave notification to LSP server
+                logger.info(f"File saved, should notify LSP server for {language}")
+            
+            return {'success': True}
+        except PermissionError:
+            raise PermissionError(f"Permission denied: {path}")
+        except Exception as e:
+            logger.error(f"Failed to write file {path}: {str(e)}")
+            raise
 
     def _get_file_info(self, path: Path, base_path: Path) -> Dict[str, Any]:
         """

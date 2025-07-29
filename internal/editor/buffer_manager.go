@@ -17,6 +17,11 @@ func (e *Editor) saveCurrentBufferState() {
 
 // switchToBuffer switches to a different buffer
 func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
+	// Save the previous buffer
+	if e.buffer != nil && e.buffer != buf {
+		e.previousBuffer = e.buffer
+	}
+	
 	// Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
 	e.buffer = buf
 	
@@ -94,4 +99,96 @@ func (e *Editor) showBuffers(args []string) error {
 	}()
 	
 	return nil
+}
+
+// closeBuffer closes the current buffer
+func (e *Editor) closeBuffer(args []string) error {
+	// Don't close if it's the only buffer
+	if len(e.buffers) <= 1 {
+		// Create a new empty buffer instead
+		emptyBuffer := buffer.NewBuffer("", "", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		e.buffers[""] = emptyBuffer
+		if !contains(e.bufferOrder, "") {
+			e.bufferOrder = append(e.bufferOrder, "")
+		}
+		e.switchToBuffer(emptyBuffer)
+		
+		// Remove the old buffer if it wasn't the empty buffer
+		if e.previousBuffer != nil && e.previousBuffer.FilePath != "" {
+			delete(e.buffers, e.previousBuffer.FilePath)
+			e.bufferOrder = removeFromSlice(e.bufferOrder, e.previousBuffer.FilePath)
+		}
+		return nil
+	}
+	
+	// Find the buffer to switch to
+	currentPath := e.buffer.FilePath
+	currentIndex := -1
+	for i, path := range e.bufferOrder {
+		if path == currentPath {
+			currentIndex = i
+			break
+		}
+	}
+	
+	// Switch to the next buffer (or previous if we're at the end)
+	var nextBuffer *buffer.Buffer
+	if currentIndex >= 0 {
+		nextIndex := currentIndex + 1
+		if nextIndex >= len(e.bufferOrder) {
+			nextIndex = currentIndex - 1
+		}
+		if nextIndex >= 0 && nextIndex < len(e.bufferOrder) {
+			nextBuffer = e.buffers[e.bufferOrder[nextIndex]]
+		}
+	}
+	
+	// If we couldn't find a next buffer, just pick the first one that's not current
+	if nextBuffer == nil {
+		for path, buf := range e.buffers {
+			if path != currentPath {
+				nextBuffer = buf
+				break
+			}
+		}
+	}
+	
+	// Switch to the next buffer
+	if nextBuffer != nil {
+		e.switchToBuffer(nextBuffer)
+	}
+	
+	// Remove the closed buffer
+	delete(e.buffers, currentPath)
+	e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
+	
+	return nil
+}
+
+// switchToPreviousBuffer switches to the previously active buffer
+func (e *Editor) switchToPreviousBuffer(args []string) error {
+	if e.previousBuffer != nil {
+		e.switchToBuffer(e.previousBuffer)
+	}
+	return nil
+}
+
+// Helper functions
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func removeFromSlice(slice []string, item string) []string {
+	result := make([]string, 0, len(slice))
+	for _, s := range slice {
+		if s != item {
+			result = append(result, s)
+		}
+	}
+	return result
 }

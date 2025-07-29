@@ -41,8 +41,14 @@ func (e *Editor) registerCommands() {
 
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd)
-	e.commandRegistry.Register("quit", e.quit)
-	e.commandRegistry.Register("q", e.quit)  // Alias for quit
+	e.commandRegistry.Register("q", e.closeBuffer)  // Close current buffer
+	e.commandRegistry.Register("q!", e.actuallyQuit)  // Force quit (shortcut for :Q)
+	e.commandRegistry.Register("Quit", e.actuallyQuit)  // Actually quit the editor
+	e.commandRegistry.Register("Q", e.actuallyQuit)  // Shortcut for Quit
+	e.commandRegistry.Register("write", e.writeFile)
+	e.commandRegistry.Register("w", e.writeFile)  // Shortcut for write
+	e.commandRegistry.Register("edit", e.editFile)
+	e.commandRegistry.Register("e", e.editFile)  // Shortcut for edit
 	e.commandRegistry.Register("cd", e.changeDirectory)
 
 	// LSP commands
@@ -55,6 +61,7 @@ func (e *Editor) registerCommands() {
 
 	// Buffer commands
 	e.commandRegistry.Register("show-buffers", e.showBuffers)
+	e.commandRegistry.Register("switch-to-previous-buffer", e.switchToPreviousBuffer)
 
 	// Symbol commands
 	e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd)
