@@ -33,6 +33,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("exit-visual-mode", e.exitVisualMode)
 	e.commandRegistry.Register("open-line-below", e.openLineBelow)
 	e.commandRegistry.Register("open-line-above", e.openLineAbove)
+	e.commandRegistry.Register("join-lines", e.joinLines)
 
 	// Insert mode commands
 	e.commandRegistry.Register("insert-newline", e.insertNewline)
