@@ -97,6 +97,11 @@ type Editor struct {
 	// Search state
 	searchPattern   string                  // Current search pattern
 	searchDirection bool                    // true = forward, false = backward
+	
+	// Visual mode state
+	visualAnchorLine   int                  // Line number where visual selection started
+	visualAnchorX      int                  // X position where visual selection started
+	visualAnchorOffset int                  // Byte offset where visual selection started
 
 	// Working directory
 	workingDirectory string                 // Current working directory (can include HOST: prefix)
@@ -165,6 +170,9 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		contextCache:    nil,
 		contextLine:     -1,
 		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
+		visualAnchorLine:   -1,  // -1 means no selection
+		visualAnchorX:      -1,
+		visualAnchorOffset: -1,
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
 		workingDirectory: ".", // Default to current directory
 		asyncOperations: make(map[string]bool),
@@ -807,8 +815,11 @@ func (e *Editor) findPreviousCmd(args []string) error {
 
 // moveCursorToPosition moves the cursor to an absolute position in the buffer
 func (e *Editor) moveCursorToPosition(pos int) {
-	// Remember the current view line before moving cursor
-	oldViewLine := e.buffer.ViewIterator.LineNumber()
+	// Remember the current view line before moving cursor (if iterator is still valid)
+	oldViewLine := 0
+	if e.buffer.ViewIterator != nil && e.buffer.ViewIterator.Generation == e.buffer.Generation {
+		oldViewLine = e.buffer.ViewIterator.LineNumber()
+	}
 
 	// Create an iterator at the beginning
 	iter := buffer.NewBufferIterator(e.buffer)
@@ -842,6 +853,12 @@ func (e *Editor) moveCursorToPosition(pos int) {
 
 	// Check if the cursor is already visible
 	visibleHeight := e.getVisibleHeight()
+	
+	// Ensure ViewIterator is valid
+	if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, oldViewLine)
+	}
+	
 	viewLine := e.buffer.ViewIterator.LineNumber()
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 
@@ -1015,6 +1032,45 @@ func (e *Editor) actuallyQuit(args []string) error {
 	e.Close()
 	os.Exit(0)
 	return nil
+}
+
+// enterVisualMode enters visual mode and sets the anchor point
+func (e *Editor) enterVisualMode(args []string) error {
+	e.mode = commands.VisualMode
+	// Set anchor to current cursor position
+	e.visualAnchorLine = e.buffer.CursorIterator.LineNumber()
+	e.visualAnchorX = e.buffer.CursorX
+	// Calculate the byte offset of the anchor
+	e.visualAnchorOffset = e.buffer.CursorIterator.Position() + e.buffer.CursorX
+	return nil
+}
+
+// exitVisualMode exits visual mode and returns to normal mode
+func (e *Editor) exitVisualMode(args []string) error {
+	e.mode = commands.NormalMode
+	// Clear visual selection state
+	e.visualAnchorLine = -1
+	e.visualAnchorX = -1
+	e.visualAnchorOffset = -1
+	return nil
+}
+
+// getSelectionRange returns the start and end byte offsets of the current selection
+// Returns (start, end, hasSelection)
+func (e *Editor) getSelectionRange() (int, int, bool) {
+	if e.mode != commands.VisualMode || e.visualAnchorOffset < 0 {
+		return 0, 0, false
+	}
+	
+	// Calculate current cursor byte offset
+	currentOffset := e.buffer.CursorIterator.Position() + e.buffer.CursorX
+	
+	// Return in order (start, end)
+	if e.visualAnchorOffset <= currentOffset {
+		return e.visualAnchorOffset, currentOffset + 1, true // +1 for inclusive selection
+	} else {
+		return currentOffset, e.visualAnchorOffset + 1, true // +1 for inclusive selection
+	}
 }
 
 func (e *Editor) changeDirectory(args []string) error {

@@ -29,6 +29,8 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("enter-search-mode", e.enterSearchModeCmd)
 	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode)
 	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode)
+	e.commandRegistry.Register("enter-visual-mode", e.enterVisualMode)
+	e.commandRegistry.Register("exit-visual-mode", e.exitVisualMode)
 	e.commandRegistry.Register("open-line-below", e.openLineBelow)
 	e.commandRegistry.Register("open-line-above", e.openLineAbove)
 
@@ -38,6 +40,11 @@ func (e *Editor) registerCommands() {
 
 	// Delete commands
 	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter)
+	
+	// Visual mode operations
+	e.commandRegistry.Register("delete-selection", e.deleteSelection)
+	e.commandRegistry.Register("yank-selection", e.yankSelection)
+	e.commandRegistry.Register("change-selection", e.changeSelection)
 
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd)

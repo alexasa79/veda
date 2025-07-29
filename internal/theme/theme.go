@@ -101,8 +101,8 @@ func NewTheme() *Theme {
 		},
 
 		Selection: StyleDef{
-			Foreground: "#000",
-			Background: "#ff0",
+			Foreground: "#f8f8f2",
+			Background: "#364462", // Muted blue-grey for better visibility
 		},
 
 		LineNumber: StyleDef{
