@@ -153,6 +153,35 @@ func (d DeleteOperator) GetType() string {
 	return "delete"
 }
 
+// ChangeOperator deletes text in a given range and enters insert mode
+type ChangeOperator struct{}
+
+func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, endChar int) error {
+	if editor.buffer == nil {
+		return nil
+	}
+	
+	// First, execute the delete operation (reuse delete logic)
+	deleteOp := DeleteOperator{}
+	if err := deleteOp.Execute(editor, startLine, startChar, endLine, endChar); err != nil {
+		return err
+	}
+	
+	// Then enter insert mode
+	editor.mode = commands.InsertMode
+	
+	// Start tracking insert mode changes
+	if editor.buffer != nil && editor.buffer.History != nil {
+		editor.buffer.History.StartInsertSession()
+	}
+	
+	return nil
+}
+
+func (c ChangeOperator) GetType() string {
+	return "change"
+}
+
 // getTextInRange extracts text from a range spanning multiple lines
 func (e *Editor) getTextInRange(startLine, startChar, endLine, endChar int) string {
 	var result string
