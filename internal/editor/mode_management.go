@@ -167,7 +167,10 @@ func (e *Editor) enterInsertMode(args []string) error {
 func (e *Editor) exitInsertMode(args []string) error {
 	// End the insert session
 	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.EndInsertSession()
+		entry := e.buffer.History.EndInsertSession()
+		if entry != nil {
+			e.setLastChange(entry)
+		}
 	}
 
 	e.mode = commands.NormalMode
@@ -175,12 +178,10 @@ func (e *Editor) exitInsertMode(args []string) error {
 	// Visual selection is handled in the editor struct, not buffer
 
 	// Adjust cursor position if needed (vim behavior)
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > 0 && e.buffer.CursorX >= len(line) {
-		e.buffer.CursorX = len(line) - 1
-		if e.buffer.CursorX < 0 {
-			e.buffer.CursorX = 0
-		}
+	// When exiting insert mode, vim moves cursor back one position
+	// unless we're at the beginning of the line
+	if e.buffer.CursorX > 0 {
+		e.buffer.CursorX--
 	}
 
 	// The setLastChange will be handled by the history system
