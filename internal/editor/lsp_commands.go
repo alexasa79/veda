@@ -330,8 +330,8 @@ func (e *Editor) jumpToLocation(location proxy.Location) error {
 		}
 	}
 
-	// Position the reference at ScrollOffset from the top of the screen
-	e.scrollToShowAtTop()
+	// Position the reference at the center of the screen
+	e.scrollToCenter()
 
 	return nil
 }

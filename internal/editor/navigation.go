@@ -82,8 +82,8 @@ func (e *Editor) goBack(args []string) error {
 		}
 	}
 	
-	// Position at ScrollOffset from the top for better visibility
-	e.scrollToShowAtTop()
+	// Position at the center of the screen for better visibility
+	e.scrollToCenter()
 	
 	return nil
 }
