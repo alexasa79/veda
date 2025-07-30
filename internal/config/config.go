@@ -17,6 +17,9 @@ type Config struct {
 	// Default indentation settings for new buffers
 	DefaultIndentType  IndentationType
 	DefaultIndentWidth int
+	
+	// Vertical ruler positions
+	VerticalRulers []int
 }
 
 func New() *Config {
@@ -25,5 +28,6 @@ func New() *Config {
 		Theme:             theme.NewTheme(),
 		DefaultIndentType: IndentSpaces,
 		DefaultIndentWidth: 4,
+		VerticalRulers:    []int{78, 80, 100, 120},
 	}
 }

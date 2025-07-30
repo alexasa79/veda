@@ -113,7 +113,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("== Configuration ==\n")
 	helpText.WriteString(":expandtab=true/false     - Use spaces instead of tabs\n")
 	helpText.WriteString(":tabstop=<n> or :ts=<n>  - Set tab width\n")
-	helpText.WriteString(":log=<level>              - Set log level (info, debug, trace)\n\n")
+	helpText.WriteString(":log=<level>              - Set log level (info, debug, trace)\n")
+	helpText.WriteString(":rulers=<n>,<n>,...       - Set vertical ruler positions (e.g. rulers=78,80,100,120)\n\n")
 	
 	helpText.WriteString("== Tips ==\n")
 	helpText.WriteString("- Press TAB in command mode for completion\n")
