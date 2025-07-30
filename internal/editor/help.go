@@ -85,6 +85,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":q!          - Force quit (same as :Q)\n")
 	helpText.WriteString(":Q or :Quit  - Quit the editor\n")
 	helpText.WriteString(":w or :write - Write current file\n")
+	helpText.WriteString(":wq          - Write file and close buffer\n")
 	helpText.WriteString(":e <path>    - Edit file or directory\n")
 	helpText.WriteString(":cd <path>   - Change working directory\n")
 	helpText.WriteString(":help        - Show this help\n")
