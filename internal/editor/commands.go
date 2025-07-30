@@ -40,6 +40,11 @@ func (e *Editor) registerCommands() {
 	// Insert mode commands
 	e.commandRegistry.Register("insert-newline", e.insertNewline)
 	e.commandRegistry.Register("backspace", e.backspace)
+	e.commandRegistry.Register("delete-character-insert", e.deleteCharacterInsert)
+	e.commandRegistry.Register("delete-word-forward", e.deleteWordForward)
+	e.commandRegistry.Register("delete-word-backward", e.deleteWordBackward)
+	e.commandRegistry.Register("word-forward-insert", e.wordForwardInsert)
+	e.commandRegistry.Register("word-backward-insert", e.wordBackwardInsert)
 
 	// Delete commands
 	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter)

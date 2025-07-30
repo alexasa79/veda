@@ -564,3 +564,311 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 
 	return nil
 }
+
+// deleteCharacterInsert deletes the character under the cursor in insert mode
+func (e *Editor) deleteCharacterInsert(args []string) error {
+	// If at EOF or empty buffer, nothing to delete
+	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+		return nil
+	}
+
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+
+	// Get current line to check bounds
+	line := e.buffer.CursorIterator.Line()
+
+	// If cursor is at or past the end of the line, check if we can delete newline
+	if e.buffer.CursorX >= len(line) {
+		// Check if there's a newline character at the end of this line
+		pos := e.getAbsolutePosition()
+		if pos < e.buffer.Rope.Length() && e.buffer.Rope.ByteAt(pos) == '\n' {
+			// We can delete the newline
+			deletedText := "\n"
+			entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
+
+			// Execute through history
+			if e.buffer.History != nil {
+				if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+					return err
+				}
+			} else {
+				// Fallback if history is not initialized
+				if err := entry.Execute(e.buffer); err != nil {
+					return err
+				}
+			}
+
+			// Recreate iterators at the same position
+			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+			// Update syntax highlighting
+			e.updateSyntaxHighlighting()
+			return nil
+		}
+		return nil
+	}
+
+	// Get the character being deleted
+	pos := e.getAbsolutePosition()
+	deletedChar := e.buffer.Rope.ByteAt(pos)
+	deletedText := string(deletedChar)
+
+	// Create history entry
+	entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
+
+	// Execute through history
+	if e.buffer.History != nil {
+		if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		}
+	} else {
+		// Fallback if history is not initialized
+		if err := entry.Execute(e.buffer); err != nil {
+			return err
+		}
+	}
+
+	// Recreate iterators at the same line
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+	// In insert mode, cursor position stays the same
+	// But ensure it's not past the end of the line
+	newLine := e.buffer.CursorIterator.Line()
+	if e.buffer.CursorX > len(newLine) {
+		e.buffer.CursorX = len(newLine)
+	}
+
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+
+	// Update completion filter if menu is visible
+	e.updateCompletionFilter()
+
+	return nil
+}
+
+// deleteWordForward deletes from cursor to end of current word (Alt+Delete)
+func (e *Editor) deleteWordForward(args []string) error {
+	// If at EOF or empty buffer, nothing to delete
+	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+		return nil
+	}
+
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	startX := e.buffer.CursorX
+
+	// Find the next word boundary
+	nextWord := FindNextWordBoundary(e.buffer, lineNum, startX)
+	
+	var endLine, endX int
+	if nextWord != nil {
+		endLine = nextWord.StartLine
+		endX = nextWord.StartChar
+	} else {
+		// No next word found, delete to end of current line
+		line := e.buffer.CursorIterator.Line()
+		endLine = lineNum
+		endX = len(line)
+	}
+
+	// Calculate text to delete
+	var textToDelete string
+	if endLine == lineNum {
+		// Same line deletion
+		line := e.buffer.CursorIterator.Line()
+		if startX < len(line) && endX <= len(line) && endX > startX {
+			textToDelete = line[startX:endX]
+		}
+	} else {
+		// Multi-line deletion (including newline)
+		line := e.buffer.CursorIterator.Line()
+		if startX < len(line) {
+			textToDelete = line[startX:] + "\n"
+		} else {
+			textToDelete = "\n"
+		}
+	}
+
+	if textToDelete == "" {
+		return nil
+	}
+
+	// Create history entry
+	entry := buffer.NewDeleteTextEntry(lineNum, startX, textToDelete)
+
+	// Execute through history
+	if e.buffer.History != nil {
+		if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		}
+	} else {
+		// Fallback if history is not initialized
+		if err := entry.Execute(e.buffer); err != nil {
+			return err
+		}
+	}
+
+	// Recreate iterators at the same position
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+
+	// Update completion filter if menu is visible
+	e.updateCompletionFilter()
+
+	return nil
+}
+
+// deleteWordBackward deletes from beginning of current word to cursor (Alt+Backspace)
+func (e *Editor) deleteWordBackward(args []string) error {
+	// If at beginning of buffer, nothing to delete
+	if e.buffer.CursorIterator.LineNumber() == 0 && e.buffer.CursorX == 0 {
+		return nil
+	}
+
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	endX := e.buffer.CursorX
+
+	// Find the previous word boundary
+	// We need to move back one character first, then find word start
+	tempLine := lineNum
+	tempX := endX - 1
+	
+	if tempX < 0 {
+		// Move to previous line
+		if lineNum > 0 {
+			tempLine = lineNum - 1
+			tempIter := buffer.NewBufferIteratorAtLine(e.buffer, tempLine)
+			tempX = len(tempIter.Line())
+		} else {
+			return nil
+		}
+	}
+
+	// Find the start of the current/previous word
+	var startLine, startX int
+	
+	// Use a temporary buffer position to find word start
+	tempIter := buffer.NewBufferIteratorAtLine(e.buffer, tempLine)
+	currentLine := tempIter.Line()
+	
+	// If we're in a word, find the start of this word
+	if tempX < len(currentLine) && isWordChar(rune(currentLine[tempX])) {
+		// Find start of current word
+		startX = tempX
+		for startX > 0 && isWordChar(rune(currentLine[startX-1])) {
+			startX--
+		}
+		startLine = tempLine
+	} else {
+		// We're not in a word, find the previous word
+		// Skip non-word characters backward
+		for tempX >= 0 && (tempX >= len(currentLine) || !isWordChar(rune(currentLine[tempX]))) {
+			tempX--
+			if tempX < 0 {
+				// Need to go to previous line
+				if tempLine > 0 {
+					tempLine--
+					tempIter = buffer.NewBufferIteratorAtLine(e.buffer, tempLine)
+					currentLine = tempIter.Line()
+					tempX = len(currentLine) - 1
+				} else {
+					// At beginning of buffer
+					startLine = 0
+					startX = 0
+					break
+				}
+			}
+		}
+		
+		if tempX >= 0 {
+			// Now find the start of this word
+			startX = tempX
+			for startX > 0 && isWordChar(rune(currentLine[startX-1])) {
+				startX--
+			}
+			startLine = tempLine
+		}
+	}
+
+	// Calculate text to delete
+	var textToDelete string
+	var deleteLineNum, deleteX int
+	
+	if startLine == lineNum {
+		// Same line deletion
+		line := e.buffer.CursorIterator.Line()
+		if startX < endX && endX <= len(line) {
+			textToDelete = line[startX:endX]
+			deleteLineNum = lineNum
+			deleteX = startX
+		}
+	} else {
+		// Multi-line deletion
+		// Delete from start position on previous line to cursor
+		prevIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+		prevLine := prevIter.Line()
+		
+		textToDelete = prevLine[startX:] + "\n"
+		if endX > 0 {
+			line := e.buffer.CursorIterator.Line()
+			textToDelete += line[:endX]
+		}
+		deleteLineNum = startLine
+		deleteX = startX
+	}
+
+	if textToDelete == "" {
+		return nil
+	}
+
+	// Create history entry
+	entry := buffer.NewDeleteTextEntry(deleteLineNum, deleteX, textToDelete)
+
+	// Execute through history
+	if e.buffer.History != nil {
+		if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		}
+	} else {
+		// Fallback if history is not initialized
+		if err := entry.Execute(e.buffer); err != nil {
+			return err
+		}
+	}
+
+	// Update cursor position to where deletion started
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.buffer.CursorX = startX
+
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+
+	// Update completion filter if menu is visible
+	e.updateCompletionFilter()
+
+	return nil
+}
+
+// wordForwardInsert moves cursor forward by one word in insert mode
+func (e *Editor) wordForwardInsert(args []string) error {
+	// Use the same logic as normal mode
+	return e.wordForward(args)
+}
+
+// wordBackwardInsert moves cursor backward by one word in insert mode
+func (e *Editor) wordBackwardInsert(args []string) error {
+	// Use the same logic as normal mode
+	return e.wordBackward(args)
+}

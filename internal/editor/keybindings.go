@@ -53,6 +53,9 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
 	e.registerKeyBinding(commands.InsertMode, "backspace", "backspace")
 	e.registerKeyBinding(commands.InsertMode, "escape", "exit-insert-mode")
+	e.registerKeyBinding(commands.InsertMode, "delete", "delete-character-insert")
+	e.registerKeyBinding(commands.InsertMode, "alt+delete", "delete-word-forward")
+	e.registerKeyBinding(commands.InsertMode, "alt+backspace", "delete-word-backward")
 
 	// Cursor movement in insert mode
 	e.registerKeyBinding(commands.InsertMode, "up", "up-insert")
@@ -61,6 +64,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "right", "right-insert")
 	e.registerKeyBinding(commands.InsertMode, "home", "beginning-of-line-insert")
 	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
+	e.registerKeyBinding(commands.InsertMode, "alt+left", "word-backward-insert")
+	e.registerKeyBinding(commands.InsertMode, "alt+right", "word-forward-insert")
 	
 	// Completion
 	e.registerKeyBinding(commands.InsertMode, "ctrl+space", "show-completions")

@@ -100,6 +100,29 @@ var keyCodes = []keyCode{
 	{[]byte{'\x1a'}, events.KeyCtrlZ, events.ModNone},
 	{[]byte{'\x00'}, events.KeyCtrlSpace, events.ModNone},
 
+	// Alt+arrow keys (must be before ESC)
+	// Emacs-style keybindings (ESC b for back word, ESC f for forward word)
+	{[]byte{'\x1b', 'b'}, events.KeyLeft, events.ModAlt},   // Alt+Left (word backward)
+	{[]byte{'\x1b', 'f'}, events.KeyRight, events.ModAlt},  // Alt+Right (word forward)
+	
+	// These use ESC followed by the arrow sequence
+	{[]byte{'\x1b', '\x1b', '[', 'C'}, events.KeyRight, events.ModAlt},  // Alt+Right
+	{[]byte{'\x1b', '\x1b', '[', 'D'}, events.KeyLeft, events.ModAlt},   // Alt+Left
+	{[]byte{'\x1b', '\x1b', '[', 'A'}, events.KeyUp, events.ModAlt},     // Alt+Up
+	{[]byte{'\x1b', '\x1b', '[', 'B'}, events.KeyDown, events.ModAlt},   // Alt+Down
+	// Some terminals send different sequences for Alt+arrow
+	{[]byte{'\x1b', '[', '1', ';', '3', 'C'}, events.KeyRight, events.ModAlt},  // Alt+Right
+	{[]byte{'\x1b', '[', '1', ';', '3', 'D'}, events.KeyLeft, events.ModAlt},   // Alt+Left
+	{[]byte{'\x1b', '[', '1', ';', '3', 'A'}, events.KeyUp, events.ModAlt},     // Alt+Up
+	{[]byte{'\x1b', '[', '1', ';', '3', 'B'}, events.KeyDown, events.ModAlt},   // Alt+Down
+
+	// Alt+Delete and Alt+Backspace
+	{[]byte{'\x1b', 'd'}, events.KeyDelete, events.ModAlt},                     // Alt+d (Emacs-style delete word forward)
+	{[]byte{'\x1b', '\x1b', '[', '3', '~'}, events.KeyDelete, events.ModAlt},   // Alt+Delete
+	{[]byte{'\x1b', '[', '3', ';', '3', '~'}, events.KeyDelete, events.ModAlt}, // Alt+Delete (alternative)
+	{[]byte{'\x1b', '\x7f'}, events.KeyBackspace, events.ModAlt},               // Alt+Backspace
+	{[]byte{'\x1b', '\x08'}, events.KeyBackspace, events.ModAlt},               // Alt+Backspace (alternative)
+
 	// ESC key - must be last so escape sequences are checked first
 	{[]byte{'\x1b'}, events.KeyEscape, events.ModNone},
 }
@@ -158,6 +181,17 @@ func (t *Terminal) readWithTimeout(buf []byte, timeout time.Duration) (int, erro
 // parseInput processes the input buffer and generates events
 func (t *Terminal) parseInput(buf *[]byte) {
 	for len(*buf) > 0 {
+		// Special handling for ESC that might be part of Alt+key
+		if len(*buf) > 0 && (*buf)[0] == '\x1b' && len(*buf) > 1 {
+			// Try to match Alt+key sequences by checking if ESC + remaining buffer matches a key
+			altBuf := (*buf)[1:]
+			matched, consumedBytes := t.matchKeyCodeWithAlt(&altBuf)
+			if matched {
+				*buf = (*buf)[1+consumedBytes:] // Skip ESC + consumed bytes
+				continue
+			}
+		}
+
 		// Try to match escape sequences first
 		matched, needMoreData := t.matchKeyCode(buf)
 		if matched {
@@ -191,6 +225,34 @@ func (t *Terminal) parseInput(buf *[]byte) {
 		t.inputChan <- event
 		*buf = (*buf)[size:]
 	}
+}
+
+// matchKeyCodeWithAlt tries to match the buffer against known key codes and sends Alt version
+// Returns true if matched
+func (t *Terminal) matchKeyCodeWithAlt(buf *[]byte) (bool, int) {
+	for _, kc := range keyCodes {
+		if len(*buf) >= len(kc.seq) && bytesEqual((*buf)[:len(kc.seq)], kc.seq) {
+			// Found a match - send it with Alt modifier
+			var event *events.KeyEvent
+			
+			// Skip if it's already an Alt combination or ESC key
+			if kc.mod&events.ModAlt != 0 || kc.key == events.KeyEscape {
+				return false, 0
+			}
+			
+			// Special handling for space key
+			if kc.key == events.KeySpace {
+				event = events.NewKeyEvent(kc.key, ' ', kc.mod|events.ModAlt)
+			} else {
+				event = events.NewKeyEvent(kc.key, 0, kc.mod|events.ModAlt)
+			}
+			
+			t.inputChan <- event
+			*buf = (*buf)[len(kc.seq):]
+			return true, len(kc.seq)
+		}
+	}
+	return false, 0
 }
 
 // matchKeyCode tries to match the buffer against known key codes
