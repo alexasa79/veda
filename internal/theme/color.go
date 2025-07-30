@@ -58,6 +58,12 @@ var colorNotationRegex = regexp.MustCompile(`^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0
 func ParseColorNotation(notation string) (ParsedStyle, error) {
 	result := ParsedStyle{
 		FgColor: ui.ColorDefault,
+		BgColor: ui.ColorDefault,
+	}
+
+	// Handle empty string as default color
+	if notation == "" {
+		return result, nil
 	}
 
 	// Parse hex notation
