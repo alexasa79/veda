@@ -112,6 +112,13 @@ type Editor struct {
 	visualAnchorLine   int                  // Line number where visual selection started
 	visualAnchorX      int                  // X position where visual selection started
 	visualAnchorOffset int                  // Byte offset where visual selection started
+	
+	// Flash highlight state
+	flashStartLine     int                  // Start line of flashed region
+	flashStartChar     int                  // Start char of flashed region
+	flashEndLine       int                  // End line of flashed region
+	flashEndChar       int                  // End char of flashed region
+	flashEndTime       int64                // When to stop flashing (unix millis)
 
 	// References tracking
 	currentReferencesBuffer *ReferencesBuffer            // Current references buffer for g n/g p navigation
@@ -187,6 +194,11 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		visualAnchorLine:   -1,  // -1 means no selection
 		visualAnchorX:      -1,
 		visualAnchorOffset: -1,
+		flashStartLine:     -1,  // -1 means no flash
+		flashStartChar:     -1,
+		flashEndLine:       -1,
+		flashEndChar:       -1,
+		flashEndTime:       0,
 		referencesBuffers:  make(map[string]*ReferencesBuffer),
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
 		workingDirectory: ".", // Default to current directory
@@ -293,6 +305,9 @@ func (e *Editor) Run() {
 // render performs the complete screen rendering
 func (e *Editor) render() {
 	t0 := e.perfTracker.Start()
+	
+	// Clear expired flash highlight
+	e.clearFlashHighlight()
 
 	// Render base editor
 	e.drawEditor()
@@ -825,6 +840,9 @@ func (e *Editor) yankCurrentLine(args []string) error {
 	}
 
 	LL.Debug("Yanked line %d (%d characters) to clipboard", lineNum + 1, len(textToYank))
+	
+	// Flash the yanked line
+	e.setFlashHighlight(lineNum, 0, lineNum, len(line))
 
 	return nil
 }
@@ -1231,3 +1249,52 @@ func (e *Editor) handlePendingPath() {
 		e.asyncEvents <- events.NewCustomEvent("open-file", path)
 	}
 }
+
+// setFlashHighlight sets a temporary highlight for a text range
+func (e *Editor) setFlashHighlight(startLine, startChar, endLine, endChar int) {
+	e.flashStartLine = startLine
+	e.flashStartChar = startChar
+	e.flashEndLine = endLine
+	e.flashEndChar = endChar
+	e.flashEndTime = time.Now().UnixMilli() + 500 // Flash for 500ms
+}
+
+// clearFlashHighlight clears the flash highlight if it has expired
+func (e *Editor) clearFlashHighlight() {
+	if e.flashEndTime > 0 && time.Now().UnixMilli() > e.flashEndTime {
+		e.flashStartLine = -1
+		e.flashStartChar = -1
+		e.flashEndLine = -1
+		e.flashEndChar = -1
+		e.flashEndTime = 0
+	}
+}
+
+// isInFlashRange checks if a position is within the flash highlight range
+func (e *Editor) isInFlashRange(line, charPos int) bool {
+	if e.flashStartLine == -1 || e.flashEndTime == 0 {
+		return false
+	}
+	
+	// Check if flash has expired
+	if time.Now().UnixMilli() > e.flashEndTime {
+		return false
+	}
+	
+	// Single line flash
+	if e.flashStartLine == e.flashEndLine {
+		return line == e.flashStartLine && charPos >= e.flashStartChar && charPos < e.flashEndChar
+	}
+	
+	// Multi-line flash
+	if line == e.flashStartLine {
+		return charPos >= e.flashStartChar
+	} else if line == e.flashEndLine {
+		return charPos < e.flashEndChar
+	} else if line > e.flashStartLine && line < e.flashEndLine {
+		return true
+	}
+	
+	return false
+}
+

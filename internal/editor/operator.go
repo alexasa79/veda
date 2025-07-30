@@ -2,6 +2,7 @@ package editor
 
 import (
 	"veda/internal/buffer"
+	"veda/internal/clipboard"
 	"veda/internal/commands"
 )
 
@@ -180,6 +181,50 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 
 func (c ChangeOperator) GetType() string {
 	return "change"
+}
+
+// YankOperator yanks (copies) text in a given range to the system clipboard
+type YankOperator struct{}
+
+func (y YankOperator) Execute(editor *Editor, startLine, startChar, endLine, endChar int) error {
+	if editor.buffer == nil {
+		return nil
+	}
+	
+	// Get the text to yank
+	var textToYank string
+	
+	if startLine == endLine {
+		// Single line yank
+		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		if !iter.IsEOF() {
+			line := iter.Line()
+			if startChar < len(line) && endChar <= len(line) {
+				textToYank = line[startChar:endChar]
+			}
+		}
+	} else {
+		// Multi-line yank
+		textToYank = editor.getTextInRange(startLine, startChar, endLine, endChar)
+	}
+	
+	// Copy to system clipboard
+	if err := clipboard.Copy(textToYank); err != nil {
+		LL.Error("Failed to copy to clipboard: %v", err)
+		return err
+	}
+	
+	LL.Debug("Yanked %d characters to clipboard", len(textToYank))
+	
+	// Set flash highlight to show what was yanked
+	editor.setFlashHighlight(startLine, startChar, endLine, endChar)
+	
+	// Yank doesn't move the cursor
+	return nil
+}
+
+func (y YankOperator) GetType() string {
+	return "yank"
 }
 
 // getTextInRange extracts text from a range spanning multiple lines

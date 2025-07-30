@@ -13,9 +13,10 @@ import (
 
 // drawText draws text with optional search highlighting and selection
 // Returns the number of screen columns consumed
-func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int, searchMatches []int) int {
+func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int, searchMatches []int, lineNum int) int {
 	searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
+	flashStyle := e.config.Theme.GetStyle(e.config.Theme.FlashHighlight)
 	screenX := x
 	charPos := textOffset
 
@@ -27,9 +28,25 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		useSearchStyle := e.isInSearchMatch(charPos, searchMatches)
 		// Check if this character is part of the selection
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd
+		// Check if this character is part of the flash highlight
+		var inFlash bool
+		if lineNum >= 0 {
+			// Only check flash highlight for actual buffer content
+			// Calculate the character position within the line
+			// textOffset is the absolute position where this segment starts
+			// charPos is the current absolute position
+			// We need to find the position within the line
+			lineStartIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+			lineStartPos := lineStartIter.Position()
+			charPosInLine := charPos - lineStartPos
+			inFlash = e.isInFlashRange(lineNum, charPosInLine)
+		}
 
 		currentStyle := style
-		if inSelection {
+		if inFlash {
+			// Flash takes highest precedence
+			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
+		} else if inSelection {
 			// Selection takes precedence over search
 			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
 		} else if useSearchStyle {
@@ -136,7 +153,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 
 	// If no highlighter is set up, just draw normally
 	if e.highlighter == nil || !e.buffer.HasFile() {
-		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches)
+		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches, lineIndex)
 		return
 	}
 
@@ -146,7 +163,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
-		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches)
+		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches, lineIndex)
 		return
 	}
 
@@ -162,7 +179,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 				endPos = len(line)
 			}
 			prefix := line[lastEnd:endPos]
-			x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches)
+			x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches, lineIndex)
 		}
 
 		// Draw the token with its style
@@ -182,7 +199,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 				tokenStyle = tokenStyle.Background(lineBg)
 			}
 
-			x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches)
+			x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches, lineIndex)
 			lastEnd = endPos
 		}
 	}
@@ -190,7 +207,7 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 	// Draw any remaining text with normal style
 	if lastEnd < len(line) {
 		suffix := line[lastEnd:]
-		e.drawText(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches)
+		e.drawText(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches, lineIndex)
 	}
 }
 
@@ -224,7 +241,7 @@ func (e *Editor) drawContext() {
 			// Create a new style with context background
 			_, contextBg, _ := contextBgStyle.Decompose()
 			lineNumWithContextBg := lineNumberStyle.Background(contextBg)
-			e.drawText(0, i, lineNumWithContextBg, lineNumStr, 0, nil)
+			e.drawText(0, i, lineNumWithContextBg, lineNumStr, 0, nil, lineNum)
 
 			// Draw separator with context background
 			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumWithContextBg)
@@ -266,7 +283,7 @@ func (e *Editor) drawEditor() {
 		if i == 0 && iter.IsEOF() && e.buffer.Rope.Length() == 0 {
 			// Draw line number 1 for empty buffer
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, 1)
-			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil)
+			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, 0)
 
 			// Draw separator after line number
 			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
@@ -277,7 +294,7 @@ func (e *Editor) drawEditor() {
 
 			// Draw line number
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
-			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil)
+			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, lineIndex)
 
 			// Draw separator after line number
 			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
@@ -334,16 +351,16 @@ func (e *Editor) drawStatusBar() {
 		} else if e.mode == commands.VisualMode {
 			modeText = " VISUAL "
 		}
-		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil)
-		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil) // Space after mode
+		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil, -1)
+		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1) // Space after mode
 
 		// Show filename and LSP indicator
 		filename := e.buffer.FileName()
-		x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil)
+		x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil, -1)
 
 		// Add LSP indicator if LSP is available
 		if e.buffer.HasLSP {
-			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1)
 		}
 
 		// Add connection status or spinner if async operations are in progress
@@ -352,14 +369,14 @@ func (e *Editor) drawStatusBar() {
 			spinnerStyle := statusBarStyle
 			spinnerStyle.Fg, spinnerStyle.Bg = spinnerStyle.Bg, spinnerStyle.Fg
 			
-			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil) // Spacing
+			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1) // Spacing
 			
 			if e.connectionStatus != "" {
 				statusText := fmt.Sprintf(" %s %s ", e.getSpinnerChar(), e.connectionStatus)
-				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil)
+				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil, -1)
 			} else {
 				statusText := fmt.Sprintf(" %s ", e.getSpinnerChar())
-				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil)
+				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil, -1)
 			}
 		}
 
@@ -422,15 +439,15 @@ func (e *Editor) drawStatusBar() {
 		if rightX > x { // Only draw if there's space
 			// Draw each part separately with appropriate styles
 			x = rightX
-			x += e.drawText(x, statusBarY, statusBarStyle, indentInfo+"  ", 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, lineIndentDisplay+"  ", 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, indentInfo+"  ", 0, nil, -1)
+			x += e.drawText(x, statusBarY, statusBarStyle, lineIndentDisplay+"  ", 0, nil, -1)
 			
 			// Line info with mixed styles
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", currentLineNum), 0, nil)
-			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", totalLines), 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(":%d", visualCol), 0, nil)
-			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", lineLength), 0, nil)
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil)
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", currentLineNum), 0, nil, -1)
+			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", totalLines), 0, nil, -1)
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(":%d", visualCol), 0, nil, -1)
+			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", lineLength), 0, nil, -1)
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil, -1)
 		}
 	}
 }
@@ -528,7 +545,7 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 		if token.Start > lastEnd {
 			beforeText := text[lastEnd:token.Start]
 			style := e.applyBoldIfInRange(baseStyle, lastEnd, token.Start, activeStart, activeEnd)
-			x += e.drawText(x, y, style, beforeText, 0, nil)
+			x += e.drawText(x, y, style, beforeText, 0, nil, -1)
 		}
 
 		// Draw token
@@ -538,7 +555,7 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 			tokenStyle = tokenStyle.Background(baseStyle.Bg)
 			tokenStyle = e.applyBoldIfInRange(tokenStyle, token.Start, endPos, activeStart, activeEnd)
-			x += e.drawText(x, y, tokenStyle, tokenText, 0, nil)
+			x += e.drawText(x, y, tokenStyle, tokenText, 0, nil, -1)
 			lastEnd = endPos
 		}
 	}
@@ -547,14 +564,14 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 	if lastEnd < len(text) {
 		remainingText := text[lastEnd:]
 		style := e.applyBoldIfInRange(baseStyle, lastEnd, len(text), activeStart, activeEnd)
-		e.drawText(x, y, style, remainingText, 0, nil)
+		e.drawText(x, y, style, remainingText, 0, nil, -1)
 	}
 }
 
 // drawSignatureWithBold draws the signature with bold active parameter but no syntax highlighting
 func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activeStart, activeEnd int) {
 	if activeStart < 0 || activeEnd <= activeStart {
-		e.drawText(0, y, style, text, 0, nil)
+		e.drawText(0, y, style, text, 0, nil, -1)
 		return
 	}
 
@@ -562,19 +579,19 @@ func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activ
 
 	// Before active parameter
 	if activeStart > 0 {
-		x += e.drawText(x, y, style, text[:activeStart], 0, nil)
+		x += e.drawText(x, y, style, text[:activeStart], 0, nil, -1)
 	}
 
 	// Active parameter (bold)
 	if activeEnd <= len(text) {
 		boldStyle := style
 		boldStyle.Attrs |= ui.AttrBold
-		x += e.drawText(x, y, boldStyle, text[activeStart:activeEnd], 0, nil)
+		x += e.drawText(x, y, boldStyle, text[activeStart:activeEnd], 0, nil, -1)
 	}
 
 	// After active parameter
 	if activeEnd < len(text) {
-		e.drawText(x, y, style, text[activeEnd:], 0, nil)
+		e.drawText(x, y, style, text[activeEnd:], 0, nil, -1)
 	}
 }
 

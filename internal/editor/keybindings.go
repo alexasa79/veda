@@ -83,7 +83,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "U", "redo")
 
 	// Yank operations
-	e.registerKeyBinding(commands.NormalMode, "y y", "yank-line")
+	e.registerKeyBinding(commands.NormalMode, "y", "start-yank")
 
 	// Repeat last change
 	e.registerKeyBinding(commands.NormalMode, ".", "repeat-last-change")

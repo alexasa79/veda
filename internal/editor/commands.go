@@ -88,6 +88,7 @@ func (e *Editor) registerCommands() {
 	
 	// Yank commands
 	e.commandRegistry.Register("yank-line", e.yankCurrentLine)
+	e.commandRegistry.Register("start-yank", e.startYankOperation)
 	
 	// Repeat command
 	e.commandRegistry.Register("repeat-last-change", e.repeatLastChange)

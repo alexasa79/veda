@@ -41,11 +41,11 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("x            - Delete character under cursor\n")
 	helpText.WriteString("d<motion>    - Delete with motion (e.g., dw = delete word, dd = delete line)\n")
 	helpText.WriteString("c<motion>    - Change with motion (e.g., cw = change word, cc = change line)\n")
+	helpText.WriteString("y<motion>    - Yank with motion (e.g., yw = yank word, yy = yank line)\n")
 	helpText.WriteString("u            - Undo last change\n")
 	helpText.WriteString("U            - Redo undone change\n")
 	helpText.WriteString(".            - Repeat last change\n")
 	helpText.WriteString("v            - Enter visual mode for text selection\n")
-	helpText.WriteString("yy           - Yank (copy) current line to clipboard\n")
 	helpText.WriteString("J            - Join current line with next line\n\n")
 	
 	helpText.WriteString("= Search =\n")
