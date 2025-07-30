@@ -56,6 +56,9 @@ func (e *Editor) openLineBelow(args []string) error {
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
+	
+	// Ensure the new line is visible
+	e.scroll()
 
 	return nil
 }

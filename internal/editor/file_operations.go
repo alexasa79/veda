@@ -214,8 +214,8 @@ func (e *Editor) ShowFuzzyListWidget() {
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
 			e.openFile(fullPath)
 		}
-		// Close channel
-		close(contentUpdateChan)
+		// Don't close contentUpdateChan - the sending goroutine might still be running
+		// The channel will be garbage collected when no longer referenced
 	}()
 }
 
@@ -435,11 +435,8 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Wait for result in a goroutine
 	go func() {
-		defer func() {
-			// Close the channels when done
-			close(symbolResponseChan)
-			close(contentUpdateChan)
-		}()
+		// Don't close any channels - the sending goroutines might still be running
+		// The channels will be garbage collected when no longer referenced
 
 		selection := <-resultChan
 
@@ -610,11 +607,8 @@ func (e *Editor) showDocumentSymbolsList() {
 
 	// Wait for result in a goroutine
 	go func() {
-		defer func() {
-			// Close the channels when done
-			close(contentUpdateChan)
-			close(symbolResponseChan)
-		}()
+		// Don't close any channels - the sending goroutines might still be running
+		// The channels will be garbage collected when no longer referenced
 
 		selection := <-resultChan
 
