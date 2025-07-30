@@ -286,6 +286,62 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
+    def get_completions(self, file_path: str, line: int, character: int) -> Optional[Dict[str, Any]]:
+        """Get completion suggestions at the given position."""
+        # Determine language from file extension
+        language = self.get_language_for_file(file_path)
+        if not language:
+            logger.error(f"No language server configured for file: {file_path}")
+            return None
+            
+        # Ensure the server is started
+        if language not in self.servers:
+            logger.info(f"LSP server for {language} is not running, starting it...")
+            if not self.start_server(language):
+                logger.error(f"Failed to start LSP server for {language}")
+                return None
+            
+        # Ensure the file is open in the LSP server
+        self._open_file(language, file_path)
+        
+        # Prepare the completion request
+        server = self.servers[language]
+        server['request_id'] += 1
+        request_id = server['request_id']
+        # Convert to absolute path before creating URI
+        abs_path = Path(file_path).absolute()
+        file_uri = abs_path.as_uri()
+        
+        request = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri
+                },
+                "position": {
+                    "line": line,
+                    "character": character
+                },
+                "context": {
+                    "triggerKind": 1  # Invoked manually
+                }
+            }
+        }
+        
+        logger.info(f"Sending textDocument/completion request for {file_uri} at {line}:{character}")
+        self._send_message(language, request)
+        
+        # Wait for the response with our specific request ID
+        response = self._wait_for_response(language, request_id)
+        logger.info(f"Received completion response: {response}")
+        if response and "result" in response:
+            return response["result"]
+        elif response and "error" in response:
+            logger.error(f"LSP error: {response['error']}")
+        return None
+    
     def get_references(self, file_path: str, line: int, character: int, include_declaration: bool = True) -> Optional[List[Dict[str, Any]]]:
         """Get all references to a symbol at the given position."""
         # Determine language from file extension
@@ -740,6 +796,7 @@ class VedaProxy:
             'get_signature_help': self.get_signature_help,
             'list_project_symbols': self.list_project_symbols,
             'find_references': self.find_references,
+            'get_completions': self.get_completions,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -1118,6 +1175,17 @@ class VedaProxy:
             return {'success': False, 'error': 'No references found'}
         except Exception as e:
             logger.error(f"Error in find_references: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_completions(self, file_path: str, line: int, character: int) -> Dict[str, Any]:
+        """Get completion suggestions at the given position."""
+        try:
+            result = self.lsp.get_completions(file_path, line, character)
+            if result is not None:
+                return {'success': True, 'result': result}
+            return {'success': False, 'error': 'No completions found'}
+        except Exception as e:
+            logger.error(f"Error in get_completions: {e}")
             return {'success': False, 'error': str(e)}
 
 

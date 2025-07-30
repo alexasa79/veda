@@ -304,6 +304,16 @@ func (pm *ProxyManager) FindReferences(filePath string, line int, character int,
 	return client.FindReferences(actualPath, line, character, includeDeclaration)
 }
 
+// GetCompletions gets completion suggestions at the given position (supports HOST:PATH format)
+func (pm *ProxyManager) GetCompletions(filePath string, line int, character int) (interface{}, error) {
+	client, actualPath, err := pm.getClient(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.GetCompletions(actualPath, line, character)
+}
+
 // GetDocumentSymbols gets document symbols for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 	client, actualPath, err := pm.getClient(filePath)
@@ -1399,6 +1409,56 @@ func (c *Client) WriteFile(path string, content string) error {
 	}
 	
 	return fmt.Errorf("failed to read proxy response")
+}
+
+// GetCompletions gets completion suggestions at the given position
+func (c *Client) GetCompletions(filePath string, line int, character int) (interface{}, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_completions",
+		Params: map[string]interface{}{
+			"file_path": filePath,
+			"line":      line,
+			"character": character,
+		},
+		ID: c.requestID,
+	}
+	
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Log the request for debugging
+	LL.Trace("GetCompletions request: %s", string(requestBytes))
+	
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+	
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+		
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+		
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if result, ok := response.Result["result"]; ok {
+				return result, nil
+			}
+		}
+		
+		return nil, fmt.Errorf("no completions found")
+	}
+	
+	return nil, fmt.Errorf("failed to read proxy response")
 }
 
 func (c *Client) Close() error {
