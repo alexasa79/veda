@@ -84,6 +84,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("= Insert Mode =\n")
 	helpText.WriteString("ESC          - Exit insert mode\n")
 	helpText.WriteString("Enter        - Insert newline\n")
+	helpText.WriteString("Tab          - Insert indentation (spaces or tab based on settings)\n")
 	helpText.WriteString("Backspace    - Delete character before cursor\n")
 	helpText.WriteString("Delete       - Delete character under cursor\n")
 	helpText.WriteString("↑/↓/←/→      - Move cursor\n")

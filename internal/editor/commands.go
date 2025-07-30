@@ -46,6 +46,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("delete-word-backward", e.deleteWordBackward)
 	e.commandRegistry.Register("word-forward-insert", e.wordForwardInsert)
 	e.commandRegistry.Register("word-backward-insert", e.wordBackwardInsert)
+	e.commandRegistry.Register("insert-tab", e.insertTab)
 
 	// Delete commands
 	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter)

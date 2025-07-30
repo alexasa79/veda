@@ -57,6 +57,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "delete", "delete-character-insert")
 	e.registerKeyBinding(commands.InsertMode, "alt+delete", "delete-word-forward")
 	e.registerKeyBinding(commands.InsertMode, "alt+backspace", "delete-word-backward")
+	e.registerKeyBinding(commands.InsertMode, "tab", "insert-tab")
 
 	// Cursor movement in insert mode
 	e.registerKeyBinding(commands.InsertMode, "up", "up-insert")
@@ -102,8 +103,6 @@ func (e *Editor) setupDefaultBindings() {
 	
 	// Change operations
 	e.registerKeyBinding(commands.NormalMode, "c", "start-change")
-	e.registerKeyBinding(commands.NormalMode, "ctrl+shift+space", "show-signature")
-	e.registerKeyBinding(commands.InsertMode, "ctrl+shift+space", "show-signature")
 
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
