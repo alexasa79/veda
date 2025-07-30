@@ -149,6 +149,19 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 		} else {
 			LL.Warning("Invalid log level: %s (use: info, debug, trace)", value)
 		}
+	case "rulers":
+		// Set vertical ruler positions (comma-separated list)
+		rulers := []int{}
+		if value != "" {
+			parts := strings.Split(value, ",")
+			for _, part := range parts {
+				if pos, err := strconv.Atoi(strings.TrimSpace(part)); err == nil && pos > 0 {
+					rulers = append(rulers, pos)
+				}
+			}
+		}
+		e.config.VerticalRulers = rulers
+		LL.Info("Vertical rulers set to: %v", rulers)
 	}
 }
 

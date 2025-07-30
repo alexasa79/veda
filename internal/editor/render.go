@@ -20,6 +20,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 	flashStyle := e.config.Theme.GetStyle(e.config.Theme.FlashHighlight)
 	whitespaceStyle := e.whitespaceStyle.style
+	rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 	screenX := x
 	charPos := textOffset
 
@@ -48,6 +49,16 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		}
 
 		currentStyle := style
+		
+		// Check if this column is a ruler position
+		isRulerColumn := false
+		for _, rulerPos := range e.config.VerticalRulers {
+			if screenX == rulerPos {
+				isRulerColumn = true
+				break
+			}
+		}
+		
 		if inFlash {
 			// Flash takes highest precedence
 			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
@@ -57,6 +68,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
 			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
+		} else if isRulerColumn {
+			// Apply ruler style (lower precedence than search/selection/flash)
+			currentStyle = theme.ApplyBackgroundStyle(style, rulerStyle)
 		}
 
 		// Check if we should visualize this character
@@ -181,8 +195,17 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		// Fill rest of line if we have background
 		if hasBg {
 			width, _ := e.screen.Size()
+			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 			for i := x; i < width; i++ {
-				e.screen.SetContent(i, screenY, ' ', nil, normalStyle)
+				fillStyle := normalStyle
+				// Check if this column is a ruler position
+				for _, rulerPos := range e.config.VerticalRulers {
+					if i == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
+				}
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 			}
 		}
 		return
@@ -198,8 +221,17 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		// Fill rest of line if we have background
 		if hasBg {
 			width, _ := e.screen.Size()
+			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 			for i := x; i < width; i++ {
-				e.screen.SetContent(i, screenY, ' ', nil, normalStyle)
+				fillStyle := normalStyle
+				// Check if this column is a ruler position
+				for _, rulerPos := range e.config.VerticalRulers {
+					if i == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
+				}
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 			}
 		}
 		return
@@ -251,8 +283,17 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	// Fill rest of line if we have background
 	if hasBg {
 		width, _ := e.screen.Size()
+		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		for i := x; i < width; i++ {
-			e.screen.SetContent(i, screenY, ' ', nil, normalStyle)
+			fillStyle := normalStyle
+			// Check if this column is a ruler position
+			for _, rulerPos := range e.config.VerticalRulers {
+				if i == rulerPos {
+					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+					break
+				}
+			}
+			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 		}
 	}
 }
@@ -322,8 +363,17 @@ func (e *Editor) drawEditor() {
 	for i := 0; i < visibleHeight; i++ {
 		screenY := contentStartY + i
 		// First, fill the entire line with the normal background
+		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		for x := 0; x < width; x++ {
-			e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
+			fillStyle := normalStyle
+			// Check if this column is a ruler position
+			for _, rulerPos := range e.config.VerticalRulers {
+				if x == rulerPos {
+					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+					break
+				}
+			}
+			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
 		}
 
 		// Special case: Empty buffer should still show line 1
