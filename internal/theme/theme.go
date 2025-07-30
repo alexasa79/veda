@@ -19,7 +19,7 @@ type Theme struct {
 	FuzzyListBorder    StyleDef
 	FuzzyListContent   StyleDef
 	FuzzyListSelection StyleDef
-	
+
 	// Completion menu colors
 	CompletionMenu         StyleDef
 	CompletionMenuSelected StyleDef
@@ -161,20 +161,20 @@ func NewTheme() *Theme {
 		},
 
 		FlashHighlight: StyleDef{
-			Foreground: "#000000",
-			Background: "#9c9c9c",
+			Foreground: "#f8f8f2",
+			Background: "#364462", // Muted blue-grey for better visibility
 		},
-		
+
 		Whitespace: StyleDef{
-			Foreground: "#75715e", // Dim gray, same as comments/line numbers
+			Foreground: "#373635", // Dim gray, same as comments/line numbers
 			Background: "",       // No background change
 		},
-		
+
 		CompletionMenu: StyleDef{
 			Foreground: "#f8f8f2", // Bright foreground
 			Background: "#1a1a1a", // Dark background
 		},
-		
+
 		CompletionMenuSelected: StyleDef{
 			Foreground: "#000000", // Black text
 			Background: "#66d9ef", // Bright cyan background for selection
