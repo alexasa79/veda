@@ -181,6 +181,9 @@ class LSPManager:
                         "definition": {
                             "dynamicRegistration": False
                         },
+                        "references": {
+                            "dynamicRegistration": False
+                        },
                         "synchronization": {
                             "dynamicRegistration": False,
                             "willSave": False,
@@ -275,6 +278,65 @@ class LSPManager:
             if isinstance(result, dict):
                 return [result]
             elif isinstance(result, list):
+                return result
+            elif result is None:
+                return []
+            return result
+        elif response and "error" in response:
+            logger.error(f"LSP error: {response['error']}")
+        return None
+    
+    def get_references(self, file_path: str, line: int, character: int, include_declaration: bool = True) -> Optional[List[Dict[str, Any]]]:
+        """Get all references to a symbol at the given position."""
+        # Determine language from file extension
+        language = self.get_language_for_file(file_path)
+        if not language:
+            logger.error(f"No language server configured for file: {file_path}")
+            return None
+            
+        # Start server if not running
+        if language not in self.servers:
+            logger.warning(f"LSP server not running for {language}, starting it now")
+            if not self.start_server(language):
+                return None
+                
+        # Ensure file is open in LSP
+        self._open_file(language, file_path)
+                
+        server = self.servers[language]
+        file_uri = f"file://{Path(file_path).absolute()}"
+        
+        server['request_id'] += 1
+        request_id = server['request_id']
+        
+        request = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri
+                },
+                "position": {
+                    "line": line,
+                    "character": character
+                },
+                "context": {
+                    "includeDeclaration": include_declaration
+                }
+            }
+        }
+        
+        logger.info(f"Sending textDocument/references request for {file_uri} at {line}:{character}")
+        self._send_message(language, request)
+        
+        # Wait for the response with our specific request ID
+        response = self._wait_for_response(language, request_id)
+        logger.info(f"Received references response: {response}")
+        if response and "result" in response:
+            result = response["result"]
+            # Normalize result to always be a list
+            if isinstance(result, list):
                 return result
             elif result is None:
                 return []
@@ -677,6 +739,7 @@ class VedaProxy:
             'get_folding_ranges': self.get_folding_ranges,
             'get_signature_help': self.get_signature_help,
             'list_project_symbols': self.list_project_symbols,
+            'find_references': self.find_references,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -1044,6 +1107,17 @@ class VedaProxy:
             return {'success': False, 'error': 'No symbols found in project'}
         except Exception as e:
             logger.error(f"Error in list_project_symbols: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def find_references(self, file_path: str, line: int, character: int, include_declaration: bool = True) -> Dict[str, Any]:
+        """Find all references to a symbol at the given position."""
+        try:
+            result = self.lsp.get_references(file_path, line, character, include_declaration)
+            if result is not None:
+                return {'success': True, 'result': result}
+            return {'success': False, 'error': 'No references found'}
+        except Exception as e:
+            logger.error(f"Error in find_references: {e}")
             return {'success': False, 'error': str(e)}
 
 

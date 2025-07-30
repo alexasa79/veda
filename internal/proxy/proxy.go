@@ -294,6 +294,16 @@ func (pm *ProxyManager) GoToDefinition(filePath string, line int, character int)
 	return client.GoToDefinition(actualPath, line, character)
 }
 
+// FindReferences finds all references to a symbol (supports HOST:PATH format)
+func (pm *ProxyManager) FindReferences(filePath string, line int, character int, includeDeclaration bool) ([]Location, error) {
+	client, actualPath, err := pm.getClient(filePath)
+	if err != nil {
+		return nil, err
+	}
+	
+	return client.FindReferences(actualPath, line, character, includeDeclaration)
+}
+
 // GetDocumentSymbols gets document symbols for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 	client, actualPath, err := pm.getClient(filePath)
@@ -868,6 +878,94 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 			}
 			if loc.URI != "" {
 				locations = append(locations, loc)
+			}
+		}
+
+		return locations, nil
+	}
+
+	if err := c.stdout.Err(); err != nil {
+		return nil, fmt.Errorf("scanner error: %v", err)
+	}
+
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
+// FindReferences finds all references to a symbol at the given position
+func (c *Client) FindReferences(filePath string, line int, character int, includeDeclaration bool) ([]Location, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "find_references",
+		Params: map[string]interface{}{
+			"file_path":           filePath,
+			"line":                line,
+			"character":           character,
+			"include_declaration": includeDeclaration,
+		},
+		ID: c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log the request for debugging
+	LL.Trace("FindReferences request: %s", string(requestBytes))
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		if success, ok := response.Result["success"].(bool); ok && !success {
+			if errMsg, ok := response.Result["error"].(string); ok {
+				return nil, fmt.Errorf("LSP error: %s", errMsg)
+			}
+			return nil, fmt.Errorf("failed to find references")
+		}
+
+		// Parse the LSP result
+		var locations []Location
+		if result, ok := response.Result["result"].([]interface{}); ok {
+			for _, item := range result {
+				if locMap, ok := item.(map[string]interface{}); ok {
+					loc := Location{}
+					if uri, ok := locMap["uri"].(string); ok {
+						loc.URI = uri
+					}
+					if rangeMap, ok := locMap["range"].(map[string]interface{}); ok {
+						if startMap, ok := rangeMap["start"].(map[string]interface{}); ok {
+							if line, ok := startMap["line"].(float64); ok {
+								loc.Range.Start.Line = int(line)
+							}
+							if char, ok := startMap["character"].(float64); ok {
+								loc.Range.Start.Character = int(char)
+							}
+						}
+						if endMap, ok := rangeMap["end"].(map[string]interface{}); ok {
+							if line, ok := endMap["line"].(float64); ok {
+								loc.Range.End.Line = int(line)
+							}
+							if char, ok := endMap["character"].(float64); ok {
+								loc.Range.End.Character = int(char)
+							}
+						}
+					}
+					locations = append(locations, loc)
+				}
 			}
 		}
 

@@ -21,6 +21,16 @@ import (
 
 var LL *log.Logger = log.NewLogger("EDITOR")
 
+// ReferencesBuffer tracks references found by LSP find-references
+type ReferencesBuffer struct {
+	References   []proxy.Location // LSP locations
+	CurrentIndex int              // Current reference index for g n/g p (-1 if none)
+	SourceFile   string           // File where find-references was called
+	SourceLine   int              // Line where find-references was called
+	SourceChar   int              // Character where find-references was called
+	BufferName   string           // Name of the buffer displaying these references
+}
+
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen          Screen
@@ -103,6 +113,10 @@ type Editor struct {
 	visualAnchorX      int                  // X position where visual selection started
 	visualAnchorOffset int                  // Byte offset where visual selection started
 
+	// References tracking
+	currentReferencesBuffer *ReferencesBuffer            // Current references buffer for g n/g p navigation
+	referencesBuffers       map[string]*ReferencesBuffer // All references buffers by buffer name
+
 	// Working directory
 	workingDirectory string                 // Current working directory (can include HOST: prefix)
 	pendingDirectoryOpen bool              // Flag to show fuzzy list after editor starts
@@ -173,6 +187,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		visualAnchorLine:   -1,  // -1 means no selection
 		visualAnchorX:      -1,
 		visualAnchorOffset: -1,
+		referencesBuffers:  make(map[string]*ReferencesBuffer),
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
 		workingDirectory: ".", // Default to current directory
 		asyncOperations: make(map[string]bool),

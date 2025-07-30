@@ -64,11 +64,15 @@ func (e *Editor) registerCommands() {
 
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition)
+	e.commandRegistry.Register("find-references", e.findReferences)
 	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo)
 	e.commandRegistry.Register("show-signature", e.showSignature)
+	e.commandRegistry.Register("jump-to-reference", e.jumpToReferenceUnderCursor)
 
 	// Navigation commands
 	e.commandRegistry.Register("go-back", e.goBack)
+	e.commandRegistry.Register("next-reference", e.nextReference)
+	e.commandRegistry.Register("previous-reference", e.previousReference)
 
 	// Buffer commands
 	e.commandRegistry.Register("show-buffers", e.showBuffers)

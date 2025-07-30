@@ -62,8 +62,15 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("gd           - Go to definition (requires LSP)\n")
 	helpText.WriteString("g,           - Go back to previous location\n")
 	helpText.WriteString("gs           - Show signature help\n")
+	helpText.WriteString("gr           - Find all references to symbol under cursor\n")
+	helpText.WriteString("gn           - Go to next reference (when references are found)\n")
+	helpText.WriteString("gp           - Go to previous reference (when references are found)\n")
 	helpText.WriteString("Space s w    - List project symbols\n")
 	helpText.WriteString("Space s d    - List document symbols\n\n")
+	
+	helpText.WriteString("= References Buffer =\n")
+	helpText.WriteString("Enter        - Jump to reference under cursor\n")
+	helpText.WriteString("gn/gp        - Navigate through all references\n\n")
 	
 	helpText.WriteString("= Visual Mode =\n")
 	helpText.WriteString("v            - Enter visual mode\n")
