@@ -401,6 +401,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 			} else {
 				LL.Debug("handleEvent: open-file event data is not a string")
 			}
+		case "show-completions":
+			if data, ok := ev.Data.(map[string]interface{}); ok {
+				e.handleShowCompletions(data)
+			}
 		}
 	default:
 		LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))

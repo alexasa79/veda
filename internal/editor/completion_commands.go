@@ -18,22 +18,50 @@ func (e *Editor) showCompletions() error {
 	line := e.buffer.CursorIterator.LineNumber()
 	character := e.buffer.CursorX
 	
-	// Get completions from LSP
-	result, err := e.proxyManager.GetCompletions(e.buffer.FilePath, line, character)
-	if err != nil {
-		LL.Debug("Failed to get completions: %v", err)
-		return nil // Don't show error to user, just no completions
+	// Get the current word prefix to use as initial filter
+	prefix := e.getWordBeforeCursor()
+	
+	// Track as async operation to show spinner
+	operationID := "completions"
+	e.startAsyncOperation(operationID)
+	
+	// Launch goroutine to fetch completions
+	go func() {
+		defer e.endAsyncOperation(operationID)
+		
+		// Get completions from LSP
+		result, err := e.proxyManager.GetCompletions(e.buffer.FilePath, line, character)
+		if err != nil {
+			LL.Debug("Failed to get completions: %v", err)
+			return // Don't show error to user, just no completions
+		}
+		
+		// Send result back to main event loop
+		e.asyncEvents <- events.NewCustomEvent("show-completions", map[string]interface{}{
+			"result": result,
+			"prefix": prefix,
+		})
+	}()
+	
+	return nil
+}
+
+// handleShowCompletions handles the async completion result
+func (e *Editor) handleShowCompletions(data map[string]interface{}) {
+	result, ok := data["result"]
+	if !ok {
+		LL.Debug("No result in completion data")
+		return
 	}
+	
+	prefix, _ := data["prefix"].(string)
 	
 	// Convert LSP completion result to our format
 	completionItems := e.convertLSPCompletions(result)
 	if len(completionItems) == 0 {
 		LL.Debug("No completions available")
-		return nil
+		return
 	}
-	
-	// Get the current word prefix to use as initial filter
-	prefix := e.getWordBeforeCursor()
 	
 	// Set the items
 	e.completionMenu.SetItems(completionItems)
@@ -66,8 +94,6 @@ func (e *Editor) showCompletions() error {
 	// Set position and show
 	e.completionMenu.SetPosition(menuX, menuY)
 	e.completionMenu.Show()
-	
-	return nil
 }
 
 // getCursorScreenPosition returns the screen position of the cursor
