@@ -108,11 +108,6 @@ type Editor struct {
 	searchPattern   string                  // Current search pattern
 	searchDirection bool                    // true = forward, false = backward
 
-	// Visual mode state
-	visualAnchorLine   int                  // Line number where visual selection started
-	visualAnchorX      int                  // X position where visual selection started
-	visualAnchorOffset int                  // Byte offset where visual selection started
-
 	// Flash highlight state
 	flashStartLine     int                  // Start line of flashed region
 	flashStartChar     int                  // Start char of flashed region
@@ -197,9 +192,6 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		contextCache:    nil,
 		contextLine:     -1,
 		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
-		visualAnchorLine:   -1,  // -1 means no selection
-		visualAnchorX:      -1,
-		visualAnchorOffset: -1,
 		flashStartLine:     -1,  // -1 means no flash
 		flashStartChar:     -1,
 		flashEndLine:       -1,
@@ -565,7 +557,7 @@ func (e *Editor) actuallyQuit(args []string) error {
 // getSelectionRange returns the start and end byte offsets of the current selection
 // Returns (start, end, hasSelection)
 func (e *Editor) getSelectionRange() (int, int, bool) {
-	if e.mode != commands.VisualMode || e.visualAnchorOffset < 0 {
+	if e.mode != commands.VisualMode || e.buffer == nil || e.buffer.VisualAnchorOffset < 0 {
 		return 0, 0, false
 	}
 
@@ -573,10 +565,10 @@ func (e *Editor) getSelectionRange() (int, int, bool) {
 	currentOffset := e.buffer.CursorIterator.Position() + e.buffer.CursorX
 
 	// Return in order (start, end)
-	if e.visualAnchorOffset <= currentOffset {
-		return e.visualAnchorOffset, currentOffset + 1, true // +1 for inclusive selection
+	if e.buffer.VisualAnchorOffset <= currentOffset {
+		return e.buffer.VisualAnchorOffset, currentOffset + 1, true // +1 for inclusive selection
 	} else {
-		return currentOffset, e.visualAnchorOffset + 1, true // +1 for inclusive selection
+		return currentOffset, e.buffer.VisualAnchorOffset + 1, true // +1 for inclusive selection
 	}
 }
 
