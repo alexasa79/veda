@@ -6,42 +6,37 @@ import (
 	"veda/internal/widgets"
 )
 
-// showCompletions shows the completion menu with dummy items for testing
+// showCompletions shows the completion menu with LSP completions
 func (e *Editor) showCompletions() error {
+	// Check if we have a file open
+	if !e.buffer.HasFile() {
+		LL.Debug("No file open, cannot get completions")
+		return nil
+	}
+	
+	// Get the current cursor position
+	line := e.buffer.CursorIterator.LineNumber()
+	character := e.buffer.CursorX
+	
+	// Get completions from LSP
+	result, err := e.proxyManager.GetCompletions(e.buffer.FilePath, line, character)
+	if err != nil {
+		LL.Debug("Failed to get completions: %v", err)
+		return nil // Don't show error to user, just no completions
+	}
+	
+	// Convert LSP completion result to our format
+	completionItems := e.convertLSPCompletions(result)
+	if len(completionItems) == 0 {
+		LL.Debug("No completions available")
+		return nil
+	}
+	
 	// Get the current word prefix to use as initial filter
 	prefix := e.getWordBeforeCursor()
 	
-	// For now, create dummy completion items
-	dummyItems := []widgets.CompletionItem{
-		{Label: "append", InsertText: "append"},
-		{Label: "array", InsertText: "array"},
-		{Label: "buffer", InsertText: "buffer"},
-		{Label: "create", InsertText: "create"},
-		{Label: "delete", InsertText: "delete"},
-		{Label: "editor", InsertText: "editor"},
-		{Label: "function", InsertText: "function"},
-		{Label: "generate", InsertText: "generate"},
-		{Label: "handle", InsertText: "handle"},
-		{Label: "implement", InsertText: "implement"},
-		{Label: "insert", InsertText: "insert"},
-		{Label: "keyboard", InsertText: "keyboard"},
-		{Label: "length", InsertText: "length"},
-		{Label: "method", InsertText: "method"},
-		{Label: "navigate", InsertText: "navigate"},
-		{Label: "operator", InsertText: "operator"},
-		{Label: "process", InsertText: "process"},
-		{Label: "query", InsertText: "query"},
-		{Label: "render", InsertText: "render"},
-		{Label: "string", InsertText: "string"},
-		{Label: "terminal", InsertText: "terminal"},
-		{Label: "update", InsertText: "update"},
-		{Label: "variable", InsertText: "variable"},
-		{Label: "widget", InsertText: "widget"},
-		{Label: "window", InsertText: "window"},
-	}
-	
 	// Set the items
-	e.completionMenu.SetItems(dummyItems)
+	e.completionMenu.SetItems(completionItems)
 	
 	// Set initial filter based on word before cursor
 	e.completionMenu.SetFilterText(prefix)
@@ -52,7 +47,7 @@ func (e *Editor) showCompletions() error {
 	
 	// Adjust position if too close to bottom
 	screenWidth, screenHeight := e.screen.Size()
-	menuHeight := len(dummyItems) // Calculate based on items we set
+	menuHeight := len(completionItems) // Calculate based on items we set
 	if menuHeight > 10 { // Max height is 10 items
 		menuHeight = 10
 	}
@@ -193,4 +188,59 @@ func (e *Editor) updateCompletionFilter() {
 	
 	prefix := e.getWordBeforeCursor()
 	e.completionMenu.SetFilterText(prefix)
+}
+
+// convertLSPCompletions converts LSP completion response to widget CompletionItems
+func (e *Editor) convertLSPCompletions(result interface{}) []widgets.CompletionItem {
+	var items []widgets.CompletionItem
+	
+	// LSP can return either a CompletionList or array of CompletionItems
+	switch v := result.(type) {
+	case map[string]interface{}:
+		// This is a CompletionList with isIncomplete flag and items array
+		if itemsRaw, ok := v["items"].([]interface{}); ok {
+			items = e.convertCompletionItemArray(itemsRaw)
+		}
+	case []interface{}:
+		// This is directly an array of CompletionItems
+		items = e.convertCompletionItemArray(v)
+	}
+	
+	return items
+}
+
+// convertCompletionItemArray converts an array of LSP CompletionItems
+func (e *Editor) convertCompletionItemArray(itemsRaw []interface{}) []widgets.CompletionItem {
+	var items []widgets.CompletionItem
+	
+	for _, itemRaw := range itemsRaw {
+		if item, ok := itemRaw.(map[string]interface{}); ok {
+			// Extract label (required)
+			label, ok := item["label"].(string)
+			if !ok || label == "" {
+				continue
+			}
+			
+			// Extract insertText or use label
+			insertText := label
+			if text, ok := item["insertText"].(string); ok && text != "" {
+				insertText = text
+			}
+			
+			// Extract detail for additional info
+			detail := ""
+			if d, ok := item["detail"].(string); ok {
+				detail = d
+			}
+			
+			// Create our completion item
+			items = append(items, widgets.CompletionItem{
+				Label:      label,
+				Detail:     detail,
+				InsertText: insertText,
+			})
+		}
+	}
+	
+	return items
 }
