@@ -83,6 +83,11 @@ type Buffer struct {
 
 	// Undo/Redo history
 	History *History // Command history for undo/redo operations
+
+	// Visual mode state
+	VisualAnchorLine   int // Line number where visual selection started
+	VisualAnchorX      int // X position where visual selection started
+	VisualAnchorOffset int // Byte offset where visual selection started
 }
 
 // IndentationInfo holds information about file indentation
@@ -116,6 +121,9 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		},
 		Generation:   0,  // Start with generation 0
 		History:      NewHistory(), // Initialize undo/redo history
+		VisualAnchorLine:   -1, // -1 means no visual selection
+		VisualAnchorX:      -1,
+		VisualAnchorOffset: -1,
 	}
 	b.UpdateLineNumberWidth()
 	// Create initial iterators

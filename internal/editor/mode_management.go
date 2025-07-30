@@ -191,22 +191,41 @@ func (e *Editor) exitInsertMode(args []string) error {
 
 // enterVisualMode switches the editor to visual mode
 func (e *Editor) enterVisualMode(args []string) error {
+	if e.buffer == nil {
+		return nil
+	}
+	
 	e.mode = commands.VisualMode
-	// Initialize visual selection at current position
-	// Visual selection tracking would be handled in the editor
-	// This functionality needs to be refactored to use editor fields
+	
+	// Set visual anchor at current cursor position
+	e.buffer.VisualAnchorLine = e.buffer.CursorIterator.LineNumber()
+	e.buffer.VisualAnchorX = e.buffer.CursorX
+	e.buffer.VisualAnchorOffset = e.buffer.CursorIterator.Position() + e.buffer.CursorX
+	
 	// Exit insert mode if we're in it
-	if e.buffer != nil && e.buffer.History != nil && false /* TODO: Check if in insert session */ {
+	if e.buffer.History != nil {
 		e.buffer.History.EndInsertSession()
 	}
+	
+	LL.Debug("Entered visual mode: anchor at line %d, x %d, offset %d", 
+		e.buffer.VisualAnchorLine, e.buffer.VisualAnchorX, e.buffer.VisualAnchorOffset)
+	
 	return nil
 }
 
 // exitVisualMode switches back to normal mode and clears visual selection
 func (e *Editor) exitVisualMode(args []string) error {
 	e.mode = commands.NormalMode
+	
 	// Clear visual selection
-	// Clear visual selection - this would be handled in the editor
+	if e.buffer != nil {
+		e.buffer.VisualAnchorLine = -1
+		e.buffer.VisualAnchorX = -1
+		e.buffer.VisualAnchorOffset = -1
+	}
+	
+	LL.Debug("Exited visual mode")
+	
 	return nil
 }
 
