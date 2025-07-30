@@ -27,6 +27,7 @@ type Theme struct {
 	CurrentLine      StyleDef
 	Context StyleDef // Style for context lines and signature help
 	SearchHighlight  StyleDef // Style for search matches
+	FlashHighlight   StyleDef // Style for flashing yanked/changed text
 
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
@@ -152,6 +153,11 @@ func NewTheme() *Theme {
 		SearchHighlight: StyleDef{
 			Foreground: "#f8f8f2",
 			Background: "#5a5a52", // Brighter grey background for search matches
+		},
+
+		FlashHighlight: StyleDef{
+			Foreground: "#000000",
+			Background: "#9c9c9c",
 		},
 
 		// Monokai syntax highlighting colors

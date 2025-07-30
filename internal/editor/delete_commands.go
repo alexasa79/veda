@@ -16,6 +16,14 @@ func (e *Editor) startChangeOperation(args []string) error {
 	return nil
 }
 
+// startYankOperation begins a yank operation, waiting for a text object
+func (e *Editor) startYankOperation(args []string) error {
+	e.pendingOperator = YankOperator{}
+	e.pendingModifier = ModifierNone
+	e.pendingKeys = []string{"y"}
+	return nil
+}
+
 // handlePendingOperation processes keys when there's a pending operation
 func (e *Editor) handlePendingOperation(key string) error {
 	if e.pendingOperator == nil {
@@ -33,6 +41,11 @@ func (e *Editor) handlePendingOperation(key string) error {
 	
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "c" && e.pendingKeys[1] == "c" {
 		// cc - change line
+		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
+	}
+	
+	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "y" && e.pendingKeys[1] == "y" {
+		// yy - yank line
 		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
 	}
 	
