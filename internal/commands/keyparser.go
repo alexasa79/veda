@@ -48,8 +48,15 @@ func ParseKey(s string) (Key, error) {
 	// Check special key names (convert to lowercase for comparison)
 	switch strings.ToLower(keyName) {
 	case "space":
-		result.Key = events.KeyRune
-		result.Rune = ' '
+		// Check if this is Ctrl+Space (with or without Shift)
+		if result.Mod&events.ModCtrl != 0 {
+			result.Key = events.KeyCtrlSpace
+			// Preserve Shift modifier if present, clear Ctrl since it's part of the key
+			result.Mod = result.Mod &^ events.ModCtrl
+		} else {
+			result.Key = events.KeyRune
+			result.Rune = ' '
+		}
 	case "tab":
 		result.Key = events.KeyTab
 	case "enter", "return":

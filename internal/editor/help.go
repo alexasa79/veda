@@ -85,7 +85,14 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Enter        - Insert newline\n")
 	helpText.WriteString("Backspace    - Delete character before cursor\n")
 	helpText.WriteString("↑/↓/←/→      - Move cursor\n")
-	helpText.WriteString("Home/End     - Move to beginning/end of line\n\n")
+	helpText.WriteString("Home/End     - Move to beginning/end of line\n")
+	helpText.WriteString("Ctrl+Space   - Show completion menu\n\n")
+	
+	helpText.WriteString("= Completion Menu =\n")
+	helpText.WriteString("↑/↓          - Navigate through completion items\n")
+	helpText.WriteString("Enter        - Accept selected completion\n")
+	helpText.WriteString("ESC          - Close completion menu\n")
+	helpText.WriteString("Any other key - Close menu and process key normally\n\n")
 	
 	helpText.WriteString("== Command Mode Commands ==\n")
 	helpText.WriteString(":q           - Close current buffer (quits if last buffer)\n")

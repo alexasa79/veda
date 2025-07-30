@@ -61,6 +61,9 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "right", "right-insert")
 	e.registerKeyBinding(commands.InsertMode, "home", "beginning-of-line-insert")
 	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
+	
+	// Completion
+	e.registerKeyBinding(commands.InsertMode, "ctrl+space", "show-completions")
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")

@@ -309,6 +309,8 @@ func (s *ScreenAdapter) mapKeyToEditor(k events.Key) ui.Key {
 		return ui.KeyEnter
 	case events.KeyEscape:
 		return ui.KeyEscape
+	case events.KeyCtrlSpace:
+		return ui.KeyCtrlSpace
 	case events.KeyDelete:
 		return ui.KeyDelete
 	case events.KeyInsert:
