@@ -112,7 +112,7 @@ type Editor struct {
 	visualAnchorLine   int                  // Line number where visual selection started
 	visualAnchorX      int                  // X position where visual selection started
 	visualAnchorOffset int                  // Byte offset where visual selection started
-	
+
 	// Flash highlight state
 	flashStartLine     int                  // Start line of flashed region
 	flashStartChar     int                  // Start char of flashed region
@@ -140,6 +140,9 @@ type Editor struct {
 	asyncOperations map[string]bool        // Track active async operations by ID
 	spinnerIndex    int                    // Current spinner animation frame
 	lastSpinnerTime time.Time              // Last time spinner was updated
+
+	// Completion menu
+	completionMenu  *widgets.CompletionMenu // Completion menu widget
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -205,6 +208,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		asyncOperations: make(map[string]bool),
 		lastSpinnerTime: time.Now(),
 		connectionStatus: "",
+		completionMenu: widgets.NewCompletionMenu(config.Theme),
 	}
 
 	// Add the initial empty buffer to the buffers map
@@ -305,7 +309,7 @@ func (e *Editor) Run() {
 // render performs the complete screen rendering
 func (e *Editor) render() {
 	t0 := e.perfTracker.Start()
-	
+
 	// Clear expired flash highlight
 	e.clearFlashHighlight()
 
@@ -328,6 +332,13 @@ func (e *Editor) render() {
 	}
 	t0 = e.perfTracker.ReportSince("drawOverlay", t0)
 
+	// Render completion menu if visible
+	if e.completionMenu.IsVisible() {
+		if widgetScreen, ok := e.screen.(widgets.Screen); ok {
+			e.completionMenu.Draw(widgetScreen)
+		}
+	}
+
 	// Update cursor position
 	if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
 		// Get cursor from overlay
@@ -347,6 +358,14 @@ func (e *Editor) render() {
 func (e *Editor) handleEvent(ev events.Event) {
 	switch ev := ev.(type) {
 	case *events.KeyEvent:
+		// Handle completion menu navigation if visible
+		if e.mode == commands.InsertMode && e.completionMenu.IsVisible() {
+			handled := e.handleCompletionMenuKey(ev)
+			if handled {
+				return
+			}
+		}
+
 		if e.mode == commands.CommandMode {
 			e.handleCommandMode(ev)
 		} else if e.mode == commands.SearchMode {
@@ -360,12 +379,13 @@ func (e *Editor) handleEvent(ev events.Event) {
 					LL.Debug("Pending operation error: %v", err)
 				}
 			} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+				LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
 				LL.Debug("Found command: %s", command)
 				if err := e.commandRegistry.Execute(command, nil); err != nil {
 					LL.Debug("Command execution error: %v", err)
 				}
 			} else {
-				LL.Debug("No command found for key")
+				LL.Debug("No command found for key %+v", ev)
 				if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
 					e.insertChar(ev.Rune)
 				}
@@ -840,7 +860,7 @@ func (e *Editor) yankCurrentLine(args []string) error {
 	}
 
 	LL.Debug("Yanked line %d (%d characters) to clipboard", lineNum + 1, len(textToYank))
-	
+
 	// Flash the yanked line
 	e.setFlashHighlight(lineNum, 0, lineNum, len(line))
 
@@ -1275,17 +1295,17 @@ func (e *Editor) isInFlashRange(line, charPos int) bool {
 	if e.flashStartLine == -1 || e.flashEndTime == 0 {
 		return false
 	}
-	
+
 	// Check if flash has expired
 	if time.Now().UnixMilli() > e.flashEndTime {
 		return false
 	}
-	
+
 	// Single line flash
 	if e.flashStartLine == e.flashEndLine {
 		return line == e.flashStartLine && charPos >= e.flashStartChar && charPos < e.flashEndChar
 	}
-	
+
 	// Multi-line flash
 	if line == e.flashStartLine {
 		return charPos >= e.flashStartChar
@@ -1294,7 +1314,7 @@ func (e *Editor) isInFlashRange(line, charPos int) bool {
 	} else if line > e.flashStartLine && line < e.flashEndLine {
 		return true
 	}
-	
+
 	return false
 }
 

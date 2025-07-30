@@ -19,6 +19,10 @@ type Theme struct {
 	FuzzyListBorder    StyleDef
 	FuzzyListContent   StyleDef
 	FuzzyListSelection StyleDef
+	
+	// Completion menu colors
+	CompletionMenu         StyleDef
+	CompletionMenuSelected StyleDef
 
 	// Text editor colors
 	Normal           StyleDef
@@ -158,6 +162,16 @@ func NewTheme() *Theme {
 		FlashHighlight: StyleDef{
 			Foreground: "#000000",
 			Background: "#9c9c9c",
+		},
+		
+		CompletionMenu: StyleDef{
+			Foreground: "#f8f8f2", // Bright foreground
+			Background: "#1a1a1a", // Dark background
+		},
+		
+		CompletionMenuSelected: StyleDef{
+			Foreground: "#000000", // Black text
+			Background: "#66d9ef", // Bright cyan background for selection
 		},
 
 		// Monokai syntax highlighting colors

@@ -277,6 +277,9 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
+	
+	// Update completion menu filter if visible
+	e.updateCompletionFilter()
 
 	return nil
 }
@@ -460,6 +463,9 @@ func (e *Editor) backspace(args []string) error {
 
 			// Update syntax highlighting
 			e.updateSyntaxHighlighting()
+			
+			// Update completion menu filter if visible
+			e.updateCompletionFilter()
 		}
 	}
 
