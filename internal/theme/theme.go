@@ -32,6 +32,7 @@ type Theme struct {
 	Context StyleDef // Style for context lines and signature help
 	SearchHighlight  StyleDef // Style for search matches
 	FlashHighlight   StyleDef // Style for flashing yanked/changed text
+	Whitespace       StyleDef // Style for whitespace indicators (tabs, trailing spaces)
 
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
@@ -162,6 +163,11 @@ func NewTheme() *Theme {
 		FlashHighlight: StyleDef{
 			Foreground: "#000000",
 			Background: "#9c9c9c",
+		},
+		
+		Whitespace: StyleDef{
+			Foreground: "#75715e", // Dim gray, same as comments/line numbers
+			Background: "",       // No background change
 		},
 		
 		CompletionMenu: StyleDef{

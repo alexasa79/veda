@@ -30,7 +30,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		lineStartPos = lineStartIter.Position()
 	}
 
-	for _, r := range text {
+	// Convert to slice of runes for position tracking
+	runes := []rune(text)
+	for _, r := range runes {
 		// Check if this character is part of a search match
 		useSearchStyle := e.isInSearchMatch(charPos, searchMatches)
 		// Check if this character is part of the selection
@@ -60,7 +62,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 		if r == '\t' {
 			// Render tab as 4 spaces
-			for i := 0; i < 4; i++ {
+			for j := 0; j < 4; j++ {
 				e.screen.SetContent(screenX, y, ' ', nil, currentStyle)
 				screenX++
 			}
@@ -75,12 +77,12 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 // drawLine draws a single line using the iterator
 func (e *Editor) drawLine(iter *buffer.BufferIterator, startX int, screenY int) {
-	e.drawLineWithBackground(iter, startX, screenY, nil)
+	e.drawLineInternal(iter, startX, screenY, nil)
 }
 
 // drawContextLine draws a single line with context background
 func (e *Editor) drawContextLine(iter *buffer.BufferIterator, startX int, screenY int, contextBg ui.Color) {
-	e.drawLineWithBackground(iter, startX, screenY, &contextBg)
+	e.drawLineInternal(iter, startX, screenY, &contextBg)
 }
 
 // findSearchMatches finds all occurrences of the search pattern in a line
@@ -117,57 +119,67 @@ func (e *Editor) isInSearchMatch(pos int, matches []int) bool {
 	return false
 }
 
-// drawLineWithBackground draws a single line using the iterator with an optional background color override
-func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int, screenY int, bgOverride *ui.Color) {
-	line := iter.Line()
+// drawLineInternal draws a single line using the iterator with an optional background color override
+func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, screenY int, bgOverride *ui.Color) {
+	originalLine := iter.Line()  // Keep the original line for whitespace detection
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	isCurrentLine := lineIndex == e.buffer.CursorIterator.LineNumber()
 
 	// Find search matches in this line
-	searchMatches := e.findSearchMatches(line)
+	searchMatches := e.findSearchMatches(originalLine)
 
 	// Determine which background to use
 	var lineBg ui.Color
+	var hasBg bool
 	if bgOverride != nil {
 		// Use the provided background override
 		lineBg = *bgOverride
 		normalStyle = normalStyle.Background(lineBg)
+		hasBg = true
 	} else if isCurrentLine {
 		// Use current line background
 		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 		_, lineBg, _ = currentLineStyle.Decompose()
 		normalStyle = normalStyle.Background(lineBg)
-	}
-
-	// If we have a background color (either override or current line), pad the line
-	if bgOverride != nil || isCurrentLine {
-		// Calculate how many spaces we need to fill the screen width
-		width, _ := e.screen.Size()
-		lineVisualWidth := e.visualWidth(line)
-		remainingWidth := width - startX - lineVisualWidth
-		if remainingWidth > 0 {
-			// Append spaces to fill the width
-			line = line + strings.Repeat(" ", remainingWidth)
-		}
+		hasBg = true
 	}
 
 	// Get the absolute offset of the start of this line
 	lineStartOffset := iter.Position()
 
+	// Find trailing spaces position for the whole line BEFORE any modifications
+	trailingStart := -1
+	if e.whitespaceStyle.showTrailingSpaces {
+		trailingStart = detectTrailingSpaces(originalLine)
+	}
+
 	// If no highlighter is set up, just draw normally
 	if e.highlighter == nil || !e.buffer.HasFile() {
-		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches, lineIndex)
+		x := e.drawTextWithWhitespace(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
+		// Fill rest of line if we have background
+		if hasBg {
+			width, _ := e.screen.Size()
+			for i := x; i < width; i++ {
+				e.screen.SetContent(i, screenY, ' ', nil, normalStyle)
+			}
+		}
 		return
 	}
 
 	// Get syntax tokens for this line using iterator position
 	tokens := e.getLineTokens(iter)
 
-
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
-		e.drawText(startX, screenY, normalStyle, line, lineStartOffset, searchMatches, lineIndex)
+		x := e.drawTextWithWhitespace(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
+		// Fill rest of line if we have background
+		if hasBg {
+			width, _ := e.screen.Size()
+			for i := x; i < width; i++ {
+				e.screen.SetContent(i, screenY, ' ', nil, normalStyle)
+			}
+		}
 		return
 	}
 
@@ -177,22 +189,22 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 
 	for _, token := range tokens {
 		// Draw any text before this token with normal style
-		if token.Start > lastEnd && token.Start <= len(line) {
+		if token.Start > lastEnd && token.Start <= len(originalLine) {
 			endPos := token.Start
-			if endPos > len(line) {
-				endPos = len(line)
+			if endPos > len(originalLine) {
+				endPos = len(originalLine)
 			}
-			prefix := line[lastEnd:endPos]
-			x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches, lineIndex)
+			prefix := originalLine[lastEnd:endPos]
+			x += e.drawTextWithWhitespace(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
 		}
 
 		// Draw the token with its style
-		if token.Start < len(line) && token.End > token.Start {
+		if token.Start < len(originalLine) && token.End > token.Start {
 			endPos := token.End
-			if endPos > len(line) {
-				endPos = len(line)
+			if endPos > len(originalLine) {
+				endPos = len(originalLine)
 			}
-			tokenText := line[token.Start:endPos]
+			tokenText := originalLine[token.Start:endPos]
 
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 			if bgOverride != nil {
@@ -203,15 +215,23 @@ func (e *Editor) drawLineWithBackground(iter *buffer.BufferIterator, startX int,
 				tokenStyle = tokenStyle.Background(lineBg)
 			}
 
-			x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches, lineIndex)
+			x += e.drawTextWithWhitespace(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches, lineIndex, token.Start, trailingStart)
 			lastEnd = endPos
 		}
 	}
 
 	// Draw any remaining text with normal style
-	if lastEnd < len(line) {
-		suffix := line[lastEnd:]
-		e.drawText(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches, lineIndex)
+	if lastEnd < len(originalLine) {
+		suffix := originalLine[lastEnd:]
+		x += e.drawTextWithWhitespace(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
+	}
+	
+	// Fill rest of line if we have background
+	if hasBg {
+		width, _ := e.screen.Size()
+		for i := x; i < width; i++ {
+			e.screen.SetContent(i, screenY, ' ', nil, normalStyle)
+		}
 	}
 }
 
@@ -619,4 +639,87 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// drawTextWithWhitespace draws text with whitespace visualization
+// segmentStart is the character position in the original line where this text segment starts
+// trailingStart is the character position in the original line where trailing spaces begin (-1 if none)
+func (e *Editor) drawTextWithWhitespace(x, y int, style ui.Style, text string, textOffset int, searchMatches []int, lineNum int, segmentStart int, trailingStart int) int {
+	searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
+	flashStyle := e.config.Theme.GetStyle(e.config.Theme.FlashHighlight)
+	whitespaceStyle := e.whitespaceStyle.style
+	screenX := x
+	charPos := textOffset
+
+	// Get selection range once for efficiency
+	selStart, selEnd, hasSelection := e.getSelectionRange()
+
+	// Calculate line start position once if we need it for flash highlighting
+	var lineStartPos int
+	if lineNum >= 0 && e.hasFlashHighlight() {
+		lineStartIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		lineStartPos = lineStartIter.Position()
+	}
+
+	// Convert to slice of runes for position tracking
+	runes := []rune(text)
+	for i, r := range runes {
+		// Check if this character is part of a search match
+		useSearchStyle := e.isInSearchMatch(charPos, searchMatches)
+		// Check if this character is part of the selection
+		inSelection := hasSelection && charPos >= selStart && charPos < selEnd
+		// Check if this character is part of the flash highlight
+		var inFlash bool
+		if lineNum >= 0 && e.hasFlashHighlight() {
+			charPosInLine := charPos - lineStartPos
+			inFlash = e.isInFlashRange(lineNum, charPosInLine)
+		}
+
+		currentStyle := style
+		if inFlash {
+			// Flash takes highest precedence
+			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
+		} else if inSelection {
+			// Selection takes precedence over search
+			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
+		} else if useSearchStyle {
+			// Use search highlight style but preserve the foreground color
+			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
+		}
+
+		// Check if we should visualize this character
+		absolutePos := segmentStart + i
+		
+		if r == '\t' && e.whitespaceStyle.showTabs {
+			// Draw tab arrow with whitespace style, but preserve background from current style
+			_, bg, _ := currentStyle.Decompose()
+			tabStyle := whitespaceStyle.Background(bg)
+			e.screen.SetContent(screenX, y, tabChar, nil, tabStyle)
+			screenX++
+			// Fill the rest with spaces using current style
+			for j := 1; j < 4; j++ {
+				e.screen.SetContent(screenX, y, ' ', nil, currentStyle)
+				screenX++
+			}
+		} else if r == '\t' {
+			// Tab without visualization
+			for j := 0; j < 4; j++ {
+				e.screen.SetContent(screenX, y, ' ', nil, currentStyle)
+				screenX++
+			}
+		} else if r == ' ' && trailingStart >= 0 && absolutePos >= trailingStart && e.whitespaceStyle.showTrailingSpaces {
+			// Draw trailing space dot with whitespace style, but preserve background
+			_, bg, _ := currentStyle.Decompose()
+			dotStyle := whitespaceStyle.Background(bg)
+			e.screen.SetContent(screenX, y, spaceChar, nil, dotStyle)
+			screenX++
+		} else {
+			// Normal character
+			e.screen.SetContent(screenX, y, r, nil, currentStyle)
+			screenX++
+		}
+		charPos++
+	}
+	return screenX - x
 }

@@ -143,6 +143,9 @@ type Editor struct {
 
 	// Completion menu
 	completionMenu  *widgets.CompletionMenu // Completion menu widget
+	
+	// Whitespace rendering
+	whitespaceStyle whitespaceStyle        // Style and settings for whitespace visualization
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -204,6 +207,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		flashEndTime:       0,
 		referencesBuffers:  make(map[string]*ReferencesBuffer),
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
+		whitespaceStyle:    newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
 		workingDirectory: ".", // Default to current directory
 		asyncOperations: make(map[string]bool),
 		lastSpinnerTime: time.Now(),
