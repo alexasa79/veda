@@ -76,6 +76,7 @@ func (e *Editor) setupDefaultBindings() {
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
 	e.registerKeyBinding(commands.NormalMode, "g s", "show-signature")
+	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 
 	// Undo/Redo operations
 	e.registerKeyBinding(commands.NormalMode, "u", "undo")
@@ -98,7 +99,12 @@ func (e *Editor) setupDefaultBindings() {
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
 	e.registerKeyBinding(commands.NormalMode, "g g", "go-to-beginning")
+	e.registerKeyBinding(commands.NormalMode, "g n", "next-reference")
+	e.registerKeyBinding(commands.NormalMode, "g p", "previous-reference")
 	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
+	
+	// Special handling for references buffers
+	e.registerKeyBinding(commands.NormalMode, "enter", "jump-to-reference")
 
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
