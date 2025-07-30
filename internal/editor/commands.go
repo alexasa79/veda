@@ -57,6 +57,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("Q", e.actuallyQuit)  // Shortcut for Quit
 	e.commandRegistry.Register("write", e.writeFile)
 	e.commandRegistry.Register("w", e.writeFile)  // Shortcut for write
+	e.commandRegistry.Register("wq", e.writeAndQuit)  // Write and quit
 	e.commandRegistry.Register("edit", e.editFile)
 	e.commandRegistry.Register("e", e.editFile)  // Shortcut for edit
 	e.commandRegistry.Register("cd", e.changeDirectory)

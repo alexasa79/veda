@@ -665,6 +665,17 @@ func (e *Editor) writeFile(args []string) error {
 	return nil
 }
 
+// writeAndQuit implements the :wq command to write the file and close the buffer
+func (e *Editor) writeAndQuit(args []string) error {
+	// First write the file
+	if err := e.writeFile(args); err != nil {
+		return err
+	}
+	
+	// Then close the buffer (which will quit if it's the last buffer)
+	return e.closeBuffer(args)
+}
+
 // editFile implements the :edit/:e command to open a file or directory
 func (e *Editor) editFile(args []string) error {
 	if len(args) == 0 {
