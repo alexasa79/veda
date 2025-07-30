@@ -227,6 +227,48 @@ func (e *Editor) joinLines(args []string) error {
 	return nil
 }
 
+// insertTab inserts appropriate indentation at the current cursor position
+func (e *Editor) insertTab(args []string) error {
+	// Get the buffer's indentation string
+	indentStr := e.buffer.GetIndentationString()
+	
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	cursorX := e.buffer.CursorX
+	
+	// Create history entry
+	entry := buffer.NewInsertTextEntry(lineNum, cursorX, indentStr)
+	
+	// Execute through history
+	if e.buffer.History != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		} else if executed != nil {
+			e.setLastChange(executed)
+		}
+	} else {
+		// Fallback if history is not initialized
+		pos := e.getAbsolutePosition()
+		e.buffer.Insert(pos, indentStr)
+	}
+	
+	// Recreate iterators at the same line
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	// Move cursor forward by the length of the indentation
+	e.buffer.CursorX = cursorX + len(indentStr)
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
+	// Update completion menu filter if visible
+	e.updateCompletionFilter()
+	
+	return nil
+}
+
 func (e *Editor) insertChar(ch rune) error {
 	// Check if we should skip over a closing character
 	if e.shouldSkipClosingChar(ch) {
