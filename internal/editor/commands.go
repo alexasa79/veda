@@ -36,6 +36,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("open-line-below", e.openLineBelow)
 	e.commandRegistry.Register("open-line-above", e.openLineAbove)
 	e.commandRegistry.Register("join-lines", e.joinLines)
+	e.commandRegistry.Register("rewrap-paragraph", e.rewrapParagraphCmd)
 
 	// Insert mode commands
 	e.commandRegistry.Register("insert-newline", e.insertNewline)
