@@ -1204,8 +1204,8 @@ func (e *Editor) goToDefinition(args []string) error {
 		}
 	}
 
-	// Position the definition at ScrollOffset from the top of the screen
-	e.scrollToShowAtTop()
+	// Position the definition at the center of the screen
+	e.scrollToCenter()
 
 	return nil
 }
