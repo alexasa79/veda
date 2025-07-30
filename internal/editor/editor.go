@@ -1318,3 +1318,8 @@ func (e *Editor) isInFlashRange(line, charPos int) bool {
 	return false
 }
 
+// hasFlashHighlight returns true if there is an active flash highlight
+func (e *Editor) hasFlashHighlight() bool {
+	return e.flashStartLine != -1 && e.flashEndTime > 0 && time.Now().UnixMilli() <= e.flashEndTime
+}
+

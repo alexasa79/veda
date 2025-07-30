@@ -23,6 +23,13 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	// Get selection range once for efficiency
 	selStart, selEnd, hasSelection := e.getSelectionRange()
 
+	// Calculate line start position once if we need it for flash highlighting
+	var lineStartPos int
+	if lineNum >= 0 && e.hasFlashHighlight() {
+		lineStartIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		lineStartPos = lineStartIter.Position()
+	}
+
 	for _, r := range text {
 		// Check if this character is part of a search match
 		useSearchStyle := e.isInSearchMatch(charPos, searchMatches)
@@ -30,14 +37,11 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd
 		// Check if this character is part of the flash highlight
 		var inFlash bool
-		if lineNum >= 0 {
+		if lineNum >= 0 && e.hasFlashHighlight() {
 			// Only check flash highlight for actual buffer content
-			// Calculate the character position within the line
 			// textOffset is the absolute position where this segment starts
 			// charPos is the current absolute position
-			// We need to find the position within the line
-			lineStartIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-			lineStartPos := lineStartIter.Position()
+			// We already calculated lineStartPos before the loop
 			charPosInLine := charPos - lineStartPos
 			inFlash = e.isInFlashRange(lineNum, charPosInLine)
 		}
@@ -272,6 +276,7 @@ func (e *Editor) drawEditor() {
 
 	// Start from the view iterator
 	iter := e.buffer.ViewIterator
+	
 	for i := 0; i < visibleHeight; i++ {
 		screenY := contentStartY + i
 		// First, fill the entire line with the normal background
