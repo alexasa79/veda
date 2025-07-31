@@ -51,7 +51,7 @@ func (e *Editor) registerCommands() {
 
 	// Delete commands
 	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter)
-	
+
 	// Visual mode operations
 	e.commandRegistry.Register("delete-selection", e.deleteSelection)
 	e.commandRegistry.Register("yank-selection", e.yankSelection)
@@ -84,7 +84,8 @@ func (e *Editor) registerCommands() {
 
 	// Buffer commands
 	e.commandRegistry.Register("show-buffers", e.showBuffers)
-	e.commandRegistry.Register("switch-to-previous-buffer", e.switchToPreviousBuffer)
+	e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious)
+	e.commandRegistry.Register("show-buffer-list-previous", e.showBufferListWithPrevious) // More descriptive alias
 
 	// Symbol commands
 	e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd)
@@ -93,34 +94,34 @@ func (e *Editor) registerCommands() {
 	// Undo/Redo commands
 	e.commandRegistry.Register("undo", e.undo)
 	e.commandRegistry.Register("redo", e.redo)
-	
+
 	// Yank commands
 	e.commandRegistry.Register("yank-line", e.yankCurrentLine)
 	e.commandRegistry.Register("start-yank", e.startYankOperation)
-	
+
 	// Paste commands
 	e.commandRegistry.Register("paste-after", e.pasteAfter)
 	e.commandRegistry.Register("paste-before", e.pasteBefore)
-	
+
 	// Repeat command
 	e.commandRegistry.Register("repeat-last-change", e.repeatLastChange)
-	
+
 	// Delete commands
 	e.commandRegistry.Register("start-delete", e.startDeleteOperation)
-	
+
 	// Change commands
 	e.commandRegistry.Register("start-change", e.startChangeOperation)
-	
+
 	// Search commands
 	e.commandRegistry.Register("find-next", e.findNextCmd)
 	e.commandRegistry.Register("find-previous", e.findPreviousCmd)
 	e.commandRegistry.Register("clear-search", e.clearSearchCmd)
 	e.commandRegistry.Register("search-word-under-cursor", e.searchWordUnderCursorCmd)
-	
+
 	// Help commands
 	e.commandRegistry.Register("help", e.showHelp)
 	e.commandRegistry.Register("help-keys", e.showHelpKeys)
-	
+
 	// Completion commands
 	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() })
 }

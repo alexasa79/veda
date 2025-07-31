@@ -62,7 +62,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("= File Operations =\n")
 	helpText.WriteString("Space s f    - Open file browser\n")
 	helpText.WriteString("Space s b    - Show open buffers\n")
-	helpText.WriteString("Space Space  - Switch to previous buffer\n\n")
+	helpText.WriteString("Space Space  - Show buffers (cursor on previous)\n\n")
 	
 	helpText.WriteString("= Code Navigation =\n")
 	helpText.WriteString("gd           - Go to definition (requires LSP)\n")
