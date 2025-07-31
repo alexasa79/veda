@@ -465,6 +465,8 @@ func (e *Editor) drawStatusBar() {
 			modeText = " INSERT "
 		} else if e.mode == commands.VisualMode {
 			modeText = " VISUAL "
+		} else if e.mode == commands.VisualLineMode {
+			modeText = " VISUAL LINE "
 		}
 		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil, -1, 0, -1)
 		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space after mode

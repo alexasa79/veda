@@ -8,11 +8,12 @@ import (
 type Mode string
 
 const (
-	NormalMode  Mode = "NORMAL"
-	CommandMode Mode = "COMMAND"
-	InsertMode  Mode = "INSERT"
-	SearchMode  Mode = "SEARCH"
-	VisualMode  Mode = "VISUAL"
+	NormalMode      Mode = "NORMAL"
+	CommandMode     Mode = "COMMAND"
+	InsertMode      Mode = "INSERT"
+	SearchMode      Mode = "SEARCH"
+	VisualMode      Mode = "VISUAL"
+	VisualLineMode  Mode = "VISUAL LINE"
 )
 
 // Key represents a key with modifiers
