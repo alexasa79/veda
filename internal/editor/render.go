@@ -500,9 +500,14 @@ func (e *Editor) drawStatusBar() {
 		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil, -1, 0, -1)
 		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space after mode
 
-		// Show filename and LSP indicator
+		// Show filename and modified indicator
 		filename := e.buffer.FileName()
 		x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil, -1, 0, -1)
+		
+		// Add modified indicator if buffer is modified
+		if e.buffer.IsModified {
+			x += e.drawText(x, statusBarY, statusBarStyle, " [+]", 0, nil, -1, 0, -1)
+		}
 
 		// Add LSP indicator if LSP is available
 		if e.buffer.HasLSP {
