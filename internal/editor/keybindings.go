@@ -74,7 +74,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
 	e.registerKeyBinding(commands.InsertMode, "alt+left", "word-backward-insert")
 	e.registerKeyBinding(commands.InsertMode, "alt+right", "word-forward-insert")
-	
+
 	// Completion
 	e.registerKeyBinding(commands.InsertMode, "ctrl+space", "show-completions")
 
@@ -101,12 +101,16 @@ func (e *Editor) setupDefaultBindings() {
 	// Yank operations
 	e.registerKeyBinding(commands.NormalMode, "y", "start-yank")
 
+	// Paste operations
+	e.registerKeyBinding(commands.NormalMode, "p", "paste-after")
+	e.registerKeyBinding(commands.NormalMode, "P", "paste-before")
+
 	// Repeat last change
 	e.registerKeyBinding(commands.NormalMode, ".", "repeat-last-change")
 
 	// Delete operations
 	e.registerKeyBinding(commands.NormalMode, "d", "start-delete")
-	
+
 	// Change operations
 	e.registerKeyBinding(commands.NormalMode, "c", "start-change")
 
@@ -116,7 +120,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g n", "next-reference")
 	e.registerKeyBinding(commands.NormalMode, "g p", "previous-reference")
 	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
-	
+
 	// Special handling for references buffers
 	e.registerKeyBinding(commands.NormalMode, "enter", "jump-to-reference")
 
@@ -127,10 +131,10 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Visual modes (both character and line) - shared keybindings
 	visualModes := []commands.Mode{commands.VisualMode, commands.VisualLineMode}
-	
+
 	// Exit visual mode
 	e.registerKeyBindingForModes(visualModes, "escape", "exit-visual-mode")
-	
+
 	// Movement in visual modes - reuse same commands
 	e.registerKeyBindingForModes(visualModes, "up", "up")
 	e.registerKeyBindingForModes(visualModes, "down", "down")

@@ -876,12 +876,9 @@ func (e *Editor) yankCurrentLine(args []string) error {
 	// Get current line
 	line := e.buffer.CursorIterator.Line()
 
-	// Add newline if we're not at the last line
+	// Always add newline for linewise yank
 	lineNum := e.buffer.CursorIterator.LineNumber()
-	textToYank := line
-	if lineNum < e.buffer.LineCount - 1 {
-		textToYank += "\n"
-	}
+	textToYank := line + "\n"
 
 	// Copy to system clipboard
 	if err := clipboard.Copy(textToYank); err != nil {
