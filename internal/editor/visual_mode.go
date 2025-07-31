@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"strings"
 	"veda/internal/buffer"
 	"veda/internal/clipboard"
 	"veda/internal/commands"
@@ -78,6 +79,11 @@ func (e *Editor) yankSelection(args []string) error {
 	
 	// Extract selected text
 	selectedText := e.buffer.Rope.Extract(start, end)
+	
+	// For visual line mode, ensure the text ends with a newline
+	if e.mode == commands.VisualLineMode && !strings.HasSuffix(selectedText, "\n") {
+		selectedText += "\n"
+	}
 	
 	// Copy to system clipboard
 	if err := clipboard.Copy(selectedText); err != nil {

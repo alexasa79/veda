@@ -202,6 +202,12 @@ func (y YankOperator) Execute(editor *Editor, startLine, startChar, endLine, end
 			if startChar < len(line) && endChar <= len(line) {
 				textToYank = line[startChar:endChar]
 			}
+			
+			// If this is a full line yank (starts at 0 and ends at line length),
+			// add a newline to make it linewise
+			if startChar == 0 && endChar == len(line) {
+				textToYank += "\n"
+			}
 		}
 	} else {
 		// Multi-line yank

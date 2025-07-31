@@ -228,14 +228,17 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		return nil
 	}
 
+	// Save iterator positions before any buffer modifications
+	cursorLine := e.buffer.CursorIterator.LineNumber()
+	viewLine := e.buffer.ViewIterator.LineNumber()
+
 	// Get all lines from buffer
 	lines := make([]string, e.buffer.LineCount)
 	for i := 0; i < e.buffer.LineCount; i++ {
 		iter := buffer.NewBufferIteratorAtLine(e.buffer, i)
 		lines[i] = iter.Line()
 	}
-
-	cursorLine := e.buffer.CursorIterator.LineNumber()
+	
 	if cursorLine >= len(lines) {
 		cursorLine = len(lines) - 1
 	}
@@ -373,6 +376,33 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		} else {
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, e.buffer.LineCount-1)
 		}
+	} else {
+		// Cursor was above the paragraph, recreate iterator at same position
+		// (it may have been invalidated by buffer changes)
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+	}
+	
+	// Update view iterator to handle line count changes
+	if viewLine > endLine {
+		// Adjust view if it was below the paragraph
+		lineDiff := len(wrappedLines) - (endLine - startLine + 1)
+		newViewLine := viewLine + lineDiff
+		if newViewLine >= e.buffer.LineCount {
+			newViewLine = e.buffer.LineCount - 1
+		}
+		if newViewLine < 0 {
+			newViewLine = 0
+		}
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, newViewLine)
+	} else {
+		// Recreate view iterator at same position (it may have been invalidated)
+		if viewLine >= e.buffer.LineCount {
+			viewLine = e.buffer.LineCount - 1
+		}
+		if viewLine < 0 {
+			viewLine = 0
+		}
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
 	}
 	
 	return nil

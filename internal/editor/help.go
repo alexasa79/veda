@@ -42,6 +42,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("d<motion>    - Delete with motion (e.g., dw = delete word, dd = delete line)\n")
 	helpText.WriteString("c<motion>    - Change with motion (e.g., cw = change word, cc = change line)\n")
 	helpText.WriteString("y<motion>    - Yank with motion (e.g., yw = yank word, yy = yank line)\n")
+	helpText.WriteString("p            - Paste after cursor/line\n")
+	helpText.WriteString("P            - Paste before cursor/line\n")
 	helpText.WriteString("u            - Undo last change\n")
 	helpText.WriteString("U            - Redo undone change\n")
 	helpText.WriteString(".            - Repeat last change\n")
