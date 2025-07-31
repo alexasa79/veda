@@ -17,14 +17,14 @@ func TestContinuationIndentForFunctionArguments(t *testing.T) {
 		description          string
 	}{
 		{
-			name: "first argument after opening paren",
+			name: "first argument after opening paren with content",
 			initialContent: `int main() {
-    func(`,
+    func(1,`,
 			cursorLine:           1,
-			cursorX:              9, // After the opening paren
+			cursorX:              11, // After the comma
 			expectedIndentLevel:  0,
 			expectedIndentColumn: 9, // Align with character after opening paren
-			description:          "First argument should align after opening paren",
+			description:          "First argument should align after opening paren when content exists",
 		},
 		{
 			name: "second argument continues alignment",

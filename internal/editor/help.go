@@ -52,7 +52,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("= Search =\n")
 	helpText.WriteString("/            - Enter search mode\n")
 	helpText.WriteString("n            - Find next occurrence\n")
-	helpText.WriteString("N            - Find previous occurrence\n\n")
+	helpText.WriteString("N            - Find previous occurrence\n")
+	helpText.WriteString("ESC          - Clear current search\n\n")
 	
 	helpText.WriteString("= File Operations =\n")
 	helpText.WriteString("Space s f    - Open file browser\n")

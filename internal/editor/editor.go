@@ -107,6 +107,8 @@ type Editor struct {
 	// Search state
 	searchPattern   string                  // Current search pattern
 	searchDirection bool                    // true = forward, false = backward
+	searchMatches   []int                   // Positions of all search matches
+	currentMatch    int                     // Index of current match in searchMatches (-1 if none)
 
 	// Flash highlight state
 	flashStartLine     int                  // Start line of flashed region
@@ -195,6 +197,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		flashStartLine:     -1,  // -1 means no flash
 		flashStartChar:     -1,
 		flashEndLine:       -1,
+		currentMatch:       -1,  // -1 means no current match
 		flashEndChar:       -1,
 		flashEndTime:       0,
 		referencesBuffers:  make(map[string]*ReferencesBuffer),

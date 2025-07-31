@@ -495,6 +495,29 @@ func (e *Editor) drawStatusBar() {
 			}
 		}
 
+		// Add search indicator if there's an active search
+		if e.searchPattern != "" && len(e.searchMatches) > 0 {
+			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1, 0, -1) // Spacing
+			
+			// Use inverted colors for search indicator
+			searchStyle := statusBarStyle
+			searchStyle.Fg, searchStyle.Bg = searchStyle.Bg, searchStyle.Fg
+			
+			searchText := fmt.Sprintf(" /%s %d/%d ", e.searchPattern, e.currentMatch+1, len(e.searchMatches))
+			x += e.drawText(x, statusBarY, searchStyle, searchText, 0, nil, -1, 0, -1)
+		} else if e.searchPattern != "" {
+			// Pattern set but no matches
+			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1, 0, -1) // Spacing
+			
+			// Use inverted style with red foreground for no matches
+			errorStyle := statusBarStyle
+			errorStyle.Fg = ui.ColorRed
+			errorStyle.Attrs |= ui.AttrBold
+			
+			searchText := fmt.Sprintf(" /%s No matches ", e.searchPattern)
+			x += e.drawText(x, statusBarY, errorStyle, searchText, 0, nil, -1, 0, -1)
+		}
+
 		// Right side: indentation and line:col
 
 		// Use visual column position for display (accounting for tabs)
