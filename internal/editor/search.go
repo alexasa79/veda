@@ -60,110 +60,70 @@ func (e *Editor) executeSearch() {
 	// Store the search pattern
 	e.searchPattern = pattern
 
-	// Perform the search
-	e.findNext()
+	// Find all matches
+	e.updateSearchMatches()
+
+	// Move to the first match
+	if len(e.searchMatches) > 0 {
+		e.currentMatch = 0
+		e.moveCursorToPosition(e.searchMatches[0])
+	}
 }
 
 // findNext finds the next occurrence of the search pattern
 func (e *Editor) findNext() {
-	if e.searchPattern == "" {
+	if e.searchPattern == "" || len(e.searchMatches) == 0 {
 		return
 	}
 
 	// Get current position
-	startPos := e.getAbsolutePosition()
+	currentPos := e.getAbsolutePosition()
 
-	// Convert buffer content to string for searching
-	content := e.buffer.Rope.String()
-
-	// Search forward from current position + 1
-	searchStart := startPos + 1
-	if searchStart >= len(content) {
-		searchStart = 0 // Wrap around
-	}
-
-	// Find the pattern
-	foundPos := strings.Index(content[searchStart:], e.searchPattern)
-
-	if foundPos == -1 && searchStart > 0 {
-		// Not found after cursor, try from beginning
-		foundPos = strings.Index(content[:startPos], e.searchPattern)
-		if foundPos >= 0 {
-			// Found before cursor (wrapped around)
-			e.moveCursorToPosition(foundPos)
-			return
+	// Find the next match position
+	nextIndex := -1
+	for i, matchPos := range e.searchMatches {
+		if matchPos > currentPos {
+			nextIndex = i
+			break
 		}
-	} else if foundPos >= 0 {
-		// Found after cursor
-		e.moveCursorToPosition(searchStart + foundPos)
-		return
 	}
 
-	// Pattern not found
-	LL.Debug("Pattern not found: %s", e.searchPattern)
+	// If no match found after cursor, wrap to beginning
+	if nextIndex == -1 {
+		nextIndex = 0
+	}
+
+	// Update current match and move cursor
+	e.currentMatch = nextIndex
+	e.moveCursorToPosition(e.searchMatches[nextIndex])
 }
 
 // findPrevious finds the previous occurrence of the search pattern
 func (e *Editor) findPrevious() {
-	if e.searchPattern == "" {
+	if e.searchPattern == "" || len(e.searchMatches) == 0 {
 		return
 	}
 
 	// Get current position
-	startPos := e.getAbsolutePosition()
+	currentPos := e.getAbsolutePosition()
 
-	// Convert buffer content to string for searching
-	content := e.buffer.Rope.String()
-
-	// Search backward from current position
-	searchEnd := startPos
-	if searchEnd <= 0 {
-		searchEnd = len(content) // Wrap around
-	}
-
-	// Find the last occurrence before current position
-	foundPos := -1
-	searchContent := content[:searchEnd]
-
-	// Find all occurrences and take the last one
-	lastPos := -1
-	searchStart := 0
-	for {
-		pos := strings.Index(searchContent[searchStart:], e.searchPattern)
-		if pos == -1 {
+	// Find the previous match position
+	prevIndex := -1
+	for i := len(e.searchMatches) - 1; i >= 0; i-- {
+		if e.searchMatches[i] < currentPos {
+			prevIndex = i
 			break
 		}
-		lastPos = searchStart + pos
-		searchStart = lastPos + 1
 	}
 
-	if lastPos != -1 {
-		foundPos = lastPos
-	} else if searchEnd < len(content) {
-		// Not found before cursor, try after cursor (wrap around)
-		afterContent := content[startPos:]
-		// Find the last occurrence after cursor
-		lastPos = -1
-		searchStart = 0
-		for {
-			pos := strings.Index(afterContent[searchStart:], e.searchPattern)
-			if pos == -1 {
-				break
-			}
-			lastPos = searchStart + pos
-			searchStart = lastPos + 1
-		}
-		if lastPos != -1 {
-			foundPos = startPos + lastPos
-		}
+	// If no match found before cursor, wrap to end
+	if prevIndex == -1 {
+		prevIndex = len(e.searchMatches) - 1
 	}
 
-	if foundPos != -1 {
-		e.moveCursorToPosition(foundPos)
-	} else {
-		// Pattern not found
-		LL.Debug("Pattern not found: %s", e.searchPattern)
-	}
+	// Update current match and move cursor
+	e.currentMatch = prevIndex
+	e.moveCursorToPosition(e.searchMatches[prevIndex])
 }
 
 // findNextCmd is the command handler for the 'n' key
@@ -247,5 +207,52 @@ func (e *Editor) moveCursorToPosition(pos int) {
 // enterSearchModeCmd is the command handler for entering search mode
 func (e *Editor) enterSearchModeCmd(args []string) error {
 	e.enterSearchMode()
+	return nil
+}
+
+// updateSearchMatches finds all occurrences of the search pattern
+func (e *Editor) updateSearchMatches() {
+	e.searchMatches = []int{}
+	e.currentMatch = -1
+
+	if e.searchPattern == "" {
+		return
+	}
+
+	// Get buffer content
+	content := e.buffer.Rope.String()
+
+	// Find all matches
+	pos := 0
+	for {
+		index := strings.Index(content[pos:], e.searchPattern)
+		if index == -1 {
+			break
+		}
+		e.searchMatches = append(e.searchMatches, pos+index)
+		pos = pos + index + 1
+	}
+}
+
+// clearSearch clears the current search pattern and matches
+func (e *Editor) clearSearch() {
+	e.searchPattern = ""
+	e.searchMatches = []int{}
+	e.currentMatch = -1
+}
+
+// getCurrentMatchIndex returns the index in searchMatches that corresponds to the given position
+func (e *Editor) getCurrentMatchIndex(pos int) int {
+	for i, matchPos := range e.searchMatches {
+		if matchPos == pos {
+			return i
+		}
+	}
+	return -1
+}
+
+// clearSearchCmd is the command handler for clearing the search
+func (e *Editor) clearSearchCmd(args []string) error {
+	e.clearSearch()
 	return nil
 }

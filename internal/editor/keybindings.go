@@ -117,6 +117,7 @@ func (e *Editor) setupDefaultBindings() {
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
 	e.registerKeyBinding(commands.NormalMode, "N", "find-previous")
+	e.registerKeyBinding(commands.NormalMode, "escape", "clear-search")
 
 	// Visual mode keys
 	e.registerKeyBinding(commands.VisualMode, "escape", "exit-visual-mode")

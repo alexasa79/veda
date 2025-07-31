@@ -1,10 +1,10 @@
 # Bugs
-- [ ] When rendering file that ends with \n, the last line does not show line number.
 - [ ] New files are not saved.
 - [ ] Allow going into search and command modes and exit the visual mode when it happens.
 - [ ] Getting completion on empty space does something weird.
 - [ ] Also, completion does not show progress.
 - [ ] Not supporting resizing the editor.
+- [ ] Entering command that does not exist closes the editor.
 
 # Features
 - [ ] Add vertical rules at 78, 80, 100 and 120 characters.
@@ -65,3 +65,4 @@ instead of `set SETTING VALUE` borrowed from vim.
 - [x] Add something that shows that we have an LSP for the current file.
 - [x] Visual mode does not work.
 - [x] Open directory, press escape, crash.
+- [x] When rendering file that ends with \n, the last line does not show line number.

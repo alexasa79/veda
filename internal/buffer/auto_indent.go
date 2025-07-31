@@ -40,10 +40,10 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 	}
 	
 	// Count parentheses balance up to cursor
-	balance, lastOpenCol, _ := analyzeParentheses(line, cursorCol)
+	balance, lastOpenCol, hasCharsAfter := analyzeParentheses(line, cursorCol)
 	
-	// Rule 2: Unbalanced parens - align to position after last open paren
-	if balance > 0 && lastOpenCol >= 0 {
+	// Rule 2: Unbalanced parens with content after - align to position after last open paren
+	if balance > 0 && lastOpenCol >= 0 && hasCharsAfter {
 		// We want to align to the column position right after the open paren
 		// First calculate the visual column of the open paren itself
 		parenCol := calculateVisualColumn(line, lastOpenCol)
@@ -53,6 +53,25 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		// Create indentation string using the buffer's settings
 		// We'll try to use the same indentation style as the file
 		indentStr := b.createIndentStringForColumn(visualCol)
+		
+		return AutoIndentInfo{
+			Column:    visualCol,
+			IndentStr: indentStr,
+		}
+	}
+	
+	// Rule 3: Unbalanced parens but no content after - add one indent level
+	if balance > 0 {
+		// Add one more indent level to current indentation
+		indentLevel := baseIndentInfo.Level + 1
+		indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
+		
+		// Calculate visual column for this indentation
+		visualCol := len(indentStr)
+		if b.Indentation.Type == config.IndentTabs {
+			// Each tab counts as 8 visual columns
+			visualCol = indentLevel * 8
+		}
 		
 		return AutoIndentInfo{
 			Column:    visualCol,

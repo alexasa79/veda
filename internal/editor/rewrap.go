@@ -52,27 +52,36 @@ func detectWrapContext(lines []string, startLine int) (wrapContext, string, stri
 
 	// Check for Python comment vs markdown heading
 	// If it's a single # followed by space and then lowercase letter, it's likely a Python comment
-	// Markdown headings typically have uppercase first letter or are just # symbols
+	// Check for # at beginning - could be markdown heading or Python comment
 	if strings.HasPrefix(trimmed, "#") {
-		if len(trimmed) > 2 && trimmed[1] == ' ' {
-			// Check if it looks like a heading (starts with capital or number) vs comment
-			firstChar := trimmed[2]
-			if unicode.IsUpper(rune(firstChar)) || unicode.IsDigit(rune(firstChar)) {
-				// Likely a markdown heading
-				return wrapContextMarkdownHeading, "", ""
-			} else {
-				// Likely a Python comment
-				indent := strings.Index(firstLine, "#")
-				return wrapContextPythonComment, strings.Repeat(" ", indent), "# "
-			}
-		} else if strings.Count(trimmed, "#") == len(trimmed) {
-			// All # characters - markdown heading
+		indent := strings.Index(firstLine, "#")
+		
+		// Multiple # characters (like ### or ####) - definitely markdown
+		if len(trimmed) > 1 && trimmed[1] == '#' {
 			return wrapContextMarkdownHeading, "", ""
-		} else {
-			// # followed by no space - treat as Python comment
-			indent := strings.Index(firstLine, "#")
+		}
+		
+		// All # characters - markdown heading separator
+		if strings.Count(trimmed, "#") == len(trimmed) {
+			return wrapContextMarkdownHeading, "", ""
+		}
+		
+		// # with indentation - Python comment
+		if indent > 0 {
 			return wrapContextPythonComment, strings.Repeat(" ", indent), "# "
 		}
+		
+		// # at start of line with space - check first character after "# "
+		if len(trimmed) > 2 && trimmed[1] == ' ' {
+			firstChar := trimmed[2]
+			if unicode.IsLower(rune(firstChar)) {
+				// Lowercase after "# " - treat as Python comment
+				return wrapContextPythonComment, "", "# "
+			}
+		}
+		
+		// Default: treat as markdown heading
+		return wrapContextMarkdownHeading, "", ""
 	}
 
 	// Check for C-style block comment
