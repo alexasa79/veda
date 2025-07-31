@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 )
@@ -390,11 +391,30 @@ func (e *Editor) insertNewline(args []string) error {
 		currentLine = e.buffer.CursorIterator.Line()
 	}
 
+	// Check if cursor is between braces on the same line
+	isBetweenBraces := e.isCursorBetweenBraces(currentLine, cursorX)
+
 	// Calculate auto-indent for the new line
 	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
 
-	// Create history entry for newline + indentation
-	textToInsert := "\n" + autoIndent.IndentStr
+	// Create the text to insert
+	var textToInsert string
+	var finalCursorX int
+	
+	if isBetweenBraces {
+		// Special case: cursor between {}
+		// Insert newline with indent, then another newline with base indent for closing brace
+		baseIndentInfo := e.buffer.GetLineIndentInfo(currentLine)
+		baseIndentStr := strings.Repeat(e.buffer.GetIndentationString(), baseIndentInfo.Level)
+		
+		textToInsert = "\n" + autoIndent.IndentStr + "\n" + baseIndentStr
+		finalCursorX = len(autoIndent.IndentStr)
+	} else {
+		// Normal case
+		textToInsert = "\n" + autoIndent.IndentStr
+		finalCursorX = len(autoIndent.IndentStr)
+	}
+
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
 
 	// Execute through history
@@ -412,18 +432,53 @@ func (e *Editor) insertNewline(args []string) error {
 	}
 
 	// Recreate iterators after buffer modification
-	// Cursor moves to next line
+	// Cursor moves to next line (the indented line)
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
 	// View iterator stays at its current line
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
 	// Move cursor to end of indentation
-	e.buffer.CursorX = len(autoIndent.IndentStr)
+	e.buffer.CursorX = finalCursorX
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
 	return nil
+}
+
+// isCursorBetweenBraces checks if the cursor is positioned between { and } on the same line
+func (e *Editor) isCursorBetweenBraces(line string, cursorX int) bool {
+	if cursorX <= 0 || cursorX >= len(line) {
+		return false
+	}
+	
+	// Look backward for {
+	hasOpenBrace := false
+	for i := cursorX - 1; i >= 0; i-- {
+		if line[i] == '{' {
+			hasOpenBrace = true
+			break
+		} else if line[i] != ' ' && line[i] != '\t' {
+			// Found non-whitespace character that's not {
+			break
+		}
+	}
+	
+	if !hasOpenBrace {
+		return false
+	}
+	
+	// Look forward for }
+	for i := cursorX; i < len(line); i++ {
+		if line[i] == '}' {
+			return true
+		} else if line[i] != ' ' && line[i] != '\t' {
+			// Found non-whitespace character that's not }
+			break
+		}
+	}
+	
+	return false
 }
 
 func (e *Editor) backspace(args []string) error {

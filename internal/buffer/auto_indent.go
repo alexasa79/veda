@@ -14,16 +14,37 @@ type AutoIndentInfo struct {
 
 // CalculateAutoIndent determines the indentation for a new line based on the current line
 // and cursor position. It implements the following rules:
-// 1. If current line appears to be a continuation line (has extra indentation beyond base level),
+// 1. If cursor is between curly braces {} or after an open brace at end of line,
+//    indent one level deeper
+// 2. If current line appears to be a continuation line (has extra indentation beyond base level),
 //    maintain that same indentation
-// 2. If there are unbalanced open parentheses and characters after the last open paren,
+// 3. If there are unbalanced open parentheses and characters after the last open paren,
 //    indent to the column after the last open paren
-// 3. If there are unbalanced open parentheses but no characters after,
+// 4. If there are unbalanced open parentheses but no characters after,
 //    indent to current line's indentation level plus one indent unit
-// 4. Otherwise (balanced parens or no parens), maintain the same indentation level
+// 5. Otherwise (balanced parens or no parens), maintain the same indentation level
 func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo {
 	// Get current line's base indentation
 	baseIndentInfo := b.GetLineIndentInfo(line)
+	
+	// Rule 1: Check for cursor between braces or after open brace
+	if shouldIndentAfterBrace(line, cursorCol) {
+		// Add one more indent level to current indentation
+		indentLevel := baseIndentInfo.Level + 1
+		indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
+		
+		// Calculate visual column for this indentation
+		visualCol := len(indentStr)
+		if b.Indentation.Type == config.IndentTabs {
+			// Each tab counts as 8 visual columns
+			visualCol = indentLevel * 8
+		}
+		
+		return AutoIndentInfo{
+			Column:    visualCol,
+			IndentStr: indentStr,
+		}
+	}
 	
 	// Check if this line appears to be a continuation line
 	// A continuation line has unusual indentation that doesn't match standard indent levels
@@ -175,4 +196,54 @@ func calculateVisualColumn(line string, bytePos int) int {
 	}
 	
 	return visualCol
+}
+
+// shouldIndentAfterBrace checks if we should add extra indentation due to braces
+// Returns true if:
+// - Cursor is between { and } on the same line
+// - Cursor is at the end of a line that ends with {
+func shouldIndentAfterBrace(line string, cursorCol int) bool {
+	// Ensure we don't go beyond the line length
+	if cursorCol > len(line) {
+		cursorCol = len(line)
+	}
+	
+	// Check if cursor is between { and }
+	if cursorCol > 0 && cursorCol < len(line) {
+		// Look for { before cursor and } after cursor
+		hasOpenBrace := false
+		for i := cursorCol - 1; i >= 0; i-- {
+			if line[i] == '{' {
+				hasOpenBrace = true
+				break
+			} else if !unicode.IsSpace(rune(line[i])) {
+				// Found non-space character before finding {
+				break
+			}
+		}
+		
+		if hasOpenBrace {
+			// Check if there's a } after cursor
+			for i := cursorCol; i < len(line); i++ {
+				if line[i] == '}' {
+					return true
+				} else if !unicode.IsSpace(rune(line[i])) {
+					// Found non-space character before finding }
+					break
+				}
+			}
+		}
+	}
+	
+	// Check if cursor is at end of line that ends with {
+	if cursorCol == len(line) && len(line) > 0 {
+		// Find the last non-whitespace character
+		for i := len(line) - 1; i >= 0; i-- {
+			if !unicode.IsSpace(rune(line[i])) {
+				return line[i] == '{'
+			}
+		}
+	}
+	
+	return false
 }
