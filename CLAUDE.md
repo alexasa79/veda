@@ -93,6 +93,11 @@ Currently the buffer package and editor package have tests. When adding new func
 - `tracker.go` implements a time tracker that we use for performance measurements. The typical use pattern is to create a performance tracker object. Then to call `t0 := tracker.Start()`, followed by `t0 = tracker.ReportSince(..., t0)`.
 - Always look for implementation that reduces the amount of state we have to keep. For instance if we have a boolean that tells us if the state is present and a pointer to the state's structure, we can remove the boolean and check if the pointer is nil.
 
+## Performance Debugging
+- **CPU Profiling**: Run `./vd -cpuprofile=cpu.prof` to generate a CPU profile. Exit normally with `:q` and analyze with `go tool pprof -top cpu.prof` to see which functions consume the most CPU time.
+- **Performance Tracker**: The editor includes built-in performance tracking that logs timing information for various operations. Check veda.log for performance metrics.
+- **Common Issues**: Watch out for busy loops, excessive syscalls (like SetNonblock), and inefficient polling. The input handler should use blocking I/O since it runs in a dedicated goroutine.
+
 ## Implementation Guidelines
 - **Undo/Redo Support**: All new commands that modify text MUST implement undo/redo functionality. This includes:
   - Storing necessary state to reverse the operation (e.g., deleted text, cursor positions)
