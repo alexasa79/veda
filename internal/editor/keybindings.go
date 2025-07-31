@@ -77,6 +77,9 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Completion
 	e.registerKeyBinding(commands.InsertMode, "ctrl+space", "show-completions")
+	
+	// Paragraph rewrapping in insert mode
+	e.registerKeyBinding(commands.InsertMode, "alt+q", "rewrap-paragraph")
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
