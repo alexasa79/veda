@@ -727,8 +727,8 @@ func (e *Editor) writeFile(args []string) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	// Mark buffer as not modified
-	e.buffer.IsModified = false
+	// Mark buffer as saved
+	e.buffer.MarkSaved()
 
 	// Show success message
 	LL.Info("Wrote %s", e.buffer.FilePath)
