@@ -47,12 +47,21 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string) ch
 	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
 	e.startAsyncOperation(operationID)
 
+	// Set connection status
+	host, _, isRemote := parsePathComponents(e.workingDirectory)
+	if isRemote {
+		e.connectionStatus = fmt.Sprintf("Listing files on %s", host)
+	} else {
+		e.connectionStatus = "Listing files"
+	}
+
 	// Create a channel for the result
 	resultChan := make(chan fileListingResult, 1)
 
 	// Start goroutine to fetch directory listing
 	go func() {
 		defer e.endAsyncOperation(operationID)
+		defer func() { e.connectionStatus = "" }() // Clear status when done
 
 		LL.Debug("Fetching directory listing for %s", e.workingDirectory)
 		files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
@@ -394,10 +403,14 @@ func (e *Editor) showProjectSymbolsList() {
 				// Start async operation tracking
 				operationID := fmt.Sprintf("project-symbols-%s", newText)
 				e.startAsyncOperation(operationID)
+				
+				// Set connection status
+				e.connectionStatus = fmt.Sprintf("Searching for \"%s\"", newText)
 
 				// Launch goroutine to fetch symbols
 				go func(query string) {
 					defer e.endAsyncOperation(operationID)
+					defer func() { e.connectionStatus = "" }() // Clear status when done
 
 					projectSymbols, err := e.proxyManager.ListProjectSymbols(query)
 
@@ -523,6 +536,9 @@ func (e *Editor) showDocumentSymbolsList() {
 	// Send async LSP request for document symbols
 	operationID := fmt.Sprintf("doc-symbols-%s", e.buffer.FilePath)
 	e.startAsyncOperation(operationID)
+	
+	// Set connection status
+	e.connectionStatus = "Loading document symbols"
 
 	// Launch goroutine to fetch document symbols
 	go func() {
@@ -549,6 +565,7 @@ func (e *Editor) showDocumentSymbolsList() {
 	// Start a goroutine to handle LSP response
 	go func() {
 		defer e.endAsyncOperation(operationID)
+		defer func() { e.connectionStatus = "" }() // Clear status when done
 
 		select {
 		case response := <-symbolResponseChan:
