@@ -449,6 +449,7 @@ type FoldingRange struct {
 // ProjectSymbol represents a symbol in the project (for fuzzy list)
 type ProjectSymbol struct {
 	Name      string `json:"name"`      // Display name with kind and file
+	RawName   string `json:"raw_name"`  // Raw symbol name without decorations
 	Path      string `json:"path"`      // File path
 	Line      int    `json:"line"`      // Line number
 	Character int    `json:"character"` // Character position

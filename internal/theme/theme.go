@@ -86,6 +86,19 @@ func (t *Theme) GetStyle(def StyleDef) ui.Style {
 	return style
 }
 
+// GetStyleWithFg returns a style based on the given base style but with a custom foreground color
+func (t *Theme) GetStyleWithFg(baseStyle ui.Style, fgColor string) ui.Style {
+	// Parse the color
+	fg, err := ui.ParseHexColor(fgColor)
+	if err != nil {
+		// If color parsing fails, return the base style unchanged
+		return baseStyle
+	}
+	
+	// Create a new style with the custom foreground but keeping background and attributes
+	return baseStyle.Foreground(fg)
+}
+
 // NewTheme returns the theme
 func NewTheme() *Theme {
 	return &Theme{
