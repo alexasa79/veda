@@ -43,6 +43,7 @@ type FuzzyListWidget struct {
 	allLines       []string       // All content (unfiltered, decorated)
 	rawLines       []string       // Original undecorated lines
 	topIndices     []int          // Indices mapping filtered lines to raw lines
+	iconInfos      []utils.FileIconInfo // Icon info for each line (for file icon mode)
 	bottomEditor   *LineEditor    // Line editor for the bottom section
 	theme          *theme.Theme   // Theme for styling
 	topScroll      int            // Vertical scroll offset for top section
@@ -68,6 +69,7 @@ func NewFuzzyListWidget(x, y, width, height int, theme *theme.Theme) *FuzzyListW
 		allLines:       []string{},
 		rawLines:       []string{},
 		topIndices:     []int{},
+		iconInfos:      []utils.FileIconInfo{},
 		bottomEditor:   bottomEditor,
 		theme:          theme,
 		topScroll:      0,
@@ -135,6 +137,7 @@ func (flw *FuzzyListWidget) SetDecorationMode(mode DecorationMode) {
 // applyDecorations applies the current decoration mode to raw lines
 func (flw *FuzzyListWidget) applyDecorations() {
 	flw.allLines = make([]string, len(flw.rawLines))
+	flw.iconInfos = make([]utils.FileIconInfo, len(flw.rawLines))
 
 	for i, line := range flw.rawLines {
 		decorated := line
@@ -145,8 +148,9 @@ func (flw *FuzzyListWidget) applyDecorations() {
 			parts := strings.Split(line, "/")
 			filename := parts[len(parts)-1]
 			// Assume files for now, could be enhanced to detect directories
-			icon := utils.GetFileIcon(filename, "file")
-			decorated = icon + " " + line
+			iconInfo := utils.GetFileIconInfo(filename, "file")
+			flw.iconInfos[i] = iconInfo
+			decorated = iconInfo.Icon + " " + line
 
 		case DecorationSymbol:
 			// Don't add any decoration - symbols already have icons from the caller
@@ -245,7 +249,7 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 				runes = runes[:contentWidth]
 			}
 			
-			// Check if line starts with a symbol icon (for colored rendering)
+			// Check if line starts with an icon (for colored rendering)
 			iconLen := 0
 			if flw.decorationMode == DecorationSymbol && len(runes) > 0 {
 				// Check if first rune is a known symbol icon
@@ -263,6 +267,29 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 					// Skip space after icon if present
 					if len(runes) > 1 && runes[1] == ' ' {
 						iconLen = 2
+					}
+				}
+			} else if flw.decorationMode == DecorationFileIcon && len(runes) > 0 {
+				// Get the icon info for this line
+				if rawIndex := flw.topIndices[lineIndex]; rawIndex < len(flw.iconInfos) {
+					iconInfo := flw.iconInfos[rawIndex]
+					if len(iconInfo.Icon) > 0 {
+						// Render the file icon with color
+						iconStyle := style
+						if lineIndex != flw.selectedIndex {
+							// Only apply color if not selected (selection color takes precedence)
+							iconStyle = flw.theme.GetStyleWithFg(style, iconInfo.Color)
+						}
+						iconRunes := []rune(iconInfo.Icon)
+						if len(iconRunes) > 0 {
+							screen.SetContent(flw.x+1, row, iconRunes[0], nil, iconStyle)
+							iconLen = 1
+							
+							// Skip space after icon if present
+							if len(runes) > 1 && runes[1] == ' ' {
+								iconLen = 2
+							}
+						}
 					}
 				}
 			}
@@ -376,6 +403,7 @@ func (flw *FuzzyListWidget) ClearTop() {
 	flw.allLines = []string{}
 	flw.rawLines = []string{}
 	flw.topIndices = []int{}
+	flw.iconInfos = []utils.FileIconInfo{}
 	flw.topScroll = 0
 	flw.selectedIndex = 0
 }
