@@ -56,11 +56,10 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 	}
 
 	// Get all registered command names
-	// TODO: Add GetCommandNames method to CommandRegistry
-	// commands := e.commandRegistry.GetCommandNames()
+	commands := e.commandRegistry.GetCommandNames()
 
-	// For now, just use variables
-	allCompletions := variables
+	// Combine commands and variables
+	allCompletions := append(commands, variables...)
 
 	// Filter based on prefix
 	var completions []string

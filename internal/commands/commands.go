@@ -86,6 +86,15 @@ func (cr *CommandRegistry) GetCommand(command string) (CommandInfo, bool) {
 	return info, exists
 }
 
+// GetCommandNames returns all registered command names
+func (cr *CommandRegistry) GetCommandNames() []string {
+	names := make([]string, 0, len(cr.commands))
+	for name := range cr.commands {
+		names = append(names, name)
+	}
+	return names
+}
+
 // KeyMapper manages key bindings
 type KeyMapper struct {
 	bindings []Binding

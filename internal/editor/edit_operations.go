@@ -149,8 +149,9 @@ func (e *Editor) openLineAbove(args []string) error {
 
 // joinLines joins the current line with the next line
 func (e *Editor) joinLines(args []string) error {
-	// Get current line info
+	// Get current line info and save view position before buffer modifications
 	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	
 	// Can't join if we're on the last line
 	if lineNum >= e.buffer.LineCount - 1 {
@@ -217,7 +218,7 @@ func (e *Editor) joinLines(args []string) error {
 	
 	// Recreate iterators
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, e.buffer.ViewIterator.LineNumber())
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 	
 	// Set cursor position to the join point
 	e.buffer.CursorX = cursorX
