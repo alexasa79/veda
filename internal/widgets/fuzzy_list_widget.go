@@ -149,8 +149,8 @@ func (flw *FuzzyListWidget) applyDecorations() {
 			decorated = icon + " " + line
 
 		case DecorationSymbol:
-			// TODO: Add symbol decoration logic
-			decorated = "◉ " + line
+			// Don't add any decoration - symbols already have icons from the caller
+			decorated = line
 
 		case DecorationNone:
 			// Keep as-is
@@ -244,9 +244,33 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 			if len(runes) > contentWidth {
 				runes = runes[:contentWidth]
 			}
-			for j, r := range runes {
-				if j < contentWidth {
-					screen.SetContent(flw.x+1+j, row, r, nil, style)
+			
+			// Check if line starts with a symbol icon (for colored rendering)
+			iconLen := 0
+			if flw.decorationMode == DecorationSymbol && len(runes) > 0 {
+				// Check if first rune is a known symbol icon
+				firstRune := runes[0]
+				if isSymbolIcon(firstRune) {
+					// Render the icon with a special color
+					iconStyle := style
+					if lineIndex != flw.selectedIndex {
+						// Only apply color if not selected (selection color takes precedence)
+						iconStyle = flw.theme.GetStyleWithFg(style, getSymbolIconColor(firstRune))
+					}
+					screen.SetContent(flw.x+1, row, firstRune, nil, iconStyle)
+					iconLen = 1
+					
+					// Skip space after icon if present
+					if len(runes) > 1 && runes[1] == ' ' {
+						iconLen = 2
+					}
+				}
+			}
+			
+			// Render the rest of the line
+			for j, r := range runes[iconLen:] {
+				if j+iconLen < contentWidth {
+					screen.SetContent(flw.x+1+j+iconLen, row, r, nil, style)
 				}
 			}
 		}
@@ -475,6 +499,20 @@ func (flw *FuzzyListWidget) ApplyFilter() {
 	// Reset scroll and selection
 	flw.topScroll = 0
 	flw.selectedIndex = 0
+}
+
+// isSymbolIcon checks if a rune is a known symbol icon
+func isSymbolIcon(r rune) bool {
+	// Check if the rune looks like a symbol icon (simplified check)
+	// Most symbol icons are in specific unicode ranges
+	return r > 127 && r != ' ' && r != '-' && r != '/' && r != '.'
+}
+
+// getSymbolIconColor returns a color for the given symbol icon
+func getSymbolIconColor(r rune) string {
+	// For now, return a default purple color for all symbols
+	// This can be enhanced later with specific colors per icon
+	return "#b392f0"
 }
 
 // Show displays the fuzzy list widget as a modal dialog and handles its own event loop

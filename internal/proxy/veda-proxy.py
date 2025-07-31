@@ -1148,10 +1148,12 @@ class VedaProxy:
                     kind_name = kind_names.get(kind, f"Unknown({kind})")
                     
                     name = symbol.get('name', '')
-                    display_name = f"{name} [{kind_name}] - {file_path}"
+                    # Don't add decorations here - Go will add icons
+                    display_name = f"{name} - {file_path}"
                     
                     formatted_symbol = {
                         'name': display_name,
+                        'raw_name': name,  # Raw name for Go to format with icons
                         'path': file_path,
                         'line': symbol.get('location', {}).get('range', {}).get('start', {}).get('line', 0),
                         'character': symbol.get('location', {}).get('range', {}).get('start', {}).get('character', 0),

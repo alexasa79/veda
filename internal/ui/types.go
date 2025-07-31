@@ -1,5 +1,7 @@
 package ui
 
+import "fmt"
+
 // Style represents text styling attributes
 type Style struct {
 	Fg    Color
@@ -36,6 +38,21 @@ const (
 // NewRGBColor creates a color from RGB values
 func NewRGBColor(r, g, b int32) Color {
 	return Color(1<<24 | (r&0xff)<<16 | (g&0xff)<<8 | (b&0xff))
+}
+
+// ParseHexColor parses a hex color string like "#89e051" and returns a Color
+func ParseHexColor(hex string) (Color, error) {
+	if len(hex) != 7 || hex[0] != '#' {
+		return ColorDefault, fmt.Errorf("invalid hex color format: %s", hex)
+	}
+	
+	var r, g, b int64
+	_, err := fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b)
+	if err != nil {
+		return ColorDefault, err
+	}
+	
+	return NewRGBColor(int32(r), int32(g), int32(b)), nil
 }
 
 // RGB returns the RGB values of a color

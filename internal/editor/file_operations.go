@@ -8,6 +8,7 @@ import (
 	"veda/internal/commands"
 	"veda/internal/proxy"
 	"veda/internal/proxyworker"
+	"veda/internal/utils"
 	"veda/internal/widgets"
 )
 
@@ -386,7 +387,7 @@ func (e *Editor) showProjectSymbolsList() {
 
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
 	fuzzyListWidget.SetTitle("Project Symbols (type to search)")
-	fuzzyListWidget.SetDecorationMode(widgets.DecorationNone)
+	fuzzyListWidget.SetDecorationMode(widgets.DecorationSymbol)
 
 	// Start with empty content
 	fuzzyListWidget.SetContent([]string{})
@@ -425,13 +426,17 @@ func (e *Editor) showProjectSymbolsList() {
 				} else {
 					LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
 
-					// Convert to display strings
+					// Convert to display strings with icons
 					var displayNames []string
 					newSymbolMap := make(map[string]int)
 
 					for i, sym := range response.ProjectSymbols {
-						displayNames = append(displayNames, sym.Name)
-						newSymbolMap[sym.Name] = i
+						// Get symbol icon based on kind
+						iconInfo := utils.GetSymbolIconInfo(sym.Kind)
+						// Format: icon symbol_name - file_path
+						displayName := fmt.Sprintf("%s %s - %s", iconInfo.Icon, sym.RawName, sym.Path)
+						displayNames = append(displayNames, displayName)
+						newSymbolMap[displayName] = i
 					}
 
 					// Send the symbol data update
@@ -586,7 +591,7 @@ func (e *Editor) showDocumentSymbolsList() {
 
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
 	fuzzyListWidget.SetTitle("Document Symbols")
-	fuzzyListWidget.SetDecorationMode(widgets.DecorationNone)
+	fuzzyListWidget.SetDecorationMode(widgets.DecorationSymbol)
 
 	// Start with loading message
 	fuzzyListWidget.SetContent([]string{"Loading symbols..."})
@@ -643,27 +648,15 @@ func (e *Editor) showDocumentSymbolsList() {
 				} else {
 					LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
 
-					// Convert to display strings
+					// Convert to display strings with icons
 					var displayNames []string
 					newSymbolMap := make(map[string]int)
 
-					// Symbol kind names
-					kindNames := map[int]string{
-						1: "File", 2: "Module", 3: "Namespace", 4: "Package",
-						5: "Class", 6: "Method", 7: "Property", 8: "Field",
-						9: "Constructor", 10: "Enum", 11: "Interface", 12: "Function",
-						13: "Variable", 14: "Constant", 15: "String", 16: "Number",
-						17: "Boolean", 18: "Array", 19: "Object", 20: "Key",
-						21: "Null", 22: "EnumMember", 23: "Struct", 24: "Event",
-						25: "Operator", 26: "TypeParameter",
-					}
-
 					for i, sym := range response.DocumentSymbols {
-						kindName := kindNames[sym.Kind]
-						if kindName == "" {
-							kindName = fmt.Sprintf("Unknown(%d)", sym.Kind)
-						}
-						displayName := fmt.Sprintf("%s [%s] (line %d)", sym.Name, kindName, sym.Range.Start.Line+1)
+						// Get symbol icon based on kind
+						iconInfo := utils.GetSymbolIconInfo(sym.Kind)
+						// Format: icon symbol_name (line N)
+						displayName := fmt.Sprintf("%s %s (line %d)", iconInfo.Icon, sym.Name, sym.Range.Start.Line+1)
 						displayNames = append(displayNames, displayName)
 						newSymbolMap[displayName] = i
 					}
