@@ -7,7 +7,7 @@ import (
 
 // Common unicode symbols for files and directories
 const (
-	IconDefault    = ""
+	IconDefault    = "•"
 	IconDirectory  = ""
 
 	// Programming language symbols (Nerd Font)
@@ -20,9 +20,9 @@ const (
 
 	// File type symbols (Nerd Font)
 	IconText       = ""
-	IconTypeScript = ""
-	IconMarkdown   = ""
-	IconJson       = ""
+	IconTypeScript = "T"
+	IconMarkdown   = "M"
+	IconJson       = "J"
 	IconYaml       = ""
 	IconHtml       = ""
 	IconCss        = ""
@@ -31,7 +31,7 @@ const (
 	IconGit        = ""
 	IconDocker     = ""
 	IconMakefile   = ""
-	IconReadme     = ""
+	IconReadme     = "R"
 	IconTest       = ""
 )
 
@@ -60,74 +60,22 @@ func GetFileIconInfo(name string, fileType string) FileIconInfo {
 		return FileIconInfo{Icon: IconDirectory, Color: "#7c9bcc"}
 	}
 
-	// Check for special files first
-	baseName := strings.ToLower(filepath.Base(name))
-	switch baseName {
-	case "makefile":
-		return FileIconInfo{Icon: IconMakefile, Color: "#6d8086"}
-	case "dockerfile":
-		return FileIconInfo{Icon: IconDocker, Color: "#0db7ed"}
-	case ".gitignore", ".gitconfig":
-		return FileIconInfo{Icon: IconGit, Color: "#f1502f"}
-	case "readme.md", "readme":
-		return FileIconInfo{Icon: IconReadme, Color: "#89e051"}
-	}
-
-	// Check if it's a test file
-	if strings.Contains(baseName, "_test.") || strings.Contains(baseName, ".test.") || strings.Contains(baseName, "test_") {
-		return FileIconInfo{Icon: IconTest, Color: "#f9c513"}
-	}
-
 	// Get file extension
 	ext := strings.ToLower(filepath.Ext(name))
 
-	// Map extensions to icons and colors
+	// Simple mapping for just the important file types
 	switch ext {
-	// Go files
 	case ".go":
 		return FileIconInfo{Icon: IconGo, Color: "#519aba"}
-
-	// Python files
-	case ".py", ".pyw", ".pyc", ".pyd", ".pyo":
+	case ".py":
 		return FileIconInfo{Icon: IconPython, Color: "#ffbc03"}
-
-	// JavaScript files
-	case ".js", ".jsx", ".mjs":
-		return FileIconInfo{Icon: IconJavaScript, Color: "#f1e05a"}
-	
-	// TypeScript files
-	case ".ts", ".tsx":
-		return FileIconInfo{Icon: IconTypeScript, Color: "#2b7489"}
-
-	// Rust files
-	case ".rs":
-		return FileIconInfo{Icon: IconRust, Color: "#dea584"}
-
-	// C/C++ files
-	case ".c", ".h":
-		return FileIconInfo{Icon: IconC, Color: "#599eff"}
-	case ".cpp", ".cc", ".cxx", ".hpp", ".hxx":
+	case ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp":
 		return FileIconInfo{Icon: IconCpp, Color: "#f34b7d"}
-
-	// Markup files
-	case ".md", ".markdown":
+	case ".md":
 		return FileIconInfo{Icon: IconMarkdown, Color: "#89e051"}
-	case ".html", ".htm":
-		return FileIconInfo{Icon: IconHtml, Color: "#e34c26"}
-	case ".css", ".scss", ".sass":
-		return FileIconInfo{Icon: IconCss, Color: "#563d7c"}
-
-	// Data files
-	case ".json":
-		return FileIconInfo{Icon: IconJson, Color: "#cbcb41"}
-	case ".yaml", ".yml":
-		return FileIconInfo{Icon: IconYaml, Color: "#6d8086"}
-
-	// Text files
-	case ".txt", ".text":
-		return FileIconInfo{Icon: IconText, Color: "#89e051"}
 	}
 
+	// Everything else gets the default icon
 	return FileIconInfo{Icon: IconDefault, Color: "#ccc"}
 }
 
