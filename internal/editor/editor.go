@@ -28,6 +28,7 @@ type ReferencesBuffer struct {
 	SourceLine   int              // Line where find-references was called
 	SourceChar   int              // Character where find-references was called
 	BufferName   string           // Name of the buffer displaying these references
+	SymbolName   string           // Name of the symbol being referenced
 }
 
 // Editor represents the state of the text editor.

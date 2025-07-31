@@ -552,6 +552,18 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, searchHighlightStyle, searchText, 0, nil, -1, 0, -1)
 		}
 
+		// Add references indicator if there's an active references buffer
+		if e.currentReferencesBuffer != nil && len(e.currentReferencesBuffer.References) > 0 {
+			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
+			
+			// Use SearchHighlight style for references indicator (same style as search)
+			referencesHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+			
+			referencesText := fmt.Sprintf(" @%s %d/%d ", e.currentReferencesBuffer.SymbolName, 
+				e.currentReferencesBuffer.CurrentIndex+1, len(e.currentReferencesBuffer.References))
+			x += e.drawText(x, statusBarY, referencesHighlightStyle, referencesText, 0, nil, -1, 0, -1)
+		}
+
 		// Right side: indentation and line:col
 
 		// Use visual column position for display (accounting for tabs)

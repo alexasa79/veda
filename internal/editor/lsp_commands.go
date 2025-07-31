@@ -36,6 +36,9 @@ func (e *Editor) findReferences(args []string) error {
 		return nil
 	}
 
+	// Get the symbol name under cursor
+	symbolName := e.getSymbolAtCursor()
+	
 	// Save source file path before switching buffers
 	sourceFilePath := e.buffer.FilePath
 	
@@ -69,6 +72,7 @@ func (e *Editor) findReferences(args []string) error {
 		SourceLine:   line,
 		SourceChar:   character,
 		BufferName:   bufferName,
+		SymbolName:   symbolName,
 	}
 	e.referencesBuffers[bufferName] = refsBuffer
 	e.currentReferencesBuffer = refsBuffer
