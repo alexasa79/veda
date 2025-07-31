@@ -260,11 +260,20 @@ func (e *Editor) openFile(filePath string) {
 	// Read file content using proxy
 	content, err := e.proxyManager.GetFile(resolvedPath)
 	if err != nil {
-		// TODO: Show error to user
-		return
+		// Check if it's a file not found error
+		if strings.Contains(err.Error(), "File does not exist") || strings.Contains(err.Error(), "file does not exist") {
+			// Create an empty buffer for a new file
+			content = ""
+			LL.Info("Creating new file: %s", resolvedPath)
+		} else {
+			// Other errors (permission denied, etc.) - show error and return
+			LL.Error("Failed to open file %s: %v", resolvedPath, err)
+			// TODO: Show error to user
+			return
+		}
 	}
 
-	// Create a new buffer with the file content
+	// Create a new buffer with the file content (empty for new files)
 	newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 
 	// Add to buffers map and order
