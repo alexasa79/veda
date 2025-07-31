@@ -204,6 +204,26 @@ func (t *Terminal) parseInput(buf *[]byte) {
 	for len(*buf) > 0 {
 		// Special handling for ESC that might be part of Alt+key
 		if len(*buf) > 0 && (*buf)[0] == '\x1b' && len(*buf) > 1 {
+			// Check if ESC is followed by a letter or common Alt+key character
+			// but NOT '[' or 'O' which start escape sequences
+			nextChar := (*buf)[1]
+			if (nextChar >= 'a' && nextChar <= 'z') || 
+			   (nextChar >= 'A' && nextChar <= 'Z') ||
+			   (nextChar >= '0' && nextChar <= '9') ||
+			   nextChar == ' ' || nextChar == '-' || nextChar == '=' ||
+			   nextChar == ',' || nextChar == '.' || nextChar == '/' ||
+			   nextChar == ';' || nextChar == '\'' || nextChar == '\\' ||
+			   nextChar == '`' || nextChar == '\x7f' { // backspace
+				// It's ESC followed by a regular character - treat as Alt+char
+				r, size := decodeRune((*buf)[1:])
+				if r != 0 && size > 0 {
+					event := events.NewKeyEvent(events.KeyRune, r, events.ModAlt)
+					t.inputChan <- event
+					*buf = (*buf)[1+size:] // Skip ESC + character
+					continue
+				}
+			}
+			
 			// Try to match Alt+key sequences by checking if ESC + remaining buffer matches a key
 			altBuf := (*buf)[1:]
 			matched, consumedBytes := t.matchKeyCodeWithAlt(&altBuf)
