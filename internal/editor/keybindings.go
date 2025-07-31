@@ -128,6 +128,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
 	e.registerKeyBinding(commands.NormalMode, "N", "find-previous")
 	e.registerKeyBinding(commands.NormalMode, "escape", "clear-search")
+	e.registerKeyBinding(commands.NormalMode, "*", "search-word-under-cursor")
 
 	// Visual modes (both character and line) - shared keybindings
 	visualModes := []commands.Mode{commands.VisualMode, commands.VisualLineMode}

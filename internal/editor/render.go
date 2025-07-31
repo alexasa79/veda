@@ -38,7 +38,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	runes := []rune(text)
 	for i, r := range runes {
 		// Check if this character is part of a search match
-		useSearchStyle := e.isInSearchMatch(charPos, searchMatches)
+		// searchMatches contains positions relative to the line, not absolute positions
+		charPosInLine := segmentStart + i
+		useSearchStyle := e.isInSearchMatchInLine(charPosInLine, searchMatches)
 		// Check if this character is part of the selection
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd
 		// Check if this character is part of the flash highlight
@@ -142,6 +144,23 @@ func (e *Editor) findSearchMatches(line string) []int {
 
 // isInSearchMatch checks if a position is within a search match
 func (e *Editor) isInSearchMatch(pos int, matches []int) bool {
+	if len(matches) == 0 || e.searchPattern == "" {
+		return false
+	}
+
+	patternLen := len(e.searchPattern)
+	for _, matchStart := range matches {
+		if pos >= matchStart && pos < matchStart+patternLen {
+			return true
+		}
+	}
+	return false
+}
+
+// isInSearchMatchInLine checks if a line-relative position is within a search match
+// pos is the character position within the line (0-based)
+// matches contains line-relative match positions
+func (e *Editor) isInSearchMatchInLine(pos int, matches []int) bool {
 	if len(matches) == 0 || e.searchPattern == "" {
 		return false
 	}

@@ -115,6 +115,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("find-next", e.findNextCmd)
 	e.commandRegistry.Register("find-previous", e.findPreviousCmd)
 	e.commandRegistry.Register("clear-search", e.clearSearchCmd)
+	e.commandRegistry.Register("search-word-under-cursor", e.searchWordUnderCursorCmd)
 	
 	// Help commands
 	e.commandRegistry.Register("help", e.showHelp)
