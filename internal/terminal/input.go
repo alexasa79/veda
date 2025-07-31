@@ -165,12 +165,20 @@ func (t *Terminal) inputHandler() {
 	var lastReadTime time.Time
 
 	for {
+		// Use a goroutine to handle blocking read with cancellation
+		readDone := make(chan struct{})
+		var n int
+		var err error
+		
+		go func() {
+			n, err = os.Stdin.Read(buf)
+			close(readDone)
+		}()
+		
 		select {
 		case <-t.stopChan:
 			return
-		default:
-			// Read with timeout
-			n, err := t.readWithTimeout(buf, 10*time.Millisecond)
+		case <-readDone:
 			if err != nil && err != io.EOF {
 				continue
 			}
@@ -190,24 +198,6 @@ func (t *Terminal) inputHandler() {
 	}
 }
 
-// readWithTimeout reads from stdin with a timeout
-func (t *Terminal) readWithTimeout(buf []byte, timeout time.Duration) (int, error) {
-	// Set non-blocking mode temporarily
-	if err := syscall.SetNonblock(int(os.Stdin.Fd()), true); err != nil {
-		return 0, err
-	}
-	defer syscall.SetNonblock(int(os.Stdin.Fd()), false)
-
-	// Try to read
-	n, err := os.Stdin.Read(buf)
-	if err == syscall.EAGAIN {
-		// No data available
-		time.Sleep(timeout)
-		return 0, nil
-	}
-
-	return n, err
-}
 
 // parseInput processes the input buffer and generates events
 func (t *Terminal) parseInput(buf *[]byte) {

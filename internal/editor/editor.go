@@ -2,7 +2,6 @@ package editor
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -143,6 +142,9 @@ type Editor struct {
 	
 	// Whitespace rendering
 	whitespaceStyle whitespaceStyle        // Style and settings for whitespace visualization
+	
+	// Exit control
+	shouldExit      bool                   // Flag to signal the editor should exit
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -266,7 +268,7 @@ func (e *Editor) Run() {
 	defer ticker.Stop()
 
 	// Event loop
-	for {
+	for !e.shouldExit {
 		var ev events.Event
 
 		// Use select to handle multiple event sources
@@ -554,8 +556,7 @@ func (e *Editor) updateCursorState() {
 
 // actuallyQuit exits the editor completely
 func (e *Editor) actuallyQuit(args []string) error {
-	e.Close()
-	os.Exit(0)
+	e.shouldExit = true
 	return nil
 }
 
