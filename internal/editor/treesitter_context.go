@@ -119,15 +119,22 @@ func findFunctionDeclarationLine(buf *buffer.Buffer, node *sitter.Node) int {
 	// which contains the function name and parameters
 	childCount := int(node.ChildCount())
 	
+	// First, try to find the function declarator directly
+	var declaratorNode *sitter.Node
 	for i := 0; i < childCount; i++ {
 		child := node.Child(i)
 		childType := child.Type()
 		
-		// Look for the declarator or similar node that contains the function signature
-		if childType == "function_declarator" || childType == "declarator" || 
-		   childType == "identifier" || childType == "field_identifier" {
-			// Return the start line of this node
-			return int(child.StartPoint().Row)
+		// Look for the declarator that contains the function name
+		if childType == "function_declarator" {
+			declaratorNode = child
+			break
+		} else if childType == "declarator" {
+			// Check if this declarator contains a function_declarator
+			declaratorNode = findFunctionDeclaratorInNode(child)
+			if declaratorNode != nil {
+				break
+			}
 		}
 		
 		// For Go, the function name is usually an identifier at the top level
@@ -136,44 +143,141 @@ func findFunctionDeclarationLine(buf *buffer.Buffer, node *sitter.Node) int {
 		}
 	}
 	
-	// If we can't find a specific declarator, look for the first line
-	// that's not a storage class specifier or type
-	startLine := int(node.StartPoint().Row)
-	iter := buffer.NewBufferIteratorAtLine(buf, startLine)
+	// If we found a function declarator, find the line with the function name
+	if declaratorNode != nil {
+		// The function name is usually in an identifier node within the declarator
+		funcNameLine := findFunctionNameLine(declaratorNode)
+		if funcNameLine >= 0 {
+			return funcNameLine
+		}
+		// Fallback to declarator start line
+		return int(declaratorNode.StartPoint().Row)
+	}
 	
-	if !iter.IsEOF() {
-		line := strings.TrimSpace(iter.Line())
-		// If the line doesn't start with '{', it's likely part of the signature
-		if !strings.HasPrefix(line, "{") {
-			return startLine
+	// Fallback: scan lines to find the one with the function name
+	// This handles cases where tree-sitter structure might be different
+	return findFunctionNameByScanning(buf, node)
+}
+
+// findFunctionDeclaratorInNode recursively searches for a function_declarator node
+func findFunctionDeclaratorInNode(node *sitter.Node) *sitter.Node {
+	if node.Type() == "function_declarator" {
+		return node
+	}
+	
+	childCount := int(node.ChildCount())
+	for i := 0; i < childCount; i++ {
+		child := node.Child(i)
+		if result := findFunctionDeclaratorInNode(child); result != nil {
+			return result
+		}
+	}
+	
+	return nil
+}
+
+// findFunctionNameLine finds the line containing the function name within a declarator
+func findFunctionNameLine(declaratorNode *sitter.Node) int {
+	// Look for an identifier node which typically contains the function name
+	childCount := int(declaratorNode.ChildCount())
+	for i := 0; i < childCount; i++ {
+		child := declaratorNode.Child(i)
+		if child.Type() == "identifier" || child.Type() == "field_identifier" {
+			return int(child.StartPoint().Row)
+		}
+		// Sometimes the identifier is nested deeper
+		if child.Type() == "pointer_declarator" || child.Type() == "parenthesized_declarator" {
+			if line := findFunctionNameLine(child); line >= 0 {
+				return line
+			}
+		}
+	}
+	return -1
+}
+
+// findFunctionNameByScanning scans the function node's text to find the line with the function name
+func findFunctionNameByScanning(buf *buffer.Buffer, node *sitter.Node) int {
+	startLine := int(node.StartPoint().Row)
+	endLine := int(node.EndPoint().Row)
+	
+	// Scan lines looking for the function name
+	// In C/C++, the function name line typically has:
+	// - An identifier followed by '('
+	// - Not just type keywords
+	for line := startLine; line <= endLine && line < buf.LineCount; line++ {
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			continue
 		}
 		
-		// Otherwise, check previous lines for the signature
-		for i := 1; i <= 5 && startLine-i >= 0; i++ {
-			prevIter := buffer.NewBufferIteratorAtLine(buf, startLine-i)
-			if !prevIter.IsEOF() {
-				prevLine := strings.TrimSpace(prevIter.Line())
-				// Look for lines with parentheses (function parameters)
-				if strings.Contains(prevLine, "(") || strings.Contains(prevLine, ")") {
-					// Find the start of the function declaration
-					for j := i; j <= 5 && startLine-j >= 0; j++ {
-						checkIter := buffer.NewBufferIteratorAtLine(buf, startLine-j)
-						if !checkIter.IsEOF() {
-							checkLine := strings.TrimSpace(checkIter.Line())
-							// If we find a line that looks like it starts a function
-							// (has a type or function name)
-							if !strings.Contains(checkLine, ")") && 
-							   !strings.HasSuffix(checkLine, ",") &&
-							   !strings.HasPrefix(checkLine, "{") {
-								return startLine - j
-							}
-						}
+		lineText := strings.TrimSpace(iter.Line())
+		
+		// Skip empty lines and lines that are just type specifiers
+		if lineText == "" || lineText == "{" {
+			continue
+		}
+		
+		// Check if this line contains a function name pattern
+		// Look for identifier followed by '(' either on same line or next line
+		if strings.Contains(lineText, "(") {
+			// This line has opening parenthesis, likely the function name line
+			// Make sure it's not just a cast or type
+			if !isJustTypeDeclaration(lineText) {
+				return line
+			}
+		} else if line < endLine {
+			// Check if next line starts with '('
+			nextIter := buffer.NewBufferIteratorAtLine(buf, line+1)
+			if !nextIter.IsEOF() {
+				nextLine := strings.TrimSpace(nextIter.Line())
+				if strings.HasPrefix(nextLine, "(") {
+					// Current line likely has function name
+					if !isJustTypeDeclaration(lineText) {
+						return line
 					}
-					return startLine - i
 				}
 			}
 		}
 	}
 	
+	// Fallback to node start line
 	return startLine
+}
+
+// isJustTypeDeclaration checks if a line contains only type keywords/specifiers
+func isJustTypeDeclaration(line string) bool {
+	// Common C type keywords and specifiers
+	typeKeywords := []string{
+		"static", "const", "inline", "extern", "volatile",
+		"void", "char", "int", "long", "short", "float", "double",
+		"unsigned", "signed", "struct", "union", "enum", "*",
+	}
+	
+	// Remove pointer symbols for checking
+	checkLine := strings.ReplaceAll(line, "*", " ")
+	checkLine = strings.ReplaceAll(checkLine, "const", " ")
+	
+	// If line only contains type keywords and whitespace, it's just a type
+	words := strings.Fields(checkLine)
+	if len(words) == 0 {
+		return true
+	}
+	
+	// Check if all words are type keywords
+	allTypeKeywords := true
+	for _, word := range words {
+		isTypeKeyword := false
+		for _, keyword := range typeKeywords {
+			if word == keyword {
+				isTypeKeyword = true
+				break
+			}
+		}
+		if !isTypeKeyword {
+			allTypeKeywords = false
+			break
+		}
+	}
+	
+	return allTypeKeywords
 }
