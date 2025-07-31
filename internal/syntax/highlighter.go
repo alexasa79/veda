@@ -277,7 +277,9 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 	shouldTokenize := childCount == 0 || // Leaf nodes
 		nodeType == "string_literal" || // C/C++ strings
 		nodeType == "char_literal" || // C/C++ chars
-		nodeType == "raw_string_literal" // C++ raw strings
+		nodeType == "raw_string_literal" || // C++ raw strings
+		nodeType == "interpreted_string_literal" || // Go strings
+		nodeType == "rune_literal" // Go runes
 	
 	if shouldTokenize {
 		// Map node type to token type

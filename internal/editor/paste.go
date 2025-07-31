@@ -98,6 +98,9 @@ func (e *Editor) pasteAfterCursor(content string) error {
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
 	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
 	return nil
 }
 
@@ -135,6 +138,9 @@ func (e *Editor) pasteBeforeCursor(content string) error {
 		viewLine = e.buffer.LineCount - 1
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 	
 	return nil
 }
@@ -195,6 +201,9 @@ func (e *Editor) pasteAfterLine(content string) error {
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
 	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
 	return nil
 }
 
@@ -241,6 +250,9 @@ func (e *Editor) pasteBeforeLine(content string) error {
 		viewLine = e.buffer.LineCount - 1
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 	
 	return nil
 }
