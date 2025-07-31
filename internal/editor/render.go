@@ -51,9 +51,11 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		currentStyle := style
 		
 		// Check if this column is a ruler position
+		// Calculate text column position (screenX minus line number width)
+		textColumn := screenX - e.buffer.LineNumberWidth
 		isRulerColumn := false
 		for _, rulerPos := range e.config.VerticalRulers {
-			if screenX == rulerPos {
+			if textColumn == rulerPos {
 				isRulerColumn = true
 				break
 			}
@@ -199,8 +201,10 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			for i := x; i < width; i++ {
 				fillStyle := normalStyle
 				// Check if this column is a ruler position
+				// Calculate text column position (i minus line number width)
+				textColumn := i - e.buffer.LineNumberWidth
 				for _, rulerPos := range e.config.VerticalRulers {
-					if i == rulerPos {
+					if textColumn == rulerPos {
 						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
 						break
 					}
@@ -225,8 +229,10 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			for i := x; i < width; i++ {
 				fillStyle := normalStyle
 				// Check if this column is a ruler position
+				// Calculate text column position (i minus line number width)
+				textColumn := i - e.buffer.LineNumberWidth
 				for _, rulerPos := range e.config.VerticalRulers {
-					if i == rulerPos {
+					if textColumn == rulerPos {
 						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
 						break
 					}
@@ -287,8 +293,10 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		for i := x; i < width; i++ {
 			fillStyle := normalStyle
 			// Check if this column is a ruler position
+			// Calculate text column position (i minus line number width)
+			textColumn := i - e.buffer.LineNumberWidth
 			for _, rulerPos := range e.config.VerticalRulers {
-				if i == rulerPos {
+				if textColumn == rulerPos {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
 					break
 				}
@@ -367,8 +375,10 @@ func (e *Editor) drawEditor() {
 		for x := 0; x < width; x++ {
 			fillStyle := normalStyle
 			// Check if this column is a ruler position
+			// Calculate text column position (x minus line number width)
+			textColumn := x - e.buffer.LineNumberWidth
 			for _, rulerPos := range e.config.VerticalRulers {
-				if x == rulerPos {
+				if textColumn == rulerPos {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
 					break
 				}
