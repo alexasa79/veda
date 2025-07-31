@@ -230,6 +230,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 
 	// Save iterator positions before any buffer modifications
 	cursorLine := e.buffer.CursorIterator.LineNumber()
+	cursorX := e.buffer.CursorX
 	viewLine := e.buffer.ViewIterator.LineNumber()
 
 	// Get all lines from buffer
@@ -252,6 +253,79 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	// Handle markdown heading - don't rewrap
 	if context == wrapContextMarkdownHeading {
 		return nil
+	}
+
+	// Calculate cursor position within the paragraph text (if cursor is in paragraph)
+	var cursorOffsetInParagraph int = -1
+	if cursorLine >= startLine && cursorLine <= endLine {
+		// Calculate how many characters come before the cursor in the unwrapped text
+		cursorOffsetInParagraph = 0
+		for i := startLine; i < cursorLine; i++ {
+			line := lines[i]
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			// Remove comment prefixes to get actual text length
+			switch context {
+			case wrapContextCLineComment:
+				trimmed = strings.TrimPrefix(trimmed, "//")
+				trimmed = strings.TrimSpace(trimmed)
+			case wrapContextPythonComment:
+				trimmed = strings.TrimPrefix(trimmed, "#")
+				trimmed = strings.TrimSpace(trimmed)
+			case wrapContextCBlockComment:
+				if strings.HasPrefix(trimmed, "*") && !strings.HasPrefix(trimmed, "*/") {
+					trimmed = strings.TrimPrefix(trimmed, "*")
+					trimmed = strings.TrimSpace(trimmed)
+				} else if strings.HasPrefix(trimmed, "/*") {
+					trimmed = strings.TrimPrefix(trimmed, "/*")
+					trimmed = strings.TrimSpace(trimmed)
+				}
+			case wrapContextMarkdownList:
+				if i == startLine {
+					listPrefix := extractListPrefix(trimmed)
+					trimmed = strings.TrimPrefix(trimmed, listPrefix)
+				}
+			}
+			cursorOffsetInParagraph += len(trimmed) + 1 // +1 for space between words
+		}
+		
+		// Add position within current line
+		currentLineTrimmed := strings.TrimSpace(lines[cursorLine])
+		switch context {
+		case wrapContextCLineComment:
+			if strings.HasPrefix(currentLineTrimmed, "//") {
+				prefixLen := strings.Index(lines[cursorLine], "//") + 2
+				// Skip spaces after //
+				for prefixLen < len(lines[cursorLine]) && lines[cursorLine][prefixLen] == ' ' {
+					prefixLen++
+				}
+				if cursorX > prefixLen {
+					cursorOffsetInParagraph += cursorX - prefixLen
+				}
+			}
+		case wrapContextPythonComment:
+			if strings.HasPrefix(currentLineTrimmed, "#") {
+				prefixLen := strings.Index(lines[cursorLine], "#") + 1
+				// Skip spaces after #
+				for prefixLen < len(lines[cursorLine]) && lines[cursorLine][prefixLen] == ' ' {
+					prefixLen++
+				}
+				if cursorX > prefixLen {
+					cursorOffsetInParagraph += cursorX - prefixLen
+				}
+			}
+		default:
+			// For plain text, calculate from the first non-space character
+			firstNonSpace := 0
+			for firstNonSpace < len(lines[cursorLine]) && lines[cursorLine][firstNonSpace] == ' ' {
+				firstNonSpace++
+			}
+			if cursorX > firstNonSpace {
+				cursorOffsetInParagraph += cursorX - firstNonSpace
+			}
+		}
 	}
 
 	// Extract paragraph text
@@ -363,10 +437,57 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	}
 	
 	// Update cursor position
-	if cursorLine >= startLine && cursorLine <= endLine {
-		// Cursor was in the paragraph, move to start of paragraph
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, startLine)
-		e.buffer.CursorX = len(indentation)
+	if cursorLine >= startLine && cursorLine <= endLine && cursorOffsetInParagraph >= 0 {
+		// Cursor was in the paragraph - find its new position
+		// Walk through wrapped lines to find where the cursor should be
+		remainingOffset := cursorOffsetInParagraph
+		newCursorLine := startLine
+		newCursorX := len(indentation) + len(prefix)
+		
+		for i, wrappedLine := range wrappedLines {
+			// Get the actual text content (without indentation/prefix)
+			lineContent := wrappedLine
+			if i == 0 && context == wrapContextMarkdownList {
+				// First line of markdown list has the list prefix
+				listPrefix := extractListPrefix(strings.TrimSpace(lines[startLine]))
+				lineContent = strings.TrimPrefix(wrappedLine, indentation + listPrefix)
+			} else {
+				lineContent = strings.TrimPrefix(wrappedLine, indentation + prefix)
+			}
+			
+			lineContent = strings.TrimSpace(lineContent)
+			
+			if remainingOffset <= len(lineContent) {
+				// Cursor is on this line
+				newCursorLine = startLine + i
+				if i == 0 && context == wrapContextMarkdownList {
+					listPrefix := extractListPrefix(strings.TrimSpace(lines[startLine]))
+					newCursorX = len(indentation) + len(listPrefix) + remainingOffset
+				} else {
+					newCursorX = len(indentation) + len(prefix) + remainingOffset
+				}
+				break
+			}
+			
+			// Account for the space between lines
+			remainingOffset -= len(lineContent) + 1
+			if remainingOffset < 0 {
+				// Cursor was in the space between lines, put it at start of next line
+				newCursorLine = startLine + i + 1
+				newCursorX = len(indentation) + len(prefix)
+				break
+			}
+		}
+		
+		// Ensure we don't go past the end of the wrapped paragraph
+		if newCursorLine >= startLine + len(wrappedLines) {
+			newCursorLine = startLine + len(wrappedLines) - 1
+			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newCursorLine)
+			e.buffer.CursorX = len(e.buffer.CursorIterator.Line())
+		} else {
+			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newCursorLine)
+			e.buffer.CursorX = newCursorX
+		}
 	} else if cursorLine > endLine {
 		// Adjust cursor if paragraph size changed
 		lineDiff := len(wrappedLines) - (endLine - startLine + 1)
