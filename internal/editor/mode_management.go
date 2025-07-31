@@ -226,6 +226,29 @@ func (e *Editor) enterVisualMode(args []string) error {
 	return nil
 }
 
+// enterVisualLineMode switches the editor to visual line mode
+func (e *Editor) enterVisualLineMode(args []string) error {
+	if e.buffer == nil {
+		return nil
+	}
+	
+	e.mode = commands.VisualLineMode
+	
+	// Set visual anchor at current cursor line
+	e.buffer.VisualAnchorLine = e.buffer.CursorIterator.LineNumber()
+	e.buffer.VisualAnchorX = 0 // Line mode always starts from beginning of line
+	e.buffer.VisualAnchorOffset = e.buffer.CursorIterator.Position()
+	
+	// Exit insert mode if we're in it
+	if e.buffer.History != nil {
+		e.buffer.History.EndInsertSession()
+	}
+	
+	LL.Debug("Entered visual line mode: anchor at line %d", e.buffer.VisualAnchorLine)
+	
+	return nil
+}
+
 // exitVisualMode switches back to normal mode and clears visual selection
 func (e *Editor) exitVisualMode(args []string) error {
 	e.mode = commands.NormalMode

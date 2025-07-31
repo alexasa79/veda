@@ -564,11 +564,38 @@ func (e *Editor) actuallyQuit(args []string) error {
 // getSelectionRange returns the start and end byte offsets of the current selection
 // Returns (start, end, hasSelection)
 func (e *Editor) getSelectionRange() (int, int, bool) {
-	if e.mode != commands.VisualMode || e.buffer == nil || e.buffer.VisualAnchorOffset < 0 {
+	if (e.mode != commands.VisualMode && e.mode != commands.VisualLineMode) || e.buffer == nil || e.buffer.VisualAnchorOffset < 0 {
 		return 0, 0, false
 	}
 
-	// Calculate current cursor byte offset
+	if e.mode == commands.VisualLineMode {
+		// For visual line mode, select entire lines
+		anchorLine := e.buffer.VisualAnchorLine
+		currentLine := e.buffer.CursorIterator.LineNumber()
+		
+		// Determine start and end lines
+		startLine := anchorLine
+		endLine := currentLine
+		if currentLine < anchorLine {
+			startLine = currentLine
+			endLine = anchorLine
+		}
+		
+		// Get byte offset for start of first line
+		startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+		startOffset := startIter.Position()
+		
+		// Get byte offset for end of last line (including newline)
+		endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
+		endOffset := endIter.LineEnd()
+		if endLine < e.buffer.LineCount - 1 {
+			endOffset++ // Include the newline character
+		}
+		
+		return startOffset, endOffset, true
+	}
+
+	// Character-wise visual mode
 	currentOffset := e.buffer.CursorIterator.Position() + e.buffer.CursorX
 
 	// Return in order (start, end)

@@ -45,7 +45,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("u            - Undo last change\n")
 	helpText.WriteString("U            - Redo undone change\n")
 	helpText.WriteString(".            - Repeat last change\n")
-	helpText.WriteString("v            - Enter visual mode for text selection\n")
+	helpText.WriteString("v            - Enter visual mode for character selection\n")
+	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
 	helpText.WriteString("Alt+Q        - Rewrap current paragraph\n\n")
 	
@@ -75,7 +76,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("gn/gp        - Navigate through all references\n\n")
 	
 	helpText.WriteString("= Visual Mode =\n")
-	helpText.WriteString("v            - Enter visual mode\n")
+	helpText.WriteString("v            - Enter character visual mode\n")
+	helpText.WriteString("V            - Enter line visual mode\n")
 	helpText.WriteString("ESC          - Exit visual mode\n")
 	helpText.WriteString("d or x       - Delete selected text\n")
 	helpText.WriteString("y            - Yank (copy) selected text to clipboard\n")

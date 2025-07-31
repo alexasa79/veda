@@ -9,7 +9,7 @@ import (
 
 // deleteSelection deletes the current visual selection
 func (e *Editor) deleteSelection(args []string) error {
-	if e.mode != commands.VisualMode {
+	if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
 		return nil
 	}
 	
@@ -66,7 +66,7 @@ func (e *Editor) deleteSelection(args []string) error {
 
 // yankSelection yanks (copies) the current visual selection to system clipboard
 func (e *Editor) yankSelection(args []string) error {
-	if e.mode != commands.VisualMode {
+	if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
 		return nil
 	}
 	
@@ -98,7 +98,7 @@ func (e *Editor) yankSelection(args []string) error {
 
 // changeSelection deletes the selection and enters insert mode
 func (e *Editor) changeSelection(args []string) error {
-	if e.mode != commands.VisualMode {
+	if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
 		return nil
 	}
 	
