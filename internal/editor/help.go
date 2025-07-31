@@ -54,6 +54,7 @@ func (e *Editor) showHelp(args []string) error {
 	
 	helpText.WriteString("= Search =\n")
 	helpText.WriteString("/            - Enter search mode\n")
+	helpText.WriteString("*            - Search for word under cursor\n")
 	helpText.WriteString("n            - Find next occurrence\n")
 	helpText.WriteString("N            - Find previous occurrence\n")
 	helpText.WriteString("ESC          - Clear current search\n\n")

@@ -138,6 +138,87 @@ func (e *Editor) findPreviousCmd(args []string) error {
 	return nil
 }
 
+// searchWordUnderCursor searches for the word under the cursor
+func (e *Editor) searchWordUnderCursor() {
+	// Get the current cursor position
+	cursorLine := e.buffer.CursorIterator.LineNumber()
+	cursorChar := e.buffer.CursorX
+	
+	// Find the word boundary at the cursor
+	wordBoundary := FindCurrentWordBoundary(e.buffer, cursorLine, cursorChar, false)
+	if wordBoundary == nil {
+		return
+	}
+	
+	// Get the line content
+	iter := buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+	if iter.IsEOF() {
+		return
+	}
+	line := iter.Line()
+	
+	// Extract the word
+	if wordBoundary.StartChar >= len(line) || wordBoundary.EndChar > len(line) {
+		return
+	}
+	word := string(line[wordBoundary.StartChar:wordBoundary.EndChar])
+	
+	// Don't search for empty strings
+	if word == "" {
+		return
+	}
+	
+	// Set the search pattern
+	e.searchPattern = word
+	e.searchDirection = true // Forward search
+	
+	// Update search matches
+	e.updateSearchMatches()
+	
+	// Find which match we're currently on (or closest to)
+	if len(e.searchMatches) > 0 {
+		currentPos := e.getAbsolutePosition()
+		
+		// Check if we're already on a match
+		currentMatchIndex := -1
+		for i, matchPos := range e.searchMatches {
+			if currentPos >= matchPos && currentPos < matchPos+len(word) {
+				// We're already on this match
+				currentMatchIndex = i
+				break
+			}
+		}
+		
+		if currentMatchIndex >= 0 {
+			// Stay on the current match
+			e.currentMatch = currentMatchIndex
+		} else {
+			// Find the first match after the cursor
+			nextIndex := -1
+			for i, matchPos := range e.searchMatches {
+				if matchPos > currentPos {
+					nextIndex = i
+					break
+				}
+			}
+			
+			// If no match found after cursor, wrap to beginning
+			if nextIndex == -1 {
+				nextIndex = 0
+			}
+			
+			e.currentMatch = nextIndex
+			e.moveCursorToPosition(e.searchMatches[nextIndex])
+		}
+	}
+}
+
+// searchWordUnderCursorCmd is the command handler for the '*' key
+func (e *Editor) searchWordUnderCursorCmd(args []string) error {
+	e.searchWordUnderCursor()
+	return nil
+}
+
 // moveCursorToPosition moves the cursor to an absolute position in the buffer
 func (e *Editor) moveCursorToPosition(pos int) {
 	// Remember the current view line before moving cursor (if iterator is still valid)
