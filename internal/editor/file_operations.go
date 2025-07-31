@@ -11,6 +11,30 @@ import (
 	"veda/internal/widgets"
 )
 
+// Package-level variables for efficient file filtering
+var (
+	binaryExtensions = map[string]bool{
+		".o": true, ".a": true, ".so": true, ".dylib": true, ".dll": true, ".exe": true,
+		".bin": true, ".out": true, ".class": true, ".pyc": true, ".pyo": true,
+		".jar": true, ".war": true, ".ear": true, ".zip": true, ".tar": true, ".gz": true,
+		".bz2": true, ".xz": true, ".7z": true, ".rar": true, ".deb": true, ".rpm": true,
+		".dmg": true, ".pkg": true, ".msi": true, ".iso": true, ".img": true,
+		".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
+		".ppt": true, ".pptx": true, ".odt": true, ".ods": true, ".odp": true,
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true,
+		".svg": true, ".ico": true, ".tiff": true, ".webp": true, ".heic": true,
+		".mp3": true, ".mp4": true, ".avi": true, ".mkv": true, ".mov": true,
+		".wmv": true, ".flv": true, ".webm": true, ".m4a": true, ".flac": true,
+		".wav": true, ".ogg": true, ".aac": true, ".wma": true, ".opus": true,
+		".ttf": true, ".otf": true, ".woff": true, ".woff2": true, ".eot": true,
+		".sqlite": true, ".db": true, ".mdb": true, ".accdb": true,
+	}
+	
+	binaryNames = map[string]bool{
+		"a.out": true, "core": true, "vgcore": true, "vd": true,
+	}
+)
+
 // fileListingResult contains the processed file paths
 type fileListingResult struct {
 	paths     []string
@@ -99,7 +123,41 @@ func shouldSkipFile(file proxy.FileInfo) bool {
 	}
 
 	// Only include files, not directories
-	return file.Type != "file"
+	if file.Type != "file" {
+		return true
+	}
+
+	// Get the filename for extension checking
+	filename := pathComponents[len(pathComponents)-1]
+	
+	// Filter out .d files (dependency files)
+	if strings.HasSuffix(filename, ".d") {
+		return true
+	}
+	
+	// Check for binary file extensions
+	dotIndex := strings.LastIndex(filename, ".")
+	if dotIndex >= 0 {
+		ext := strings.ToLower(filename[dotIndex:])
+		if binaryExtensions[ext] {
+			return true
+		}
+	}
+	
+	// Filter out files without extensions that are commonly binaries
+	if !strings.Contains(filename, ".") {
+		if binaryNames[filename] {
+			return true
+		}
+		
+		// Check if it might be an executable by looking at the name
+		// Many compiled binaries don't have extensions
+		// But we don't want to filter out all files without extensions
+		// (like README, LICENSE, Makefile, etc.)
+		// So we'll be conservative here
+	}
+	
+	return false
 }
 
 // calculateDisplayPath converts a file path to its display representation
