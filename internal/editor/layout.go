@@ -117,4 +117,9 @@ func (e *Editor) handleResize() {
 	// Also update search line widget
 	e.searchLine.SetWidth(width)
 	e.searchLine.SetPosition(0, e.getStatusBarY())
+
+	// Clear and redraw the screen to handle the new dimensions
+	e.screen.Clear()
+	e.render()
+	e.screen.Show()
 }

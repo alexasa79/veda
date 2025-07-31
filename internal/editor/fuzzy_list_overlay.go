@@ -41,6 +41,26 @@ func (flo *FuzzyListOverlay) CheckContentUpdates() {
 // HandleEvent processes keyboard events for the fuzzy list
 // Returns (done, result) where done indicates if the overlay should close
 func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
+	// Handle resize events
+	if resizeEv, ok := event.(*events.ResizeEvent); ok {
+		// Recalculate widget dimensions based on new screen size
+		width := resizeEv.Width
+		height := resizeEv.Height
+		
+		// Use same proportions as when created (80% width, 70% height)
+		fuzzyListWidth := width * 4 / 5
+		fuzzyListHeight := height * 7 / 10
+		fuzzyListX := (width - fuzzyListWidth) / 2
+		fuzzyListY := (height - fuzzyListHeight) / 2
+		
+		// Update the widget position and size
+		flo.widget.SetPosition(fuzzyListX, fuzzyListY)
+		flo.widget.SetSize(fuzzyListWidth, fuzzyListHeight)
+		
+		// Don't close the overlay, just update dimensions
+		return false, ""
+	}
+	
 	// Handle keyboard events
 	if keyEv, ok := event.(*events.KeyEvent); ok {
 		switch keyEv.Key {
