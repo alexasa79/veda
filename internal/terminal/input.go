@@ -16,6 +16,37 @@ type keyCode struct {
 	mod events.ModMask
 }
 
+// macOSOptionKeyMap maps macOS Option+key characters to their Alt+key equivalents
+var macOSOptionKeyMap = map[rune]rune{
+	// Option+letter (lowercase)
+	'å': 'a', // Option+A
+	'∫': 'b', // Option+B
+	'ç': 'c', // Option+C
+	'∂': 'd', // Option+D
+	'´': 'e', // Option+E (dead key, may not work)
+	'ƒ': 'f', // Option+F
+	'©': 'g', // Option+G
+	'˙': 'h', // Option+H
+	'ˆ': 'i', // Option+I (dead key, may not work)
+	'∆': 'j', // Option+J
+	'˚': 'k', // Option+K
+	'¬': 'l', // Option+L
+	'µ': 'm', // Option+M
+	'˜': 'n', // Option+N (dead key, may not work)
+	'ø': 'o', // Option+O
+	'π': 'p', // Option+P
+	'œ': 'q', // Option+Q
+	'®': 'r', // Option+R
+	'ß': 's', // Option+S
+	'†': 't', // Option+T
+	'¨': 'u', // Option+U (dead key, may not work)
+	'√': 'v', // Option+V
+	'∑': 'w', // Option+W
+	'≈': 'x', // Option+X
+	'¥': 'y', // Option+Y
+	'Ω': 'z', // Option+Z
+}
+
 // Common escape sequences (borrowing from tcell's extensive mappings)
 var keyCodes = []keyCode{
 	// Special keys (excluding ESC which we'll put at the end)
@@ -208,6 +239,15 @@ func (t *Terminal) parseInput(buf *[]byte) {
 		if r == 0 && size == 0 {
 			// Need more bytes for complete rune
 			return
+		}
+
+		// Check if this is a macOS Option+key character
+		if mappedRune, ok := macOSOptionKeyMap[r]; ok {
+			// Convert macOS Option+key character to Alt+key event
+			event := events.NewKeyEvent(events.KeyRune, mappedRune, events.ModAlt)
+			t.inputChan <- event
+			*buf = (*buf)[size:]
+			continue
 		}
 
 		// Generate key event for regular character
