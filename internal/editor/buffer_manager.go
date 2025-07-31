@@ -152,11 +152,83 @@ func (e *Editor) closeBuffer(args []string) error {
 	return nil
 }
 
-// switchToPreviousBuffer switches to the previously active buffer
-func (e *Editor) switchToPreviousBuffer(args []string) error {
-	if e.previousBuffer != nil {
-		e.switchToBuffer(e.previousBuffer)
+// showBufferListWithPrevious shows the buffer list with cursor on the previous buffer
+// This replaces the old switchToPreviousBuffer functionality
+func (e *Editor) showBufferListWithPrevious(args []string) error {
+	if len(e.buffers) == 0 {
+		return nil
 	}
+	
+	width, height := e.screen.Size()
+	
+	// Create fuzzy list widget (centered overlay)
+	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListHeight := height * 7 / 10 // 70% of screen height
+	fuzzyListX := (width - fuzzyListWidth) / 2
+	fuzzyListY := (height - fuzzyListHeight) / 2
+	
+	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
+	fuzzyListWidget.SetTitle("Open Buffers")
+	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
+	
+	// Create list of buffer display names
+	var bufferDisplays []string
+	pathToDisplay := make(map[string]string)
+	previousBufferIndex := -1
+	
+	for _, path := range e.bufferOrder {
+		if buf, exists := e.buffers[path]; exists {
+			displayName := buf.DisplayName()
+			if path == e.buffer.FilePath {
+				// Mark current buffer
+				bufferDisplays = append(bufferDisplays, displayName + " [current]")
+			} else {
+				bufferDisplays = append(bufferDisplays, displayName)
+				// Track the previous buffer's index
+				if e.previousBuffer != nil && path == e.previousBuffer.FilePath {
+					previousBufferIndex = len(bufferDisplays) - 1
+				}
+			}
+			pathToDisplay[displayName] = path
+		}
+	}
+	
+	fuzzyListWidget.SetContent(bufferDisplays)
+	
+	// Set cursor on previous buffer if available
+	if previousBufferIndex >= 0 {
+		fuzzyListWidget.SetSelectedIndex(previousBufferIndex)
+	} else if len(bufferDisplays) > 1 {
+		// If no previous buffer, select the first non-current buffer
+		fuzzyListWidget.SetSelectedIndex(1)
+	}
+	
+	// Create overlay and get result channel
+	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
+	resultChan := e.renderingState.SetOverlay(overlay)
+	
+	// Wait for result in a goroutine
+	go func() {
+		selection := <-resultChan
+		
+		// If a buffer was selected, switch to it
+		if selection != "" {
+			// Remove the " [current]" suffix if present
+			selection = strings.TrimSuffix(selection, " [current]")
+			
+			// Save current buffer state before switching
+			e.saveCurrentBufferState()
+			
+			// Look up the actual path from the display name
+			if path, ok := pathToDisplay[selection]; ok {
+				// Switch to selected buffer
+				if buf, exists := e.buffers[path]; exists {
+					e.switchToBuffer(buf)
+				}
+			}
+		}
+	}()
+	
 	return nil
 }
 
