@@ -271,8 +271,15 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		}
 	}
 	
-	// Only add tokens for leaf nodes (nodes without children)
-	if childCount == 0 {
+	// Check if this node should be tokenized
+	// Some nodes like string_literal have children but should still be tokenized as a whole
+	nodeType := node.Type()
+	shouldTokenize := childCount == 0 || // Leaf nodes
+		nodeType == "string_literal" || // C/C++ strings
+		nodeType == "char_literal" || // C/C++ chars
+		nodeType == "raw_string_literal" // C++ raw strings
+	
+	if shouldTokenize {
 		// Map node type to token type
 		tokenType := h.mapNodeToTokenType(node, source)
 		if tokenType != TokenTypeText {
