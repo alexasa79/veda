@@ -97,6 +97,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g s", "show-signature")
 	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 	e.registerKeyBinding(commands.NormalMode, "g e", "diagnostics")
+	e.registerKeyBinding(commands.NormalMode, "g t", "show-project-changes")
 
 	// Undo/Redo operations
 	e.registerKeyBinding(commands.NormalMode, "u", "undo")
