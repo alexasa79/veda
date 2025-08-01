@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 )
@@ -16,6 +17,11 @@ type NavigationEntry struct {
 // pushNavigationHistory saves the current position to navigation history
 func (e *Editor) pushNavigationHistory() {
 	if !e.buffer.HasFile() {
+		return
+	}
+	
+	// Skip references buffers - don't add them to navigation history
+	if strings.HasPrefix(e.buffer.FilePath, "*References:") && strings.HasSuffix(e.buffer.FilePath, "*") {
 		return
 	}
 	

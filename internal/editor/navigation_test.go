@@ -40,6 +40,50 @@ func TestNavigationHistory(t *testing.T) {
 	}
 }
 
+func TestNavigationHistorySkipsReferencesBuffer(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "test content")
+	
+	// First, push a normal file position
+	te.buffer.FilePath = "main.go"
+	te.SetCursorPosition(5, 10)
+	te.pushNavigationHistory()
+	
+	// Verify it was added
+	if len(te.navHistory) != 1 {
+		t.Errorf("Expected 1 entry in navigation history, got %d", len(te.navHistory))
+	}
+	
+	// Now set to references buffer and try to push
+	te.buffer.FilePath = "*References: test*"
+	te.SetCursorPosition(3, 5)
+	te.pushNavigationHistory()
+	
+	// Verify that references buffer was NOT added
+	if len(te.navHistory) != 1 {
+		t.Errorf("Expected navigation history to still have 1 entry (references should be skipped), got %d", len(te.navHistory))
+	}
+	
+	// Verify the original entry is still there
+	if te.navHistory[0].filePath != "main.go" {
+		t.Errorf("Expected first entry to still be main.go, got %s", te.navHistory[0].filePath)
+	}
+	
+	// Try another normal file
+	te.buffer.FilePath = "other.go"
+	te.SetCursorPosition(7, 12)
+	te.pushNavigationHistory()
+	
+	// Now we should have 2 entries
+	if len(te.navHistory) != 2 {
+		t.Errorf("Expected 2 entries in navigation history, got %d", len(te.navHistory))
+	}
+	
+	// Verify the new entry
+	if te.navHistory[1].filePath != "other.go" {
+		t.Errorf("Expected second entry to be other.go, got %s", te.navHistory[1].filePath)
+	}
+}
+
 func TestNavigationHistoryMaxSize(t *testing.T) {
 	// Create editor with enough lines
 	content := ""
