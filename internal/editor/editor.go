@@ -439,11 +439,10 @@ func (e *Editor) updateCursor() {
 		e.screen.ShowCursor(cursorX, cursorY)
 	} else {
 		// Show cursor in editor
-		// Use cached line number width from buffer
-		lineNumberWidth := e.buffer.LineNumberWidth
-		visualCursorX := e.getVisualCursorX()
-		cursorY := e.buffer.CursorIterator.LineNumber() - e.buffer.ViewIterator.LineNumber() + e.getContentStartY()
-		e.screen.ShowCursor(visualCursorX+lineNumberWidth, cursorY)
+		// Get visual position with line wrapping
+		visualLine, visualCol := e.GetCursorVisualPosition()
+		cursorY := visualLine + e.getContentStartY()
+		e.screen.ShowCursor(visualCol, cursorY)
 	}
 }
 

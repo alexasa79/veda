@@ -148,6 +148,11 @@ func (te *TestEditor) GetScreenCursorPosition() (x, y int) {
 	return te.mockScreen.GetCursorPosition()
 }
 
+// GetVisualCursorPosition returns the visual cursor position considering line wrapping
+func (te *TestEditor) GetVisualCursorPosition() (x, y int) {
+	return te.GetCursorVisualPosition()
+}
+
 // AssertCursorAt checks if the cursor is at the expected position
 func AssertCursorAt(t *testing.T, te *TestEditor, expectedX, expectedY int) {
 	t.Helper()

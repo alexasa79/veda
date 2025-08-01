@@ -325,6 +325,166 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	}
 }
 
+// drawWrappedLine draws a wrapped line segment with proper handling of syntax highlighting
+func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, startX int, screenY int) {
+	// Get the full line for syntax highlighting
+	originalLine := iter.Line()
+	lineIndex := iter.LineNumber()
+	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+	isCurrentLine := lineIndex == e.buffer.CursorIterator.LineNumber()
+
+	// Find search matches in the full line
+	searchMatches := e.findSearchMatches(originalLine)
+
+	// Determine background style
+	var lineBg ui.Color
+	var hasBg bool
+	if isCurrentLine {
+		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
+		_, lineBg, _ = currentLineStyle.Decompose()
+		normalStyle = normalStyle.Background(lineBg)
+		hasBg = true
+	}
+
+	// Get the absolute offset of the start of this line
+	lineStartOffset := iter.Position()
+
+	// Find trailing spaces position for the whole line
+	trailingStart := -1
+	if e.whitespaceStyle.showTrailingSpaces {
+		trailingStart = detectTrailingSpaces(originalLine)
+	}
+
+	// If no highlighter, draw without syntax highlighting
+	if e.highlighter == nil || !e.buffer.HasFile() {
+		x := startX
+		// Draw the wrapped segment
+		segmentOffset := lineStartOffset + wl.StartChar
+		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
+		
+		// Fill rest of line if we have background
+		if hasBg {
+			width, _ := e.screen.Size()
+			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+			for i := x; i < width; i++ {
+				fillStyle := normalStyle
+				textColumn := i - e.buffer.LineNumberWidth
+				for _, rulerPos := range e.config.VerticalRulers {
+					if textColumn == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
+				}
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			}
+		}
+		return
+	}
+
+	// Get syntax tokens for the full line
+	tokens := e.getLineTokens(iter)
+
+	if len(tokens) == 0 {
+		// No tokens, draw with normal style
+		x := startX
+		segmentOffset := lineStartOffset + wl.StartChar
+		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
+		
+		// Fill rest of line
+		if hasBg {
+			width, _ := e.screen.Size()
+			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+			for i := x; i < width; i++ {
+				fillStyle := normalStyle
+				textColumn := i - e.buffer.LineNumberWidth
+				for _, rulerPos := range e.config.VerticalRulers {
+					if textColumn == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
+				}
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			}
+		}
+		return
+	}
+
+	// Draw with syntax highlighting, but only for the wrapped segment
+	x := startX
+	pos := wl.StartChar
+
+	for _, token := range tokens {
+		// Skip tokens that end before our segment
+		if token.End <= wl.StartChar {
+			continue
+		}
+		
+		// Stop if token starts after our segment
+		if token.Start >= wl.EndChar {
+			break
+		}
+
+		// Draw any text before this token with normal style
+		if token.Start > pos && pos < wl.EndChar {
+			endPos := token.Start
+			if endPos > wl.EndChar {
+				endPos = wl.EndChar
+			}
+			if endPos > pos {
+				text := originalLine[pos:endPos]
+				x += e.drawText(x, screenY, normalStyle, text, lineStartOffset + pos, searchMatches, lineIndex, pos, trailingStart)
+				pos = endPos
+			}
+		}
+
+		// Draw the token portion that's in our segment
+		if token.Start < wl.EndChar && token.End > pos {
+			tokenStart := token.Start
+			if tokenStart < pos {
+				tokenStart = pos
+			}
+			tokenEnd := token.End
+			if tokenEnd > wl.EndChar {
+				tokenEnd = wl.EndChar
+			}
+			
+			if tokenEnd > tokenStart {
+				tokenText := originalLine[tokenStart:tokenEnd]
+				tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+				if isCurrentLine {
+					tokenStyle = tokenStyle.Background(lineBg)
+				}
+				
+				x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + tokenStart, searchMatches, lineIndex, tokenStart, trailingStart)
+				pos = tokenEnd
+			}
+		}
+	}
+
+	// Draw any remaining text with normal style
+	if pos < wl.EndChar {
+		text := originalLine[pos:wl.EndChar]
+		x += e.drawText(x, screenY, normalStyle, text, lineStartOffset + pos, searchMatches, lineIndex, pos, trailingStart)
+	}
+
+	// Fill rest of line if we have background
+	if hasBg {
+		width, _ := e.screen.Size()
+		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+		for i := x; i < width; i++ {
+			fillStyle := normalStyle
+			textColumn := i - e.buffer.LineNumberWidth
+			for _, rulerPos := range e.config.VerticalRulers {
+				if textColumn == rulerPos {
+					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+					break
+				}
+			}
+			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+		}
+	}
+}
+
 // drawContext draws the context lines at the top of the editor
 func (e *Editor) drawContext() {
 	if len(e.contextCache) == 0 {
@@ -376,25 +536,24 @@ func (e *Editor) drawEditor() {
 	// Clear the entire screen once
 	e.screen.Clear()
 
-	// Update context if needed (must be done before getContentStartY)
+	// Update context if needed
 	e.updateContext()
 
 	// Get screen dimensions
 	width, _ := e.screen.Size()
-	visibleHeight := e.getVisibleHeight()
 	contentStartY := e.getContentStartY()
 
-	// Start from the view iterator
-	iter := e.buffer.ViewIterator
+	// Calculate wrapped lines
+	wrappedLines := e.CalculateWrappedLines()
 
-	for i := 0; i < visibleHeight; i++ {
+	// Draw each wrapped line
+	for i, wl := range wrappedLines {
 		screenY := contentStartY + i
+		
 		// First, fill the entire line with the normal background
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		for x := 0; x < width; x++ {
 			fillStyle := normalStyle
-			// Check if this column is a ruler position
-			// Calculate text column position (x minus line number width)
 			textColumn := x - e.buffer.LineNumberWidth
 			for _, rulerPos := range e.config.VerticalRulers {
 				if textColumn == rulerPos {
@@ -405,54 +564,35 @@ func (e *Editor) drawEditor() {
 			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
 		}
 
-		// Special case: Empty buffer should still show line 1
-		if i == 0 && iter.IsEOF() && e.buffer.Rope.Length() == 0 {
-			// Draw line number 1 for empty buffer
-			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, 1)
-			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, 0, 0, -1)
-
-			// Draw separator after line number
-			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
-			// No content to draw, but this represents the single empty line
-		} else if !iter.IsEOF() {
-			lineIndex := iter.LineNumber()
-			lineNum := lineIndex + 1 // Line numbers start at 1
-
-			// Draw line number
+		// Draw line number only for first visual line
+		if wl.IsFirstLine {
+			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
-			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, lineIndex, 0, -1)
-
+			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
+			
 			// Draw separator after line number
 			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
-
-			// Draw the actual line content using iterator
-			e.drawLine(iter, lineNumberWidth, screenY)
-
-			// Move to next line
-			iter = iter.Next()
-		} else if iter.IsEOF() && e.buffer.CursorIterator.LineNumber() == iter.LineNumber() && e.mode == commands.InsertMode {
-			// Special case: We're at EOF in insert mode on the cursor line
-			// This happens when we've opened a new line at the end of the buffer
-			lineIndex := iter.LineNumber()
-			lineNum := lineIndex + 1 // Line numbers start at 1
-
-			// Draw line number
-			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
-			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, lineIndex, 0, -1)
-
-			// Draw separator after line number
-			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
-			
-			// Draw the empty line content
-			e.drawLine(iter, lineNumberWidth, screenY)
-			
-			// Can't move to next line, we're at EOF
-			break
 		} else {
-			// For lines beyond the buffer, show tilde or fill line number area
+			// Fill line number area with spaces for wrapped lines
 			for x := 0; x < lineNumberWidth; x++ {
-				e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
+				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
 			}
+		}
+
+		// Get iterator for this logical line
+		iter := buffer.NewBufferIteratorAtLine(e.buffer, wl.LogicalLineNum)
+		if !iter.IsEOF() {
+			// Draw the wrapped line segment
+			e.drawWrappedLine(iter, wl, lineNumberWidth, screenY)
+		}
+	}
+
+	// Fill remaining screen with tildes
+	visibleHeight := e.getVisibleHeight()
+	for i := len(wrappedLines); i < visibleHeight; i++ {
+		screenY := contentStartY + i
+		for x := 0; x < lineNumberWidth; x++ {
+			e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
 		}
 	}
 }
