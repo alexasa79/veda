@@ -21,7 +21,7 @@ func TestProxyManager(t *testing.T) {
 		if err != nil {
 			t.Errorf("Failed to read local file: %v", err)
 		}
-		if !strings.Contains(content, "TestProxyManager") {
+		if !strings.Contains(content.Content, "TestProxyManager") {
 			t.Error("File content doesn't contain expected text")
 		}
 	})

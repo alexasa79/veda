@@ -120,8 +120,8 @@ func (te *TestEditor) SetCursorPosition(x, y int) {
 		if te.buffer.CursorX > len(line) {
 			te.buffer.CursorX = len(line)
 		}
-		// Apply normal mode adjustment
-		if te.mode == commands.NormalMode && te.buffer.CursorX > 0 && len(line) > 0 {
+		// Apply normal mode adjustment - in vim, cursor can't be past the last character
+		if te.mode == commands.NormalMode && te.buffer.CursorX == len(line) && len(line) > 0 {
 			te.buffer.CursorX--
 		}
 	}
