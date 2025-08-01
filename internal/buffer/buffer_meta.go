@@ -88,6 +88,9 @@ type Buffer struct {
 	VisualAnchorLine   int // Line number where visual selection started
 	VisualAnchorX      int // X position where visual selection started
 	VisualAnchorOffset int // Byte offset where visual selection started
+	
+	// Git changes tracking
+	GitChanges *proxy.FileChanges // Git changes for this buffer (added, deleted, modified lines)
 }
 
 // IndentationInfo holds information about file indentation
@@ -271,11 +274,11 @@ func (b *Buffer) GetCurrentLineIndentInfo(iter *BufferIterator) LineIndentInfo {
 // UpdateLineNumberWidth calculates and caches the width needed for line numbers
 func (b *Buffer) UpdateLineNumberWidth() {
 	if b.LineCount == 0 {
-		b.LineNumberWidth = 2 // Minimum width for "1 "
+		b.LineNumberWidth = 5 // Minimum width: "1 " + space + indicator + space
 	} else {
 		// Calculate the width needed for the largest line number
 		width := len(fmt.Sprintf("%d", b.LineCount))
-		b.LineNumberWidth = width + 1 // +1 for padding space
+		b.LineNumberWidth = width + 3 // +1 for padding space, +1 for space before indicator, +1 for indicator
 	}
 }
 

@@ -317,12 +317,16 @@ func (e *Editor) openFile(filePath string) {
 	}
 
 	// Read file content using proxy
-	content, err := e.proxyManager.GetFile(resolvedPath)
+	fileContent, err := e.proxyManager.GetFile(resolvedPath)
+	var content string
+	var changes *proxy.FileChanges
+	
 	if err != nil {
 		// Check if it's a file not found error
 		if strings.Contains(err.Error(), "File does not exist") || strings.Contains(err.Error(), "file does not exist") {
 			// Create an empty buffer for a new file
 			content = ""
+			changes = &proxy.FileChanges{Added: []int{}, Deleted: []int{}, Modified: []int{}}
 			LL.Info("Creating new file: %s", resolvedPath)
 		} else {
 			// Other errors (permission denied, etc.) - show error and return
@@ -330,10 +334,16 @@ func (e *Editor) openFile(filePath string) {
 			// TODO: Show error to user
 			return
 		}
+	} else {
+		content = fileContent.Content
+		changes = &fileContent.Changes
 	}
 
 	// Create a new buffer with the file content (empty for new files)
 	newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+	
+	// Store the git changes in the buffer
+	newBuffer.GitChanges = changes
 
 	// Add to buffers map and order
 	e.buffers[resolvedPath] = newBuffer

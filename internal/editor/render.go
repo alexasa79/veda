@@ -639,10 +639,62 @@ func (e *Editor) drawEditor() {
 		// Draw line number only for first visual line
 		if wl.IsFirstLine {
 			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1
-			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
+			
+			// Check for git changes
+			isAdded := false
+			isModified := false
+			isDeleted := false
+			if e.buffer.GitChanges != nil {
+				for _, line := range e.buffer.GitChanges.Added {
+					if line == lineNum {
+						isAdded = true
+						break
+					}
+				}
+				if !isAdded {
+					for _, line := range e.buffer.GitChanges.Modified {
+						if line == lineNum {
+							isModified = true
+							break
+						}
+					}
+				}
+				// Check if there's a deletion marker on this line
+				for _, line := range e.buffer.GitChanges.Deleted {
+					if line == wl.LogicalLineNum { // Deleted lines are 0-based
+						isDeleted = true
+						break
+					}
+				}
+			}
+			
+			// Draw line number
+			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-3, lineNum)
 			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
 
-			// Draw separator after line number
+			// Draw git change indicator with space before it
+			changeX := lineNumberWidth - 2
+			if isAdded {
+				// Green indicator for added lines
+				changeStyle := lineNumberStyle
+				changeStyle.Fg = ui.ColorGreen
+				e.screen.SetContent(changeX, screenY, '⏺', nil, changeStyle)
+			} else if isModified {
+				// Yellow/amber indicator for modified lines
+				changeStyle := lineNumberStyle
+				changeStyle.Fg = ui.ColorYellow
+				e.screen.SetContent(changeX, screenY, '⏺', nil, changeStyle)
+			} else if isDeleted {
+				// Red indicator for deleted lines (shows on the line after deletion)
+				changeStyle := lineNumberStyle
+				changeStyle.Fg = ui.ColorRed
+				e.screen.SetContent(changeX, screenY, '▔', nil, changeStyle)
+			} else {
+				// No change - just a space
+				e.screen.SetContent(changeX, screenY, ' ', nil, lineNumberStyle)
+			}
+			
+			// Draw separator after change indicator
 			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
 		} else {
 			// Fill line number area with spaces for wrapped lines

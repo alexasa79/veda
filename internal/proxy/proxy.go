@@ -196,7 +196,7 @@ func (pm *ProxyManager) Close() error {
 }
 
 // GetFile reads the contents of a file (supports HOST:PATH format)
-func (pm *ProxyManager) GetFile(path string) (string, error) {
+func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	
@@ -204,19 +204,19 @@ func (pm *ProxyManager) GetFile(path string) (string, error) {
 	
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	
 	LL.Debug("ProxyManager.GetFile: path=%s, actualPath=%s", path, actualPath)
 	
 	// Call the original GetFile with the actual path (without HOST: prefix)
-	content, err := client.GetFile(actualPath)
+	fileContent, err := client.GetFile(actualPath)
 	if err == nil {
 		duration := time.Since(startTime)
-		LL.Info("Read file %s (%d bytes) in %v", path, len(content), duration)
+		LL.Info("Read file %s (%d bytes) in %v", path, len(fileContent.Content), duration)
 	}
 	
-	return content, err
+	return fileContent, err
 }
 
 // WriteFile writes content to a file (local or remote)
@@ -377,6 +377,16 @@ func (pm *ProxyManager) ListProjectSymbols(query string) ([]ProjectSymbol, error
 	return client.ListProjectSymbols(query)
 }
 
+// GetProjectChanges gets all changed files in the project
+func (pm *ProxyManager) GetProjectChanges() ([]ProjectChange, error) {
+	client := pm.clients[""] // Use local proxy for project changes
+	if client == nil {
+		return nil, fmt.Errorf("local proxy not initialized")
+	}
+	
+	return client.GetProjectChanges()
+}
+
 //go:embed veda-proxy.py
 var embeddedProxy string
 
@@ -414,6 +424,36 @@ type FileInfo struct {
 	Type string `json:"type"`
 	Size int64  `json:"size"`
 	Path string `json:"path"`
+}
+
+// FileContent represents file content with change information
+type FileContent struct {
+	Content string      `json:"content"`
+	Changes FileChanges `json:"changes"`
+}
+
+// FileChanges represents git changes in a file
+type FileChanges struct {
+	Added    []int `json:"added"`
+	Deleted  []int `json:"deleted"`
+	Modified []int `json:"modified"`
+}
+
+// ProjectChange represents a changed file in the project
+type ProjectChange struct {
+	File         string `json:"file"`
+	Status       string `json:"status"`
+	Staged       bool   `json:"staged"`
+	AddedLines   []int  `json:"added_lines"`
+	DeletedLines []int  `json:"deleted_lines"`
+	Hunks        []Hunk `json:"hunks"`
+}
+
+// Hunk represents a git diff hunk
+type Hunk struct {
+	OldStart int    `json:"old_start"`
+	NewStart int    `json:"new_start"`
+	Header   string `json:"header"`
 }
 
 // Location represents a file location (used for LSP responses)
@@ -673,8 +713,8 @@ func parseRemotePath(path string) (string, string, bool) {
 	return "", path, false
 }
 
-// GetFile reads the contents of a file
-func (c *Client) GetFile(path string) (string, error) {
+// GetFile reads the contents of a file and returns git change information
+func (c *Client) GetFile(path string) (*FileContent, error) {
 	LL.Debug("Client.GetFile: path=%s", path)
 	
 	request := JSONRPCRequest{
@@ -685,7 +725,7 @@ func (c *Client) GetFile(path string) (string, error) {
 
 	requestBytes, err := json.Marshal(request)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	c.stdin.WriteString(string(requestBytes) + "\n")
@@ -699,21 +739,56 @@ func (c *Client) GetFile(path string) (string, error) {
 			Error  string                 `json:"error,omitempty"`
 		}
 		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return "", err
+			return nil, err
 		}
 
 		if response.Error != "" {
-			return "", fmt.Errorf("proxy error: %s", response.Error)
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+
+		fileContent := &FileContent{
+			Changes: FileChanges{
+				Added:    []int{},
+				Deleted:  []int{},
+				Modified: []int{},
+			},
 		}
 
 		if content, ok := response.Result["content"].(string); ok {
-			return content, nil
+			fileContent.Content = content
+		} else {
+			return nil, fmt.Errorf("missing content in response")
 		}
 
-		return "", fmt.Errorf("unexpected response format")
+		// Parse changes if present
+		if changes, ok := response.Result["changes"].(map[string]interface{}); ok {
+			if added, ok := changes["added"].([]interface{}); ok {
+				for _, v := range added {
+					if line, ok := v.(float64); ok {
+						fileContent.Changes.Added = append(fileContent.Changes.Added, int(line))
+					}
+				}
+			}
+			if deleted, ok := changes["deleted"].([]interface{}); ok {
+				for _, v := range deleted {
+					if line, ok := v.(float64); ok {
+						fileContent.Changes.Deleted = append(fileContent.Changes.Deleted, int(line))
+					}
+				}
+			}
+			if modified, ok := changes["modified"].([]interface{}); ok {
+				for _, v := range modified {
+					if line, ok := v.(float64); ok {
+						fileContent.Changes.Modified = append(fileContent.Changes.Modified, int(line))
+					}
+				}
+			}
+		}
+
+		return fileContent, nil
 	}
 
-	return "", fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("failed to read proxy response")
 }
 
 // StartLSPServer starts an LSP server for the specified language
@@ -1530,9 +1605,119 @@ func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
 	return nil, fmt.Errorf("failed to read proxy response")
 }
 
+// GetProjectChanges retrieves all changes in the project
+func (c *Client) GetProjectChanges() ([]ProjectChange, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_project_changes",
+		Params: map[string]interface{}{},
+		ID:     c.requestID,
+	}
+	
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Log the request for debugging
+	LL.Trace("GetProjectChanges request: %s", string(requestBytes))
+	
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+	
+	// Read response
+	if c.stdout.Scan() {
+		line := c.stdout.Text()
+		LL.Trace("GetProjectChanges response: %s", line)
+		
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal([]byte(line), &response); err != nil {
+			return nil, err
+		}
+		
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+		
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if changes, ok := response.Result["changes"].([]interface{}); ok {
+				var projectChanges []ProjectChange
+				for _, change := range changes {
+					if changeMap, ok := change.(map[string]interface{}); ok {
+						pc := ProjectChange{
+							File:         getString(changeMap, "file"),
+							Status:       getString(changeMap, "status"),
+							Staged:       getBool(changeMap, "staged"),
+							AddedLines:   getIntSlice(changeMap, "added_lines"),
+							DeletedLines: getIntSlice(changeMap, "deleted_lines"),
+						}
+						// Parse hunks
+						if hunks, ok := changeMap["hunks"].([]interface{}); ok {
+							for _, hunk := range hunks {
+								if hunkMap, ok := hunk.(map[string]interface{}); ok {
+									h := Hunk{
+										OldStart: getInt(hunkMap, "old_start"),
+										NewStart: getInt(hunkMap, "new_start"),
+										Header:   getString(hunkMap, "header"),
+									}
+									pc.Hunks = append(pc.Hunks, h)
+								}
+							}
+						}
+						projectChanges = append(projectChanges, pc)
+					}
+				}
+				return projectChanges, nil
+			}
+		}
+		
+		return nil, fmt.Errorf("no changes found")
+	}
+	
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
 func (c *Client) Close() error {
 	if c.cmd != nil && c.cmd.Process != nil {
 		return c.cmd.Process.Kill()
 	}
 	return nil
+}
+
+// Helper functions for parsing JSON
+func getString(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+func getBool(m map[string]interface{}, key string) bool {
+	if v, ok := m[key].(bool); ok {
+		return v
+	}
+	return false
+}
+
+func getInt(m map[string]interface{}, key string) int {
+	if v, ok := m[key].(float64); ok {
+		return int(v)
+	}
+	return 0
+}
+
+func getIntSlice(m map[string]interface{}, key string) []int {
+	var result []int
+	if v, ok := m[key].([]interface{}); ok {
+		for _, item := range v {
+			if num, ok := item.(float64); ok {
+				result = append(result, int(num))
+			}
+		}
+	}
+	return result
 }
