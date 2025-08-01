@@ -176,3 +176,8 @@ func (s *MockScreen) AddKeyEvent(key events.Key, r rune, mod events.ModMask) {
 	}
 	s.AddEvent(ev)
 }
+
+// GetContent returns the entire screen content as a map
+func (s *MockScreen) GetContent() map[int]map[int]Cell {
+	return s.cells
+}

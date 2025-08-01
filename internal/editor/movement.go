@@ -7,35 +7,40 @@ import (
 
 // Movement commands
 func (e *Editor) moveUp(args []string) error {
-	if e.buffer.CursorIterator.LineNumber() > 0 {
-		e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
-		// Adjust cursor X if the new line is shorter
-		line := e.buffer.CursorIterator.Line()
-		maxX := len(line)
-		if maxX > 0 {
-			maxX-- // Don't go past the last character
-		}
-		if e.buffer.CursorX > maxX {
-			e.buffer.CursorX = maxX
-		}
+	// Get current visual position
+	visualLine, visualCol := e.GetCursorVisualPosition()
+	
+	if visualLine > 0 {
+		// Map to new position one visual line up
+		newVisualLine := visualLine - 1
+		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, visualCol)
+		
+		// Update cursor position
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newLogicalLine)
+		e.buffer.CursorX = newCharPos
 	}
+	
 	e.updateCursorState()
 	return nil
 }
 
 func (e *Editor) moveDown(args []string) error {
-	if e.buffer.CursorIterator.LineNumber() < e.buffer.LineCount-1 {
-		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-		// Adjust cursor X if the new line is shorter
-		line := e.buffer.CursorIterator.Line()
-		maxX := len(line)
-		if maxX > 0 {
-			maxX-- // Don't go past the last character
-		}
-		if e.buffer.CursorX > maxX {
-			e.buffer.CursorX = maxX
-		}
+	// Get current visual position
+	visualLine, visualCol := e.GetCursorVisualPosition()
+	
+	// Calculate wrapped lines to check bounds
+	wrappedLines := e.CalculateWrappedLines()
+	
+	if visualLine < len(wrappedLines)-1 {
+		// Map to new position one visual line down
+		newVisualLine := visualLine + 1
+		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, visualCol)
+		
+		// Update cursor position
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newLogicalLine)
+		e.buffer.CursorX = newCharPos
 	}
+	
 	e.updateCursorState()
 	return nil
 }

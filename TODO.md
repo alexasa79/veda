@@ -2,7 +2,6 @@
 - [ ] Allow going into search and command modes and exit the visual mode when it happens.
 - [ ] Getting completion on empty space does something weird.
 - [ ] References window is not rendered as markdown.
-- [ ] After paste, the newly pasted code is not highlighted.
 
 # Features
 - [ ] Add vertical rules at 78, 80, 100 and 120 characters.
@@ -68,3 +67,4 @@ instead of `set SETTING VALUE` borrowed from vim.
 - [x] Not supporting resizing the editor.
 - [x] Also, completion does not show progress.
 - [x] New files are not saved.
+- [x] After paste, the newly pasted code is not highlighted.
