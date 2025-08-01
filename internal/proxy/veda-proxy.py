@@ -11,11 +11,12 @@ import pwd
 import grp
 import os
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import logging
 import subprocess
 import threading
 import queue
+import re
 
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
@@ -812,6 +813,7 @@ class VedaProxy:
             'find_references': self.find_references,
             'get_completions': self.get_completions,
             'get_diagnostics': self.get_diagnostics,
+            'get_project_changes': self.get_project_changes,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -950,7 +952,38 @@ class VedaProxy:
                     self.lsp._open_file(language, str(file_path))
                     logger.info(f"Notified LSP server about opened file: {path}")
             
-            return {'content': content}
+            # Get git changes for the file
+            changes = {'added': [], 'deleted': [], 'modified': []}
+            try:
+                # Run git diff for the file
+                cmd = ['git', 'diff', 'HEAD', '--', str(file_path)]
+                result = subprocess.run(cmd, capture_output=True, text=True, cwd=file_path.parent)
+                
+                if result.returncode != 0:
+                    # Try unstaged changes
+                    cmd = ['git', 'diff', '--', str(file_path)]
+                    result = subprocess.run(cmd, capture_output=True, text=True, cwd=file_path.parent)
+                
+                if result.returncode == 0 and result.stdout:
+                    changes = self._parse_git_diff(result.stdout)
+                
+                # Also check staged changes
+                cmd_staged = ['git', 'diff', '--cached', '--', str(file_path)]
+                result_staged = subprocess.run(cmd_staged, capture_output=True, text=True, cwd=file_path.parent)
+                
+                if result_staged.returncode == 0 and result_staged.stdout:
+                    staged_changes = self._parse_git_diff(result_staged.stdout)
+                    # Merge staged and unstaged changes
+                    for key in ['added', 'deleted', 'modified']:
+                        changes[key] = sorted(list(set(changes.get(key, []) + staged_changes.get(key, []))))
+            except Exception as e:
+                logger.warning(f"Could not get git changes for {path}: {e}")
+                # Don't fail the whole operation if git diff fails
+            
+            return {
+                'content': content,
+                'changes': changes
+            }
         except UnicodeDecodeError:
             # Try reading as binary and return error
             raise ValueError(f"File is not a text file: {path}")
@@ -1213,6 +1246,134 @@ class VedaProxy:
         except Exception as e:
             logger.error(f"Error in get_diagnostics: {e}")
             return {'success': False, 'error': str(e)}
+    
+    def get_project_changes(self) -> Dict[str, Any]:
+        """
+        Get all changed files in the project with their diff information.
+        """
+        try:
+            # Get list of changed files
+            cmd = ['git', 'diff', '--name-status', 'HEAD']
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            unstaged_files = {}
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    if line:
+                        parts = line.split('\t')
+                        if len(parts) >= 2:
+                            status, filepath = parts[0], parts[1]
+                            unstaged_files[filepath] = status
+            
+            # Get staged files
+            cmd_staged = ['git', 'diff', '--cached', '--name-status']
+            result_staged = subprocess.run(cmd_staged, capture_output=True, text=True)
+            
+            staged_files = {}
+            if result_staged.returncode == 0:
+                for line in result_staged.stdout.strip().split('\n'):
+                    if line:
+                        parts = line.split('\t')
+                        if len(parts) >= 2:
+                            status, filepath = parts[0], parts[1]
+                            staged_files[filepath] = status
+            
+            # Combine all changes
+            all_files = {}
+            for f, status in unstaged_files.items():
+                all_files[f] = {'status': status, 'staged': False}
+            for f, status in staged_files.items():
+                if f in all_files:
+                    all_files[f]['staged'] = True
+                else:
+                    all_files[f] = {'status': status, 'staged': True}
+            
+            # Get detailed changes for each file
+            changes = []
+            for filepath, info in all_files.items():
+                try:
+                    # Get the diff for this file
+                    if info['staged']:
+                        cmd = ['git', 'diff', '--cached', '--', filepath]
+                    else:
+                        cmd = ['git', 'diff', 'HEAD', '--', filepath]
+                    
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    if result.returncode == 0:
+                        diff_info = self._parse_git_diff(result.stdout)
+                        changes.append({
+                            'file': filepath,
+                            'status': info['status'],
+                            'staged': info['staged'],
+                            'added_lines': diff_info.get('added', []),
+                            'deleted_lines': diff_info.get('deleted', []),
+                            'hunks': diff_info.get('hunks', [])
+                        })
+                except Exception as e:
+                    logger.error(f"Error processing {filepath}: {e}")
+            
+            return {'success': True, 'changes': changes}
+            
+        except Exception as e:
+            logger.error(f"Error in get_project_changes: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def _parse_git_diff(self, diff_output: str) -> Dict[str, Any]:
+        """
+        Parse git diff output to extract line numbers of changes.
+        """
+        added_lines = []
+        deleted_lines = []
+        modified_lines = []
+        hunks = []
+        
+        current_old_line = 0
+        current_new_line = 0
+        
+        for line in diff_output.split('\n'):
+            # Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
+            hunk_match = re.match(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
+            if hunk_match:
+                old_start = int(hunk_match.group(1))
+                new_start = int(hunk_match.group(3))
+                current_old_line = old_start
+                current_new_line = new_start
+                
+                # Store hunk info
+                hunks.append({
+                    'old_start': old_start,
+                    'new_start': new_start,
+                    'header': line
+                })
+                continue
+            
+            # Process diff lines
+            if line.startswith('+') and not line.startswith('+++'):
+                # Added line
+                added_lines.append(current_new_line)
+                current_new_line += 1
+            elif line.startswith('-') and not line.startswith('---'):
+                # Deleted line (mark it at the next line position)
+                deleted_lines.append(current_old_line)
+                current_old_line += 1
+            elif line.startswith(' '):
+                # Unchanged line
+                current_old_line += 1
+                current_new_line += 1
+        
+        # Mark modified lines (lines that have both additions and deletions nearby)
+        # This is a simple heuristic - can be improved
+        deleted_set = set(deleted_lines)
+        for added in added_lines:
+            if added in deleted_set or (added - 1) in deleted_set:
+                modified_lines.append(added)
+        
+        return {
+            'added': sorted(list(set(added_lines) - set(modified_lines))),
+            'deleted': sorted(deleted_lines),
+            'modified': sorted(modified_lines),
+            'hunks': hunks
+        }
 
 
 class JSONRPCHandler:

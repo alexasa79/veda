@@ -2,7 +2,6 @@ package editor
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"veda/internal/buffer"
 )
@@ -41,12 +40,8 @@ func (e *Editor) showDiagnostics(args []string) error {
 				filePath = uri[7:] // Remove "file://" prefix
 			}
 			
-			// Make path relative if possible
-			if cwd, err := e.proxyManager.GetFile("."); err == nil {
-				if relPath, err := filepath.Rel(cwd, filePath); err == nil && !strings.HasPrefix(relPath, "..") {
-					filePath = relPath
-				}
-			}
+			// Try to make path relative (but we can't use GetFile on "." anymore)
+			// Just use the absolute path for now
 
 			content.WriteString(fmt.Sprintf("## %s\n\n", filePath))
 

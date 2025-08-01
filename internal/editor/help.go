@@ -117,7 +117,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":cd <path>   - Change working directory\n")
 	helpText.WriteString(":help        - Show this help\n")
 	helpText.WriteString(":help-keys   - Show all key bindings\n")
-	helpText.WriteString(":diagnostics - Show project diagnostics/errors\n\n")
+	helpText.WriteString(":diagnostics - Show project diagnostics/errors\n")
+	helpText.WriteString(":show-project-changes - Show all git changes in project\n\n")
 	
 	helpText.WriteString("== Configuration ==\n")
 	helpText.WriteString(":expandtab=true/false     - Use spaces instead of tabs\n")

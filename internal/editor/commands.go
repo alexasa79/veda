@@ -124,6 +124,9 @@ func (e *Editor) registerCommands() {
 	
 	// Diagnostics commands
 	e.commandRegistry.Register("diagnostics", e.showDiagnostics)
+	
+	// Project changes commands
+	e.commandRegistry.Register("show-project-changes", e.showProjectChanges)
 
 	// Completion commands
 	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() })
