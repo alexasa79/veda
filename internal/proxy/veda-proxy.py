@@ -22,7 +22,7 @@ import re
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='veda-proxy.log',
+    filename='/tmp/veda-proxy.log',
     filemode='a'
 )
 logger = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ class LSPManager:
         self.pending_requests = {}  # language -> {request_id: threading.Event}
         self.response_cache = {}  # language -> {request_id: response}
         self.diagnostics = {}  # uri -> list of diagnostics
+        self.pending_file_opens = {}  # language -> set of file paths to open after init
         self.language_servers = {
             'go': {
                 'command': ['gopls', '-logfile=/tmp/gopls.log', '-rpc.trace'],
@@ -52,8 +53,45 @@ class LSPManager:
                 'command': ['clangd'],
                 'extensions': ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'],
                 'install_hint': 'Install clangd from your package manager or https://clangd.llvm.org/'
+            },
+            'python': {
+                'command': ['pylsp'],
+                'extensions': ['.py', '.pyw'],
+                'install_hint': 'Install python-lsp-server with: pip install python-lsp-server'
             }
         }
+        
+    def _find_project_root(self, start_path: Path) -> Path:
+        """Find the project root by looking for various markers."""
+        current = start_path
+        root = current.root
+        
+        # Project root markers in order of preference
+        markers = [
+            '.git',           # Git repository
+            'pyproject.toml', # Modern Python project
+            'setup.py',       # Traditional Python project
+            'setup.cfg',      # Alternative Python project config
+            'Pipfile',        # Pipenv project
+            'requirements.txt', # Basic Python project
+            'package.json',   # Node.js project
+            'go.mod',         # Go module
+            'Cargo.toml',     # Rust project
+            'Makefile',       # Make-based project
+            '.vscode',        # VSCode workspace
+            '.idea',          # IntelliJ workspace
+        ]
+        
+        while current != current.parent:
+            for marker in markers:
+                if (current / marker).exists():
+                    logger.info(f"Found project root at {current} (marker: {marker})")
+                    return current
+            current = current.parent
+            
+        # If no marker found, use the original path
+        logger.info(f"No project root marker found, using {start_path}")
+        return start_path
         
     def get_language_for_file(self, file_path: str) -> Optional[str]:
         """Determine the language based on file extension."""
@@ -139,6 +177,46 @@ class LSPManager:
             logger.error(f"Failed to start {cmd[0]} for {language}: {e}")
             return False
     
+    def start_server_async(self, language: str):
+        """Start the LSP server asynchronously for the specified language."""
+        if language in self.servers:
+            logger.info(f"LSP server for {language} is already running")
+            return
+            
+        if language not in self.language_servers:
+            logger.error(f"No LSP server configured for language: {language}")
+            return
+            
+        # Mark that initialization is in progress
+        self.servers[language] = {'initializing': True}
+        
+        def init_server():
+            try:
+                # Remove the temporary marker
+                if language in self.servers and self.servers[language].get('initializing'):
+                    del self.servers[language]
+                
+                # Actually start the server
+                if self.start_server(language):
+                    logger.info(f"LSP server for {language} initialized asynchronously")
+                    
+                    # Process any pending file opens
+                    if hasattr(self, 'pending_file_opens') and language in self.pending_file_opens:
+                        pending_files = self.pending_file_opens[language]
+                        for file_path in pending_files:
+                            logger.info(f"Opening deferred file: {file_path}")
+                            self._open_file(language, file_path)
+                        del self.pending_file_opens[language]
+            except Exception as e:
+                logger.error(f"Failed to start LSP server for {language} asynchronously: {e}")
+                # Clean up on failure
+                if language in self.servers and self.servers[language].get('initializing'):
+                    del self.servers[language]
+        
+        # Start initialization in a background thread
+        init_thread = threading.Thread(target=init_server, daemon=True)
+        init_thread.start()
+    
     def stop_server(self, language: str) -> bool:
         """Stop the LSP server for the specified language."""
         if language not in self.servers:
@@ -167,16 +245,19 @@ class LSPManager:
         server = self.servers[language]
         server['request_id'] += 1
         
+        # Try to find the project root (look for git, pyproject.toml, setup.py, etc.)
+        root_path = self._find_project_root(Path.cwd())
+        
         request = {
             "jsonrpc": "2.0",
             "id": server['request_id'],
             "method": "initialize",
             "params": {
                 "processId": os.getpid(),
-                "rootUri": f"file://{Path.cwd().absolute()}",
+                "rootUri": f"file://{root_path.absolute()}",
                 "workspaceFolders": [{
-                    "uri": f"file://{Path.cwd().absolute()}",
-                    "name": Path.cwd().name
+                    "uri": f"file://{root_path.absolute()}",
+                    "name": root_path.name
                 }],
                 "capabilities": {
                     "textDocument": {
@@ -645,6 +726,18 @@ class LSPManager:
         if language not in self.servers:
             return
             
+        # If server is still initializing, defer the file opening
+        server = self.servers.get(language, {})
+        if server.get('initializing'):
+            # Queue the file to be opened once server is ready
+            if not hasattr(self, 'pending_file_opens'):
+                self.pending_file_opens = {}
+            if language not in self.pending_file_opens:
+                self.pending_file_opens[language] = set()
+            self.pending_file_opens[language].add(file_path)
+            logger.info(f"Deferring opening of {file_path} until {language} server is ready")
+            return
+            
         # Read file content
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -666,7 +759,9 @@ class LSPManager:
             '.cxx': 'cpp',
             '.hpp': 'cpp',
             '.hh': 'cpp',
-            '.hxx': 'cpp'
+            '.hxx': 'cpp',
+            '.py': 'python',
+            '.pyw': 'python'
         }.get(ext, 'plaintext')
         
         notification = {
@@ -937,20 +1032,27 @@ class VedaProxy:
             raise ValueError(f"Path is not a file: {path}")
             
         try:
+            import time
+            start_time = time.time()
+            
             content = file_path.read_text(encoding='utf-8')
+            read_time = time.time()
+            logger.info(f"Read file content in {(read_time - start_time) * 1000:.1f}ms")
             
             # Notify LSP server about the opened file
             language = self.lsp.get_language_for_file(str(file_path))
             if language:
-                # Start LSP server if needed
+                # Start LSP server asynchronously if needed
                 if language not in self.lsp.servers:
-                    logger.info(f"Starting LSP server for {language} when opening {path}")
-                    self.lsp.start_server(language)
+                    logger.info(f"Starting LSP server for {language} asynchronously when opening {path}")
+                    self.lsp.start_server_async(language)
                 
-                # Notify LSP about the opened file
-                if language in self.lsp.servers:
-                    self.lsp._open_file(language, str(file_path))
-                    logger.info(f"Notified LSP server about opened file: {path}")
+                # Notify LSP about the opened file (will be deferred if server is still initializing)
+                self.lsp._open_file(language, str(file_path))
+                logger.info(f"Requested LSP notification for opened file: {path}")
+            
+            lsp_time = time.time()
+            logger.info(f"LSP operations took {(lsp_time - read_time) * 1000:.1f}ms")
             
             # Get current git branch
             branch = "main"  # default
@@ -961,6 +1063,9 @@ class VedaProxy:
                     branch = result_branch.stdout.strip()
             except Exception as e:
                 logger.warning(f"Could not get git branch: {e}")
+            
+            branch_time = time.time()
+            logger.info(f"Git branch detection took {(branch_time - lsp_time) * 1000:.1f}ms")
             
             # Get git changes for the file
             changes = {'added': [], 'deleted': [], 'modified': []}
@@ -989,6 +1094,10 @@ class VedaProxy:
             except Exception as e:
                 logger.warning(f"Could not get git changes for {path}: {e}")
                 # Don't fail the whole operation if git diff fails
+            
+            git_time = time.time()
+            logger.info(f"Git diff operations took {(git_time - branch_time) * 1000:.1f}ms")
+            logger.info(f"Total get_file time: {(git_time - start_time) * 1000:.1f}ms")
             
             return {
                 'content': content,

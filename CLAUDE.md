@@ -64,6 +64,7 @@ make clean
 - **Supported Languages**:
   - Go (requires `gopls` - install with `go install golang.org/x/tools/gopls@latest`)
   - C/C++ (requires `clangd` - install from your package manager or https://clangd.llvm.org/)
+  - Python (requires `pylsp` - install with `pip install python-lsp-server`)
 - **Automatic Server Management**: LSP servers start automatically when needed and stop when the editor exits
 
 ### Testing Framework

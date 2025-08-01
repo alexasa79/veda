@@ -7,7 +7,6 @@
   probably appear above the status bar.
 
 # Features
-- [ ] Add vertical rules at 78, 80, 100 and 120 characters.
 - [ ] Multi-line/multi-cursor support
 - [ ] Replace
 - [ ] Indent command
@@ -46,6 +45,7 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 - [x] Render tab characters and trailing space characters.
 - [x] Find references
 - [x] Completion
+- [x] Add vertical rules at 78, 80, 100 and 120 characters.
 
 ## Improvements and bugs
 - [x] Remove `drawLine` (does not seem to be used anymore) and rename `drawLineFromIterator` to
