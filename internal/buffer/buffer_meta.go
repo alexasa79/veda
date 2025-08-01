@@ -92,6 +92,10 @@ type Buffer struct {
 	// Git changes tracking
 	GitChanges *proxy.FileChanges // Git changes for this buffer (added, deleted, modified lines)
 	GitBranch  string             // Current git branch for this buffer
+	
+	// Buffer flags
+	IsReadOnly bool // Whether this buffer is read-only
+	IsInternal bool // Whether this is an internal buffer (not tied to a file)
 }
 
 // IndentationInfo holds information about file indentation
@@ -295,6 +299,28 @@ func (b *Buffer) Delete(start, end int) {
 	b.Rope.Delete(start, end)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
+}
+
+// AppendLine appends a line to the end of the buffer
+func (b *Buffer) AppendLine(line string) {
+	// Temporarily disable read-only for internal buffers
+	wasReadOnly := b.IsReadOnly
+	if b.IsInternal && b.IsReadOnly {
+		b.IsReadOnly = false
+	}
+	
+	// If buffer is not empty and doesn't end with newline, add one
+	if b.Length() > 0 && b.ByteAt(b.Length()-1) != '\n' {
+		b.Insert(b.Length(), "\n")
+	}
+	
+	// Append the line with a newline
+	b.Insert(b.Length(), line + "\n")
+	
+	// Restore read-only status
+	if wasReadOnly {
+		b.IsReadOnly = true
+	}
 }
 
 // String implements the fmt.Stringer interface for Buffer

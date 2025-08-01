@@ -136,6 +136,7 @@ func (te *TestEditor) GetBufferContent() string {
 func (te *TestEditor) GetScreenContent() []string {
 	// Force a render
 	te.drawEditor()
+	te.drawErrorLine()
 	te.drawStatusBar()
 	
 	lines := make([]string, 0)

@@ -3,7 +3,12 @@ package editor
 
 // getSignatureY returns the Y position where signature should be drawn
 func (e *Editor) getSignatureY() int {
-	return e.getStatusBarY() - e.getSignatureLines()
+	y := e.getStatusBarY() - e.getSignatureLines()
+	// Adjust for error line if present
+	if e.errorManager.GetCurrentError() != "" {
+		y -= 1
+	}
+	return y
 }
 
 // getSignatureLines returns the number of lines needed for signature display

@@ -31,7 +31,8 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 		if (strings.HasPrefix(buf.FilePath, "*References:") && strings.HasSuffix(buf.FilePath, "*")) ||
 		   buf.FilePath == "*Help*" ||
 		   buf.FilePath == "*Key Bindings*" ||
-		   buf.FilePath == "*Diagnostics*" {
+		   buf.FilePath == "*Diagnostics*" ||
+		   buf.FilePath == "*Messages*" {
 			// Set markdown language for special buffers
 			e.highlighter.SetLanguage("markdown")
 		} else {

@@ -13,6 +13,10 @@ func (e *Editor) getVisibleHeight() int {
 	if e.buffer.CurrentSignature != nil {
 		reserved += e.getSignatureLines()
 	}
+	// Reserve space for error line if shown
+	if e.errorManager.GetCurrentError() != "" {
+		reserved += 1
+	}
 	return height - reserved
 }
 

@@ -95,10 +95,13 @@ func (e *Editor) executeCommand() {
 	if e.commandRegistry.Has(cmd) {
 		err := e.commandRegistry.Execute(cmd, args)
 		if err != nil {
-			LL.Debug("Command execution failed: %v", err)
+			e.ShowError("Command failed: %v", err)
 		}
 		return
 	}
+	
+	// Command not found
+	e.ShowError("Unknown command: %s", cmd)
 }
 
 // handleVariableAssignment processes variable assignments in VAR=VALUE format

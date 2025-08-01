@@ -67,6 +67,9 @@ func (e *Editor) executeSearch() {
 	if len(e.searchMatches) > 0 {
 		e.currentMatch = 0
 		e.moveCursorToPosition(e.searchMatches[0])
+	} else {
+		// No matches found - show error
+		e.ShowError("Pattern not found: %s", pattern)
 	}
 }
 
