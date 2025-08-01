@@ -37,9 +37,9 @@ func TestCursorMovement(t *testing.T) {
 		// Create editor with the test case you mentioned
 		te := NewTestEditorWithContent(80, 24, "11111\n222")
 		
-		// Move to last '1' in normal mode (position 4 gets adjusted to 3)
+		// Move to last '1' in normal mode
 		te.SetCursorPosition(4, 0)
-		AssertCursorAt(t, te, 3, 0) // In normal mode, cursor is on the last character
+		AssertCursorAt(t, te, 4, 0) // Position 4 is the last character (0-indexed)
 		
 		// Move down - cursor should move to end of shorter line
 		te.ExecuteCommand("down")

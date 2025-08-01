@@ -19,8 +19,12 @@ build:
 	$(GOBUILD) -o $(BINARY) main.go
 
 # Run all tests
+# -p sets the number of test packages to run in parallel (default is GOMAXPROCS)
+# -parallel sets the number of tests to run in parallel within each package
+# You can override parallelism with: make test PARALLEL=8
+PARALLEL ?= 4
 test:
-	$(GOTEST) -v ./internal/*/
+	$(GOTEST) -v -p $(PARALLEL) -parallel $(PARALLEL) ./internal/*/
 
 # Clean up
 clean:

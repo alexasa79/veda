@@ -1058,6 +1058,10 @@ func (e *Editor) repeatLastChange(args []string) error {
 				firstLine = first.Line
 				baseLineOffset = lineNum - first.Line
 				baseCharOffset = cursorX - first.Character
+				// For 'a' command, we need to adjust by 1 since 'a' moves cursor right before inserting
+				if original.InitCommand == "a" {
+					baseCharOffset += 1
+				}
 			case *buffer.DeleteTextEntry:
 				firstLine = first.Line
 				baseLineOffset = lineNum - first.Line
