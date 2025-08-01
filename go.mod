@@ -6,5 +6,3 @@ require (
 	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	golang.org/x/sys v0.34.0
 )
-
-require github.com/tree-sitter-grammars/tree-sitter-markdown v0.5.0 // indirect

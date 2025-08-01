@@ -13,6 +13,7 @@ import (
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/golang"
 	markdown_inline "github.com/smacker/go-tree-sitter/markdown/tree-sitter-markdown-inline"
+	"github.com/smacker/go-tree-sitter/python"
 )
 
 // TokenType represents different syntax elements
@@ -68,6 +69,24 @@ const (
 	TokenTypeBashComment   TokenType = "bash_comment"
 	TokenTypeBashFunction  TokenType = "bash_function"
 	TokenTypeBashSpecial   TokenType = "bash_special"
+	
+	// Python-specific token types
+	TokenTypePythonKeyword     TokenType = "python_keyword"
+	TokenTypePythonBuiltin     TokenType = "python_builtin"
+	TokenTypePythonDecorator   TokenType = "python_decorator"
+	TokenTypePythonString      TokenType = "python_string"
+	TokenTypePythonDocstring   TokenType = "python_docstring"
+	TokenTypePythonFString     TokenType = "python_fstring"
+	TokenTypePythonNumber      TokenType = "python_number"
+	TokenTypePythonBoolean     TokenType = "python_boolean"
+	TokenTypePythonNone        TokenType = "python_none"
+	TokenTypePythonFunction    TokenType = "python_function"
+	TokenTypePythonClass       TokenType = "python_class"
+	TokenTypePythonSelf        TokenType = "python_self"
+	TokenTypePythonComment     TokenType = "python_comment"
+	TokenTypePythonOperator    TokenType = "python_operator"
+	TokenTypePythonException   TokenType = "python_exception"
+	TokenTypePythonImport      TokenType = "python_import"
 )
 
 // Token represents a syntax-highlighted token
@@ -129,6 +148,9 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".sh", ".bash":
 		h.parser.SetLanguage(bash.GetLanguage())
 		h.currentLang = "bash"
+	case ".py", ".pyw":
+		h.parser.SetLanguage(python.GetLanguage())
+		h.currentLang = "python"
 	default:
 		// No language set for unknown extensions
 		h.currentLang = ""
@@ -164,6 +186,9 @@ func (h *Highlighter) SetLanguage(language string) error {
 	case "bash":
 		h.parser.SetLanguage(bash.GetLanguage())
 		h.currentLang = "bash"
+	case "python":
+		h.parser.SetLanguage(python.GetLanguage())
+		h.currentLang = "python"
 	default:
 		// No language set for unknown languages
 		h.currentLang = ""
@@ -349,7 +374,9 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		nodeType == "raw_string_literal" || // C++ raw strings
 		nodeType == "interpreted_string_literal" || // Go strings
 		nodeType == "rune_literal" || // Go runes
-		nodeType == "command_name" // Bash command names
+		nodeType == "command_name" || // Bash command names
+		nodeType == "string" || // Python strings
+		nodeType == "decorator" // Python decorators
 	
 	if shouldTokenize {
 		// Map node type to token type
@@ -395,6 +422,8 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapMarkdownNodeToTokenType(node, nodeType, source)
 	case "bash":
 		return h.mapBashNodeToTokenType(node, nodeType, source)
+	case "python":
+		return h.mapPythonNodeToTokenType(node, nodeType, source)
 	default:
 		return TokenTypeText
 	}
@@ -1035,6 +1064,142 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 	}
 }
 
+// mapPythonNodeToTokenType maps Python-specific node types to token types
+func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
+	switch nodeType {
+	// Keywords
+	case "if", "elif", "else", "for", "while", "break", "continue",
+		"def", "class", "return", "yield", "pass", "raise",
+		"try", "except", "finally", "with", "as", "assert",
+		"import", "from", "global", "nonlocal", "lambda",
+		"and", "or", "not", "in", "is", "del", "async", "await":
+		return TokenTypePythonKeyword
+		
+	// Comments
+	case "comment":
+		return TokenTypePythonComment
+		
+	// Strings
+	case "string", "string_content", "string_start", "string_end":
+		// Check if it's a docstring by looking at parent context
+		parent := node.Parent()
+		if parent != nil {
+			grandparent := parent.Parent()
+			if grandparent != nil {
+				gpType := grandparent.Type()
+				if gpType == "function_definition" || gpType == "class_definition" {
+					// Check if this is the first statement
+					if parent.Type() == "expression_statement" {
+						return TokenTypePythonDocstring
+					}
+				}
+			}
+		}
+		return TokenTypePythonString
+		
+	// F-strings
+	case "interpolation":
+		return TokenTypePythonFString
+		
+	// Numbers
+	case "integer", "float":
+		return TokenTypePythonNumber
+		
+	// Booleans
+	case "true", "false":
+		return TokenTypePythonBoolean
+		
+	// None
+	case "none":
+		return TokenTypePythonNone
+		
+	// Decorators
+	case "decorator":
+		return TokenTypePythonDecorator
+		
+	// Function names
+	case "function_definition":
+		// Get the function name from children
+		for i := 0; i < int(node.ChildCount()); i++ {
+			child := node.Child(i)
+			if child != nil && child.Type() == "identifier" {
+				// This is the function name
+				return TokenTypePythonFunction
+			}
+		}
+		return TokenTypeText
+		
+	// Class names
+	case "class_definition":
+		// Get the class name from children
+		for i := 0; i < int(node.ChildCount()); i++ {
+			child := node.Child(i)
+			if child != nil && child.Type() == "identifier" {
+				// This is the class name
+				return TokenTypePythonClass
+			}
+		}
+		return TokenTypeText
+		
+	// Identifiers - check for special cases
+	case "identifier":
+		text := string(source[node.StartByte():node.EndByte()])
+		
+		// self and cls
+		if text == "self" || text == "cls" {
+			return TokenTypePythonSelf
+		}
+		
+		// Built-in functions
+		switch text {
+		case "print", "len", "range", "str", "int", "float", "bool",
+			"list", "dict", "set", "tuple", "type", "isinstance",
+			"hasattr", "getattr", "setattr", "delattr", "dir",
+			"abs", "all", "any", "bin", "chr", "ord", "hex", "oct",
+			"round", "max", "min", "sum", "sorted", "reversed",
+			"enumerate", "zip", "map", "filter", "open", "input",
+			"eval", "exec", "compile", "globals", "locals", "vars",
+			"__import__", "super", "property", "staticmethod", "classmethod":
+			return TokenTypePythonBuiltin
+			
+		// Common exceptions
+		case "Exception", "ValueError", "TypeError", "KeyError",
+			"IndexError", "AttributeError", "ImportError", "IOError",
+			"OSError", "RuntimeError", "NotImplementedError",
+			"StopIteration", "GeneratorExit", "KeyboardInterrupt",
+			"SystemExit", "NameError", "UnboundLocalError",
+			"ZeroDivisionError", "FileNotFoundError":
+			return TokenTypePythonException
+		}
+		
+		// Check if it's a function call
+		parent := node.Parent()
+		if parent != nil && parent.Type() == "call" {
+			// Check if this identifier is the function being called
+			if parent.Child(0) == node {
+				return TokenTypePythonFunction
+			}
+		}
+		
+		return TokenTypeVariable
+		
+	// Operators
+	case "+", "-", "*", "/", "//", "%", "**",
+		"=", "+=", "-=", "*=", "/=", "//=", "%=", "**=",
+		"==", "!=", "<", ">", "<=", ">=",
+		"&", "|", "^", "~", "<<", ">>",
+		"&=", "|=", "^=", "<<=", ">>=":
+		return TokenTypePythonOperator
+		
+	// Import-related
+	case "import_statement", "import_from_statement":
+		return TokenTypePythonImport
+		
+	default:
+		return TokenTypeText
+	}
+}
+
 // isMoreSpecific returns true if type1 is more specific than type2
 func (h *Highlighter) isMoreSpecific(type1, type2 TokenType) bool {
 	// Define specificity hierarchy
@@ -1184,6 +1349,39 @@ func GetStyleForToken(tokenType TokenType, theme *theme.Theme) theme.StyleDef {
 		return theme.BashFunction
 	case TokenTypeBashSpecial:
 		return theme.BashSpecial
+	// Python token types
+	case TokenTypePythonKeyword:
+		return theme.SyntaxKeyword
+	case TokenTypePythonBuiltin:
+		return theme.SyntaxFunction
+	case TokenTypePythonDecorator:
+		return theme.SyntaxAttribute
+	case TokenTypePythonString:
+		return theme.SyntaxString
+	case TokenTypePythonDocstring:
+		return theme.SyntaxComment
+	case TokenTypePythonFString:
+		return theme.SyntaxString
+	case TokenTypePythonNumber:
+		return theme.SyntaxNumber
+	case TokenTypePythonBoolean:
+		return theme.SyntaxConstant
+	case TokenTypePythonNone:
+		return theme.SyntaxConstant
+	case TokenTypePythonFunction:
+		return theme.SyntaxFunction
+	case TokenTypePythonClass:
+		return theme.SyntaxType
+	case TokenTypePythonSelf:
+		return theme.SyntaxVariable
+	case TokenTypePythonComment:
+		return theme.SyntaxComment
+	case TokenTypePythonOperator:
+		return theme.SyntaxOperator
+	case TokenTypePythonException:
+		return theme.SyntaxType
+	case TokenTypePythonImport:
+		return theme.SyntaxKeyword
 	case TokenTypeText:
 		fallthrough
 	default:

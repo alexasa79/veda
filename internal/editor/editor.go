@@ -1338,7 +1338,7 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 func (e *Editor) goToDefinition(args []string) error {
 	// Only works if we have a file open
 	if !e.buffer.HasFile() {
-		// TODO: Show error to user
+		e.errorManager.ShowError("No file open")
 		return fmt.Errorf("no file open")
 	}
 
@@ -1351,7 +1351,7 @@ func (e *Editor) goToDefinition(args []string) error {
 	// Get definition location from LSP
 	locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
 	if err != nil {
-		// TODO: Show error to user
+		e.errorManager.ShowError(fmt.Sprintf("LSP error: %v", err))
 		LL.Debug("goToDefinition failed: %v", err)
 		return err
 	}
@@ -1360,7 +1360,7 @@ func (e *Editor) goToDefinition(args []string) error {
 
 	// If no locations found, nothing to do
 	if len(locations) == 0 {
-		// TODO: Show message to user
+		e.errorManager.ShowError("No definition found")
 		return nil
 	}
 
