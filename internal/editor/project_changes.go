@@ -78,10 +78,12 @@ func (e *Editor) showProjectChanges(args []string) error {
 		buf.CursorX = 0
 		buf.ViewIterator = buffer.NewBufferIterator(buf)
 		buf.CursorIterator = buffer.NewBufferIterator(buf)
+		buf.IsReadOnly = true
 		e.switchToBuffer(buf)
 	} else {
 		// Create new buffer
 		newBuffer := buffer.NewBuffer(content.String(), bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer.IsReadOnly = true
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)
 		e.switchToBuffer(newBuffer)

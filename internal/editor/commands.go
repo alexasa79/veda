@@ -130,4 +130,7 @@ func (e *Editor) registerCommands() {
 
 	// Completion commands
 	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() })
+	
+	// Error testing command
+	e.commandRegistry.Register("error", e.errorCommand)
 }

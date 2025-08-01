@@ -150,6 +150,9 @@ type Editor struct {
 	
 	// Exit control
 	shouldExit      bool                   // Flag to signal the editor should exit
+	
+	// Error management
+	errorManager    *ErrorManager          // Manages error display and logging
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -214,6 +217,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		asyncOperations: make(map[string]bool),
 		lastSpinnerTime: time.Now(),
 		connectionStatus: "",
+		errorManager:    NewErrorManager(),
 		completionMenu: widgets.NewCompletionMenu(config.Theme),
 	}
 
@@ -327,6 +331,7 @@ func (e *Editor) render() {
 	t0 = e.perfTracker.ReportSince("drawContext", t0)
 
 	e.drawSignature()
+	e.drawErrorLine()
 	e.drawStatusBar()
 	t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
 

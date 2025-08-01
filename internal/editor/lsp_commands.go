@@ -55,6 +55,7 @@ func (e *Editor) findReferences(args []string) error {
 		existingBuffer.CursorX = 0
 		existingBuffer.ViewIterator = buffer.NewBufferIterator(existingBuffer)
 		existingBuffer.CursorIterator = buffer.NewBufferIterator(existingBuffer)
+		existingBuffer.IsReadOnly = true
 		e.switchToBuffer(existingBuffer)
 		// Set syntax highlighting for markdown
 		if e.highlighter != nil {
@@ -64,6 +65,7 @@ func (e *Editor) findReferences(args []string) error {
 	} else {
 		// Create new buffer
 		newBuffer := buffer.NewBuffer(content, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer.IsReadOnly = true
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)
 		e.switchToBuffer(newBuffer)

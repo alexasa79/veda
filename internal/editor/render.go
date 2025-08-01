@@ -808,7 +808,7 @@ func (e *Editor) drawStatusBar() {
 			}
 		}
 
-		// Add search indicator if there's an active search
+		// Add search indicator if there's an active search with matches
 		if e.searchPattern != "" && len(e.searchMatches) > 0 {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
 
@@ -816,16 +816,6 @@ func (e *Editor) drawStatusBar() {
 			searchHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 
 			searchText := fmt.Sprintf(" /%s %d/%d ", e.searchPattern, e.currentMatch+1, len(e.searchMatches))
-			x += e.drawText(x, statusBarY, searchHighlightStyle, searchText, 0, nil, -1, 0, -1)
-		} else if e.searchPattern != "" {
-			// Pattern set but no matches
-			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
-
-			// Use SearchHighlight style with red foreground for no matches
-			searchHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
-			searchHighlightStyle.Fg = ui.ColorRed
-
-			searchText := fmt.Sprintf(" /%s No matches ", e.searchPattern)
 			x += e.drawText(x, statusBarY, searchHighlightStyle, searchText, 0, nil, -1, 0, -1)
 		}
 
@@ -923,6 +913,31 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil, -1, 0, -1)
 		}
 	}
+}
+
+// drawErrorLine renders the error message above the status bar
+func (e *Editor) drawErrorLine() {
+	currentError := e.errorManager.GetCurrentError()
+	if currentError == "" {
+		return
+	}
+	
+	width, _ := e.screen.Size()
+	errorY := e.getStatusBarY() - 1 // One line above status bar
+	
+	// Use error style (white text on red background)
+	errorStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+	errorStyle.Bg = ui.ColorRed
+	errorStyle.Fg = ui.ColorWhite
+	
+	// Clear the line first with red background
+	for i := 0; i < width; i++ {
+		e.screen.SetContent(i, errorY, ' ', nil, errorStyle)
+	}
+	
+	// Draw the error message with padding
+	errorText := " " + currentError + " "
+	e.drawText(0, errorY, errorStyle, errorText, 0, nil, -1, 0, -1)
 }
 
 // drawSignature renders the function signature above the status bar

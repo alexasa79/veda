@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"veda/internal/events"
 )
 
@@ -64,7 +65,7 @@ func (cr *CommandRegistry) Register(command string, handler HandlerFunc) {
 func (cr *CommandRegistry) Execute(command string, args []string) error {
 	info, exists := cr.commands[command]
 	if !exists {
-		return nil // Command not found, ignore
+		return fmt.Errorf("unknown command: %s", command)
 	}
 	return info.Handler(args)
 }
