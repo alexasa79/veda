@@ -51,7 +51,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		}
 
 		currentStyle := style
-		
+
 		// Check if this column is a ruler position
 		// Calculate text column position (screenX minus line number width)
 		textColumn := screenX - e.buffer.LineNumberWidth
@@ -62,7 +62,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 				break
 			}
 		}
-		
+
 		if inFlash {
 			// Flash takes highest precedence
 			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
@@ -361,7 +361,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		// Draw the wrapped segment
 		segmentOffset := lineStartOffset + wl.StartChar
 		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
-		
+
 		// Fill rest of line if we have background
 		if hasBg {
 			width, _ := e.screen.Size()
@@ -389,8 +389,80 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		x := startX
 		segmentOffset := lineStartOffset + wl.StartChar
 		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
-		
+
 		// Fill rest of line
+		if hasBg {
+			width, _ := e.screen.Size()
+			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+			for i := x; i < width; i++ {
+				fillStyle := normalStyle
+				textColumn := i - e.buffer.LineNumberWidth
+				for _, rulerPos := range e.config.VerticalRulers {
+					if textColumn == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
+				}
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			}
+		}
+		return
+	}
+
+	// For markdown in all modes except insert mode, we need special handling
+	if e.highlighter != nil && e.highlighter.GetCurrentLanguage() == "markdown" && e.mode != commands.InsertMode {
+		// Get markdown render info to map positions
+		markdownInfo := ProcessMarkdownLine(originalLine, e.mode)
+
+		// Draw the display text with proper syntax highlighting
+		x := startX
+		displayPos := wl.StartChar
+
+		// For each character in the display text
+		for i, ch := range wl.Text {
+			// Find the original position for this display character
+			origPos := wl.StartChar + i
+
+			// Map display position to original position
+			if displayPos < len(markdownInfo.DisplayToOriginal) {
+				if mapped, ok := markdownInfo.DisplayToOriginal[displayPos]; ok {
+					origPos = mapped
+				}
+			}
+
+			// Find the token that contains this original position
+			tokenStyle := normalStyle
+			for _, token := range tokens {
+				if origPos >= token.Start && origPos < token.End {
+					// Apply the token style
+					tokenStyle = e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+					break
+				}
+			}
+
+			// Apply current line background if needed
+			if isCurrentLine {
+				tokenStyle = tokenStyle.Background(lineBg)
+			}
+
+			// Check for search matches
+			if e.isInSearchMatch(origPos, searchMatches) {
+				searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, searchStyle)
+			}
+
+			// Check for trailing spaces
+			if trailingStart >= 0 && origPos >= trailingStart {
+				trailingStyle := e.config.Theme.GetStyle(e.config.Theme.Whitespace)
+				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, trailingStyle)
+			}
+
+			e.screen.SetContent(x, screenY, ch, nil, tokenStyle)
+			x++
+			displayPos++
+		}
+
+		// Fill rest of line if we have background
 		if hasBg {
 			width, _ := e.screen.Size()
 			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
@@ -418,7 +490,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		if token.End <= wl.StartChar {
 			continue
 		}
-		
+
 		// Stop if token starts after our segment
 		if token.Start >= wl.EndChar {
 			break
@@ -447,14 +519,14 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			if tokenEnd > wl.EndChar {
 				tokenEnd = wl.EndChar
 			}
-			
+
 			if tokenEnd > tokenStart {
 				tokenText := originalLine[tokenStart:tokenEnd]
 				tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 				if isCurrentLine {
 					tokenStyle = tokenStyle.Background(lineBg)
 				}
-				
+
 				x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + tokenStart, searchMatches, lineIndex, tokenStart, trailingStart)
 				pos = tokenEnd
 			}
@@ -549,7 +621,7 @@ func (e *Editor) drawEditor() {
 	// Draw each wrapped line
 	for i, wl := range wrappedLines {
 		screenY := contentStartY + i
-		
+
 		// First, fill the entire line with the normal background
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		for x := 0; x < width; x++ {
@@ -569,7 +641,7 @@ func (e *Editor) drawEditor() {
 			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1
 			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
 			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
-			
+
 			// Draw separator after line number
 			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
 		} else {
@@ -643,7 +715,7 @@ func (e *Editor) drawStatusBar() {
 		// Show filename and modified indicator
 		filename := e.buffer.FileName()
 		x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil, -1, 0, -1)
-		
+
 		// Add modified indicator if buffer is modified
 		if e.buffer.IsModified {
 			x += e.drawText(x, statusBarY, statusBarStyle, " [+]", 0, nil, -1, 0, -1)
@@ -674,20 +746,20 @@ func (e *Editor) drawStatusBar() {
 		// Add search indicator if there's an active search
 		if e.searchPattern != "" && len(e.searchMatches) > 0 {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
-			
+
 			// Use SearchHighlight style for search indicator
 			searchHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
-			
+
 			searchText := fmt.Sprintf(" /%s %d/%d ", e.searchPattern, e.currentMatch+1, len(e.searchMatches))
 			x += e.drawText(x, statusBarY, searchHighlightStyle, searchText, 0, nil, -1, 0, -1)
 		} else if e.searchPattern != "" {
 			// Pattern set but no matches
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
-			
+
 			// Use SearchHighlight style with red foreground for no matches
 			searchHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 			searchHighlightStyle.Fg = ui.ColorRed
-			
+
 			searchText := fmt.Sprintf(" /%s No matches ", e.searchPattern)
 			x += e.drawText(x, statusBarY, searchHighlightStyle, searchText, 0, nil, -1, 0, -1)
 		}
@@ -695,11 +767,11 @@ func (e *Editor) drawStatusBar() {
 		// Add references indicator if there's an active references buffer
 		if e.currentReferencesBuffer != nil && len(e.currentReferencesBuffer.References) > 0 {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
-			
+
 			// Use SearchHighlight style for references indicator (same style as search)
 			referencesHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
-			
-			referencesText := fmt.Sprintf(" @%s %d/%d ", e.currentReferencesBuffer.SymbolName, 
+
+			referencesText := fmt.Sprintf(" @%s %d/%d ", e.currentReferencesBuffer.SymbolName,
 				e.currentReferencesBuffer.CurrentIndex+1, len(e.currentReferencesBuffer.References))
 			x += e.drawText(x, statusBarY, referencesHighlightStyle, referencesText, 0, nil, -1, 0, -1)
 		}

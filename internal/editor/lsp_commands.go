@@ -56,12 +56,22 @@ func (e *Editor) findReferences(args []string) error {
 		existingBuffer.ViewIterator = buffer.NewBufferIterator(existingBuffer)
 		existingBuffer.CursorIterator = buffer.NewBufferIterator(existingBuffer)
 		e.switchToBuffer(existingBuffer)
+		// Set syntax highlighting for markdown
+		if e.highlighter != nil {
+			e.highlighter.SetLanguage("markdown")
+			e.highlighter.ParseFull([]byte(existingBuffer.Rope.String()))
+		}
 	} else {
 		// Create new buffer
 		newBuffer := buffer.NewBuffer(content, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)
 		e.switchToBuffer(newBuffer)
+		// Set syntax highlighting for markdown
+		if e.highlighter != nil {
+			e.highlighter.SetLanguage("markdown")
+			e.highlighter.ParseFull([]byte(newBuffer.Rope.String()))
+		}
 	}
 
 	// Create and store the references buffer tracking info
