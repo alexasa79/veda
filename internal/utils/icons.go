@@ -7,7 +7,7 @@ import (
 
 // Common unicode symbols for files and directories
 const (
-	IconDefault    = "•"
+	IconDefault    = "⏺"
 	IconDirectory  = ""
 
 	// Programming language symbols (Nerd Font)
@@ -26,7 +26,7 @@ const (
 	IconYaml       = ""
 	IconHtml       = ""
 	IconCss        = ""
-	
+
 	// Special files
 	IconGit        = ""
 	IconDocker     = ""
