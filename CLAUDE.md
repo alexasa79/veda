@@ -116,6 +116,10 @@ Currently the buffer package and editor package have tests. When adding new func
   - Mode switching logic should go in `mode_management.go`
   - Layout calculations should go in `layout.go`
   - Keep `editor.go` focused on core editor struct and high-level coordination
+- **Development with unit tests**: Use unit tests to develop and test the code
+  - Add new unit tests for every new feature
+  - Everything can be tested with unit tests
+  - Make sure ALL unit tests pass before concluding any work
 
 ## Claude Operational Guidelines
 - You are not allowed to leave the root directory of the project. All commands, experiments, everything you do, must be done in the root directory of the project.

@@ -2,6 +2,9 @@
 - [ ] Allow going into search and command modes and exit the visual mode when it happens.
 - [ ] Getting completion on empty space does something weird.
 - [ ] References window is not rendered as markdown.
+- [ ] Entering command that does not exist does not indicate anything.
+- [ ] The error message for not found string looks aweful - red on gray background. Also, it should
+  probably appear above the status bar.
 
 # Features
 - [ ] Add vertical rules at 78, 80, 100 and 120 characters.
