@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 	"veda/internal/buffer"
@@ -103,6 +104,9 @@ type Editor struct {
 	pendingOperator Operator                // Current operator waiting for text object
 	pendingModifier TextObjectModifier      // Modifier for text object (a/i)
 	pendingKeys     []string                // Accumulated keys for current operation
+	countPrefix     string                  // Numeric prefix being built (e.g., "12" for 12j)
+	repeatCount     int                     // Parsed count for command repetition
+	pendingCount    int                     // Count for pending operations (dd, cc, etc.)
 
 	// Search state
 	searchPattern   string                  // Current search pattern
@@ -373,9 +377,23 @@ func (e *Editor) handleEvent(ev events.Event) {
 		} else if e.mode == commands.SearchMode {
 			e.handleSearchMode(ev)
 		} else {
+			// Normal mode: Handle numeric prefix
+			if e.mode == commands.NormalMode && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' {
+				// Special case: '0' is a command if no prefix is being built
+				if ev.Rune == '0' && e.countPrefix == "" {
+					// Let it be processed as a normal command (beginning-of-line)
+				} else {
+					// Build the count prefix
+					e.countPrefix += string(ev.Rune)
+					return // Don't process further
+				}
+			}
+
 			// Normal and Insert modes
 			if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyEscape {
 				e.cancelPendingOperation()
+				e.countPrefix = "" // Clear count prefix on escape
+				e.repeatCount = 0
 			} else if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyRune {
 				if err := e.handlePendingOperation(string(ev.Rune)); err != nil {
 					LL.Debug("Pending operation error: %v", err)
@@ -383,13 +401,35 @@ func (e *Editor) handleEvent(ev events.Event) {
 			} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 				LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
 				LL.Debug("Found command: %s", command)
-				if err := e.commandRegistry.Execute(command, nil); err != nil {
+				
+				// Parse the count prefix if we have one
+				if e.countPrefix != "" {
+					if count, err := strconv.Atoi(e.countPrefix); err == nil && count > 0 {
+						e.repeatCount = count
+					} else {
+						e.repeatCount = 1
+					}
+					e.countPrefix = "" // Clear the prefix
+				} else {
+					e.repeatCount = 1
+				}
+				
+				// Execute the command with repetition
+				if err := e.executeWithRepeatCount(command); err != nil {
 					LL.Debug("Command execution error: %v", err)
 				}
+				
+				// Clear repeat count after execution
+				e.repeatCount = 0
 			} else {
 				LL.Debug("No command found for key %+v", ev)
 				if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
 					e.insertChar(ev.Rune)
+				}
+				// Clear count prefix if no command was found
+				if e.mode == commands.NormalMode {
+					e.countPrefix = ""
+					e.repeatCount = 0
 				}
 			}
 		}
@@ -414,6 +454,38 @@ func (e *Editor) handleEvent(ev events.Event) {
 		}
 	default:
 		LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
+	}
+}
+
+// executeWithRepeatCount executes a command with the current repeat count
+func (e *Editor) executeWithRepeatCount(command string) error {
+	count := e.repeatCount
+	if count <= 0 {
+		count = 1
+	}
+
+	// Commands that need special handling for count
+	switch command {
+	case "yank-line":
+		// For yy, count means "yank N lines" not "yank same line N times"
+		return e.yankMultipleLines(count)
+	case "start-delete":
+		// For dd, count means "delete N lines" not "delete same line N times"
+		// Store the count for the pending operation
+		e.pendingCount = count
+		return e.commandRegistry.Execute(command, nil)
+	case "start-change":
+		// For cc, count means "change N lines"
+		e.pendingCount = count
+		return e.commandRegistry.Execute(command, nil)
+	default:
+		// For other commands, simply repeat them count times
+		for i := 0; i < count; i++ {
+			if err := e.commandRegistry.Execute(command, nil); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 }
 
@@ -874,23 +946,59 @@ func (e *Editor) redo(args []string) error {
 
 // yankCurrentLine yanks (copies) the current line to the system clipboard
 func (e *Editor) yankCurrentLine(args []string) error {
-	// Get current line
-	line := e.buffer.CursorIterator.Line()
+	// Default to yanking just the current line
+	return e.yankMultipleLines(1)
+}
 
-	// Always add newline for linewise yank
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	textToYank := line + "\n"
+// yankMultipleLines yanks the specified number of lines starting from the current cursor position
+func (e *Editor) yankMultipleLines(count int) error {
+	if count <= 0 {
+		count = 1
+	}
+
+	// Get starting line
+	startLine := e.buffer.CursorIterator.LineNumber()
+	endLine := startLine + count - 1
+
+	// Ensure we don't go past end of buffer
+	if endLine >= e.buffer.LineCount {
+		endLine = e.buffer.LineCount - 1
+	}
+
+	// Build the text to yank
+	var textToYank strings.Builder
+	iter := e.buffer.CursorIterator
+	
+	for i := 0; i <= endLine - startLine; i++ {
+		if i > 0 {
+			iter = iter.Next()
+			if iter.IsEOF() {
+				break
+			}
+		}
+		line := iter.Line()
+		textToYank.WriteString(line)
+		textToYank.WriteString("\n")
+	}
 
 	// Copy to system clipboard
-	if err := clipboard.Copy(textToYank); err != nil {
+	yankedText := textToYank.String()
+	if err := clipboard.Copy(yankedText); err != nil {
 		LL.Error("Failed to copy to clipboard: %v", err)
 		return fmt.Errorf("failed to copy to clipboard: %w", err)
 	}
 
-	LL.Debug("Yanked line %d (%d characters) to clipboard", lineNum + 1, len(textToYank))
+	actualCount := endLine - startLine + 1
+	LL.Debug("Yanked %d lines (%d characters) to clipboard", actualCount, len(yankedText))
 
-	// Flash the yanked line
-	e.setFlashHighlight(lineNum, 0, lineNum, len(line))
+	// Flash the yanked lines
+	// Get end line length
+	endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
+	endLineLen := 0
+	if !endIter.IsEOF() {
+		endLineLen = len(endIter.Line())
+	}
+	e.setFlashHighlight(startLine, 0, endLine, endLineLen)
 
 	return nil
 }
