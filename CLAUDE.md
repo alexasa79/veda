@@ -95,7 +95,7 @@ Currently the buffer package and editor package have tests. When adding new func
 
 ## Performance Debugging
 - **CPU Profiling**: Run `./vd -cpuprofile=cpu.prof` to generate a CPU profile. Exit normally with `:q` and analyze with `go tool pprof -top cpu.prof` to see which functions consume the most CPU time.
-- **Performance Tracker**: The editor includes built-in performance tracking that logs timing information for various operations. Check veda.log for performance metrics.
+- **Performance Tracker**: The editor includes built-in performance tracking that logs timing information for various operations. Check /tmp/veda.log for performance metrics (or use -log flag to specify a different location).
 - **Common Issues**: Watch out for busy loops, excessive syscalls (like SetNonblock), and inefficient polling. The input handler should use blocking I/O since it runs in a dedicated goroutine.
 
 ## Implementation Guidelines
@@ -137,4 +137,4 @@ Currently the buffer package and editor package have tests. When adding new func
 - This is an editor project. It is an interactive program and you cannot run it yourself. If you want to test and run the actual editor, ask the user to do it for you and report back the results.
 
 ## Debugging difficult problems
-When debugging difficult problems, the user can run tests for you. Ask the user to test things for you. The editor has debug log (veda.log), that you can check.
+When debugging difficult problems, the user can run tests for you. Ask the user to test things for you. The editor has debug log (/tmp/veda.log by default), that you can check.
