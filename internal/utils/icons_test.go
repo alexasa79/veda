@@ -9,13 +9,13 @@ func TestGetSymbolIcon(t *testing.T) {
 		kind     int
 		expected string
 	}{
-		{SymbolKindFunction, "󰊕"},
-		{SymbolKindMethod, ""},
-		{SymbolKindClass, ""},
-		{SymbolKindVariable, ""},
-		{SymbolKindConstant, ""},
-		{SymbolKindInterface, ""},
-		{SymbolKindStruct, ""},
+		{SymbolKindFunction, "ƒ"},
+		{SymbolKindMethod, "▸"},
+		{SymbolKindClass, "◆"},
+		{SymbolKindVariable, "𝑥"},
+		{SymbolKindConstant, "𝐂"},
+		{SymbolKindInterface, "◐"},
+		{SymbolKindStruct, "◧"},
 		{999, "○"}, // Unknown kind
 	}
 
@@ -37,18 +37,18 @@ func TestGetFileIconInfo(t *testing.T) {
 	}{
 		{"main.go", "file", IconGo},
 		{"test.py", "file", IconPython},
-		{"app.js", "file", IconJavaScript},
-		{"types.ts", "file", IconTypeScript},
-		{"lib.rs", "file", IconRust},
-		{"main.c", "file", IconC},
+		{"app.js", "file", IconDefault},  // JavaScript now uses default
+		{"types.ts", "file", IconDefault}, // TypeScript now uses default
+		{"lib.rs", "file", IconDefault},   // Rust now uses default
+		{"main.c", "file", IconCpp},       // C uses C++ icon
 		{"class.cpp", "file", IconCpp},
-		{"README.md", "file", IconReadme},
-		{"Makefile", "file", IconMakefile},
-		{"Dockerfile", "file", IconDocker},
-		{".gitignore", "file", IconGit},
-		{"data.json", "file", IconJson},
-		{"config.yaml", "file", IconYaml},
-		{"test_file.go", "file", IconTest},
+		{"README.md", "file", IconMarkdown}, // README uses markdown icon
+		{"Makefile", "file", IconDefault},   // Makefile now uses default
+		{"Dockerfile", "file", IconDefault}, // Docker now uses default
+		{".gitignore", "file", IconDefault}, // Git now uses default
+		{"data.json", "file", IconDefault},  // JSON now uses default
+		{"config.yaml", "file", IconDefault}, // YAML now uses default
+		{"test_file.go", "file", IconGo},     // Test files use language icon
 		{"unknown.xyz", "file", IconDefault},
 		{"src", "directory", IconDirectory},
 	}

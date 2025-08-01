@@ -9,17 +9,28 @@ import (
 func (e *Editor) moveUp(args []string) error {
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
-	
+
 	if visualLine > 0 {
 		// Map to new position one visual line up
 		newVisualLine := visualLine - 1
 		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, visualCol)
-		
+
 		// Update cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newLogicalLine)
 		e.buffer.CursorX = newCharPos
+
+		// Ensure cursor is within bounds for normal mode
+		if e.mode == commands.NormalMode && !e.buffer.CursorIterator.IsEOF() {
+			line := e.buffer.CursorIterator.Line()
+			if e.buffer.CursorX > len(line) {
+				e.buffer.CursorX = len(line)
+			}
+			if e.buffer.CursorX > 0 && len(line) > 0 {
+				e.buffer.CursorX-- // Don't go past last character in normal mode
+			}
+		}
 	}
-	
+
 	e.updateCursorState()
 	return nil
 }
@@ -27,20 +38,31 @@ func (e *Editor) moveUp(args []string) error {
 func (e *Editor) moveDown(args []string) error {
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
-	
+
 	// Calculate wrapped lines to check bounds
 	wrappedLines := e.CalculateWrappedLines()
-	
+
 	if visualLine < len(wrappedLines)-1 {
 		// Map to new position one visual line down
 		newVisualLine := visualLine + 1
 		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, visualCol)
-		
+
 		// Update cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newLogicalLine)
 		e.buffer.CursorX = newCharPos
+
+		// Ensure cursor is within bounds for normal mode
+		if e.mode == commands.NormalMode && !e.buffer.CursorIterator.IsEOF() {
+			line := e.buffer.CursorIterator.Line()
+			if e.buffer.CursorX > len(line) {
+				e.buffer.CursorX = len(line)
+			}
+			if e.buffer.CursorX > 0 && len(line) > 0 {
+				e.buffer.CursorX-- // Don't go past last character in normal mode
+			}
+		}
 	}
-	
+
 	e.updateCursorState()
 	return nil
 }
@@ -70,13 +92,13 @@ func (e *Editor) moveRight(args []string) error {
 func (e *Editor) wordForward(args []string) error {
 	currentLine := e.buffer.CursorIterator.LineNumber()
 	nextWord := FindNextWordBoundary(e.buffer, currentLine, e.buffer.CursorX)
-	
+
 	if nextWord != nil {
 		// Move cursor to the next word
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, nextWord.StartLine)
 		e.buffer.CursorX = nextWord.StartChar
 	}
-	
+
 	e.updateCursorState()
 	return nil
 }
@@ -272,11 +294,11 @@ func (e *Editor) goToLine(lineNum int) {
 	} else if lineNum >= e.buffer.LineCount {
 		lineNum = e.buffer.LineCount - 1
 	}
-	
+
 	// Move cursor to beginning of the target line
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.CursorX = 0
-	
+
 	// Update the view to ensure the cursor is visible
 	e.scrollToCenter()
 	e.updateCursorState()
