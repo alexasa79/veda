@@ -91,6 +91,7 @@ type Buffer struct {
 	
 	// Git changes tracking
 	GitChanges *proxy.FileChanges // Git changes for this buffer (added, deleted, modified lines)
+	GitBranch  string             // Current git branch for this buffer
 }
 
 // IndentationInfo holds information about file indentation
@@ -274,11 +275,11 @@ func (b *Buffer) GetCurrentLineIndentInfo(iter *BufferIterator) LineIndentInfo {
 // UpdateLineNumberWidth calculates and caches the width needed for line numbers
 func (b *Buffer) UpdateLineNumberWidth() {
 	if b.LineCount == 0 {
-		b.LineNumberWidth = 5 // Minimum width: "1 " + space + indicator + space
+		b.LineNumberWidth = 2 // Minimum width for "1 "
 	} else {
 		// Calculate the width needed for the largest line number
 		width := len(fmt.Sprintf("%d", b.LineCount))
-		b.LineNumberWidth = width + 3 // +1 for padding space, +1 for space before indicator, +1 for indicator
+		b.LineNumberWidth = width + 1 // +1 for padding space
 	}
 }
 

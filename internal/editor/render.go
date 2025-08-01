@@ -668,33 +668,29 @@ func (e *Editor) drawEditor() {
 				}
 			}
 			
-			// Draw line number
-			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-3, lineNum)
-			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
-
-			// Draw git change indicator with space before it
-			changeX := lineNumberWidth - 2
+			// Modify line number style based on git changes
+			lineStyle := lineNumberStyle
 			if isAdded {
-				// Green indicator for added lines
-				changeStyle := lineNumberStyle
-				changeStyle.Fg = ui.ColorGreen
-				e.screen.SetContent(changeX, screenY, '⏺', nil, changeStyle)
+				// Green background for added lines
+				lineStyle.Bg = ui.NewRGBColor(0, 60, 0) // Dark green background
 			} else if isModified {
-				// Yellow/amber indicator for modified lines
-				changeStyle := lineNumberStyle
-				changeStyle.Fg = ui.ColorYellow
-				e.screen.SetContent(changeX, screenY, '⏺', nil, changeStyle)
+				// Yellow background for modified lines
+				lineStyle.Bg = ui.NewRGBColor(60, 60, 0) // Dark yellow background
 			} else if isDeleted {
-				// Red indicator for deleted lines (shows on the line after deletion)
-				changeStyle := lineNumberStyle
-				changeStyle.Fg = ui.ColorRed
-				e.screen.SetContent(changeX, screenY, '▔', nil, changeStyle)
-			} else {
-				// No change - just a space
-				e.screen.SetContent(changeX, screenY, ' ', nil, lineNumberStyle)
+				// Red background for lines after deletion
+				lineStyle.Bg = ui.NewRGBColor(60, 0, 0) // Dark red background
 			}
 			
-			// Draw separator after change indicator
+			// Draw line number with appropriate background
+			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
+			// Fill entire line number area with the background color
+			for x := 0; x < lineNumberWidth; x++ {
+				e.screen.SetContent(x, screenY, ' ', nil, lineStyle)
+			}
+			// Draw the line number text
+			e.drawText(0, screenY, lineStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
+			
+			// Draw separator with normal style
 			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
 		} else {
 			// Fill line number area with spaces for wrapped lines
@@ -771,6 +767,23 @@ func (e *Editor) drawStatusBar() {
 		// Add modified indicator if buffer is modified
 		if e.buffer.IsModified {
 			x += e.drawText(x, statusBarY, statusBarStyle, " [+]", 0, nil, -1, 0, -1)
+		}
+		
+		// Add git branch and change counts
+		if e.buffer.GitBranch != "" {
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  %s", e.buffer.GitBranch), 0, nil, -1, 0, -1)
+			
+			// Count added and deleted lines
+			addedCount := 0
+			deletedCount := 0
+			if e.buffer.GitChanges != nil {
+				addedCount = len(e.buffer.GitChanges.Added) + len(e.buffer.GitChanges.Modified)
+				deletedCount = len(e.buffer.GitChanges.Deleted)
+			}
+			
+			if addedCount > 0 || deletedCount > 0 {
+				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" +%d-%d", addedCount, deletedCount), 0, nil, -1, 0, -1)
+			}
 		}
 
 		// Add LSP indicator if LSP is available

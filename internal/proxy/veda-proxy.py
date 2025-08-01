@@ -952,6 +952,16 @@ class VedaProxy:
                     self.lsp._open_file(language, str(file_path))
                     logger.info(f"Notified LSP server about opened file: {path}")
             
+            # Get current git branch
+            branch = "main"  # default
+            try:
+                cmd_branch = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
+                result_branch = subprocess.run(cmd_branch, capture_output=True, text=True, cwd=file_path.parent)
+                if result_branch.returncode == 0:
+                    branch = result_branch.stdout.strip()
+            except Exception as e:
+                logger.warning(f"Could not get git branch: {e}")
+            
             # Get git changes for the file
             changes = {'added': [], 'deleted': [], 'modified': []}
             try:
@@ -982,7 +992,8 @@ class VedaProxy:
             
             return {
                 'content': content,
-                'changes': changes
+                'changes': changes,
+                'branch': branch
             }
         except UnicodeDecodeError:
             # Try reading as binary and return error
