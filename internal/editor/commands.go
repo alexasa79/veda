@@ -121,6 +121,9 @@ func (e *Editor) registerCommands() {
 	// Help commands
 	e.commandRegistry.Register("help", e.showHelp)
 	e.commandRegistry.Register("help-keys", e.showHelpKeys)
+	
+	// Diagnostics commands
+	e.commandRegistry.Register("diagnostics", e.showDiagnostics)
 
 	// Completion commands
 	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() })

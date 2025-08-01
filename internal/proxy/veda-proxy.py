@@ -35,6 +35,7 @@ class LSPManager:
         self.message_buffers = {}  # language -> list of all LSP messages
         self.pending_requests = {}  # language -> {request_id: threading.Event}
         self.response_cache = {}  # language -> {request_id: response}
+        self.diagnostics = {}  # uri -> list of diagnostics
         self.language_servers = {
             'go': {
                 'command': ['gopls', '-logfile=/tmp/gopls.log', '-rpc.trace'],
@@ -725,8 +726,12 @@ class LSPManager:
             params = message.get('params', {})
             logger.debug(f"LSP {language}: {params.get('message', '')}")
         elif method == 'textDocument/publishDiagnostics':
-            # Diagnostics - we'll handle these later
-            pass
+            # Store diagnostics
+            params = message.get('params', {})
+            uri = params.get('uri', '')
+            diagnostics = params.get('diagnostics', [])
+            self.diagnostics[uri] = diagnostics
+            logger.debug(f"Received {len(diagnostics)} diagnostics for {uri}")
     
     def _wait_for_response(self, language: str, request_id: int, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
         """Wait for a response with a specific request ID."""
@@ -774,6 +779,15 @@ class LSPManager:
         languages = list(self.servers.keys())
         for language in languages:
             self.stop_server(language)
+    
+    def get_all_diagnostics(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get all diagnostics from all open files.
+        
+        Returns:
+            Dictionary mapping URIs to lists of diagnostics
+        """
+        return self.diagnostics.copy()
 
 
 class VedaProxy:
@@ -797,6 +811,7 @@ class VedaProxy:
             'list_project_symbols': self.list_project_symbols,
             'find_references': self.find_references,
             'get_completions': self.get_completions,
+            'get_diagnostics': self.get_diagnostics,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -1188,6 +1203,15 @@ class VedaProxy:
             return {'success': False, 'error': 'No completions found'}
         except Exception as e:
             logger.error(f"Error in get_completions: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_diagnostics(self) -> Dict[str, Any]:
+        """Get all diagnostics from all open files."""
+        try:
+            diagnostics = self.lsp.get_all_diagnostics()
+            return {'success': True, 'diagnostics': diagnostics}
+        except Exception as e:
+            logger.error(f"Error in get_diagnostics: {e}")
             return {'success': False, 'error': str(e)}
 
 

@@ -30,7 +30,8 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 		// Check if this is a special buffer that should use markdown
 		if (strings.HasPrefix(buf.FilePath, "*References:") && strings.HasSuffix(buf.FilePath, "*")) ||
 		   buf.FilePath == "*Help*" ||
-		   buf.FilePath == "*Key Bindings*" {
+		   buf.FilePath == "*Key Bindings*" ||
+		   buf.FilePath == "*Diagnostics*" {
 			// Set markdown language for special buffers
 			e.highlighter.SetLanguage("markdown")
 		} else {
