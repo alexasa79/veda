@@ -11,6 +11,7 @@ DESCRIPTION:
 OPTIONS:
     -d          Enable debug logging (logs DEBUG, INFO, WARNING, ERROR messages)
     -t          Enable trace logging (logs TRACE, DEBUG, INFO, WARNING, ERROR messages)
+    -log PATH   Set log file path (default: /tmp/veda.log)
     -h, --help  Show this help message
 
 ARGUMENTS:

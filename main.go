@@ -20,6 +20,7 @@ func main() {
 	helpFlag := flag.Bool("h", false, "Show help message")
 	helpLongFlag := flag.Bool("help", false, "Show help message")
 	cpuprofile := flag.String("cpuprofile", "", "Write CPU profile to file")
+	logFile := flag.String("log", "/tmp/veda.log", "Path to log file")
 
 	// Set custom usage function
 	flag.Usage = func() {
@@ -59,7 +60,7 @@ func main() {
 	}
 
 	// Set up logging
-	log.SetupLogging("veda.log")
+	log.SetupLogging(*logFile)
 	defer log.CleanupLogging()
 
 	// Set logging level based on flags
