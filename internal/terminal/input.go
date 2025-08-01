@@ -207,13 +207,14 @@ func (t *Terminal) parseInput(buf *[]byte) {
 			// Check if ESC is followed by a letter or common Alt+key character
 			// but NOT '[' or 'O' which start escape sequences
 			nextChar := (*buf)[1]
-			if (nextChar >= 'a' && nextChar <= 'z') || 
+			if nextChar != '[' && nextChar != 'O' && // Exclude escape sequence starters
+			   ((nextChar >= 'a' && nextChar <= 'z') || 
 			   (nextChar >= 'A' && nextChar <= 'Z') ||
 			   (nextChar >= '0' && nextChar <= '9') ||
 			   nextChar == ' ' || nextChar == '-' || nextChar == '=' ||
 			   nextChar == ',' || nextChar == '.' || nextChar == '/' ||
 			   nextChar == ';' || nextChar == '\'' || nextChar == '\\' ||
-			   nextChar == '`' || nextChar == '\x7f' { // backspace
+			   nextChar == '`' || nextChar == '\x7f') { // backspace
 				// It's ESC followed by a regular character - treat as Alt+char
 				r, size := decodeRune((*buf)[1:])
 				if r != 0 && size > 0 {
