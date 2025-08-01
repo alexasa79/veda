@@ -63,11 +63,12 @@ func (e *Editor) pasteAfterCursor(content string) error {
 	viewLine := e.buffer.ViewIterator.LineNumber()
 	
 	// Get current position
-	pos := e.buffer.CursorIterator.Position()
+	// The CursorIterator points to the beginning of the line, so we need to add CursorX
+	pos := e.buffer.CursorIterator.Position() + e.buffer.CursorX
 	line := e.buffer.CursorIterator.Line()
 	
-	// If we're not at the end of the line, move one character right
-	if e.buffer.CursorX < len(line) {
+	// Always move one character right to paste after cursor (unless line is empty)
+	if len(line) > 0 {
 		pos++
 	}
 	
@@ -110,7 +111,8 @@ func (e *Editor) pasteBeforeCursor(content string) error {
 	viewLine := e.buffer.ViewIterator.LineNumber()
 	
 	// Get current position
-	pos := e.buffer.CursorIterator.Position()
+	// The CursorIterator points to the beginning of the line, so we need to add CursorX
+	pos := e.buffer.CursorIterator.Position() + e.buffer.CursorX
 	
 	// Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
