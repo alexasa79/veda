@@ -44,6 +44,35 @@ func (l LineTextObject) GetType() string {
 	return "line"
 }
 
+// MultiLineTextObject represents multiple lines starting from the current line
+type MultiLineTextObject struct {
+	Count int
+}
+
+func (m MultiLineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	// Select Count lines starting from current line
+	startLine := cursorLine
+	endLine := cursorLine + m.Count - 1
+	
+	// Ensure we don't go past end of buffer
+	if endLine >= buf.LineCount {
+		endLine = buf.LineCount - 1
+	}
+	
+	// Get length of last line
+	iter := buffer.NewBufferIteratorAtLine(buf, endLine)
+	if iter.IsEOF() {
+		return 0, 0, 0, 0, false
+	}
+	lastLine := iter.Line()
+	
+	return startLine, 0, endLine, len(lastLine), true
+}
+
+func (m MultiLineTextObject) GetType() string {
+	return "multiline"
+}
+
 // WordTextObject represents a word (sequence of alphanumeric chars and underscores)
 type WordTextObject struct {
 	modifier TextObjectModifier

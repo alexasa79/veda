@@ -764,6 +764,18 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, searchHighlightStyle, searchText, 0, nil, -1, 0, -1)
 		}
 
+		// Add count prefix indicator if building a numeric prefix
+		if e.countPrefix != "" {
+			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
+			
+			// Use inverted colors for count prefix
+			countStyle := statusBarStyle
+			countStyle.Fg, countStyle.Bg = countStyle.Bg, countStyle.Fg
+			
+			countText := fmt.Sprintf(" %s ", e.countPrefix)
+			x += e.drawText(x, statusBarY, countStyle, countText, 0, nil, -1, 0, -1)
+		}
+		
 		// Add references indicator if there's an active references buffer
 		if e.currentReferencesBuffer != nil && len(e.currentReferencesBuffer.References) > 0 {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space

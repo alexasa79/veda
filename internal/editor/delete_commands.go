@@ -35,17 +35,26 @@ func (e *Editor) handlePendingOperation(key string) error {
 	
 	// Check for special cases first
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "d" && e.pendingKeys[1] == "d" {
-		// dd - delete line
+		// dd - delete line(s)
+		if e.pendingCount > 1 {
+			return e.executeOperatorWithTextObject(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
+		}
 		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
 	}
 	
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "c" && e.pendingKeys[1] == "c" {
-		// cc - change line
+		// cc - change line(s)
+		if e.pendingCount > 1 {
+			return e.executeOperatorWithTextObject(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
+		}
 		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
 	}
 	
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "y" && e.pendingKeys[1] == "y" {
-		// yy - yank line
+		// yy - yank line(s)
+		if e.pendingCount > 1 {
+			return e.executeOperatorWithTextObject(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
+		}
 		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
 	}
 	
@@ -144,6 +153,7 @@ func (e *Editor) clearPendingOperation() {
 	e.pendingOperator = nil
 	e.pendingModifier = ModifierNone
 	e.pendingKeys = nil
+	e.pendingCount = 0
 }
 
 // cancelPendingOperation cancels any pending operation (called on Escape)
