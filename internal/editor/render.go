@@ -771,8 +771,8 @@ func (e *Editor) drawStatusBar() {
 		
 		// Add git branch and change counts
 		if e.buffer.GitBranch != "" {
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  %s", e.buffer.GitBranch), 0, nil, -1, 0, -1)
-			
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  %s", e.buffer.GitBranch), 0, nil, -1, 0, -1)
+
 			// Count added and deleted lines
 			addedCount := 0
 			deletedCount := 0
@@ -780,9 +780,9 @@ func (e *Editor) drawStatusBar() {
 				addedCount = len(e.buffer.GitChanges.Added) + len(e.buffer.GitChanges.Modified)
 				deletedCount = len(e.buffer.GitChanges.Deleted)
 			}
-			
+
 			if addedCount > 0 || deletedCount > 0 {
-				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" +%d-%d", addedCount, deletedCount), 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  +%d-%d", addedCount, deletedCount), 0, nil, -1, 0, -1)
 			}
 		}
 
