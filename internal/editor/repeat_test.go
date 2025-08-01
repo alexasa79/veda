@@ -460,4 +460,88 @@ func TestRepeatLastChange(t *testing.T) {
 		te.ExecuteCommand("undo")
 		AssertBufferEquals(t, te, "extra\nword2 stuff\nword3 things")
 	})
+	
+	t.Run("repeat cw change word", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "a 10 b\nc 10 d")
+		
+		// Move cursor to "1" in the first line (position 2)
+		te.ExecuteCommand("right")
+		te.ExecuteCommand("right")
+		AssertCursorAt(t, te, 2, 0)
+		
+		// Change word: cw to change "10" to "20 "
+		te.TypeKeys("cw")
+		te.InsertChar('2')
+		te.InsertChar('0')
+		te.InsertChar(' ')
+		te.ExecuteCommand("exit-insert-mode")
+		
+		// Verify first line changed correctly
+		// Note: cw on "10" should replace just "10", so result is "a 20 b" with the space we added
+		AssertBufferEquals(t, te, "a 20 b\nc 10 d")
+		
+		// Move down to "1" in the second line
+		te.ExecuteCommand("down")
+		te.ExecuteCommand("beginning-of-line")
+		te.ExecuteCommand("right")
+		te.ExecuteCommand("right")
+		AssertCursorAt(t, te, 2, 1)
+		
+		// Repeat the change with .
+		te.ExecuteCommand("repeat-last-change")
+		
+		// Should result in "c 20 d", not "c 20 10 d"
+		AssertBufferEquals(t, te, "a 20 b\nc 20 d")
+	})
+	
+	t.Run("repeat cw with iterator validation", func(t *testing.T) {
+		// Test to ensure iterators are properly updated during cw repeat
+		te := NewTestEditorWithContent(80, 24, "hello world\nfoo bar\nbaz qux")
+		
+		// Move to "world"
+		for i := 0; i < 6; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Change "world" to "test"
+		te.TypeKeys("cw")
+		te.InsertChar('t')
+		te.InsertChar('e')
+		te.InsertChar('s')
+		te.InsertChar('t')
+		te.ExecuteCommand("exit-insert-mode")
+		
+		AssertBufferEquals(t, te, "hello test\nfoo bar\nbaz qux")
+		
+		// Move to "bar" on second line
+		te.ExecuteCommand("down")
+		for i := 0; i < 4; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Verify iterators are valid before repeat
+		if te.buffer.CursorIterator.Generation != te.buffer.Generation {
+			t.Fatalf("CursorIterator generation mismatch before repeat: iterator has %d, buffer has %d",
+				te.buffer.CursorIterator.Generation, te.buffer.Generation)
+		}
+		if te.buffer.ViewIterator.Generation != te.buffer.Generation {
+			t.Fatalf("ViewIterator generation mismatch before repeat: iterator has %d, buffer has %d",
+				te.buffer.ViewIterator.Generation, te.buffer.Generation)
+		}
+		
+		// Repeat the change
+		te.ExecuteCommand("repeat-last-change")
+		
+		// Verify iterators are still valid after repeat
+		if te.buffer.CursorIterator.Generation != te.buffer.Generation {
+			t.Fatalf("CursorIterator generation mismatch after repeat: iterator has %d, buffer has %d",
+				te.buffer.CursorIterator.Generation, te.buffer.Generation)
+		}
+		if te.buffer.ViewIterator.Generation != te.buffer.Generation {
+			t.Fatalf("ViewIterator generation mismatch after repeat: iterator has %d, buffer has %d",
+				te.buffer.ViewIterator.Generation, te.buffer.Generation)
+		}
+		
+		AssertBufferEquals(t, te, "hello test\nfoo test\nbaz qux")
+	})
 }

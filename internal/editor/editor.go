@@ -859,7 +859,13 @@ func (e *Editor) appendAtEndOfLine(args []string) error {
 // setLastChange sets the last change and clears any lastCommand
 func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 	e.lastChange = entry
-	e.lastCommand = nil // Clear operator+text object command
+	// Only clear lastCommand if it's not a change operator
+	// Change operators need both lastCommand and lastChange for proper repeat
+	if e.lastCommand != nil && e.lastCommand.Operator.GetType() == "change" {
+		// Keep lastCommand for change operators
+		return
+	}
+	e.lastCommand = nil // Clear operator+text object command for other cases
 }
 
 // Undo/Redo commands
@@ -1012,7 +1018,70 @@ func (e *Editor) yankMultipleLines(count int) error {
 func (e *Editor) repeatLastChange(args []string) error {
 	// First check if we have a repeatable command (operator + text object)
 	if e.lastCommand != nil {
-		// Repeat the operator+text object combination
+		// Check if the last command was a change operator
+		if e.lastCommand.Operator.GetType() == "change" && e.lastChange != nil {
+			// For change operators, we need to:
+			// 1. Execute the operator (which deletes text and enters insert mode)
+			// 2. Exit insert mode immediately 
+			// 3. Then replay the insert session
+			
+			// Save the insert change before executing the operator
+			savedChange := e.lastChange
+			
+			// Execute the operator (delete + enter insert mode)
+			if err := e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject); err != nil {
+				return err
+			}
+			
+			// Exit insert mode without recording anything
+			if e.mode == commands.InsertMode {
+				e.mode = commands.NormalMode
+				if e.buffer != nil && e.buffer.History != nil {
+					e.buffer.History.EndInsertSession()
+				}
+			}
+			
+			// Restore the saved change for next repeat
+			e.lastChange = savedChange
+			
+			// Now replay the insert session
+			if insertEntry, ok := savedChange.(*buffer.InsertModeEntry); ok && len(insertEntry.Entries) > 0 {
+				// Save line numbers before iterators become invalid
+				savedCursorLine := e.buffer.CursorIterator.LineNumber()
+				savedViewLine := e.buffer.ViewIterator.LineNumber()
+				
+				// Get current cursor position
+				lineNum := savedCursorLine
+				cursorX := e.buffer.CursorX
+				
+				// Simply replay all the insert operations at the current position
+				for _, entry := range insertEntry.Entries {
+					switch origEntry := entry.(type) {
+					case *buffer.InsertTextEntry:
+						// Create new entry at current position
+						newEntry := buffer.NewInsertTextEntry(lineNum, cursorX, origEntry.Text)
+						if executed, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
+							return err
+						} else if executed != nil {
+							// Update cursor position based on the insert
+							e.buffer.CursorX = cursorX + len(origEntry.Text)
+							cursorX = e.buffer.CursorX
+						}
+					}
+				}
+				
+				// Recreate iterators after all inserts are complete
+				e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+				if savedViewLine >= e.buffer.LineCount {
+					savedViewLine = e.buffer.LineCount - 1
+				}
+				e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, savedViewLine)
+			}
+			
+			return nil
+		}
+		
+		// For non-change operators, just repeat the operator+text object
 		return e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject)
 	}
 
