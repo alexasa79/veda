@@ -69,6 +69,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("g,           - Go back to previous location\n")
 	helpText.WriteString("gs           - Show signature help\n")
 	helpText.WriteString("gr           - Find all references to symbol under cursor\n")
+	helpText.WriteString("ge           - Show project diagnostics/errors\n")
 	helpText.WriteString("gn           - Go to next reference (when references are found)\n")
 	helpText.WriteString("gp           - Go to previous reference (when references are found)\n")
 	helpText.WriteString("Space s w    - List project symbols\n")
@@ -115,7 +116,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":e <path>    - Edit file or directory\n")
 	helpText.WriteString(":cd <path>   - Change working directory\n")
 	helpText.WriteString(":help        - Show this help\n")
-	helpText.WriteString(":help-keys   - Show all key bindings\n\n")
+	helpText.WriteString(":help-keys   - Show all key bindings\n")
+	helpText.WriteString(":diagnostics - Show project diagnostics/errors\n\n")
 	
 	helpText.WriteString("== Configuration ==\n")
 	helpText.WriteString(":expandtab=true/false     - Use spaces instead of tabs\n")

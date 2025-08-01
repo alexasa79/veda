@@ -20,8 +20,9 @@ func (e *Editor) pushNavigationHistory() {
 		return
 	}
 	
-	// Skip references buffers - don't add them to navigation history
-	if strings.HasPrefix(e.buffer.FilePath, "*References:") && strings.HasSuffix(e.buffer.FilePath, "*") {
+	// Skip special buffers - don't add them to navigation history
+	if (strings.HasPrefix(e.buffer.FilePath, "*References:") && strings.HasSuffix(e.buffer.FilePath, "*")) ||
+		e.buffer.FilePath == "*Diagnostics*" {
 		return
 	}
 	

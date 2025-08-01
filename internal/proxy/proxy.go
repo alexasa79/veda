@@ -314,6 +314,17 @@ func (pm *ProxyManager) GetCompletions(filePath string, line int, character int)
 	return client.GetCompletions(actualPath, line, character)
 }
 
+// GetDiagnostics gets all diagnostics from all open files
+func (pm *ProxyManager) GetDiagnostics() (map[string][]interface{}, error) {
+	// Diagnostics are global, so we use the local proxy
+	client := pm.clients[""]
+	if client == nil {
+		return nil, fmt.Errorf("local proxy not available")
+	}
+	
+	return client.GetDiagnostics()
+}
+
 // GetDocumentSymbols gets document symbols for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 	client, actualPath, err := pm.getClient(filePath)
@@ -1457,6 +1468,63 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 		}
 		
 		return nil, fmt.Errorf("no completions found")
+	}
+	
+	return nil, fmt.Errorf("failed to read proxy response")
+}
+
+// GetDiagnostics retrieves all diagnostics from all open files
+func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_diagnostics",
+		Params: map[string]interface{}{},
+		ID:     c.requestID,
+	}
+	
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Log the request for debugging
+	LL.Trace("GetDiagnostics request: %s", string(requestBytes))
+	
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+	
+	// Read response
+	if c.stdout.Scan() {
+		line := c.stdout.Text()
+		LL.Trace("GetDiagnostics response: %s", line)
+		
+		var response struct {
+			ID     int                    `json:"id"`
+			Result map[string]interface{} `json:"result,omitempty"`
+			Error  string                 `json:"error,omitempty"`
+		}
+		if err := json.Unmarshal([]byte(line), &response); err != nil {
+			return nil, err
+		}
+		
+		if response.Error != "" {
+			return nil, fmt.Errorf("proxy error: %s", response.Error)
+		}
+		
+		if success, ok := response.Result["success"].(bool); ok && success {
+			if diagnostics, ok := response.Result["diagnostics"].(map[string]interface{}); ok {
+				// Convert map[string]interface{} to map[string][]interface{}
+				result := make(map[string][]interface{})
+				for uri, diags := range diagnostics {
+					if diagList, ok := diags.([]interface{}); ok {
+						result[uri] = diagList
+					}
+				}
+				return result, nil
+			}
+		}
+		
+		return nil, fmt.Errorf("no diagnostics found")
 	}
 	
 	return nil, fmt.Errorf("failed to read proxy response")
