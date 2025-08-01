@@ -27,7 +27,15 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	
 	// Set up syntax highlighting
 	if e.highlighter != nil && buf.HasFile() {
-		e.highlighter.SetLanguageFromFile(buf.FilePath)
+		// Check if this is a special buffer that should use markdown
+		if (strings.HasPrefix(buf.FilePath, "*References:") && strings.HasSuffix(buf.FilePath, "*")) ||
+		   buf.FilePath == "*Help*" ||
+		   buf.FilePath == "*Key Bindings*" {
+			// Set markdown language for special buffers
+			e.highlighter.SetLanguage("markdown")
+		} else {
+			e.highlighter.SetLanguageFromFile(buf.FilePath)
+		}
 		e.highlighter.ParseFull([]byte(buf.Rope.String()))
 	} else {
 		// Reset syntax highlighting for unnamed buffer

@@ -112,6 +112,43 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	return nil
 }
 
+// GetCurrentLanguage returns the currently set language
+func (h *Highlighter) GetCurrentLanguage() string {
+	return h.currentLang
+}
+
+// SetLanguage sets the language directly by name
+func (h *Highlighter) SetLanguage(language string) error {
+	switch language {
+	case "go":
+		h.parser.SetLanguage(golang.GetLanguage())
+		h.currentLang = "go"
+	case "c":
+		h.parser.SetLanguage(c.GetLanguage())
+		h.currentLang = "c"
+	case "cpp":
+		h.parser.SetLanguage(cpp.GetLanguage())
+		h.currentLang = "cpp"
+	case "markdown":
+		h.parser.SetLanguage(markdown_inline.GetLanguage())
+		h.currentLang = "markdown"
+	default:
+		// No language set for unknown languages
+		h.currentLang = ""
+		h.currentTree = nil
+		h.currentSource = nil
+		h.tokenCache = make(map[int][]Token)
+		return fmt.Errorf("unknown language: %s", language)
+	}
+	
+	// Clear the tree and cache when language changes
+	h.currentTree = nil
+	h.currentSource = nil
+	h.tokenCache = make(map[int][]Token)
+	
+	return nil
+}
+
 // Parse parses the given source code
 func (h *Highlighter) Parse(source []byte) error {
 	if h.currentLang == "" {
