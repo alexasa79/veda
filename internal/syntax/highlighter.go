@@ -8,6 +8,7 @@ import (
 	"veda/internal/theme"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/bash"
 	"github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/golang"
@@ -56,6 +57,17 @@ const (
 	TokenTypeMarkdownStrikethrough TokenType = "markdown_strikethrough"
 	TokenTypeMarkdownTable     TokenType = "markdown_table"
 	TokenTypeMarkdownTableBorder TokenType = "markdown_table_border"
+	
+	// Bash-specific token types
+	TokenTypeBashKeyword   TokenType = "bash_keyword"
+	TokenTypeBashBuiltin   TokenType = "bash_builtin"
+	TokenTypeBashVariable  TokenType = "bash_variable"
+	TokenTypeBashString    TokenType = "bash_string"
+	TokenTypeBashExpansion TokenType = "bash_expansion"
+	TokenTypeBashOperator  TokenType = "bash_operator"
+	TokenTypeBashComment   TokenType = "bash_comment"
+	TokenTypeBashFunction  TokenType = "bash_function"
+	TokenTypeBashSpecial   TokenType = "bash_special"
 )
 
 // Token represents a syntax-highlighted token
@@ -86,6 +98,20 @@ func NewHighlighter() *Highlighter {
 // SetLanguageFromFile sets the language based on file extension
 func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	ext := strings.ToLower(filepath.Ext(filename))
+	
+	// Check for shell scripts without extension (like "bashrc", "profile", etc)
+	baseName := filepath.Base(filename)
+	// Handle dotfiles specially - if the extension is the entire filename, treat it as no extension
+	if ext == "" || ext == baseName {
+		switch baseName {
+		case "bashrc", ".bashrc", "bash_profile", ".bash_profile", 
+			"profile", ".profile", "bash_aliases", ".bash_aliases",
+			"bash_logout", ".bash_logout", "zshrc", ".zshrc":
+			h.parser.SetLanguage(bash.GetLanguage())
+			h.currentLang = "bash"
+			return nil
+		}
+	}
 
 	switch ext {
 	case ".go":
@@ -100,6 +126,9 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".md", ".markdown":
 		h.parser.SetLanguage(markdown_inline.GetLanguage())
 		h.currentLang = "markdown"
+	case ".sh", ".bash":
+		h.parser.SetLanguage(bash.GetLanguage())
+		h.currentLang = "bash"
 	default:
 		// No language set for unknown extensions
 		h.currentLang = ""
@@ -132,6 +161,9 @@ func (h *Highlighter) SetLanguage(language string) error {
 	case "markdown":
 		h.parser.SetLanguage(markdown_inline.GetLanguage())
 		h.currentLang = "markdown"
+	case "bash":
+		h.parser.SetLanguage(bash.GetLanguage())
+		h.currentLang = "bash"
 	default:
 		// No language set for unknown languages
 		h.currentLang = ""
@@ -316,7 +348,8 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		nodeType == "char_literal" || // C/C++ chars
 		nodeType == "raw_string_literal" || // C++ raw strings
 		nodeType == "interpreted_string_literal" || // Go strings
-		nodeType == "rune_literal" // Go runes
+		nodeType == "rune_literal" || // Go runes
+		nodeType == "command_name" // Bash command names
 	
 	if shouldTokenize {
 		// Map node type to token type
@@ -360,6 +393,8 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapCppNodeToTokenType(node, nodeType, source)
 	case "markdown":
 		return h.mapMarkdownNodeToTokenType(node, nodeType, source)
+	case "bash":
+		return h.mapBashNodeToTokenType(node, nodeType, source)
 	default:
 		return TokenTypeText
 	}
@@ -868,6 +903,138 @@ func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineE
 	return processed
 }
 
+// mapBashNodeToTokenType maps Bash-specific node types to token types
+func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
+	switch nodeType {
+	// Keywords and control structures
+	case "if", "then", "else", "elif", "fi",
+		"case", "esac", "for", "while", "do", "done",
+		"function", "return", "break", "continue", "exit",
+		"source", "export", "local", "readonly", "declare",
+		"unset", "shift", "eval", "exec", "in":
+		return TokenTypeBashKeyword
+		
+	// Comments
+	case "comment":
+		return TokenTypeBashComment
+		
+	// Strings
+	case "string", "raw_string", "ansi_c_string", "string_content":
+		return TokenTypeBashString
+		
+	// Variables and expansions
+	case "variable_name", "simple_expansion":
+		return TokenTypeBashVariable
+		
+	// Command substitution and process substitution
+	case "command_substitution", "process_substitution":
+		return TokenTypeBashExpansion
+		
+	// Numbers
+	case "number":
+		return TokenTypeNumber
+		
+	// Operators
+	case "||", "&&", "|", "&", ";", ";;", ">&", "&>", ">", "<", ">>", "<<",
+		"=", "+=", "-=", "*=", "/=", "%=", "==", "!=", "<=", ">=",
+		"-eq", "-ne", "-lt", "-le", "-gt", "-ge", "test_operator":
+		return TokenTypeBashOperator
+		
+	// Functions
+	case "function_definition":
+		// Mark the whole definition as a function
+		return TokenTypeBashFunction
+		
+	// Command names (first word in simple commands)
+	case "command_name":
+		// For command_name nodes, check their child nodes
+		if node.ChildCount() > 0 {
+			child := node.Child(0)
+			if child != nil && child.Type() == "word" {
+				text := string(source[child.StartByte():child.EndByte()])
+				// Check if it's a known builtin command
+				switch text {
+				// Check for keywords first
+				case "if", "then", "else", "elif", "fi", "case", "esac",
+					"for", "while", "do", "done", "function", "in",
+					"return", "break", "continue", "exit", "export", "local",
+					"readonly", "declare", "unset", "shift", "eval":
+					return TokenTypeBashKeyword
+				// Then check for builtins
+				case "echo", "printf", "read", "cd", "pwd", "ls", "cp", "mv", "rm",
+					"mkdir", "rmdir", "touch", "cat", "grep", "sed", "awk", "find",
+					"test", "[", "[[", "]]", "true", "false", "type", "which",
+					"alias", "unalias", "set", "source", ".",
+					"exec", "trap", "wait",
+					"jobs", "fg", "bg", "kill", "suspend", "logout", "times",
+					"ulimit", "umask", "hash", "help", "history", "bind", "builtin",
+					"caller", "command", "compgen", "complete", "dirs", "disown",
+					"enable", "fc", "getopts", "let", "mapfile", "popd", "pushd",
+					"readarray", "shopt", "typeset":
+					return TokenTypeBashBuiltin
+				default:
+					return TokenTypeText
+				}
+			}
+		}
+		return TokenTypeText
+		
+	// Special parameters
+	case "special_variable_name":
+		return TokenTypeBashSpecial
+		
+	// File descriptors and redirections
+	case "file_descriptor", "file_redirect":
+		return TokenTypeNumber
+		
+	default:
+		// Check parent context for better classification
+		parent := node.Parent()
+		if parent != nil {
+			parentType := parent.Type()
+			
+			// If this is a word node, check its context
+			if nodeType == "word" {
+				text := string(source[node.StartByte():node.EndByte()])
+				
+				// Check if it's a keyword that might not be caught by the grammar
+				switch text {
+				case "if", "then", "else", "elif", "fi", "case", "esac",
+					"for", "while", "do", "done", "function", "in":
+					return TokenTypeBashKeyword
+				}
+				
+				// If this is inside a function definition, it might be the function name
+				if parentType == "function_definition" {
+					for i := 0; i < int(parent.ChildCount()); i++ {
+						if parent.Child(i) == node {
+							if i == 0 || (i == 1 && parent.Child(0).Type() == "function") {
+								return TokenTypeBashFunction
+							}
+							break
+						}
+					}
+				}
+				
+				// Check for variable assignment
+				if parentType == "variable_assignment" {
+					// First word in assignment is the variable name
+					if parent.Child(0) == node {
+						return TokenTypeBashVariable
+					}
+				}
+			}
+			
+			// Special handling for expansion-like constructs
+			if strings.HasPrefix(nodeType, "expansion") || nodeType == "substitution" {
+				return TokenTypeBashExpansion
+			}
+		}
+		
+		return TokenTypeText
+	}
+}
+
 // isMoreSpecific returns true if type1 is more specific than type2
 func (h *Highlighter) isMoreSpecific(type1, type2 TokenType) bool {
 	// Define specificity hierarchy
@@ -909,6 +1076,16 @@ func (h *Highlighter) isMoreSpecific(type1, type2 TokenType) bool {
 		TokenTypeMarkdownH3:             26,
 		TokenTypeMarkdownH2:             27,
 		TokenTypeMarkdownH1:             28,
+		// Bash types with appropriate specificity
+		TokenTypeBashOperator:           2,  // Same as general operator
+		TokenTypeBashVariable:           3,  // Same as general variable
+		TokenTypeBashSpecial:            9,  // Same as constant (special vars are like constants)
+		TokenTypeBashBuiltin:            10, // Same as function
+		TokenTypeBashFunction:           10, // Same as general function
+		TokenTypeBashKeyword:            11, // Same as general keyword
+		TokenTypeBashString:             12, // Same as general string
+		TokenTypeBashComment:            13, // Same as general comment
+		TokenTypeBashExpansion:          14, // Slightly higher than string (it's a special construct)
 	}
 
 	return specificity[type1] > specificity[type2]
@@ -988,6 +1165,25 @@ func GetStyleForToken(tokenType TokenType, theme *theme.Theme) theme.StyleDef {
 		return theme.MarkdownTable
 	case TokenTypeMarkdownTableBorder:
 		return theme.MarkdownTableBorder
+	// Bash token types
+	case TokenTypeBashKeyword:
+		return theme.BashKeyword
+	case TokenTypeBashBuiltin:
+		return theme.BashBuiltin
+	case TokenTypeBashVariable:
+		return theme.BashVariable
+	case TokenTypeBashString:
+		return theme.BashString
+	case TokenTypeBashExpansion:
+		return theme.BashExpansion
+	case TokenTypeBashOperator:
+		return theme.BashOperator
+	case TokenTypeBashComment:
+		return theme.BashComment
+	case TokenTypeBashFunction:
+		return theme.BashFunction
+	case TokenTypeBashSpecial:
+		return theme.BashSpecial
 	case TokenTypeText:
 		fallthrough
 	default:

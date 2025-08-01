@@ -74,6 +74,17 @@ type Theme struct {
 	MarkdownStrikethrough StyleDef
 	MarkdownTable     StyleDef
 	MarkdownTableBorder StyleDef
+
+	// Bash-specific styles
+	BashKeyword      StyleDef // if, then, else, for, while, etc.
+	BashBuiltin      StyleDef // echo, cd, pwd, etc.
+	BashVariable     StyleDef // $VAR, ${VAR}, $1, $@, etc.
+	BashString       StyleDef // "string", 'string'
+	BashExpansion    StyleDef // $(command), `command`
+	BashOperator     StyleDef // &&, ||, |, >, <, etc.
+	BashComment      StyleDef // # comments
+	BashFunction     StyleDef // function names
+	BashSpecial      StyleDef // $?, $#, $$, etc.
 }
 
 // GetStyle returns a ui.Style for the given style definition
@@ -94,7 +105,7 @@ func (t *Theme) GetStyleWithFg(baseStyle ui.Style, fgColor string) ui.Style {
 		// If color parsing fails, return the base style unchanged
 		return baseStyle
 	}
-	
+
 	// Create a new style with the custom foreground but keeping background and attributes
 	return baseStyle.Foreground(fg)
 }
@@ -378,6 +389,52 @@ func NewTheme() *Theme {
 
 		MarkdownTableBorder: StyleDef{
 			Foreground: "#75715e",
+			Background: "#272822",
+		},
+
+		// Bash-specific styles with distinctive colors
+		BashKeyword: StyleDef{
+			Foreground: "#f92672[B]", // Bright magenta, bold for control structures
+			Background: "#272822",
+		},
+
+		BashBuiltin: StyleDef{
+			Foreground: "#66d9ef", // Cyan for built-in commands
+			Background: "#272822",
+		},
+
+		BashVariable: StyleDef{
+			Foreground: "#ffffff", // Orange for variables
+			Background: "#272822",
+		},
+
+		BashString: StyleDef{
+			Foreground: "#e6db74", // Yellow for strings (same as general strings)
+			Background: "#272822",
+		},
+
+		BashExpansion: StyleDef{
+			Foreground: "#ae81ff", // Purple for command substitutions
+			Background: "#272822",
+		},
+
+		BashOperator: StyleDef{
+			Foreground: "#f92672", // Magenta for operators
+			Background: "#272822",
+		},
+
+		BashComment: StyleDef{
+			Foreground: "#75715e", // Gray for comments
+			Background: "#272822",
+		},
+
+		BashFunction: StyleDef{
+			Foreground: "#a6e22e[B]", // Green bold for function names
+			Background: "#272822",
+		},
+
+		BashSpecial: StyleDef{
+			Foreground: "#ae81ff[B]", // Purple bold for special parameters
 			Background: "#272822",
 		},
 	}
