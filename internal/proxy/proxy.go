@@ -430,6 +430,7 @@ type FileInfo struct {
 type FileContent struct {
 	Content string      `json:"content"`
 	Changes FileChanges `json:"changes"`
+	Branch  string      `json:"branch"`
 }
 
 // FileChanges represents git changes in a file
@@ -758,6 +759,13 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 			fileContent.Content = content
 		} else {
 			return nil, fmt.Errorf("missing content in response")
+		}
+		
+		// Parse branch if present
+		if branch, ok := response.Result["branch"].(string); ok {
+			fileContent.Branch = branch
+		} else {
+			fileContent.Branch = "main" // Default
 		}
 
 		// Parse changes if present
