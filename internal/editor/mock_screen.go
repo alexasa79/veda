@@ -181,3 +181,16 @@ func (s *MockScreen) AddKeyEvent(key events.Key, r rune, mod events.ModMask) {
 func (s *MockScreen) GetContent() map[int]map[int]Cell {
 	return s.cells
 }
+
+// SetSize changes the screen dimensions and sends a resize event
+func (s *MockScreen) SetSize(width, height int) {
+	s.width = width
+	s.height = height
+	// Send a resize event through the event channel
+	resizeEvent := &events.ResizeEvent{}
+	select {
+	case s.eventChan <- resizeEvent:
+	default:
+		// If channel is full, ignore
+	}
+}
