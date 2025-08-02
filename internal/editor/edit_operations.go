@@ -57,7 +57,7 @@ func (e *Editor) openLineBelow(args []string) error {
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	// Ensure the new line is visible
 	e.scroll()
 
@@ -152,12 +152,12 @@ func (e *Editor) joinLines(args []string) error {
 	// Get current line info and save view position before buffer modifications
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Can't join if we're on the last line
 	if lineNum >= e.buffer.LineCount - 1 {
 		return nil
 	}
-	
+
 	// Get current line and next line
 	currentLine := e.buffer.CursorIterator.Line()
 	nextIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
@@ -165,7 +165,7 @@ func (e *Editor) joinLines(args []string) error {
 		return nil
 	}
 	nextLine := nextIter.Line()
-	
+
 	// Determine what to delete and what to insert
 	// We need to delete the newline and any leading whitespace on the next line
 	leadingSpaces := 0
@@ -179,28 +179,28 @@ func (e *Editor) joinLines(args []string) error {
 			leadingSpaces = len(nextLine)
 		}
 	}
-	
+
 	// Determine what text to insert between the lines
 	insertText := ""
-	if len(currentLine) > 0 && currentLine[len(currentLine)-1] != ' ' && 
+	if len(currentLine) > 0 && currentLine[len(currentLine)-1] != ' ' &&
 	   leadingSpaces < len(nextLine) && nextLine[leadingSpaces] != ' ' {
 		// Add a space if current line doesn't end with space and next line content doesn't start with space
 		insertText = " "
 	}
-	
+
 	// Create a composite entry for the join operation
 	compositeEntry := buffer.NewCompositeEntry("Join lines")
-	
+
 	// First, insert the space if needed
 	if insertText != "" {
 		insertEntry := buffer.NewInsertTextEntry(lineNum, len(currentLine), insertText)
 		compositeEntry.Add(insertEntry)
 	}
-	
+
 	// Then delete the newline and leading whitespace
 	deleteEntry := buffer.NewDeleteTextEntry(lineNum, len(currentLine) + len(insertText), "\n" + nextLine[:leadingSpaces])
 	compositeEntry.Add(deleteEntry)
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, compositeEntry); err != nil {
@@ -209,23 +209,23 @@ func (e *Editor) joinLines(args []string) error {
 			e.setLastChange(executed)
 		}
 	}
-	
+
 	// Remember where we want the cursor to be (at the join point)
 	cursorX := len(currentLine)
 	if insertText != "" {
 		cursorX++ // Account for the added space
 	}
-	
+
 	// Recreate iterators
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Set cursor position to the join point
 	e.buffer.CursorX = cursorX
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -233,15 +233,15 @@ func (e *Editor) joinLines(args []string) error {
 func (e *Editor) insertTab(args []string) error {
 	// Get the buffer's indentation string
 	indentStr := e.buffer.GetIndentationString()
-	
+
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	cursorX := e.buffer.CursorX
-	
+
 	// Create history entry
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, indentStr)
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -254,20 +254,20 @@ func (e *Editor) insertTab(args []string) error {
 		pos := e.getAbsolutePosition()
 		e.buffer.Insert(pos, indentStr)
 	}
-	
+
 	// Recreate iterators at the same line
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	// Move cursor forward by the length of the indentation
 	e.buffer.CursorX = cursorX + len(indentStr)
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	// Update completion menu filter if visible
 	e.updateCompletionFilter()
-	
+
 	return nil
 }
 
@@ -324,7 +324,7 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	// Update completion menu filter if visible
 	e.updateCompletionFilter()
 
@@ -341,21 +341,21 @@ func (e *Editor) shouldSkipClosingChar(ch rune) bool {
 	case ')', ']', '}', '"', '\'', '`':
 		isClosing = true
 	}
-	
+
 	if !isClosing {
 		return false
 	}
-	
+
 	// Check if cursor is at a position where we have this character
 	if e.buffer.CursorIterator.IsEOF() {
 		return false
 	}
-	
+
 	line := e.buffer.CursorIterator.Line()
 	if e.buffer.CursorX >= len(line) {
 		return false
 	}
-	
+
 	// Check if the character at cursor position matches what we're typing
 	return rune(line[e.buffer.CursorX]) == ch
 }
@@ -401,13 +401,13 @@ func (e *Editor) insertNewline(args []string) error {
 	// Create the text to insert
 	var textToInsert string
 	var finalCursorX int
-	
+
 	if isBetweenBraces {
 		// Special case: cursor between {}
 		// Insert newline with indent, then another newline with base indent for closing brace
 		baseIndentInfo := e.buffer.GetLineIndentInfo(currentLine)
 		baseIndentStr := strings.Repeat(e.buffer.GetIndentationString(), baseIndentInfo.Level)
-		
+
 		textToInsert = "\n" + autoIndent.IndentStr + "\n" + baseIndentStr
 		finalCursorX = len(autoIndent.IndentStr)
 	} else {
@@ -452,7 +452,7 @@ func (e *Editor) isCursorBetweenBraces(line string, cursorX int) bool {
 	if cursorX <= 0 || cursorX >= len(line) {
 		return false
 	}
-	
+
 	// Look backward for {
 	hasOpenBrace := false
 	for i := cursorX - 1; i >= 0; i-- {
@@ -464,11 +464,11 @@ func (e *Editor) isCursorBetweenBraces(line string, cursorX int) bool {
 			break
 		}
 	}
-	
+
 	if !hasOpenBrace {
 		return false
 	}
-	
+
 	// Look forward for }
 	for i := cursorX; i < len(line); i++ {
 		if line[i] == '}' {
@@ -478,7 +478,7 @@ func (e *Editor) isCursorBetweenBraces(line string, cursorX int) bool {
 			break
 		}
 	}
-	
+
 	return false
 }
 
@@ -564,7 +564,7 @@ func (e *Editor) backspace(args []string) error {
 
 			// Update syntax highlighting
 			e.updateSyntaxHighlighting()
-			
+
 			// Update completion menu filter if visible
 			e.updateCompletionFilter()
 		}
@@ -766,7 +766,7 @@ func (e *Editor) deleteWordForward(args []string) error {
 
 	// Find the next word boundary
 	nextWord := FindNextWordBoundary(e.buffer, lineNum, startX)
-	
+
 	var endLine, endX int
 	if nextWord != nil {
 		endLine = nextWord.StartLine
@@ -844,7 +844,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 	// We need to move back one character first, then find word start
 	tempLine := lineNum
 	tempX := endX - 1
-	
+
 	if tempX < 0 {
 		// Move to previous line
 		if lineNum > 0 {
@@ -858,11 +858,11 @@ func (e *Editor) deleteWordBackward(args []string) error {
 
 	// Find the start of the current/previous word
 	var startLine, startX int
-	
+
 	// Use a temporary buffer position to find word start
 	tempIter := buffer.NewBufferIteratorAtLine(e.buffer, tempLine)
 	currentLine := tempIter.Line()
-	
+
 	// If we're in a word, find the start of this word
 	if tempX < len(currentLine) && isWordChar(rune(currentLine[tempX])) {
 		// Find start of current word
@@ -891,7 +891,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 				}
 			}
 		}
-		
+
 		if tempX >= 0 {
 			// Now find the start of this word
 			startX = tempX
@@ -905,7 +905,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 	// Calculate text to delete
 	var textToDelete string
 	var deleteLineNum, deleteX int
-	
+
 	if startLine == lineNum {
 		// Same line deletion
 		line := e.buffer.CursorIterator.Line()
@@ -919,7 +919,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 		// Delete from start position on previous line to cursor
 		prevIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
 		prevLine := prevIter.Line()
-		
+
 		textToDelete = prevLine[startX:] + "\n"
 		if endX > 0 {
 			line := e.buffer.CursorIterator.Line()

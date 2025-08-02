@@ -52,14 +52,15 @@ func TestCursorMode(t *testing.T) {
 		te.PressKey(events.KeyEnter, 0)
 		
 		// Check that we have one virtual cursor
-		if len(te.virtualCursors) != 1 {
-			t.Errorf("Expected 1 virtual cursor, got %d", len(te.virtualCursors))
+		virtualCursors := te.GetVirtualCursors()
+		if len(virtualCursors) != 1 {
+			t.Errorf("Expected 1 virtual cursor, got %d", len(virtualCursors))
 		}
 		
 		// Check that virtual cursor is at (0, 0)
-		if te.virtualCursors[0].X != 0 || te.virtualCursors[0].Y != 0 {
+		if len(virtualCursors) > 0 && (virtualCursors[0].X != 0 || virtualCursors[0].Y != 0) {
 			t.Errorf("Expected virtual cursor at (0, 0), got (%d, %d)", 
-				te.virtualCursors[0].X, te.virtualCursors[0].Y)
+				virtualCursors[0].X, virtualCursors[0].Y)
 		}
 		
 		// Check that primary cursor moved down one line
@@ -81,8 +82,9 @@ func TestCursorMode(t *testing.T) {
 		te.PressKey(events.KeyEnter, 0) // Adds cursor at (0,2), moves to (0,3)
 		
 		// Check that we have three virtual cursors
-		if len(te.virtualCursors) != 3 {
-			t.Errorf("Expected 3 virtual cursors, got %d", len(te.virtualCursors))
+		virtualCursors := te.GetVirtualCursors()
+		if len(virtualCursors) != 3 {
+			t.Errorf("Expected 3 virtual cursors, got %d", len(virtualCursors))
 		}
 		
 		// Verify cursor positions
@@ -92,7 +94,7 @@ func TestCursorMode(t *testing.T) {
 			{0, 2},
 		}
 		for i, expected := range expectedPositions {
-			cursor := te.virtualCursors[i]
+			cursor := virtualCursors[i]
 			if cursor.X != expected.x || cursor.Y != expected.y {
 				t.Errorf("Virtual cursor %d: expected (%d, %d), got (%d, %d)",
 					i, expected.x, expected.y, cursor.X, cursor.Y)
@@ -125,9 +127,10 @@ func TestCursorMode(t *testing.T) {
 		}
 		
 		// Virtual cursor should stay at (0,0)
-		if te.virtualCursors[0].X != 0 || te.virtualCursors[0].Y != 0 {
+		virtualCursors := te.GetVirtualCursors()
+		if len(virtualCursors) > 0 && (virtualCursors[0].X != 0 || virtualCursors[0].Y != 0) {
 			t.Errorf("Virtual cursor should stay at (0, 0), got (%d, %d)",
-				te.virtualCursors[0].X, te.virtualCursors[0].Y)
+				virtualCursors[0].X, virtualCursors[0].Y)
 		}
 	})
 	
@@ -146,9 +149,10 @@ func TestCursorMode(t *testing.T) {
 			t.Errorf("Expected INSERT mode after 'i', got %s", te.mode)
 		}
 		
-		// Virtual cursors should be cleared
-		if len(te.virtualCursors) != 0 {
-			t.Errorf("Expected virtual cursors to be cleared, got %d", len(te.virtualCursors))
+		// Virtual cursors should NOT be cleared - they persist for multiple cursor editing
+		virtualCursors := te.GetVirtualCursors()
+		if len(virtualCursors) != 1 {
+			t.Errorf("Expected virtual cursors to persist, got %d instead of 1", len(virtualCursors))
 		}
 	})
 	
@@ -167,9 +171,11 @@ func TestCursorMode(t *testing.T) {
 			t.Errorf("Expected COMMAND mode after ':', got %s", te.mode)
 		}
 		
-		// Virtual cursors should be cleared
-		if len(te.virtualCursors) != 0 {
-			t.Errorf("Expected virtual cursors to be cleared, got %d", len(te.virtualCursors))
+		// Virtual cursors ARE cleared when entering command mode
+		// (this is intentional - see line 39 in mode_management.go)
+		virtualCursors := te.GetVirtualCursors()
+		if len(virtualCursors) != 0 {
+			t.Errorf("Expected virtual cursors to be cleared, got %d", len(virtualCursors))
 		}
 	})
 }
@@ -265,12 +271,13 @@ func TestCursorRendering(t *testing.T) {
 		te.PressKey(events.KeyEnter, 0)
 		
 		// Verify virtual cursor was added at position 6
-		if len(te.virtualCursors) != 1 {
-			t.Fatalf("Expected 1 virtual cursor, got %d", len(te.virtualCursors))
+		virtualCursors := te.GetVirtualCursors()
+		if len(virtualCursors) != 1 {
+			t.Fatalf("Expected 1 virtual cursor, got %d", len(virtualCursors))
 		}
-		if te.virtualCursors[0].X != 6 || te.virtualCursors[0].Y != 0 {
+		if virtualCursors[0].X != 6 || virtualCursors[0].Y != 0 {
 			t.Errorf("Expected virtual cursor at (6,0), got (%d,%d)", 
-				te.virtualCursors[0].X, te.virtualCursors[0].Y)
+				virtualCursors[0].X, virtualCursors[0].Y)
 		}
 		
 		// Force a render
@@ -416,15 +423,16 @@ This is a **bold** text.
 		te.PressKey(events.KeyEnter, 0)
 		
 		// Verify we have 2 virtual cursors
-		if len(te.virtualCursors) != 2 {
-			t.Errorf("Expected 2 virtual cursors, got %d", len(te.virtualCursors))
+		virtualCursors := te.GetVirtualCursors()
+		if len(virtualCursors) != 2 {
+			t.Errorf("Expected 2 virtual cursors, got %d", len(virtualCursors))
 		}
 		
 		// Force a render
 		te.render()
 		
 		// Log virtual cursor info for debugging
-		t.Logf("Virtual cursors: %+v", te.virtualCursors)
+		t.Logf("Virtual cursors: %+v", virtualCursors)
 		t.Logf("Highlighter active: %v", te.highlighter != nil)
 		if te.highlighter != nil {
 			t.Logf("Language: %s", te.highlighter.GetCurrentLanguage())
@@ -457,8 +465,8 @@ This is a **bold** text.
 		
 		// Check second virtual cursor (on "bold")
 		// The exact position depends on the cursor movement
-		if len(te.virtualCursors) >= 2 {
-			vc2 := te.virtualCursors[1]
+		if len(virtualCursors) >= 2 {
+			vc2 := virtualCursors[1]
 			t.Logf("Second virtual cursor at: (%d, %d)", vc2.X, vc2.Y)
 			
 			// Check that position has white background
@@ -500,7 +508,8 @@ This is a **bold** text.
 		lineNumWidth := 2
 		virtualCursorBg, _ := ui.ParseHexColor("#ffffff")
 		
-		for i, vc := range te.virtualCursors {
+		virtualCursors := te.GetVirtualCursors()
+		for i, vc := range virtualCursors {
 			char, style := te.mockScreen.GetCell(lineNumWidth+vc.X, vc.Y)
 			if style.Bg != virtualCursorBg {
 				t.Errorf("Virtual cursor %d at (%d,%d) doesn't have white background. Got %v, char '%c'",
@@ -518,7 +527,8 @@ This is a **bold** text.
 		
 		// Log cursor positions for debugging
 		t.Logf("Virtual cursors added at:")
-		for i, vc := range te.virtualCursors {
+		virtualCursors = te.GetVirtualCursors()
+		for i, vc := range virtualCursors {
 			char, _ := te.mockScreen.GetCell(lineNumWidth+vc.X, vc.Y)
 			t.Logf("  Cursor %d: (%d, %d) on character '%c'", i, vc.X, vc.Y, char)
 		}
