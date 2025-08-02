@@ -9,6 +9,21 @@ import (
 
 // pasteAfter pastes clipboard content after the cursor (p command)
 func (e *Editor) pasteAfter(args []string) error {
+	// If we have virtual cursors, use multi-cursor paste
+	if len(e.virtualCursors) > 0 {
+		return e.pasteForAllCursors(func(content string) error {
+			// Determine if this is a line-wise paste
+			isLinewise := strings.HasSuffix(content, "\n")
+			
+			if isLinewise {
+				return e.pasteAfterLine(content)
+			} else {
+				return e.pasteAfterCursor(content)
+			}
+		}, true)
+	}
+	
+	// Single cursor paste - original implementation
 	// Get clipboard content
 	content, err := clipboard.Paste()
 	if err != nil {
@@ -34,6 +49,21 @@ func (e *Editor) pasteAfter(args []string) error {
 
 // pasteBefore pastes clipboard content before the cursor (P command)
 func (e *Editor) pasteBefore(args []string) error {
+	// If we have virtual cursors, use multi-cursor paste
+	if len(e.virtualCursors) > 0 {
+		return e.pasteForAllCursors(func(content string) error {
+			// Determine if this is a line-wise paste
+			isLinewise := strings.HasSuffix(content, "\n")
+			
+			if isLinewise {
+				return e.pasteBeforeLine(content)
+			} else {
+				return e.pasteBeforeCursor(content)
+			}
+		}, false)
+	}
+	
+	// Single cursor paste - original implementation
 	// Get clipboard content
 	content, err := clipboard.Paste()
 	if err != nil {

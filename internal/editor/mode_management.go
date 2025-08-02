@@ -111,10 +111,24 @@ func (e *Editor) clearVirtualCursors() {
 
 // addVirtualCursor adds a virtual cursor at the current position and moves primary cursor down
 func (e *Editor) addVirtualCursor() {
+	// Check if we already have a virtual cursor at this position
+	currentX := e.buffer.CursorX
+	currentY := e.buffer.CursorIterator.LineNumber()
+	
+	for _, existing := range e.virtualCursors {
+		if existing.X == currentX && existing.Y == currentY {
+			// Already have a cursor here, just move down
+			if err := e.commandRegistry.Execute("down", nil); err != nil {
+				LL.Debug("Failed to move cursor down: %v", err)
+			}
+			return
+		}
+	}
+	
 	// Add virtual cursor at current position
 	cursor := VirtualCursor{
-		X: e.buffer.CursorX,
-		Y: e.buffer.CursorIterator.LineNumber(),
+		X: currentX,
+		Y: currentY,
 	}
 	e.virtualCursors = append(e.virtualCursors, cursor)
 	

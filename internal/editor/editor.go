@@ -1075,6 +1075,10 @@ func (e *Editor) redo(args []string) error {
 
 // yankCurrentLine yanks (copies) the current line to the system clipboard
 func (e *Editor) yankCurrentLine(args []string) error {
+	// If we have virtual cursors, use multi-cursor yank
+	if len(e.virtualCursors) > 0 {
+		return e.yankForAllCursors(e.yankLineForCursor)
+	}
 	// Default to yanking just the current line
 	return e.yankMultipleLines(1)
 }
@@ -1083,6 +1087,11 @@ func (e *Editor) yankCurrentLine(args []string) error {
 func (e *Editor) yankMultipleLines(count int) error {
 	if count <= 0 {
 		count = 1
+	}
+	
+	// If we have virtual cursors and count is 1, use multi-cursor yank
+	if len(e.virtualCursors) > 0 && count == 1 {
+		return e.yankForAllCursors(e.yankLineForCursor)
 	}
 
 	// Get starting line
