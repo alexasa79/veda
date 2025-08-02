@@ -15,6 +15,7 @@ const (
 	SearchMode      Mode = "SEARCH"
 	VisualMode      Mode = "VISUAL"
 	VisualLineMode  Mode = "VISUAL LINE"
+	CursorMode      Mode = "CURSOR"
 )
 
 // Key represents a key with modifiers

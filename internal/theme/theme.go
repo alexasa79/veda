@@ -34,6 +34,7 @@ type Theme struct {
 	FlashHighlight   StyleDef // Style for flashing yanked/changed text
 	Whitespace       StyleDef // Style for whitespace indicators (tabs, trailing spaces)
 	VerticalRuler    StyleDef // Style for vertical rulers
+	VirtualCursor    StyleDef // Style for virtual cursors in cursor mode
 
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
@@ -198,6 +199,11 @@ func NewTheme() *Theme {
 		VerticalRuler: StyleDef{
 			Foreground: "", // Keep foreground unchanged
 			Background: "#323330", // Slightly brighter than normal background
+		},
+
+		VirtualCursor: StyleDef{
+			Foreground: "#000000", // Black text on white background
+			Background: "#ffffff", // White background for maximum visibility
 		},
 
 		CompletionMenu: StyleDef{

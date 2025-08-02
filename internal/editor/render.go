@@ -52,6 +52,20 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 		currentStyle := style
 
+		// Check if this position has a virtual cursor
+		hasVirtualCursor := false
+		// Virtual cursors store the logical column position (CursorX)
+		// We need to compare with the actual position in the line
+		// Only check for virtual cursors if we're rendering in the text area (not line numbers)
+		if screenX >= e.buffer.LineNumberWidth && lineNum >= 0 {
+			for _, vc := range e.virtualCursors {
+				if vc.Y == lineNum && vc.X == charPosInLine {
+					hasVirtualCursor = true
+					break
+				}
+			}
+		}
+
 		// Check if this column is a ruler position
 		// Calculate text column position (screenX minus line number width)
 		textColumn := screenX - e.buffer.LineNumberWidth
@@ -69,6 +83,10 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		} else if inSelection {
 			// Selection takes precedence over search
 			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
+		} else if hasVirtualCursor {
+			// Virtual cursor gets a distinct background color
+			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+			currentStyle = theme.ApplyBackgroundStyle(style, virtualCursorStyle)
 		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
 			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
@@ -456,6 +474,22 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				trailingStyle := e.config.Theme.GetStyle(e.config.Theme.Whitespace)
 				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, trailingStyle)
 			}
+			
+			// Check for virtual cursor at this position
+			hasVirtualCursor := false
+			if x >= e.buffer.LineNumberWidth && lineIndex >= 0 {
+				for _, vc := range e.virtualCursors {
+					if vc.Y == lineIndex && vc.X == origPos {
+						hasVirtualCursor = true
+						break
+					}
+				}
+			}
+			
+			if hasVirtualCursor {
+				virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, virtualCursorStyle)
+			}
 
 			e.screen.SetContent(x, screenY, ch, nil, tokenStyle)
 			x++
@@ -756,6 +790,8 @@ func (e *Editor) drawStatusBar() {
 			modeText = " VISUAL "
 		} else if e.mode == commands.VisualLineMode {
 			modeText = " VISUAL LINE "
+		} else if e.mode == commands.CursorMode {
+			modeText = " CURSOR "
 		}
 		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil, -1, 0, -1)
 		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space after mode

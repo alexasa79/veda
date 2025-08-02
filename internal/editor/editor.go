@@ -32,6 +32,12 @@ type ReferencesBuffer struct {
 	SymbolName   string           // Name of the symbol being referenced
 }
 
+// VirtualCursor represents a secondary cursor position for multi-cursor editing
+type VirtualCursor struct {
+	X int // Column position in the buffer
+	Y int // Line number in the buffer
+}
+
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen          Screen
@@ -120,6 +126,9 @@ type Editor struct {
 	flashEndLine       int                  // End line of flashed region
 	flashEndChar       int                  // End char of flashed region
 	flashEndTime       int64                // When to stop flashing (unix millis)
+	
+	// Multiple cursors
+	virtualCursors     []VirtualCursor      // Additional cursors for multi-cursor editing
 
 	// References tracking
 	currentReferencesBuffer *ReferencesBuffer            // Current references buffer for g n/g p navigation
@@ -381,6 +390,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 			e.handleCommandMode(ev)
 		} else if e.mode == commands.SearchMode {
 			e.handleSearchMode(ev)
+		} else if e.mode == commands.CursorMode {
+			e.handleCursorMode(ev)
 		} else {
 			// Normal mode: Handle numeric prefix
 			if e.mode == commands.NormalMode && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' {

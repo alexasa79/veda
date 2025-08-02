@@ -38,6 +38,8 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("open-line-above", e.openLineAbove)
 	e.commandRegistry.Register("join-lines", e.joinLines)
 	e.commandRegistry.Register("rewrap-paragraph", e.rewrapParagraphCmd)
+	e.commandRegistry.Register("enter-cursor-mode", e.enterCursorModeCmd)
+	e.commandRegistry.Register("add-virtual-cursor", e.addVirtualCursorCmd)
 
 	// Insert mode commands
 	e.commandRegistry.Register("insert-newline", e.insertNewline)

@@ -18,7 +18,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Normal Mode  - Default mode for navigation and commands (ESC to enter)\n")
 	helpText.WriteString("Insert Mode  - Mode for inserting text (i to enter)\n")
 	helpText.WriteString("Visual Mode  - Mode for selecting text (v to enter)\n")
-	helpText.WriteString("Command Mode - Mode for executing commands (: to enter)\n\n")
+	helpText.WriteString("Command Mode - Mode for executing commands (: to enter)\n")
+	helpText.WriteString("Cursor Mode  - Mode for adding multiple cursors (m to enter)\n\n")
 	
 	// Key bindings by category
 	helpText.WriteString("== Key Bindings ==\n\n")
@@ -50,7 +51,14 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("v            - Enter visual mode for character selection\n")
 	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
-	helpText.WriteString("Alt+Q        - Rewrap current paragraph\n\n")
+	helpText.WriteString("Alt+Q        - Rewrap current paragraph\n")
+	helpText.WriteString("m            - Enter cursor mode for multiple cursors\n\n")
+	
+	helpText.WriteString("= Cursor Mode =\n")
+	helpText.WriteString("Enter        - Add virtual cursor at current position and move down\n")
+	helpText.WriteString("m or ESC     - Exit cursor mode\n")
+	helpText.WriteString("Movement keys work normally (only primary cursor moves)\n")
+	helpText.WriteString("Any editing command exits cursor mode\n\n")
 	
 	helpText.WriteString("= Search =\n")
 	helpText.WriteString("/            - Enter search mode\n")
