@@ -35,6 +35,8 @@ func (e *Editor) handleCommandMode(ev *events.KeyEvent) {
 
 // enterCommandMode switches to command mode and initializes the command line
 func (e *Editor) enterCommandMode() {
+	// Clear virtual cursors when entering command mode
+	e.clearVirtualCursors()
 	e.mode = commands.CommandMode
 	e.commandLine.SetText(":")
 	// Position cursor after the colon
@@ -48,6 +50,108 @@ func (e *Editor) enterCommandMode() {
 func (e *Editor) exitCommandMode() {
 	e.mode = commands.NormalMode
 	e.commandLine.SetText("")
+}
+
+// handleCursorMode handles key events in cursor mode
+func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
+	switch ev.Key {
+	case events.KeyEscape:
+		// Exit cursor mode
+		e.exitCursorMode()
+		return
+	case events.KeyEnter:
+		// Add virtual cursor at current position
+		e.addVirtualCursor()
+		return
+	case events.KeyRune:
+		if ev.Rune == 'm' {
+			// Exit cursor mode with 'm'
+			e.exitCursorMode()
+			return
+		}
+	}
+	
+	// For all other keys, check if it's a movement command
+	if command, found := e.keyMapper.ProcessKey(ev, commands.NormalMode); found {
+		if isMovementCommand(command) {
+			// Execute movement commands normally
+			if err := e.commandRegistry.Execute(command, nil); err != nil {
+				LL.Debug("Movement command error in cursor mode: %v", err)
+			}
+		} else {
+			// Non-movement commands exit cursor mode first, then execute
+			e.exitCursorMode()
+			if err := e.commandRegistry.Execute(command, nil); err != nil {
+				LL.Debug("Command execution error: %v", err)
+			}
+		}
+	}
+}
+
+// enterCursorMode switches to cursor mode
+func (e *Editor) enterCursorMode() {
+	e.mode = commands.CursorMode
+}
+
+// enterCursorModeCmd is the command handler for entering cursor mode
+func (e *Editor) enterCursorModeCmd(args []string) error {
+	e.enterCursorMode()
+	return nil
+}
+
+// exitCursorMode switches back to normal mode
+func (e *Editor) exitCursorMode() {
+	e.mode = commands.NormalMode
+}
+
+// clearVirtualCursors removes all virtual cursors
+func (e *Editor) clearVirtualCursors() {
+	e.virtualCursors = []VirtualCursor{}
+}
+
+// addVirtualCursor adds a virtual cursor at the current position and moves primary cursor down
+func (e *Editor) addVirtualCursor() {
+	// Add virtual cursor at current position
+	cursor := VirtualCursor{
+		X: e.buffer.CursorX,
+		Y: e.buffer.CursorIterator.LineNumber(),
+	}
+	e.virtualCursors = append(e.virtualCursors, cursor)
+	
+	// Move primary cursor down one line
+	if err := e.commandRegistry.Execute("down", nil); err != nil {
+		LL.Debug("Failed to move cursor down after adding virtual cursor: %v", err)
+	}
+}
+
+// addVirtualCursorCmd is the command handler for adding a virtual cursor
+func (e *Editor) addVirtualCursorCmd(args []string) error {
+	// Only allow adding virtual cursors in cursor mode
+	if e.mode != commands.CursorMode {
+		return nil
+	}
+	e.addVirtualCursor()
+	return nil
+}
+
+// isMovementCommand checks if a command is a movement command
+func isMovementCommand(command string) bool {
+	movementCommands := []string{
+		"up", "down", "left", "right",
+		"word-forward", "word-backward",
+		"beginning-of-line", "end-of-line",
+		"page-up", "page-down",
+		"goto-line-start", "goto-line-end",
+		"next-word", "previous-word",
+		"find-char", "find-char-backward",
+	}
+	
+	for _, cmd := range movementCommands {
+		if command == cmd {
+			return true
+		}
+	}
+	return false
 }
 
 // executeCommand processes the command entered in the command line
@@ -170,6 +274,8 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 
 // enterInsertMode switches the editor to insert mode
 func (e *Editor) enterInsertMode(args []string) error {
+	// Clear virtual cursors when entering insert mode
+	e.clearVirtualCursors()
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {

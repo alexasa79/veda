@@ -52,6 +52,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "O", "open-line-above")
 	e.registerKeyBinding(commands.NormalMode, "J", "join-lines")
 	e.registerKeyBinding(commands.NormalMode, "alt+q", "rewrap-paragraph")
+	e.registerKeyBinding(commands.NormalMode, "m", "enter-cursor-mode")
 
 	// Delete commands
 	e.registerKeyBinding(commands.NormalMode, "x", "delete-current-character")
