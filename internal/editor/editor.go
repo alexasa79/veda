@@ -406,10 +406,15 @@ func (e *Editor) handleEvent(ev events.Event) {
 			}
 
 			// Normal and Insert modes
-			if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyEscape {
-				e.cancelPendingOperation()
-				e.countPrefix = "" // Clear count prefix on escape
-				e.repeatCount = 0
+			if e.mode == commands.NormalMode && ev.Key == events.KeyEscape {
+				if e.hasPendingOperation() {
+					e.cancelPendingOperation()
+					e.countPrefix = "" // Clear count prefix on escape
+					e.repeatCount = 0
+				} else if len(e.virtualCursors) > 0 {
+					// Clear virtual cursors on escape in normal mode
+					e.clearVirtualCursors()
+				}
 			} else if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyRune {
 				if err := e.handlePendingOperation(string(ev.Rune)); err != nil {
 					LL.Debug("Pending operation error: %v", err)

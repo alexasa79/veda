@@ -108,8 +108,13 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 	// Handle cursor mode specially
 	if te.mode == commands.CursorMode {
 		te.handleCursorMode(ev)
-	} else if te.mode == commands.NormalMode && te.hasPendingOperation() && key == events.KeyEscape {
-		te.cancelPendingOperation()
+	} else if te.mode == commands.NormalMode && key == events.KeyEscape {
+		if te.hasPendingOperation() {
+			te.cancelPendingOperation()
+		} else if len(te.virtualCursors) > 0 {
+			// Clear virtual cursors on escape in normal mode
+			te.clearVirtualCursors()
+		}
 	} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
 		// Use executeWithRepeatCount to properly handle multiple cursors
 		te.repeatCount = 1
