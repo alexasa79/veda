@@ -20,10 +20,14 @@ build:
 
 # Run all tests
 # -p sets the number of test packages to run in parallel (default is GOMAXPROCS)
+# -parallel sets the number of tests to run in parallel within each package
 # You can override parallelism with: make test PARALLEL=8
-PARALLEL ?= 4
+PARALLEL ?= 16
 test:
-	$(GOTEST) -v -p $(PARALLEL) ./internal/*/
+	$(GOTEST) -v -p $(PARALLEL) -parallel $(PARALLEL) ./internal/*/
+
+testall:
+	$(GOTEST) -v -p $(PARALLEL) -parallel $(PARALLEL) -count=1 ./internal/*/
 
 # Clean up
 clean:
