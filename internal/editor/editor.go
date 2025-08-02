@@ -1351,7 +1351,7 @@ func (e *Editor) goToDefinition(args []string) error {
 	// Get definition location from LSP
 	locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
 	if err != nil {
-		e.errorManager.ShowError(fmt.Sprintf("LSP error: %v", err))
+		e.errorManager.ShowError("LSP error: %v", err)
 		LL.Debug("goToDefinition failed: %v", err)
 		return err
 	}
