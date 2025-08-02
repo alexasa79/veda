@@ -126,7 +126,7 @@ type Editor struct {
 	flashEndLine       int                  // End line of flashed region
 	flashEndChar       int                  // End char of flashed region
 	flashEndTime       int64                // When to stop flashing (unix millis)
-	
+
 	// Multiple cursors
 	virtualCursors     []VirtualCursor      // Additional cursors for multi-cursor editing
 
@@ -153,13 +153,13 @@ type Editor struct {
 
 	// Completion menu
 	completionMenu  *widgets.CompletionMenu // Completion menu widget
-	
+
 	// Whitespace rendering
 	whitespaceStyle whitespaceStyle        // Style and settings for whitespace visualization
-	
+
 	// Exit control
 	shouldExit      bool                   // Flag to signal the editor should exit
-	
+
 	// Error management
 	errorManager    *ErrorManager          // Manages error display and logging
 }
@@ -417,7 +417,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 			} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 				LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
 				LL.Debug("Found command: %s", command)
-				
+
 				// Parse the count prefix if we have one
 				if e.countPrefix != "" {
 					if count, err := strconv.Atoi(e.countPrefix); err == nil && count > 0 {
@@ -429,12 +429,12 @@ func (e *Editor) handleEvent(ev events.Event) {
 				} else {
 					e.repeatCount = 1
 				}
-				
+
 				// Execute the command with repetition
 				if err := e.executeWithRepeatCount(command); err != nil {
 					LL.Debug("Command execution error: %v", err)
 				}
-				
+
 				// Clear repeat count after execution
 				e.repeatCount = 0
 			} else {
@@ -484,7 +484,6 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 	if count <= 0 {
 		count = 1
 	}
-	
 
 	// Commands that need special handling for count
 	switch command {
@@ -505,7 +504,7 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 				applyToAll = cmdInfo.ApplyToAllCursors
 			}
 		}
-		
+
 		if applyToAll {
 			// Execute for all cursors
 			for i := 0; i < count; i++ {
@@ -532,38 +531,38 @@ func (e *Editor) executeCommandForAllCursors(command string, args []string) erro
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	primaryLineNum := e.buffer.CursorIterator.LineNumber()
 	primaryCursorX := e.buffer.CursorX
-	
+
 	// First execute for virtual cursors (in reverse order to maintain positions)
 	for i := len(e.virtualCursors) - 1; i >= 0; i-- {
 		cursor := e.virtualCursors[i]
-		
+
 		// Temporarily set primary cursor to virtual cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
 		e.buffer.CursorX = cursor.X
-		
+
 		// Execute command
 		if err := e.commandRegistry.Execute(command, args); err != nil {
 			// Continue with other cursors even if one fails
 			LL.Debug("Command failed for virtual cursor %d: %v", i, err)
 		}
-		
+
 		// Update virtual cursor position after command
 		e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
 		e.virtualCursors[i].X = e.buffer.CursorX
 	}
-	
+
 	// Restore primary cursor position
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
 	e.buffer.CursorX = primaryCursorX
-	
+
 	// Execute for primary cursor
 	if err := e.commandRegistry.Execute(command, args); err != nil {
 		return err
 	}
-	
+
 	// Restore view iterator
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	return nil
 }
 
@@ -573,38 +572,38 @@ func (e *Editor) insertCharForAllCursors(ch rune) error {
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	primaryLineNum := e.buffer.CursorIterator.LineNumber()
 	primaryCursorX := e.buffer.CursorX
-	
+
 	// First insert at virtual cursors (in reverse order to maintain positions)
 	for i := len(e.virtualCursors) - 1; i >= 0; i-- {
 		cursor := e.virtualCursors[i]
-		
+
 		// Temporarily set primary cursor to virtual cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
 		e.buffer.CursorX = cursor.X
-		
+
 		// Insert character
 		if err := e.insertChar(ch); err != nil {
 			// Continue with other cursors even if one fails
 			LL.Debug("Insert char failed for virtual cursor %d: %v", i, err)
 		}
-		
+
 		// Update virtual cursor position after insert
 		e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
 		e.virtualCursors[i].X = e.buffer.CursorX
 	}
-	
+
 	// Restore primary cursor position
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
 	e.buffer.CursorX = primaryCursorX
-	
+
 	// Insert at primary cursor
 	if err := e.insertChar(ch); err != nil {
 		return err
 	}
-	
+
 	// Restore view iterator
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	return nil
 }
 
@@ -769,7 +768,7 @@ func (e *Editor) getSelectionRange() (int, int, bool) {
 		// For visual line mode, select entire lines
 		anchorLine := e.buffer.VisualAnchorLine
 		currentLine := e.buffer.CursorIterator.LineNumber()
-		
+
 		// Determine start and end lines
 		startLine := anchorLine
 		endLine := currentLine
@@ -777,18 +776,18 @@ func (e *Editor) getSelectionRange() (int, int, bool) {
 			startLine = currentLine
 			endLine = anchorLine
 		}
-		
+
 		// Get byte offset for start of first line
 		startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
 		startOffset := startIter.Position()
-		
+
 		// Get byte offset for end of last line (including newline)
 		endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
 		endOffset := endIter.LineEnd()
 		if endLine < e.buffer.LineCount - 1 {
 			endOffset++ // Include the newline character
 		}
-		
+
 		return startOffset, endOffset, true
 	}
 
@@ -1098,7 +1097,7 @@ func (e *Editor) yankMultipleLines(count int) error {
 	// Build the text to yank
 	var textToYank strings.Builder
 	iter := e.buffer.CursorIterator
-	
+
 	for i := 0; i <= endLine - startLine; i++ {
 		if i > 0 {
 			iter = iter.Next()
@@ -1141,17 +1140,17 @@ func (e *Editor) repeatLastChange(args []string) error {
 		if e.lastCommand.Operator.GetType() == "change" && e.lastChange != nil {
 			// For change operators, we need to:
 			// 1. Execute the operator (which deletes text and enters insert mode)
-			// 2. Exit insert mode immediately 
+			// 2. Exit insert mode immediately
 			// 3. Then replay the insert session
-			
+
 			// Save the insert change before executing the operator
 			savedChange := e.lastChange
-			
+
 			// Execute the operator (delete + enter insert mode)
 			if err := e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject); err != nil {
 				return err
 			}
-			
+
 			// Exit insert mode without recording anything
 			if e.mode == commands.InsertMode {
 				e.mode = commands.NormalMode
@@ -1159,20 +1158,20 @@ func (e *Editor) repeatLastChange(args []string) error {
 					e.buffer.History.EndInsertSession()
 				}
 			}
-			
+
 			// Restore the saved change for next repeat
 			e.lastChange = savedChange
-			
+
 			// Now replay the insert session
 			if insertEntry, ok := savedChange.(*buffer.InsertModeEntry); ok && len(insertEntry.Entries) > 0 {
 				// Save line numbers before iterators become invalid
 				savedCursorLine := e.buffer.CursorIterator.LineNumber()
 				savedViewLine := e.buffer.ViewIterator.LineNumber()
-				
+
 				// Get current cursor position
 				lineNum := savedCursorLine
 				cursorX := e.buffer.CursorX
-				
+
 				// Simply replay all the insert operations at the current position
 				for _, entry := range insertEntry.Entries {
 					switch origEntry := entry.(type) {
@@ -1188,7 +1187,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 						}
 					}
 				}
-				
+
 				// Recreate iterators after all inserts are complete
 				e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 				if savedViewLine >= e.buffer.LineCount {
@@ -1196,10 +1195,10 @@ func (e *Editor) repeatLastChange(args []string) error {
 				}
 				e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, savedViewLine)
 			}
-			
+
 			return nil
 		}
-		
+
 		// For non-change operators, just repeat the operator+text object
 		return e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject)
 	}
