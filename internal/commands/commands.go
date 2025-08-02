@@ -41,6 +41,7 @@ type HandlerFunc func(args []string) error
 // CommandInfo contains metadata about a command
 type CommandInfo struct {
 	Handler HandlerFunc
+	ApplyToAllCursors bool // Whether this command should be applied to all cursors
 }
 
 // CommandRegistry manages commands and their handlers
@@ -56,9 +57,10 @@ func NewCommandRegistry() *CommandRegistry {
 }
 
 // Register registers a command handler
-func (cr *CommandRegistry) Register(command string, handler HandlerFunc) {
+func (cr *CommandRegistry) Register(command string, handler HandlerFunc, applyToAllCursors bool) {
 	cr.commands[command] = CommandInfo{
 		Handler: handler,
+		ApplyToAllCursors: applyToAllCursors,
 	}
 }
 

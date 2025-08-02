@@ -274,8 +274,6 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 
 // enterInsertMode switches the editor to insert mode
 func (e *Editor) enterInsertMode(args []string) error {
-	// Clear virtual cursors when entering insert mode
-	e.clearVirtualCursors()
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {

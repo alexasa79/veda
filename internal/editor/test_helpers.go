@@ -59,7 +59,9 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
-	return te.commandRegistry.Execute(command, nil)
+	// Use executeWithRepeatCount to properly handle multiple cursors
+	te.repeatCount = 1
+	return te.executeWithRepeatCount(command)
 }
 
 // InsertChar simulates inserting a character in insert mode
@@ -74,11 +76,25 @@ func (te *TestEditor) TypeKeys(keys string) {
 			Key:  events.KeyRune,
 			Rune: ch,
 		}
-		// Simulate the key handling logic
-		if te.mode == commands.NormalMode && te.hasPendingOperation() {
+		// Handle cursor mode specially
+		if te.mode == commands.CursorMode {
+			te.handleCursorMode(ev)
+		} else if te.mode == commands.NormalMode && te.hasPendingOperation() {
 			te.handlePendingOperation(string(ch))
 		} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
-			te.commandRegistry.Execute(command, nil)
+			// Use executeWithRepeatCount to properly handle multiple cursors
+			te.repeatCount = 1
+			te.executeWithRepeatCount(command)
+		} else {
+			// Handle insert mode character insertion
+			if te.mode == commands.InsertMode && ev.Key == events.KeyRune {
+				// Handle insert char for multiple cursors
+				if len(te.virtualCursors) > 0 {
+					te.insertCharForAllCursors(ev.Rune)
+				} else {
+					te.insertChar(ev.Rune)
+				}
+			}
 		}
 	}
 }
@@ -89,11 +105,15 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 		Key:       key,
 		Modifiers: modifiers,
 	}
-	// Handle escape for pending operations
-	if te.mode == commands.NormalMode && te.hasPendingOperation() && key == events.KeyEscape {
+	// Handle cursor mode specially
+	if te.mode == commands.CursorMode {
+		te.handleCursorMode(ev)
+	} else if te.mode == commands.NormalMode && te.hasPendingOperation() && key == events.KeyEscape {
 		te.cancelPendingOperation()
 	} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
-		te.commandRegistry.Execute(command, nil)
+		// Use executeWithRepeatCount to properly handle multiple cursors
+		te.repeatCount = 1
+		te.executeWithRepeatCount(command)
 	}
 }
 

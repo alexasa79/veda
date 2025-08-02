@@ -440,7 +440,12 @@ func (e *Editor) handleEvent(ev events.Event) {
 			} else {
 				LL.Debug("No command found for key %+v", ev)
 				if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
-					e.insertChar(ev.Rune)
+					// Handle insert char for multiple cursors
+					if len(e.virtualCursors) > 0 {
+						e.insertCharForAllCursors(ev.Rune)
+					} else {
+						e.insertChar(ev.Rune)
+					}
 				}
 				// Clear count prefix if no command was found
 				if e.mode == commands.NormalMode {
@@ -479,30 +484,128 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 	if count <= 0 {
 		count = 1
 	}
+	
 
 	// Commands that need special handling for count
 	switch command {
 	case "yank-line":
 		// For yy, count means "yank N lines" not "yank same line N times"
 		return e.yankMultipleLines(count)
-	case "start-delete":
-		// For dd, count means "delete N lines" not "delete same line N times"
+	case "start-delete", "start-change":
+		// For dd/cc, count means "delete/change N lines" not "repeat operation N times"
 		// Store the count for the pending operation
 		e.pendingCount = count
-		return e.commandRegistry.Execute(command, nil)
-	case "start-change":
-		// For cc, count means "change N lines"
-		e.pendingCount = count
-		return e.commandRegistry.Execute(command, nil)
+		return e.executeCommandForAllCursors(command, nil)
 	default:
-		// For other commands, simply repeat them count times
-		for i := 0; i < count; i++ {
-			if err := e.commandRegistry.Execute(command, nil); err != nil {
-				return err
+		// Check if we should apply to all cursors
+		applyToAll := false
+		if e.mode != commands.CursorMode && len(e.virtualCursors) > 0 {
+			// Get command info from registry
+			if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists {
+				applyToAll = cmdInfo.ApplyToAllCursors
+			}
+		}
+		
+		if applyToAll {
+			// Execute for all cursors
+			for i := 0; i < count; i++ {
+				if err := e.executeCommandForAllCursors(command, nil); err != nil {
+					return err
+				}
+			}
+		} else {
+			// Execute normally (single cursor)
+			for i := 0; i < count; i++ {
+				if err := e.commandRegistry.Execute(command, nil); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
 	}
+}
+
+
+// executeCommandForAllCursors executes a command for all cursors
+func (e *Editor) executeCommandForAllCursors(command string, args []string) error {
+	// Save view position and primary cursor position
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	primaryLineNum := e.buffer.CursorIterator.LineNumber()
+	primaryCursorX := e.buffer.CursorX
+	
+	// First execute for virtual cursors (in reverse order to maintain positions)
+	for i := len(e.virtualCursors) - 1; i >= 0; i-- {
+		cursor := e.virtualCursors[i]
+		
+		// Temporarily set primary cursor to virtual cursor position
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
+		e.buffer.CursorX = cursor.X
+		
+		// Execute command
+		if err := e.commandRegistry.Execute(command, args); err != nil {
+			// Continue with other cursors even if one fails
+			LL.Debug("Command failed for virtual cursor %d: %v", i, err)
+		}
+		
+		// Update virtual cursor position after command
+		e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
+		e.virtualCursors[i].X = e.buffer.CursorX
+	}
+	
+	// Restore primary cursor position
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
+	e.buffer.CursorX = primaryCursorX
+	
+	// Execute for primary cursor
+	if err := e.commandRegistry.Execute(command, args); err != nil {
+		return err
+	}
+	
+	// Restore view iterator
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	return nil
+}
+
+// insertCharForAllCursors inserts a character at all cursor positions
+func (e *Editor) insertCharForAllCursors(ch rune) error {
+	// Save view position and primary cursor position
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	primaryLineNum := e.buffer.CursorIterator.LineNumber()
+	primaryCursorX := e.buffer.CursorX
+	
+	// First insert at virtual cursors (in reverse order to maintain positions)
+	for i := len(e.virtualCursors) - 1; i >= 0; i-- {
+		cursor := e.virtualCursors[i]
+		
+		// Temporarily set primary cursor to virtual cursor position
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
+		e.buffer.CursorX = cursor.X
+		
+		// Insert character
+		if err := e.insertChar(ch); err != nil {
+			// Continue with other cursors even if one fails
+			LL.Debug("Insert char failed for virtual cursor %d: %v", i, err)
+		}
+		
+		// Update virtual cursor position after insert
+		e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
+		e.virtualCursors[i].X = e.buffer.CursorX
+	}
+	
+	// Restore primary cursor position
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
+	e.buffer.CursorX = primaryCursorX
+	
+	// Insert at primary cursor
+	if err := e.insertChar(ch); err != nil {
+		return err
+	}
+	
+	// Restore view iterator
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	return nil
 }
 
 // updateCursor updates the cursor position and style
@@ -538,6 +641,11 @@ func (e *Editor) updateCursor() {
 // exitCommandMode switches back to normal mode
 // executeCommand processes the command entered in the command line
 // handleVariableAssignment processes variable assignments in VAR=VALUE format
+
+// GetVirtualCursors returns the current virtual cursors
+func (e *Editor) GetVirtualCursors() []VirtualCursor {
+	return e.virtualCursors
+}
 
 // Close finalizes the screen and proxy client.
 func (e *Editor) Close() {
