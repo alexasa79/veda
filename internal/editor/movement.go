@@ -82,6 +82,7 @@ func (e *Editor) moveRight(args []string) error {
 		maxX-- // Don't go past the last character
 	}
 	if e.buffer.CursorX < maxX {
+		// Simply move to the next character - the visual rendering handles tab width
 		e.buffer.CursorX++
 	}
 	e.updateCursorState()

@@ -207,7 +207,9 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			// Check if cursor is in this wrapped segment
 			if cursorX >= wl.StartChar && cursorX < wl.EndChar {
 				visualLine = i
-				visualCol = cursorX - wl.StartChar + e.buffer.LineNumberWidth
+				// Calculate visual column accounting for tabs
+				lineSegment := wl.Text[:cursorX - wl.StartChar]
+				visualCol = e.visualWidth(lineSegment) + e.buffer.LineNumberWidth
 				return
 			}
 			// Special case for cursor exactly at the end of a wrapped segment
@@ -217,7 +219,8 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 				if isLastSegment {
 					// Cursor at end of line
 					visualLine = i
-					visualCol = wl.EndChar - wl.StartChar + e.buffer.LineNumberWidth
+					// Calculate visual column accounting for tabs
+					visualCol = e.visualWidth(wl.Text) + e.buffer.LineNumberWidth
 					return
 				}
 			}
@@ -231,7 +234,8 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 		if wl.LogicalLineNum == cursorLogicalLine {
 			// Place cursor at end of this wrapped line
 			visualLine = i
-			visualCol = wl.EndChar - wl.StartChar + e.buffer.LineNumberWidth
+			// Calculate visual column accounting for tabs
+			visualCol = e.visualWidth(wl.Text) + e.buffer.LineNumberWidth
 			return
 		}
 	}
