@@ -93,6 +93,7 @@ Currently the buffer package and editor package have tests. When adding new func
 - When using Buffer and Iterator objects, any change to the buffer invalidates all current iterators pointing to the buffer. To work with these primitives, remember the line number of the iterator before making the change and then call NewBufferIteratorAtLine to restore the iterator.
 - `tracker.go` implements a time tracker that we use for performance measurements. The typical use pattern is to create a performance tracker object. Then to call `t0 := tracker.Start()`, followed by `t0 = tracker.ReportSince(..., t0)`.
 - Always look for implementation that reduces the amount of state we have to keep. For instance if we have a boolean that tells us if the state is present and a pointer to the state's structure, we can remove the boolean and check if the pointer is nil.
+- Use fmt.PrintXXX for debug printouts in unit tests. Debug logging only works in the editor's main program, not in unit tests.
 
 ## Performance Debugging
 - **CPU Profiling**: Run `./vd -cpuprofile=cpu.prof` to generate a CPU profile. Exit normally with `:q` and analyze with `go tool pprof -top cpu.prof` to see which functions consume the most CPU time.

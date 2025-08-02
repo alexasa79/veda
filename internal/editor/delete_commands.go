@@ -37,25 +37,25 @@ func (e *Editor) handlePendingOperation(key string) error {
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "d" && e.pendingKeys[1] == "d" {
 		// dd - delete line(s)
 		if e.pendingCount > 1 {
-			return e.executeOperatorWithTextObject(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
+			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
 		}
-		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
+		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, LineTextObject{})
 	}
 	
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "c" && e.pendingKeys[1] == "c" {
 		// cc - change line(s)
 		if e.pendingCount > 1 {
-			return e.executeOperatorWithTextObject(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
+			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
 		}
-		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
+		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, LineTextObject{})
 	}
 	
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "y" && e.pendingKeys[1] == "y" {
 		// yy - yank line(s)
 		if e.pendingCount > 1 {
-			return e.executeOperatorWithTextObject(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
+			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, MultiLineTextObject{Count: e.pendingCount})
 		}
-		return e.executeOperatorWithTextObject(e.pendingOperator, LineTextObject{})
+		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, LineTextObject{})
 	}
 	
 	// Check for modifier keys
@@ -67,14 +67,14 @@ func (e *Editor) handlePendingOperation(key string) error {
 	// Try to find a text object
 	textObj := e.getTextObjectForKey(key)
 	if textObj != nil {
-		return e.executeOperatorWithTextObject(e.pendingOperator, textObj)
+		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, textObj)
 	}
 	
 	// Check for brackets after modifier
 	if len(e.pendingKeys) == 3 && (e.pendingModifier == ModifierAround || e.pendingModifier == ModifierInside) {
 		bracket := rune(key[0])
 		if bracketObj := NewBracketTextObject(bracket, e.pendingModifier); bracketObj != nil {
-			return e.executeOperatorWithTextObject(e.pendingOperator, bracketObj)
+			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, bracketObj)
 		}
 	}
 	

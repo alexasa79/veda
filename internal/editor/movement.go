@@ -199,6 +199,22 @@ func (e *Editor) beginningOfLine(args []string) error {
 
 // endOfLine moves cursor to the end of the current line
 func (e *Editor) endOfLine(args []string) error {
+	// Check if we have virtual cursors AND we're not in cursor mode
+	// In cursor mode, only move the primary cursor
+	if len(e.virtualCursors) > 0 && e.mode != commands.CursorMode {
+		return e.executeMovementForAllCursors(func() error {
+			line := e.buffer.CursorIterator.Line()
+			lineLen := len(line)
+			if lineLen > 0 {
+				e.buffer.CursorX = lineLen - 1
+			} else {
+				e.buffer.CursorX = 0
+			}
+			return nil
+		})
+	}
+	
+	// Single cursor movement (or in cursor mode)
 	line := e.buffer.CursorIterator.Line()
 	lineLen := len(line)
 	if lineLen > 0 {
