@@ -8,7 +8,8 @@ import (
 )
 
 // markdownLinkRegex matches markdown links [text](url)
-var markdownLinkRegex = regexp.MustCompile(`\[([^\]]*)\]\(([^)]+)\)`)
+// This regex handles nested brackets in the link text by matching balanced brackets
+var markdownLinkRegex = regexp.MustCompile(`\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]\(([^)]+)\)`)
 
 // MarkdownRenderInfo holds information about how to render markdown content
 type MarkdownRenderInfo struct {
