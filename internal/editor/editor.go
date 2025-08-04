@@ -162,6 +162,9 @@ type Editor struct {
 
 	// Error management
 	errorManager    *ErrorManager          // Manages error display and logging
+	
+	// Local history
+	localHistory    *LocalHistory          // Manages local file history
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -228,6 +231,15 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		connectionStatus: "",
 		errorManager:    NewErrorManager(),
 		completionMenu: widgets.NewCompletionMenu(config.Theme),
+	}
+
+	// Initialize local history
+	localHistory, err := NewLocalHistory()
+	if err != nil {
+		LL.Error("Failed to initialize local history: %v", err)
+		// Continue without local history - it's not critical
+	} else {
+		editor.localHistory = localHistory
 	}
 
 	// Add the initial empty buffer to the buffers map
