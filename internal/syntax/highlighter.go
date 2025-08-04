@@ -1174,10 +1174,34 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 		
 		// Check if it's a function call
 		parent := node.Parent()
-		if parent != nil && parent.Type() == "call" {
-			// Check if this identifier is the function being called
-			if parent.Child(0) == node {
-				return TokenTypePythonFunction
+		if parent != nil {
+			if parent.Type() == "call" {
+				// Check if this identifier is the function being called
+				if parent.Child(0) == node {
+					return TokenTypePythonFunction
+				}
+			} else if parent.Type() == "attribute" {
+				// Check if the attribute is being called
+				grandparent := parent.Parent()
+				if grandparent != nil && grandparent.Type() == "call" && grandparent.Child(0) == parent {
+					// This is a method call - check if this is the method name (last child of attribute)
+					if parent.Child(int(parent.ChildCount())-1) == node {
+						// Check if it's a builtin method
+						switch text {
+						case "print", "len", "range", "str", "int", "float", "bool",
+							"list", "dict", "set", "tuple", "type", "isinstance",
+							"hasattr", "getattr", "setattr", "delattr", "dir",
+							"abs", "all", "any", "bin", "chr", "ord", "hex", "oct",
+							"round", "max", "min", "sum", "sorted", "reversed",
+							"enumerate", "zip", "map", "filter", "open", "input",
+							"eval", "exec", "compile", "globals", "locals", "vars",
+							"__import__", "super", "property", "staticmethod", "classmethod":
+							return TokenTypePythonBuiltin
+						default:
+							return TokenTypePythonFunction
+						}
+					}
+				}
 			}
 		}
 		
@@ -1194,6 +1218,10 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 	// Import-related
 	case "import_statement", "import_from_statement":
 		return TokenTypePythonImport
+		
+	// Punctuation
+	case "(", ")", "[", "]", "{", "}", ",", ";", ".", ":", "...":
+		return TokenTypePunctuation
 		
 	default:
 		return TokenTypeText
