@@ -264,6 +264,18 @@ func (y YankOperator) Execute(editor *Editor, startLine, startChar, endLine, end
 	} else {
 		// Multi-line yank
 		textToYank = editor.getTextInRange(startLine, startChar, endLine, endChar)
+		
+		// If this is a full line yank (starts at 0 and ends at line length),
+		// add a newline to make it linewise
+		if startChar == 0 {
+			iter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
+			if !iter.IsEOF() {
+				line := iter.Line()
+				if endChar == len(line) {
+					textToYank += "\n"
+				}
+			}
+		}
 	}
 	
 	// Copy to system clipboard
