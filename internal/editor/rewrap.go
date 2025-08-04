@@ -416,11 +416,6 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
 	endPos := endIter.LineEnd()
 	
-	// If this is not the last line in the buffer, include the newline
-	if endLine < e.buffer.LineCount - 1 {
-		endPos++ // Include the newline character
-	}
-	
 	// Build new content with newlines
 	var newContent strings.Builder
 	for i, line := range wrappedLines {
