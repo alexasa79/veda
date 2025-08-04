@@ -236,7 +236,7 @@ func TestAppendWithRepeat(t *testing.T) {
 		
 		// Repeat
 		te.ExecuteCommand("repeat-last-change")
-		AssertBufferEquals(t, te, "OXne\nTXwo\nThree")
+		AssertBufferEquals(t, te, "OXne\nTwXo\nThree")
 	})
 	
 	t.Run("repeat append at end of line", func(t *testing.T) {
