@@ -88,8 +88,6 @@ func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
 			return true, ""
 		case events.KeyRune:
 			switch keyEv.Rune {
-			case 'A':
-				return true, ""
 			default:
 				// Pass the key to the line editor
 				oldText := flo.widget.GetBottomEditor().GetText()
