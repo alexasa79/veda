@@ -432,12 +432,38 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		// Get markdown render info to map positions
 		markdownInfo := ProcessMarkdownLine(originalLine, e.mode)
 
+		// We need to get the correct portion of the display text for this wrapped line
+		// The wrapped line may be a segment of the full line, so we need to extract the corresponding
+		// part from the processed markdown display text
+		displayText := markdownInfo.DisplayText
+		
+		// If this is a wrapped segment, extract the corresponding portion
+		if wl.StartChar > 0 || wl.EndChar < len(originalLine) {
+			// Map the wrapped line boundaries to display text boundaries
+			displayStart := 0
+			displayEnd := len(displayText)
+			
+			if startPos, ok := markdownInfo.OriginalToDisplay[wl.StartChar]; ok {
+				displayStart = startPos
+			}
+			if wl.EndChar < len(originalLine) {
+				if endPos, ok := markdownInfo.OriginalToDisplay[wl.EndChar-1]; ok {
+					displayEnd = endPos + 1
+				}
+			}
+			
+			// Extract the segment
+			if displayStart < len(displayText) && displayEnd <= len(displayText) && displayStart < displayEnd {
+				displayText = displayText[displayStart:displayEnd]
+			}
+		}
+
 		// Draw the display text with proper syntax highlighting
 		x := startX
 		displayPos := wl.StartChar
 
 		// For each character in the display text
-		for i, ch := range wl.Text {
+		for i, ch := range displayText {
 			// Find the original position for this display character
 			origPos := wl.StartChar + i
 
