@@ -90,7 +90,12 @@ func (e *Editor) handlePendingOperation(key string) error {
 func (e *Editor) getTextObjectForKey(key string) TextObject {
 	switch key {
 	case "w":
-		return WordTextObject{modifier: e.pendingModifier}
+		// For 'cw', exclude trailing space (like 'ce' in Vim)
+		excludeTrailing := false
+		if _, isChange := e.pendingOperator.(ChangeOperator); isChange && e.pendingModifier == ModifierNone {
+			excludeTrailing = true
+		}
+		return WordTextObject{modifier: e.pendingModifier, excludeTrailingSpace: excludeTrailing}
 	case "W":
 		return WORDTextObject{}
 	case "b":

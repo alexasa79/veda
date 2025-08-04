@@ -469,15 +469,15 @@ func TestRepeatLastChange(t *testing.T) {
 		te.ExecuteCommand("right")
 		AssertCursorAt(t, te, 2, 0)
 		
-		// Change word: cw to change "10" to "20 "
+		// Change word: cw to change "10" to "20"
 		te.TypeKeys("cw")
 		te.InsertChar('2')
 		te.InsertChar('0')
-		te.InsertChar(' ')
 		te.ExecuteCommand("exit-insert-mode")
 		
 		// Verify first line changed correctly
-		// Note: cw on "10" should replace just "10", so result is "a 20 b" with the space we added
+		// Note: cw on "10" should delete just "10" (not the space), 
+		// so we get "a 20 b"
 		AssertBufferEquals(t, te, "a 20 b\nc 10 d")
 		
 		// Move down to "1" in the second line
@@ -490,7 +490,7 @@ func TestRepeatLastChange(t *testing.T) {
 		// Repeat the change with .
 		te.ExecuteCommand("repeat-last-change")
 		
-		// Should result in "c 20 d", not "c 20 10 d"
+		// Should result in "c 20 d"
 		AssertBufferEquals(t, te, "a 20 b\nc 20 d")
 	})
 	
