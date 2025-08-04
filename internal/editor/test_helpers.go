@@ -71,6 +71,23 @@ func (te *TestEditor) InsertChar(ch rune) error {
 
 // TypeKeys simulates typing a sequence of keys in normal mode
 func (te *TestEditor) TypeKeys(keys string) {
+	// Check if this is a special key name
+	switch keys {
+	case "left":
+		te.PressKey(events.KeyLeft, 0)
+		return
+	case "right":
+		te.PressKey(events.KeyRight, 0)
+		return
+	case "up":
+		te.PressKey(events.KeyUp, 0)
+		return
+	case "down":
+		te.PressKey(events.KeyDown, 0)
+		return
+	}
+	
+	// Otherwise, process each character
 	for _, ch := range keys {
 		ev := &events.KeyEvent{
 			Key:  events.KeyRune,
@@ -114,6 +131,27 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 		} else if len(te.virtualCursors) > 0 {
 			// Clear virtual cursors on escape in normal mode
 			te.clearVirtualCursors()
+		}
+	} else if te.mode == commands.NormalMode && te.hasPendingOperation() {
+		// Handle pending operations for special keys
+		keyStr := ""
+		switch key {
+		case events.KeyLeft:
+			keyStr = "left"
+		case events.KeyRight:
+			keyStr = "right"
+		case events.KeyUp:
+			keyStr = "up"
+		case events.KeyDown:
+			keyStr = "down"
+		}
+		
+		if keyStr != "" {
+			te.handlePendingOperation(keyStr)
+		} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
+			// Use executeWithRepeatCount to properly handle multiple cursors
+			te.repeatCount = 1
+			te.executeWithRepeatCount(command)
 		}
 	} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
 		// Use executeWithRepeatCount to properly handle multiple cursors

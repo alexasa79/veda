@@ -44,6 +44,87 @@ func (l LineTextObject) GetType() string {
 	return "line"
 }
 
+// CharacterTextObject represents a single character movement
+type CharacterTextObject struct {
+	Direction string // "left" or "right"
+}
+
+func (c CharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+	if iter.IsEOF() {
+		return 0, 0, 0, 0, false
+	}
+	
+	line := iter.Line()
+	
+	if c.Direction == "left" {
+		// Moving left - delete character to the left of cursor
+		if cursorChar == 0 {
+			// At beginning of line, can't move left
+			return 0, 0, 0, 0, false
+		}
+		// Delete the character before the cursor
+		return cursorLine, cursorChar - 1, cursorLine, cursorChar, true
+	} else if c.Direction == "right" {
+		// Moving right - delete character at cursor position
+		if cursorChar >= len(line) {
+			// At or past end of line, can't delete
+			return 0, 0, 0, 0, false
+		}
+		// Delete the character at the cursor
+		return cursorLine, cursorChar, cursorLine, cursorChar + 1, true
+	}
+	
+	return 0, 0, 0, 0, false
+}
+
+func (c CharacterTextObject) GetType() string {
+	return fmt.Sprintf("character-%s", c.Direction)
+}
+
+// LineMotionTextObject represents lines selected by up/down motion
+type LineMotionTextObject struct {
+	Direction string // "up" or "down"
+}
+
+func (l LineMotionTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	if l.Direction == "up" {
+		// Moving up - select current line and line above
+		if cursorLine == 0 {
+			// At first line, can't move up
+			return 0, 0, 0, 0, false
+		}
+		// Select from beginning of line above to end of current line
+		currentIter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+		if currentIter.IsEOF() {
+			return 0, 0, 0, 0, false
+		}
+		currentLineLen := len(currentIter.Line())
+		
+		return cursorLine - 1, 0, cursorLine, currentLineLen, true
+	} else if l.Direction == "down" {
+		// Moving down - select current line and line below
+		if cursorLine >= buf.LineCount - 1 {
+			// At last line, can't move down
+			return 0, 0, 0, 0, false
+		}
+		// Select from beginning of current line to end of line below
+		nextIter := buffer.NewBufferIteratorAtLine(buf, cursorLine + 1)
+		if nextIter.IsEOF() {
+			return 0, 0, 0, 0, false
+		}
+		nextLineLen := len(nextIter.Line())
+		
+		return cursorLine, 0, cursorLine + 1, nextLineLen, true
+	}
+	
+	return 0, 0, 0, 0, false
+}
+
+func (l LineMotionTextObject) GetType() string {
+	return fmt.Sprintf("line-motion-%s", l.Direction)
+}
+
 // MultiLineTextObject represents multiple lines starting from the current line
 type MultiLineTextObject struct {
 	Count int
