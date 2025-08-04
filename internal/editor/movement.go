@@ -22,11 +22,8 @@ func (e *Editor) moveUp(args []string) error {
 		// Ensure cursor is within bounds for normal mode
 		if e.mode == commands.NormalMode && !e.buffer.CursorIterator.IsEOF() {
 			line := e.buffer.CursorIterator.Line()
-			if e.buffer.CursorX > len(line) {
-				e.buffer.CursorX = len(line)
-			}
-			if e.buffer.CursorX > 0 && len(line) > 0 {
-				e.buffer.CursorX-- // Don't go past last character in normal mode
+			if len(line) > 0 && e.buffer.CursorX >= len(line) {
+				e.buffer.CursorX = len(line) - 1 // Place on last character
 			}
 		}
 	}
@@ -54,11 +51,8 @@ func (e *Editor) moveDown(args []string) error {
 		// Ensure cursor is within bounds for normal mode
 		if e.mode == commands.NormalMode && !e.buffer.CursorIterator.IsEOF() {
 			line := e.buffer.CursorIterator.Line()
-			if e.buffer.CursorX > len(line) {
-				e.buffer.CursorX = len(line)
-			}
-			if e.buffer.CursorX > 0 && len(line) > 0 {
-				e.buffer.CursorX-- // Don't go past last character in normal mode
+			if len(line) > 0 && e.buffer.CursorX >= len(line) {
+				e.buffer.CursorX = len(line) - 1 // Place on last character
 			}
 		}
 	}
@@ -222,6 +216,7 @@ func (e *Editor) endOfLine(args []string) error {
 	} else {
 		e.buffer.CursorX = 0
 	}
+	e.updateCursorState()
 	return nil
 }
 
