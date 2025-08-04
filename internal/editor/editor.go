@@ -552,8 +552,8 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 	case "yank-line":
 		// For yy, count means "yank N lines" not "yank same line N times"
 		return e.yankMultipleLines(count)
-	case "start-delete", "start-change":
-		// For dd/cc, count means "delete/change N lines" not "repeat operation N times"
+	case "start-delete", "start-change", "start-yank":
+		// For dd/cc/yy, count means "delete/change/yank N lines" not "repeat operation N times"
 		// Store the count for the pending operation
 		e.pendingCount = count
 		return e.executeCommandForAllCursors(command, nil)
