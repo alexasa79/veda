@@ -42,7 +42,8 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		charPosInLine := segmentStart + i
 		useSearchStyle := e.isInSearchMatchInLine(charPosInLine, searchMatches)
 		// Check if this character is part of the selection
-		inSelection := hasSelection && charPos >= selStart && charPos < selEnd
+		// Only apply selection style if we're not drawing line numbers (x parameter is 0 for line numbers)
+		inSelection := hasSelection && charPos >= selStart && charPos < selEnd && x > 0
 		// Check if this character is part of the flash highlight
 		var inFlash bool
 		if lineNum >= 0 && e.hasFlashHighlight() {
@@ -255,6 +256,99 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	// Get syntax tokens for this line using iterator position
 	tokens := e.getLineTokens(iter)
 
+	// Check if we need markdown processing
+	if e.highlighter != nil && e.highlighter.GetCurrentLanguage() == "markdown" && e.mode != commands.InsertMode {
+		// Get markdown render info
+		markdownInfo := ProcessMarkdownLine(originalLine, e.mode)
+		
+		// Adjust tokens for markdown rendering
+		adjustedTokens := make([]syntax.Token, 0, len(tokens))
+		for _, token := range tokens {
+			if adjustedToken, visible := AdjustTokenForMarkdown(token, markdownInfo); visible {
+				adjustedTokens = append(adjustedTokens, adjustedToken)
+			}
+		}
+		tokens = adjustedTokens
+		
+		// Use display text instead of original line
+		displayLine := markdownInfo.DisplayText
+		
+		// Draw the display text with adjusted tokens
+		x := startX
+		
+		// Get selection range for markdown selection handling
+		selStart, selEnd, hasSelection := e.getSelectionRange()
+		selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
+		
+		// Draw each character with proper styling
+		for i, ch := range displayLine {
+			// Find original position for this display character
+			origPos := i
+			if i < len(markdownInfo.DisplayToOriginal) {
+				if mapped, ok := markdownInfo.DisplayToOriginal[i]; ok {
+					origPos = mapped
+				}
+			}
+			
+			// Calculate absolute position for selection
+			charPos := lineStartOffset + origPos
+			
+			// Find the token style for this position
+			tokenStyle := normalStyle
+			for _, token := range tokens {
+				if i >= token.Start && i < token.End {
+					tokenStyle = e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+					break
+				}
+			}
+			
+			// Apply background overrides
+			if bgOverride != nil {
+				tokenStyle = tokenStyle.Background(*bgOverride)
+			} else if isCurrentLine {
+				tokenStyle = tokenStyle.Background(lineBg)
+			}
+			
+			// Check for selection (highest priority)
+			inSelection := hasSelection && charPos >= selStart && charPos < selEnd
+			if inSelection {
+				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, selectionStyle)
+			} else if e.isInSearchMatchInLine(origPos, searchMatches) {
+				// Check for search matches
+				searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, searchStyle)
+			}
+			
+			// Check for trailing spaces
+			if trailingStart >= 0 && origPos >= trailingStart {
+				whitespaceStyle := e.config.Theme.GetStyle(e.config.Theme.Whitespace)
+				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, whitespaceStyle)
+			}
+			
+			e.screen.SetContent(x, screenY, ch, nil, tokenStyle)
+			x++
+		}
+		
+		// Fill rest of line if we have background
+		if hasBg {
+			width, _ := e.screen.Size()
+			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+			for i := x; i < width; i++ {
+				fillStyle := normalStyle
+				textColumn := i - e.buffer.LineNumberWidth
+				for _, rulerPos := range e.config.VerticalRulers {
+					if textColumn == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
+				}
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			}
+		}
+		return
+	}
+
+	// Non-markdown or insert mode - use original rendering
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
 		x := startX
@@ -432,17 +526,27 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		// Get markdown render info to map positions
 		markdownInfo := ProcessMarkdownLine(originalLine, e.mode)
 
+		// Adjust tokens for markdown rendering
+		adjustedTokens := make([]syntax.Token, 0, len(tokens))
+		for _, token := range tokens {
+			if adjustedToken, visible := AdjustTokenForMarkdown(token, markdownInfo); visible {
+				adjustedTokens = append(adjustedTokens, adjustedToken)
+			}
+		}
+		tokens = adjustedTokens
+
 		// We need to get the correct portion of the display text for this wrapped line
 		// The wrapped line may be a segment of the full line, so we need to extract the corresponding
 		// part from the processed markdown display text
 		displayText := markdownInfo.DisplayText
 		
+		// Calculate display boundaries for this wrapped line
+		displayStart := 0
+		displayEnd := len(displayText)
+		
 		// If this is a wrapped segment, extract the corresponding portion
 		if wl.StartChar > 0 || wl.EndChar < len(originalLine) {
 			// Map the wrapped line boundaries to display text boundaries
-			displayStart := 0
-			displayEnd := len(displayText)
-			
 			if startPos, ok := markdownInfo.OriginalToDisplay[wl.StartChar]; ok {
 				displayStart = startPos
 			}
@@ -460,24 +564,31 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 
 		// Draw the display text with proper syntax highlighting
 		x := startX
-		displayPos := wl.StartChar
+
+		// Get selection range once for efficiency
+		selStart, selEnd, hasSelection := e.getSelectionRange()
+		selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 
 		// For each character in the display text
 		for i, ch := range displayText {
-			// Find the original position for this display character
+			// Calculate the absolute display position
+			currentDisplayPos := displayStart + i
+			
+			// Find the original position for this display character (for search/trailing space checks)
 			origPos := wl.StartChar + i
-
-			// Map display position to original position
-			if displayPos < len(markdownInfo.DisplayToOriginal) {
-				if mapped, ok := markdownInfo.DisplayToOriginal[displayPos]; ok {
+			if currentDisplayPos < len(markdownInfo.DisplayToOriginal) {
+				if mapped, ok := markdownInfo.DisplayToOriginal[currentDisplayPos]; ok {
 					origPos = mapped
 				}
 			}
 
-			// Find the token that contains this original position
+			// Calculate absolute position for selection check
+			charPos := lineStartOffset + origPos
+
+			// Find the token that contains this display position (tokens are now adjusted)
 			tokenStyle := normalStyle
 			for _, token := range tokens {
-				if origPos >= token.Start && origPos < token.End {
+				if currentDisplayPos >= token.Start && currentDisplayPos < token.End {
 					// Apply the token style
 					tokenStyle = e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 					break
@@ -489,8 +600,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				tokenStyle = tokenStyle.Background(lineBg)
 			}
 
-			// Check for search matches
-			if e.isInSearchMatch(origPos, searchMatches) {
+			// Check if this character is part of the selection (highest precedence)
+			inSelection := hasSelection && charPos >= selStart && charPos < selEnd
+			if inSelection {
+				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, selectionStyle)
+			} else if e.isInSearchMatch(origPos, searchMatches) {
+				// Check for search matches (lower precedence than selection)
 				searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 				tokenStyle = theme.ApplyBackgroundStyle(tokenStyle, searchStyle)
 			}
@@ -519,7 +634,6 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 
 			e.screen.SetContent(x, screenY, ch, nil, tokenStyle)
 			x++
-			displayPos++
 		}
 
 		// Fill rest of line if we have background
