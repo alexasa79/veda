@@ -735,6 +735,14 @@ func (e *Editor) writeFile(args []string) error {
 	// Get the content from the buffer
 	content := e.buffer.Rope.String()
 
+	// Save to local history first (don't fail the save if history fails)
+	if e.localHistory != nil {
+		if err := e.localHistory.SaveFileHistory(e.buffer.FilePath, content); err != nil {
+			LL.Error("Failed to save file history: %v", err)
+			// Continue with the actual save even if history fails
+		}
+	}
+
 	// Write the file
 	err := e.proxyManager.WriteFile(e.buffer.FilePath, content)
 	if err != nil {
