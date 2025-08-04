@@ -108,6 +108,14 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 		if e.pendingModifier != ModifierNone {
 			return NewFunctionTextObject(e.pendingModifier, e.proxyManager)
 		}
+	case "left":
+		return CharacterTextObject{Direction: "left"}
+	case "right":
+		return CharacterTextObject{Direction: "right"}
+	case "up":
+		return LineMotionTextObject{Direction: "up"}
+	case "down":
+		return LineMotionTextObject{Direction: "down"}
 	}
 	
 	return nil

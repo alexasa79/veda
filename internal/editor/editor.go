@@ -427,9 +427,50 @@ func (e *Editor) handleEvent(ev events.Event) {
 					// Clear virtual cursors on escape in normal mode
 					e.clearVirtualCursors()
 				}
-			} else if e.mode == commands.NormalMode && e.hasPendingOperation() && ev.Key == events.KeyRune {
-				if err := e.handlePendingOperation(string(ev.Rune)); err != nil {
-					LL.Debug("Pending operation error: %v", err)
+			} else if e.mode == commands.NormalMode && e.hasPendingOperation() {
+				// Handle pending operations for both regular keys and special keys
+				keyStr := ""
+				if ev.Key == events.KeyRune {
+					keyStr = string(ev.Rune)
+				} else {
+					// Convert special keys to their string names
+					switch ev.Key {
+					case events.KeyLeft:
+						keyStr = "left"
+					case events.KeyRight:
+						keyStr = "right"
+					case events.KeyUp:
+						keyStr = "up"
+					case events.KeyDown:
+						keyStr = "down"
+					default:
+						// For other special keys, let them be processed normally
+						if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+							LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
+							LL.Debug("Found command: %s", command)
+							// Execute the command (this might cancel the pending operation)
+							if e.countPrefix != "" {
+								if count, err := strconv.Atoi(e.countPrefix); err == nil && count > 0 {
+									e.repeatCount = count
+								} else {
+									e.repeatCount = 1
+								}
+								e.countPrefix = ""
+							} else {
+								e.repeatCount = 1
+							}
+							if err := e.executeWithRepeatCount(command); err != nil {
+								LL.Debug("Command execution error: %v", err)
+							}
+						}
+						return
+					}
+				}
+				
+				if keyStr != "" {
+					if err := e.handlePendingOperation(keyStr); err != nil {
+						LL.Debug("Pending operation error: %v", err)
+					}
 				}
 			} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
 				LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
