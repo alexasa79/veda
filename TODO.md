@@ -46,6 +46,8 @@ the entire buffer, which makes it inefficient. Find a solution to this.
 - [x] Find references
 - [x] Completion
 - [x] Add vertical rules at 78, 80, 100 and 120 characters.
+- [x] Local history support
+- [x] Pressing "c left" or "c right" does not work.
 
 ## Improvements and bugs
 - [x] Remove `drawLine` (does not seem to be used anymore) and rename `drawLineFromIterator` to
