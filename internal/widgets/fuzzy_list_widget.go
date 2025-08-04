@@ -632,8 +632,6 @@ func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender fu
 				return ""
 			case events.KeyRune:
 				switch keyEv.Rune {
-				case 'A':
-					return ""
 				default:
 					// Pass the key to the line editor
 					oldText := flw.bottomEditor.GetText()
