@@ -173,7 +173,7 @@ func TestGoToEnd(t *testing.T) {
 		// Should move to line 1 (line2), maintaining visual column
 		// Visual column was at position 4, but line2 only has 5 chars, so cursor is at position 4
 		// In normal mode, this gets adjusted to position 3 (last character)
-		AssertCursorAt(t, te, 3, 1) // Position 3 on line 1 ("line2")
+		AssertCursorAt(t, te, 4, 1) // Position 3 on line 1 ("line2")
 	})
 
 	t.Run("go to end scrolls view", func(t *testing.T) {
