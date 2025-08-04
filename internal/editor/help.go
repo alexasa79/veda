@@ -51,7 +51,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("v            - Enter visual mode for character selection\n")
 	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
-	helpText.WriteString("Alt+Q        - Rewrap current paragraph\n")
+	helpText.WriteString("Alt+Q        - Rewrap paragraph (press again for 100, 120 columns)\n")
 	helpText.WriteString("m            - Enter cursor mode for multiple cursors\n\n")
 	
 	helpText.WriteString("= Cursor Mode =\n")

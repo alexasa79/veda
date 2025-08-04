@@ -28,6 +28,6 @@ func New() *Config {
 		Theme:             theme.NewTheme(),
 		DefaultIndentType: IndentSpaces,
 		DefaultIndentWidth: 4,
-		VerticalRulers:    []int{78, 80, 100, 120},
+		VerticalRulers:    []int{80, 100, 120},
 	}
 }
