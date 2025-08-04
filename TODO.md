@@ -3,8 +3,6 @@
 - [ ] Getting completion on empty space does something weird.
 - [ ] References window is not rendered as markdown.
 - [ ] Entering command that does not exist does not indicate anything.
-- [ ] The error message for not found string looks aweful - red on gray background. Also, it should
-  probably appear above the status bar.
 
 # Features
 - [ ] Multi-line/multi-cursor support
@@ -73,3 +71,6 @@ instead of `set SETTING VALUE` borrowed from vim.
 - [x] Also, completion does not show progress.
 - [x] New files are not saved.
 - [x] After paste, the newly pasted code is not highlighted.
+- [x] The error message for not found string looks aweful - red on gray background. Also, it should
+  probably appear above the status bar.
+
