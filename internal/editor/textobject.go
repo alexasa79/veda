@@ -157,12 +157,15 @@ func (m MultiLineTextObject) GetType() string {
 // WordTextObject represents a word (sequence of alphanumeric chars and underscores)
 type WordTextObject struct {
 	modifier TextObjectModifier
+	excludeTrailingSpace bool // For 'cw' which should act like 'ce'
 }
 
 func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
 	// For 'dw' (no modifier), use shared logic with trailing space
+	// But for 'cw', we exclude trailing space (like 'ce' in Vim)
 	if w.modifier == ModifierNone {
-		boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, true)
+		includeTrailing := !w.excludeTrailingSpace
+		boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, includeTrailing)
 		if boundary == nil {
 			return 0, 0, 0, 0, false
 		}

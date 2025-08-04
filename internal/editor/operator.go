@@ -162,7 +162,59 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 		return nil
 	}
 	
-	// First, execute the delete operation (reuse delete logic)
+	// Check if this is a line change operation (cc command)
+	// For cc, we want to clear the line but keep it (not delete the newline)
+	isLineChange := startChar == 0 && startLine == endLine
+	if isLineChange {
+		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		if !iter.IsEOF() {
+			line := iter.Line()
+			if endChar >= len(line) {
+				// This is a cc operation - delete the line content but keep the line
+				// Store view position before making changes
+				viewLine := editor.buffer.ViewIterator.LineNumber()
+				
+				// Create delete entry for just the line content
+				if len(line) > 0 {
+					entry := buffer.NewDeleteTextEntry(startLine, 0, line)
+					if editor.buffer.History != nil {
+						if _, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
+							return err
+						}
+					} else {
+						if err := entry.Execute(editor.buffer); err != nil {
+							return err
+						}
+					}
+				}
+				
+				// Position cursor at the beginning of the now-empty line
+				editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+				editor.buffer.CursorX = 0
+				
+				// Update view iterator to ensure it's valid
+				if viewLine >= editor.buffer.LineCount {
+					viewLine = editor.buffer.LineCount - 1
+					if viewLine < 0 {
+						viewLine = 0
+					}
+				}
+				editor.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(editor.buffer, viewLine)
+				
+				// Enter insert mode
+				editor.mode = commands.InsertMode
+				
+				// Start tracking insert mode changes
+				if editor.buffer.History != nil {
+					editor.buffer.History.StartInsertSession("c")
+				}
+				
+				return nil
+			}
+		}
+	}
+	
+	// For all other cases, use the normal delete operation
 	deleteOp := DeleteOperator{}
 	if err := deleteOp.Execute(editor, startLine, startChar, endLine, endChar); err != nil {
 		return err
