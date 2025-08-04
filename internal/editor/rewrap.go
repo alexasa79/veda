@@ -2,6 +2,7 @@ package editor
 
 import (
 	"strings"
+	"time"
 	"unicode"
 	"veda/internal/buffer"
 )
@@ -215,7 +216,33 @@ func wrapText(text string, width int, indent string, prefix string) []string {
 }
 
 func (e *Editor) rewrapParagraph() error {
-	return e.rewrapParagraphWithWidth(80)
+	// If no rulers configured, use default
+	if len(e.config.VerticalRulers) == 0 {
+		return e.rewrapParagraphWithWidth(defaultWrapWidth)
+	}
+	
+	// Check if this is a consecutive alt+q press (within 2 seconds)
+	now := time.Now()
+	timeSinceLastRewrap := now.Sub(e.lastRewrapTime)
+	
+	// Determine the ruler index to use
+	var rulerIndex int
+	if timeSinceLastRewrap < 2*time.Second && e.lastRewrapTime.Unix() > 0 {
+		// Consecutive press - cycle to next ruler
+		rulerIndex = (e.lastRewrapIndex + 1) % len(e.config.VerticalRulers)
+	} else {
+		// First press or timeout - start at first ruler
+		rulerIndex = 0
+	}
+	
+	// Update tracking
+	e.lastRewrapTime = now
+	e.lastRewrapIndex = rulerIndex
+	
+	// Get the width from the ruler at this index
+	width := e.config.VerticalRulers[rulerIndex]
+	
+	return e.rewrapParagraphWithWidth(width)
 }
 
 // rewrapParagraphCmd is the command wrapper for rewrapParagraph

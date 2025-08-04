@@ -165,6 +165,10 @@ type Editor struct {
 	
 	// Local history
 	localHistory    *LocalHistory          // Manages local file history
+	
+	// Rewrap tracking
+	lastRewrapTime  time.Time              // Time of last rewrap to detect consecutive presses
+	lastRewrapIndex int                    // Index into VerticalRulers for last rewrap
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
