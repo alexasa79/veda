@@ -663,7 +663,7 @@ class LSPManager:
                                         symbol['language'] = lang
                                     all_symbols.extend(result)
         
-        return all_symbols if all_symbols else None
+        return all_symbols  # Return empty list instead of None
     
     def get_folding_ranges(self, file_path: str) -> Optional[List[Dict[str, Any]]]:
         """Get folding ranges for a file."""
@@ -1331,7 +1331,8 @@ class VedaProxy:
                     formatted_symbols.append(formatted_symbol)
                 
                 return {'success': True, 'symbols': formatted_symbols}
-            return {'success': False, 'error': 'No symbols found in project'}
+            # Return empty list instead of error when no symbols found
+            return {'success': True, 'symbols': []}
         except Exception as e:
             logger.error(f"Error in list_project_symbols: {e}")
             return {'success': False, 'error': str(e)}

@@ -400,14 +400,12 @@ func (e *Editor) showProjectSymbolsList() {
 	fuzzyListY := (height - fuzzyListHeight) / 2
 
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
-	fuzzyListWidget.SetTitle("Project Symbols (type to search)")
+	fuzzyListWidget.SetTitle("Project Symbols")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationSymbol)
 
 	// Start with empty content
 	fuzzyListWidget.SetContent([]string{})
 
-	// Track the last query to avoid redundant LSP calls
-	var lastQuery string
 	var pendingQuery string // Query that is currently being processed
 	var symbols []proxy.ProjectSymbol // Store the actual symbol objects
 	var symbolMap = make(map[string]int) // Map display name to index
@@ -435,7 +433,10 @@ func (e *Editor) showProjectSymbolsList() {
 
 				if response.Error != nil {
 					LL.Debug("LSP query error: %v", response.Error)
-					contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+					// Report error through editor's error system
+					e.ShowError("LSP error: %v", response.Error)
+					// Clear the list but don't show error in picker
+					contentUpdateChan <- []string{}
 					symbolUpdateChan <- symbolUpdate{nil, make(map[string]int)}
 				} else {
 					LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
@@ -478,59 +479,54 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Define the text change handler
 	onTextChanged := func(newText string) {
-		if newText != lastQuery {
-			lastQuery = newText
+		// Send async LSP request for symbols (including empty queries)
+		pendingQuery = newText
+		LL.Debug("Sending async LSP query for symbols with: %s", newText)
 
-			if len(newText) > 0 {
-				// Send async LSP request for symbols
-				pendingQuery = newText
-				LL.Debug("Sending async LSP query for symbols with: %s", newText)
-
-				// Start async operation tracking
-				operationID := fmt.Sprintf("project-symbols-%s", newText)
-				e.startAsyncOperation(operationID)
-				
-				// Set connection status
-				e.connectionStatus = fmt.Sprintf("Searching for \"%s\"", newText)
-
-				// Launch goroutine to fetch symbols
-				go func(query string) {
-					defer e.endAsyncOperation(operationID)
-					defer func() { e.connectionStatus = "" }() // Clear status when done
-
-					projectSymbols, err := e.proxyManager.ListProjectSymbols(query)
-
-					response := proxyworker.ProxyResponse{
-						Type:           proxyworker.RequestProjectSymbols,
-						FilePath:       e.buffer.FilePath,
-						Buffer:         e.buffer,
-						Generation:     e.buffer.SignatureGeneration,
-						ProjectSymbols: projectSymbols,
-						Query:          query,
-						Error:          err,
-					}
-
-					// Send response to the channel
-					select {
-					case symbolResponseChan <- response:
-						LL.Trace("Sent project symbols response for query '%s'", query)
-					default:
-						LL.Debug("Symbol response channel full, dropping response")
-					}
-				}(newText)
-			} else {
-				// Empty query - clear the list
-				contentUpdateChan <- []string{}
-				symbols = nil
-				symbolMap = make(map[string]int)
-				pendingQuery = ""
-			}
+		// Start async operation tracking
+		operationID := fmt.Sprintf("project-symbols-%s", newText)
+		e.startAsyncOperation(operationID)
+		
+		// Set connection status
+		if len(newText) > 0 {
+			e.connectionStatus = fmt.Sprintf("Searching for \"%s\"", newText)
+		} else {
+			e.connectionStatus = "Loading all symbols"
 		}
+
+		// Launch goroutine to fetch symbols
+		go func(query string) {
+			defer e.endAsyncOperation(operationID)
+			defer func() { e.connectionStatus = "" }() // Clear status when done
+
+			projectSymbols, err := e.proxyManager.ListProjectSymbols(query)
+
+			response := proxyworker.ProxyResponse{
+				Type:           proxyworker.RequestProjectSymbols,
+				FilePath:       e.buffer.FilePath,
+				Buffer:         e.buffer,
+				Generation:     e.buffer.SignatureGeneration,
+				ProjectSymbols: projectSymbols,
+				Query:          query,
+				Error:          err,
+			}
+
+			// Send response to the channel
+			select {
+			case symbolResponseChan <- response:
+				LL.Trace("Sent project symbols response for query '%s'", query)
+			default:
+				LL.Debug("Symbol response channel full, dropping response")
+			}
+		}(newText)
 	}
 
 	// Create overlay and get result channel
 	overlay := NewFuzzyListOverlay(fuzzyListWidget, onTextChanged, contentUpdateChan)
 	resultChan := e.renderingState.SetOverlay(overlay)
+
+	// Send initial empty query to load all symbols
+	onTextChanged("")
 
 	// Wait for result in a goroutine
 	go func() {
@@ -658,7 +654,10 @@ func (e *Editor) showDocumentSymbolsList() {
 			if response.Type == proxyworker.RequestDocumentSymbols {
 				if response.Error != nil {
 					LL.Debug("LSP document symbols error: %v", response.Error)
-					contentUpdateChan <- []string{fmt.Sprintf("Error: %v", response.Error)}
+					// Report error through editor's error system
+					e.ShowError("LSP error: %v", response.Error)
+					// Clear the list but don't show error in picker
+					contentUpdateChan <- []string{}
 				} else {
 					LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
 
