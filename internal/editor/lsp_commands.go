@@ -366,15 +366,3 @@ func (e *Editor) jumpToReferenceUnderCursor(args []string) error {
 
 	return fmt.Errorf("no valid reference on this line")
 }
-
-// jumpToReference is a command wrapper that checks if we're in a references buffer
-func (e *Editor) jumpToReference(args []string) error {
-	// Check if current buffer is a references buffer
-	_, isRefsBuffer := e.referencesBuffers[e.buffer.DisplayName()]
-	if !isRefsBuffer {
-		// Not in a references buffer, do nothing (or could do something else with Enter)
-		return nil
-	}
-
-	return e.jumpToReferenceUnderCursor(args)
-}

@@ -67,6 +67,21 @@ make clean
   - Python (requires `pylsp` - install with `pip install python-lsp-server`)
 - **Automatic Server Management**: LSP servers start automatically when needed and stop when the editor exits
 
+### Markdown Support
+- **Markdown Rendering**: Veda supports basic markdown rendering in buffers
+- **Internal Buffers**: Several internal buffers use markdown for formatting:
+  - `*Project Changes*` - Shows git changes in the project
+  - `*References:*` - Shows code references from LSP
+  - `*Diagnostics*` - Shows LSP diagnostics
+  - `*Help*` - Shows help documentation
+  - `*Key Bindings*` - Shows key binding information
+- **Link Handling**: In markdown files and internal markdown buffers:
+  - Markdown links `[text](url)` are rendered as just the link text in normal mode
+  - Pressing Enter on a link opens the file specified in the URL
+  - Links to files can include line numbers using the `#L<number>` syntax (e.g., `[function](file.go#L42)`)
+  - The full markdown syntax is shown in insert mode for editing
+- **Syntax Highlighting**: Markdown files and internal markdown buffers automatically get markdown syntax highlighting
+
 ### Testing Framework
 The project includes a comprehensive unit testing framework:
 - **Screen Abstraction**: `Screen` interface allows swapping between real terminal and mock implementation
