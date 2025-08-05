@@ -1368,14 +1368,17 @@ class VedaProxy:
             logger.error(f"Error in get_diagnostics: {e}")
             return {'success': False, 'error': str(e)}
     
-    def get_project_changes(self) -> Dict[str, Any]:
+    def get_project_changes(self, working_dir: str = None) -> Dict[str, Any]:
         """
         Get all changed files in the project with their diff information.
         """
         try:
+            # Use provided working directory or current directory
+            cwd = Path(working_dir).expanduser().resolve() if working_dir else Path.cwd()
+            
             # Get list of changed files
             cmd = ['git', 'diff', '--name-status', 'HEAD']
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
             
             unstaged_files = {}
             if result.returncode == 0:
@@ -1388,7 +1391,7 @@ class VedaProxy:
             
             # Get staged files
             cmd_staged = ['git', 'diff', '--cached', '--name-status']
-            result_staged = subprocess.run(cmd_staged, capture_output=True, text=True)
+            result_staged = subprocess.run(cmd_staged, capture_output=True, text=True, cwd=cwd)
             
             staged_files = {}
             if result_staged.returncode == 0:
@@ -1419,7 +1422,7 @@ class VedaProxy:
                     else:
                         cmd = ['git', 'diff', 'HEAD', '--', filepath]
                     
-                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
                     if result.returncode == 0:
                         diff_info = self._parse_git_diff(result.stdout)
                         changes.append({

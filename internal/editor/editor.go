@@ -1476,7 +1476,7 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 	e.saveCurrentBufferState()
 
 	// Get LSP messages for Go
-	messages, err := e.proxyManager.GetLSPMessages("go")
+	messages, err := e.proxyManager.GetLSPMessages(e.workingDirectory, "go")
 	if err != nil {
 		LL.Debug("Failed to get LSP messages: %v", err)
 		return err

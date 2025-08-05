@@ -41,6 +41,9 @@ type ProxyRequest struct {
 	// Path resolution specific fields
 	PathToResolve string // Path to check if it's a file or directory
 
+	// Working directory for project-wide operations
+	WorkingDirectory string // Current working directory (can include HOST: prefix)
+
 	// Future: add other request-specific fields for different proxy operations
 }
 // ProxyResponse represents a response from the proxy worker thread
@@ -112,7 +115,12 @@ func proxyWorker(proxyManager *proxy.ProxyManager, requestChan chan ProxyRequest
 			responseChan <- response
 
 		case RequestProjectSymbols:
-			symbols, err := proxyManager.ListProjectSymbols(request.Query)
+			// Use the working directory from the request, or empty string as fallback
+			workingDir := request.WorkingDirectory
+			if workingDir == "" {
+				workingDir = "." // Default to current directory
+			}
+			symbols, err := proxyManager.ListProjectSymbols(workingDir, request.Query)
 			response := ProxyResponse{
 				Type:           RequestProjectSymbols,
 				FilePath:       request.FilePath,
