@@ -315,11 +315,13 @@ func (pm *ProxyManager) GetCompletions(filePath string, line int, character int)
 }
 
 // GetDiagnostics gets all diagnostics from all open files
-func (pm *ProxyManager) GetDiagnostics() (map[string][]interface{}, error) {
-	// Diagnostics are global, so we use the local proxy
-	client := pm.clients[""]
-	if client == nil {
-		return nil, fmt.Errorf("local proxy not available")
+func (pm *ProxyManager) GetDiagnostics(path string) (map[string][]interface{}, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
+	client, _, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
 	}
 	
 	return client.GetDiagnostics()
@@ -336,11 +338,13 @@ func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, e
 }
 
 // GetLSPMessages gets LSP messages for a language
-// Note: This doesn't use file paths, so it uses the local proxy
-func (pm *ProxyManager) GetLSPMessages(language string) ([]interface{}, error) {
-	client := pm.clients[""] // Always use local proxy for LSP messages
-	if client == nil {
-		return nil, fmt.Errorf("local proxy not initialized")
+func (pm *ProxyManager) GetLSPMessages(path string, language string) ([]interface{}, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
+	client, _, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
 	}
 	
 	return client.GetLSPMessages(language)
@@ -367,24 +371,36 @@ func (pm *ProxyManager) GetSignatureHelp(filePath string, line int, character in
 }
 
 // ListProjectSymbols gets all symbols across the project
-// Note: This uses the local proxy for now, could be extended for remote projects
-func (pm *ProxyManager) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
-	client := pm.clients[""] // Use local proxy for project symbols
-	if client == nil {
-		return nil, fmt.Errorf("local proxy not initialized")
+func (pm *ProxyManager) ListProjectSymbols(path string, query string) ([]ProjectSymbol, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
+	client, _, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
 	}
 	
 	return client.ListProjectSymbols(query)
 }
 
 // GetProjectChanges gets all changed files in the project
-func (pm *ProxyManager) GetProjectChanges() ([]ProjectChange, error) {
-	client := pm.clients[""] // Use local proxy for project changes
-	if client == nil {
-		return nil, fmt.Errorf("local proxy not initialized")
+func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
 	}
 	
-	return client.GetProjectChanges()
+	// For project changes, we need to pass the directory path
+	// If actualPath is empty (local proxy), use the original path
+	workingDir := actualPath
+	if actualPath == "" || actualPath == "." {
+		workingDir = path
+	}
+	
+	return client.GetProjectChanges(workingDir)
 }
 
 //go:embed veda-proxy.py
@@ -1614,11 +1630,13 @@ func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
 }
 
 // GetProjectChanges retrieves all changes in the project
-func (c *Client) GetProjectChanges() ([]ProjectChange, error) {
+func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
 	c.requestID++
 	request := JSONRPCRequest{
 		Method: "get_project_changes",
-		Params: map[string]interface{}{},
+		Params: map[string]interface{}{
+			"working_dir": workingDir,
+		},
 		ID:     c.requestID,
 	}
 	

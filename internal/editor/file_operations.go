@@ -499,7 +499,7 @@ func (e *Editor) showProjectSymbolsList() {
 			defer e.endAsyncOperation(operationID)
 			defer func() { e.connectionStatus = "" }() // Clear status when done
 
-			projectSymbols, err := e.proxyManager.ListProjectSymbols(query)
+			projectSymbols, err := e.proxyManager.ListProjectSymbols(e.workingDirectory, query)
 
 			response := proxyworker.ProxyResponse{
 				Type:           proxyworker.RequestProjectSymbols,

@@ -9,7 +9,7 @@ import (
 // showProjectChanges displays all project changes in a buffer
 func (e *Editor) showProjectChanges(args []string) error {
 	// Get project changes from the proxy
-	changes, err := e.proxyManager.GetProjectChanges()
+	changes, err := e.proxyManager.GetProjectChanges(e.workingDirectory)
 	if err != nil {
 		LL.Error("Failed to get project changes: %v", err)
 		return fmt.Errorf("failed to get project changes: %w", err)
@@ -79,11 +79,13 @@ func (e *Editor) showProjectChanges(args []string) error {
 		buf.ViewIterator = buffer.NewBufferIterator(buf)
 		buf.CursorIterator = buffer.NewBufferIterator(buf)
 		buf.IsReadOnly = true
+		buf.IsInternal = true
 		e.switchToBuffer(buf)
 	} else {
 		// Create new buffer
 		newBuffer := buffer.NewBuffer(content.String(), bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		newBuffer.IsReadOnly = true
+		newBuffer.IsInternal = true
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)
 		e.switchToBuffer(newBuffer)

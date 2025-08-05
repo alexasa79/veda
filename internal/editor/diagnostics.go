@@ -9,7 +9,7 @@ import (
 // showDiagnostics displays all project diagnostics in a buffer
 func (e *Editor) showDiagnostics(args []string) error {
 	// Get diagnostics from the proxy
-	diagnostics, err := e.proxyManager.GetDiagnostics()
+	diagnostics, err := e.proxyManager.GetDiagnostics(e.workingDirectory)
 	if err != nil {
 		LL.Error("Failed to get diagnostics: %v", err)
 		return fmt.Errorf("failed to get diagnostics: %w", err)
