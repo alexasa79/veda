@@ -31,11 +31,13 @@ type paragraphInfo struct {
 
 func detectWrapContext(lines []string, startLine int) (wrapContext, string, string) {
 	if len(lines) == 0 || startLine >= len(lines) {
+		LL.Trace("detectWrapContext: No lines or invalid startLine, returning plain context")
 		return wrapContextPlain, "", ""
 	}
 
 	firstLine := lines[startLine]
 	trimmed := strings.TrimSpace(firstLine)
+	LL.Trace("detectWrapContext: Analyzing line %d: '%s'", startLine, firstLine)
 
 	// Check for markdown list
 	if isMarkdownListItem(trimmed) {
@@ -168,17 +170,49 @@ func extractListPrefix(line string) string {
 func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 	startLine := cursorLine
 	endLine := cursorLine
+	
+	LL.Trace("findParagraphBounds: Starting at cursorLine=%d", cursorLine)
+	if cursorLine < len(lines) {
+		LL.Trace("findParagraphBounds: Current line content: '%s'", lines[cursorLine])
+	}
 
-	// Find start of paragraph (previous empty line or start of file)
-	for startLine > 0 && strings.TrimSpace(lines[startLine-1]) != "" {
+	// Find start of paragraph (previous empty line, markdown heading, or start of file)
+	for startLine > 0 {
+		prevLine := strings.TrimSpace(lines[startLine-1])
+		LL.Trace("findParagraphBounds: Checking line %d: '%s'", startLine-1, lines[startLine-1])
+		
+		// Stop at empty line
+		if prevLine == "" {
+			break
+		}
+		
+		// Stop at markdown heading (line starting with #)
+		if strings.HasPrefix(prevLine, "#") {
+			break
+		}
+		
 		startLine--
 	}
 
-	// Find end of paragraph (next empty line or end of file)
-	for endLine < len(lines)-1 && strings.TrimSpace(lines[endLine+1]) != "" {
+	// Find end of paragraph (next empty line, markdown heading, or end of file)
+	for endLine < len(lines)-1 {
+		nextLine := strings.TrimSpace(lines[endLine+1])
+		LL.Trace("findParagraphBounds: Checking line %d: '%s'", endLine+1, lines[endLine+1])
+		
+		// Stop at empty line
+		if nextLine == "" {
+			break
+		}
+		
+		// Stop at markdown heading (line starting with #)
+		if strings.HasPrefix(nextLine, "#") {
+			break
+		}
+		
 		endLine++
 	}
 
+	LL.Trace("findParagraphBounds: Found bounds: startLine=%d, endLine=%d", startLine, endLine)
 	return startLine, endLine
 }
 
@@ -251,7 +285,10 @@ func (e *Editor) rewrapParagraphCmd(args []string) error {
 }
 
 func (e *Editor) rewrapParagraphWithWidth(width int) error {
+	LL.Trace("rewrapParagraphWithWidth: Starting with width=%d", width)
+	
 	if e.buffer == nil {
+		LL.Trace("rewrapParagraphWithWidth: buffer is nil, returning")
 		return nil
 	}
 
@@ -259,6 +296,8 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 	cursorX := e.buffer.CursorX
 	viewLine := e.buffer.ViewIterator.LineNumber()
+	
+	LL.Trace("rewrapParagraphWithWidth: cursorLine=%d, cursorX=%d, viewLine=%d", cursorLine, cursorX, viewLine)
 
 	// Get all lines from buffer
 	lines := make([]string, e.buffer.LineCount)
@@ -267,18 +306,23 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		lines[i] = iter.Line()
 	}
 	
+	LL.Trace("rewrapParagraphWithWidth: buffer has %d lines", len(lines))
+	
 	if cursorLine >= len(lines) {
 		cursorLine = len(lines) - 1
 	}
 
 	// Find paragraph bounds
 	startLine, endLine := findParagraphBounds(lines, cursorLine)
+	LL.Trace("rewrapParagraphWithWidth: paragraph bounds: startLine=%d, endLine=%d", startLine, endLine)
 
 	// Detect context
 	context, indentation, prefix := detectWrapContext(lines, startLine)
+	LL.Trace("rewrapParagraphWithWidth: context=%d, indentation='%s', prefix='%s'", context, indentation, prefix)
 
 	// Handle markdown heading - don't rewrap
 	if context == wrapContextMarkdownHeading {
+		LL.Trace("rewrapParagraphWithWidth: detected markdown heading, skipping rewrap")
 		return nil
 	}
 
@@ -359,12 +403,14 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	var paragraphText strings.Builder
 	for i := startLine; i <= endLine; i++ {
 		line := lines[i]
+		LL.Trace("rewrapParagraphWithWidth: Processing line %d: '%s'", i, line)
 		
 		// Remove existing prefix/indentation
 		trimmed := strings.TrimSpace(line)
 		
 		// Skip empty lines within the paragraph
 		if trimmed == "" {
+			LL.Trace("rewrapParagraphWithWidth: Skipping empty line %d", i)
 			continue
 		}
 
@@ -392,14 +438,19 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			}
 		}
 
+		LL.Trace("rewrapParagraphWithWidth: After processing, trimmed text: '%s'", trimmed)
+		
 		if paragraphText.Len() > 0 {
 			paragraphText.WriteString(" ")
 		}
 		paragraphText.WriteString(trimmed)
 	}
 
+	LL.Trace("rewrapParagraphWithWidth: Final paragraph text: '%s'", paragraphText.String())
+	
 	// Wrap the text
 	wrappedLines := wrapText(paragraphText.String(), width, indentation, prefix)
+	LL.Trace("rewrapParagraphWithWidth: Wrapped into %d lines", len(wrappedLines))
 
 	// Special handling for markdown lists - first line is different
 	if context == wrapContextMarkdownList && len(wrappedLines) > 0 {
