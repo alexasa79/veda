@@ -125,17 +125,12 @@ func FindCurrentWordBoundary(buf *buffer.Buffer, cursorLine, cursorChar int, inc
 				}
 			}
 		} else if currentChar == ' ' || currentChar == '\t' {
-			// On whitespace - include whitespace + next word
+			// On whitespace - only delete the whitespace
 			// Skip whitespace
 			for end < len(line) && (line[end] == ' ' || line[end] == '\t') {
 				end++
 			}
-			// If we hit a word, include it too
-			if end < len(line) && isWordCharByte(line[end]) {
-				for end < len(line) && isWordCharByte(line[end]) {
-					end++
-				}
-			}
+			// Do NOT include the next word
 		} else {
 			// On punctuation - include punctuation + trailing whitespace
 			end = cursorChar + 1
