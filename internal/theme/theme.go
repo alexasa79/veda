@@ -36,6 +36,11 @@ type Theme struct {
 	VerticalRuler    StyleDef // Style for vertical rulers
 	VirtualCursor    StyleDef // Style for virtual cursors in cursor mode
 
+	// Git change indicators for line numbers
+	GitAdded         StyleDef // Style for added lines
+	GitModified      StyleDef // Style for modified lines
+	GitDeleted       StyleDef // Style for deleted lines
+
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
 	SyntaxKeyword     StyleDef
@@ -204,6 +209,22 @@ func NewTheme() *Theme {
 		VirtualCursor: StyleDef{
 			Foreground: "#000000", // Black text on white background
 			Background: "#ffffff", // White background for maximum visibility
+		},
+
+		// Git change indicators for line numbers
+		GitAdded: StyleDef{
+			Foreground: "#a6e22e", // Bright green for better contrast
+			Background: "#1a4d1a", // Brighter green background
+		},
+
+		GitModified: StyleDef{
+			Foreground: "#e6db74", // Bright yellow for better contrast
+			Background: "#4d4d1a", // Brighter yellow background
+		},
+
+		GitDeleted: StyleDef{
+			Foreground: "#f92672", // Bright red/pink for better contrast
+			Background: "#4d1a1a", // Brighter red background
 		},
 
 		CompletionMenu: StyleDef{
