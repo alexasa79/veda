@@ -436,10 +436,11 @@ type JSONRPCResponse struct {
 
 // FileInfo represents file information from the proxy
 type FileInfo struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Size int64  `json:"size"`
-	Path string `json:"path"`
+	Name  string  `json:"name"`
+	Type  string  `json:"type"`
+	Size  int64   `json:"size"`
+	Path  string  `json:"path"`
+	Mtime float64 `json:"mtime"`
 }
 
 // FileContent represents file content with change information

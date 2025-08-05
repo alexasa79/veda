@@ -111,9 +111,6 @@ func (e *Editor) showDiagnostics(args []string) error {
 		e.switchToBuffer(newBuffer)
 	}
 
-	// Set markdown syntax highlighting
-	e.highlighter.SetLanguage("markdown")
-
 	// Clear any existing search
 	e.clearSearch()
 
