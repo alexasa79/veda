@@ -83,22 +83,22 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "alt+q", "rewrap-paragraph")
 
 	// File operations
-	e.registerKeyBinding(commands.NormalMode, "space s f", "open-file")
+	e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
 
 	// Buffer operations
-	e.registerKeyBinding(commands.NormalMode, "space s b", "show-buffers")
+	e.registerKeyBinding(commands.NormalMode, "s b", "show-buffers")
 	e.registerKeyBinding(commands.NormalMode, "space space", "switch-to-previous-buffer")
 
 	// Symbol operations
-	e.registerKeyBinding(commands.NormalMode, "space s w", "list-project-symbols")
-	e.registerKeyBinding(commands.NormalMode, "space s d", "list-document-symbols")
+	e.registerKeyBinding(commands.NormalMode, "s w", "list-project-symbols")
+	e.registerKeyBinding(commands.NormalMode, "s d", "list-document-symbols")
 
 	// LSP operations
 	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
-	e.registerKeyBinding(commands.NormalMode, "g s", "show-signature")
+	e.registerKeyBinding(commands.NormalMode, "s s", "show-signature")
 	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 	e.registerKeyBinding(commands.NormalMode, "g e", "diagnostics")
-	e.registerKeyBinding(commands.NormalMode, "g t", "show-project-changes")
+	e.registerKeyBinding(commands.NormalMode, "s c", "show-project-changes")
 
 	// Undo/Redo operations
 	e.registerKeyBinding(commands.NormalMode, "u", "undo")
