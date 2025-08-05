@@ -77,7 +77,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("find-references", e.findReferences, false)
 	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo, false)
 	e.commandRegistry.Register("show-signature", e.showSignature, false)
-	e.commandRegistry.Register("jump-to-reference", e.jumpToReferenceUnderCursor, false)
+	e.commandRegistry.Register("jump-to-reference", e.jumpToReference, false)
 
 	// Navigation commands
 	e.commandRegistry.Register("go-back", e.goBack, false)
