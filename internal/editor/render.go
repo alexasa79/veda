@@ -845,14 +845,14 @@ func (e *Editor) drawEditor() {
 			// Modify line number style based on git changes
 			lineStyle := lineNumberStyle
 			if isAdded {
-				// Green background for added lines
-				lineStyle.Bg = ui.NewRGBColor(0, 60, 0) // Dark green background
+				// Use theme style for added lines
+				lineStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded)
 			} else if isModified {
-				// Yellow background for modified lines
-				lineStyle.Bg = ui.NewRGBColor(60, 60, 0) // Dark yellow background
+				// Use theme style for modified lines
+				lineStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified)
 			} else if isDeleted {
-				// Red background for lines after deletion
-				lineStyle.Bg = ui.NewRGBColor(60, 0, 0) // Dark red background
+				// Use theme style for deleted lines
+				lineStyle = e.config.Theme.GetStyle(e.config.Theme.GitDeleted)
 			}
 			
 			// Draw line number with appropriate background
