@@ -200,6 +200,48 @@ func TestDeleteOperations(t *testing.T) {
 		AssertBufferEquals(t, te, "word3")
 	})
 	
+	t.Run("dw on leading whitespace deletes only spaces", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "    hello world")
+		
+		// Cursor is at beginning of line (on first space)
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Execute dw - should delete only the 4 spaces, not "hello"
+		te.TypeKeys("dw")
+		
+		// Should leave "hello world" with cursor at 'h'
+		AssertBufferEquals(t, te, "hello world")
+		AssertCursorAt(t, te, 0, 0)
+	})
+	
+	t.Run("dw on tabs deletes only tabs", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "\t\thello world")
+		
+		// Cursor is at beginning of line (on first tab)
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Execute dw - should delete only the tabs, not "hello"
+		te.TypeKeys("dw")
+		
+		// Should leave "hello world" with cursor at 'h'
+		AssertBufferEquals(t, te, "hello world")
+		AssertCursorAt(t, te, 0, 0)
+	})
+	
+	t.Run("dw on mixed whitespace deletes only whitespace", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "\t  \thello world")
+		
+		// Cursor is at beginning of line (on first tab)
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Execute dw - should delete only the whitespace, not "hello"
+		te.TypeKeys("dw")
+		
+		// Should leave "hello world" with cursor at 'h'
+		AssertBufferEquals(t, te, "hello world")
+		AssertCursorAt(t, te, 0, 0)
+	})
+	
 	t.Run("dW in middle of WORD", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "func(arg1, arg2) result")
 		
@@ -226,8 +268,8 @@ func TestDeleteOperations(t *testing.T) {
 		// Execute dw on whitespace
 		te.TypeKeys("dw")
 		
-		// Should delete whitespace and next word
-		AssertBufferEquals(t, te, "word1")
+		// Should delete only whitespace, not the next word
+		AssertBufferEquals(t, te, "word1word2")
 	})
 	
 	t.Run("dw twice on quoted string", func(t *testing.T) {
