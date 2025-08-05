@@ -167,7 +167,8 @@ type Editor struct {
 	localHistory    *LocalHistory          // Manages local file history
 	
 	// Rewrap tracking
-	lastRewrapTime  time.Time              // Time of last rewrap to detect consecutive presses
+	lastRewrapLine  int                    // Line where last rewrap was performed
+	lastRewrapChar  int                    // Character position where last rewrap was performed
 	lastRewrapIndex int                    // Index into VerticalRulers for last rewrap
 }
 
@@ -235,6 +236,9 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		connectionStatus: "",
 		errorManager:    NewErrorManager(),
 		completionMenu: widgets.NewCompletionMenu(config.Theme),
+		lastRewrapLine:  -1,  // -1 means no previous rewrap
+		lastRewrapChar:  -1,
+		lastRewrapIndex: 0,
 	}
 
 	// Initialize local history

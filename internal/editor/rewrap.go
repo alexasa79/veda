@@ -2,7 +2,6 @@ package editor
 
 import (
 	"strings"
-	"time"
 	"unicode"
 	"veda/internal/buffer"
 )
@@ -255,22 +254,23 @@ func (e *Editor) rewrapParagraph() error {
 		return e.rewrapParagraphWithWidth(defaultWrapWidth)
 	}
 	
-	// Check if this is a consecutive alt+q press (within 2 seconds)
-	now := time.Now()
-	timeSinceLastRewrap := now.Sub(e.lastRewrapTime)
+	// Get current cursor position
+	currentLine := e.buffer.CursorIterator.LineNumber()
+	currentChar := e.buffer.CursorX
 	
 	// Determine the ruler index to use
 	var rulerIndex int
-	if timeSinceLastRewrap < 2*time.Second && e.lastRewrapTime.Unix() > 0 {
-		// Consecutive press - cycle to next ruler
+	if currentLine == e.lastRewrapLine && currentChar == e.lastRewrapChar {
+		// Same position as last rewrap - cycle to next ruler
 		rulerIndex = (e.lastRewrapIndex + 1) % len(e.config.VerticalRulers)
 	} else {
-		// First press or timeout - start at first ruler
+		// Different position - start at first ruler
 		rulerIndex = 0
 	}
 	
 	// Update tracking
-	e.lastRewrapTime = now
+	e.lastRewrapLine = currentLine
+	e.lastRewrapChar = currentChar
 	e.lastRewrapIndex = rulerIndex
 	
 	// Get the width from the ruler at this index
