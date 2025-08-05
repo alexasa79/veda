@@ -987,11 +987,13 @@ class VedaProxy:
                             continue
                             
                         # Create simplified file info for fuzzy listing
+                        stat_info = entry.stat()
                         file_info = {
                             'name': entry.name,
                             'path': str(entry.absolute()),
                             'type': 'directory' if entry.is_dir() else 'file',
-                            'size': entry.stat().st_size if entry.is_file() else 0
+                            'size': stat_info.st_size if entry.is_file() else 0,
+                            'mtime': stat_info.st_mtime
                         }
                         
                         entries.append(file_info)
@@ -1008,8 +1010,8 @@ class VedaProxy:
                 
         _walk_directory(directory_path)
         
-        # Sort by path for better organization
-        entries.sort(key=lambda x: x['path'].lower())
+        # Sort by modification time (newest first)
+        entries.sort(key=lambda x: x['mtime'], reverse=True)
         
         return entries
 
