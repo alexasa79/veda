@@ -32,7 +32,8 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 		   buf.FilePath == "*Help*" ||
 		   buf.FilePath == "*Key Bindings*" ||
 		   buf.FilePath == "*Diagnostics*" ||
-		   buf.FilePath == "*Messages*" {
+		   buf.FilePath == "*Messages*" ||
+		   buf.FilePath == "*Project Changes*" {
 			// Set markdown language for special buffers
 			e.highlighter.SetLanguage("markdown")
 		} else {
