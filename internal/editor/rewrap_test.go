@@ -297,6 +297,17 @@ for our editor.`,
 			wrapWidth: 40,
 			want: `# This is a very long markdown heading that should not be wrapped no matter how long it is`,
 		},
+		{
+			name: "markdown heading without empty line - text should wrap",
+			input: `# 2025-08-05T10-52-45 Discuss performance with Satbir
+He went the load balancer route. He implemented something that intercepts packets as they come out of, something, not sure where. He does not seem to understand what is NAT router and router overall.`,
+			cursorY:   1,
+			wrapWidth: 80,
+			want: `# 2025-08-05T10-52-45 Discuss performance with Satbir
+He went the load balancer route. He implemented something that intercepts
+packets as they come out of, something, not sure where. He does not seem to
+understand what is NAT router and router overall.`,
+		},
 	}
 
 	for _, tt := range tests {
