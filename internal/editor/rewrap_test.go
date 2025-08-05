@@ -389,3 +389,82 @@ func TestRewrapCommandUndoRedo(t *testing.T) {
 		t.Errorf("Content not re-wrapped after redo\ngot: %q\nwant: %q", redoneContent, wrappedContent)
 	}
 }
+
+func TestRewrapPositionBasedRulerCycling(t *testing.T) {
+	// Create test editor with vertical rulers at 40, 60, 80
+	content := "This is a test line that is long enough to be wrapped at different widths to test the cycling behavior"
+	te := NewTestEditorWithContent(100, 24, content)
+	
+	// Set vertical rulers
+	te.Editor.config.VerticalRulers = []int{40, 60, 80}
+	
+	// First rewrap at cursor position (0,0) - should use first ruler (40)
+	err := te.Editor.rewrapParagraph()
+	if err != nil {
+		t.Fatalf("First rewrapParagraph() failed: %v", err)
+	}
+	
+	// Verify the line is wrapped at ~40 characters
+	bufferContent := te.GetBufferContent()
+	lines := strings.Split(bufferContent, "\n")
+	if len(lines) < 2 {
+		t.Error("Expected text to be wrapped into multiple lines")
+	}
+	firstLineLen := len(lines[0])
+	if firstLineLen > 45 || firstLineLen < 35 {
+		t.Errorf("First line length %d not near 40 characters", firstLineLen)
+	}
+	
+	// Save cursor position
+	savedLine := te.Editor.buffer.CursorIterator.LineNumber()
+	savedChar := te.Editor.buffer.CursorX
+	
+	// Second rewrap at same position - should cycle to second ruler (60)
+	err = te.Editor.rewrapParagraph()
+	if err != nil {
+		t.Fatalf("Second rewrapParagraph() failed: %v", err)
+	}
+	
+	// Verify the line is wrapped at ~60 characters
+	bufferContent = te.GetBufferContent()
+	lines = strings.Split(bufferContent, "\n")
+	firstLineLen = len(lines[0])
+	if firstLineLen > 65 || firstLineLen < 55 {
+		t.Errorf("First line length %d not near 60 characters after second rewrap", firstLineLen)
+	}
+	
+	// Move cursor to a different position
+	te.ExecuteCommand("down")
+	
+	// Third rewrap at different position - should reset to first ruler (40)
+	err = te.Editor.rewrapParagraph()
+	if err != nil {
+		t.Fatalf("Third rewrapParagraph() failed: %v", err)
+	}
+	
+	// Verify the line is wrapped at ~40 characters again
+	bufferContent = te.GetBufferContent()
+	lines = strings.Split(bufferContent, "\n")
+	firstLineLen = len(lines[0])
+	if firstLineLen > 45 || firstLineLen < 35 {
+		t.Errorf("First line length %d not near 40 characters after moving cursor", firstLineLen)
+	}
+	
+	// Move cursor back to original position
+	te.SetCursorPosition(savedChar, savedLine)
+	
+	// Fourth rewrap at original position - should start over at first ruler (40)
+	// because we've been to a different position
+	err = te.Editor.rewrapParagraph()
+	if err != nil {
+		t.Fatalf("Fourth rewrapParagraph() failed: %v", err)
+	}
+	
+	// Verify it's back to ~40 characters
+	bufferContent = te.GetBufferContent()
+	lines = strings.Split(bufferContent, "\n")
+	firstLineLen = len(lines[0])
+	if firstLineLen > 45 || firstLineLen < 35 {
+		t.Errorf("First line length %d not near 40 characters after returning to original position", firstLineLen)
+	}
+}
