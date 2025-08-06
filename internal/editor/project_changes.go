@@ -48,14 +48,18 @@ func (e *Editor) showProjectChanges(args []string) error {
 				statusChar = "R"
 			}
 			
-			stagedMark := " "
+			stagedMark := ""
 			if change.Staged {
 				stagedMark = "●"
 			}
 			
 			// Create clickable file link with clear status indicator
-			content.WriteString(fmt.Sprintf("**%s%s** [%s](%s) (+%d -%d)\n", 
-				statusChar, stagedMark, change.File, change.File,
+			statusIndicator := statusChar
+			if stagedMark != "" {
+				statusIndicator = statusChar + stagedMark
+			}
+			content.WriteString(fmt.Sprintf("[%s] [%s](%s) (+%d -%d)\n", 
+				statusIndicator, change.File, change.File,
 				len(change.AddedLines), len(change.DeletedLines)))
 			
 			// Show hunks with better formatting
