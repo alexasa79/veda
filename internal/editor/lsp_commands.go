@@ -193,15 +193,14 @@ func (e *Editor) formatReferencesAsMarkdown(locations []proxy.Location, sourceFi
 			}
 		}
 
-		// Format as markdown link with line number and character position
-		content.WriteString(fmt.Sprintf("%d. [%s:%d:%d](%s#L%d:%d)",
+		// Format as markdown link with just filename:line
+		filename := filepath.Base(filePath)
+		content.WriteString(fmt.Sprintf("%d. [%s:%d](%s#L%d)",
 			i+1,
-			filePath,
+			filename,
 			loc.Range.Start.Line+1,    // Convert to 1-based for display
-			loc.Range.Start.Character+1, // Convert to 1-based for display
 			filePath,
-			loc.Range.Start.Line+1,
-			loc.Range.Start.Character+1))
+			loc.Range.Start.Line+1))
 
 		// Add code context if available
 		if lineContent != "" {
