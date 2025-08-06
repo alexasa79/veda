@@ -62,6 +62,9 @@ func (e *Editor) deleteSelection(args []string) error {
 	// Track this as a repeatable change
 	e.lastChange = deleteEntry
 	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
 	return nil
 }
 
@@ -156,6 +159,9 @@ func (e *Editor) changeSelection(args []string) error {
 	
 	// Track this as part of the change (delete + upcoming insert)
 	e.lastChange = deleteEntry
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
 	
 	return nil
 }
