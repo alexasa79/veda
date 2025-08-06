@@ -19,10 +19,14 @@ var LL *log.Logger = log.NewLogger("PROXY")
 // maxScanTokenSize defines the maximum size for scanner buffers (1 GiB)
 const maxScanTokenSize = 1024 * 1024 * 1024 // 1 GiB
 
+// StatusCallback is a function that receives status updates during connection
+type StatusCallback func(status string)
+
 // ProxyManager manages multiple proxy instances for different hosts
 type ProxyManager struct {
-	clients map[string]*Client // key is hostname, empty string for local
-	mu      sync.Mutex         // mutex to ensure only one proxy call at a time
+	clients        map[string]*Client // key is hostname, empty string for local
+	mu             sync.Mutex         // mutex to ensure only one proxy call at a time
+	statusCallback StatusCallback     // callback for status updates
 }
 
 // NewProxyManager creates a new proxy manager
@@ -39,6 +43,18 @@ func NewProxyManager() (*ProxyManager, error) {
 	pm.clients[""] = localClient
 	
 	return pm, nil
+}
+
+// SetStatusCallback sets the callback for status updates
+func (pm *ProxyManager) SetStatusCallback(callback StatusCallback) {
+	pm.statusCallback = callback
+}
+
+// reportStatus reports a status update via the callback if set
+func (pm *ProxyManager) reportStatus(status string) {
+	if pm.statusCallback != nil {
+		pm.statusCallback(status)
+	}
 }
 
 // getClient returns the appropriate client for the given path
@@ -71,12 +87,17 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	startTime := time.Now()
 	LL.Info("Creating remote proxy connection to %s", host)
 	
+	// Report initial connection status
+	pm.reportStatus(fmt.Sprintf("Connecting to %s...", host))
+	
 	// First, copy the proxy script to the remote host
-	if err := copyProxyToRemote(host); err != nil {
+	pm.reportStatus(fmt.Sprintf("Copying proxy to %s...", host))
+	if err := pm.copyProxyToRemote(host); err != nil {
 		return nil, fmt.Errorf("failed to copy proxy to remote: %w", err)
 	}
 	
 	// Start SSH connection and run the proxy
+	pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
 	sshArgs := []string{
 		host,
 		"-o", "ControlMaster=no",
@@ -132,11 +153,14 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	duration := time.Since(startTime)
 	LL.Info("Created remote proxy connection to %s in %v", host, duration)
 	
+	// Report successful connection
+	pm.reportStatus(fmt.Sprintf("Connected to %s", host))
+	
 	return client, nil
 }
 
 // copyProxyToRemote copies the embedded proxy script to the remote host
-func copyProxyToRemote(host string) error {
+func (pm *ProxyManager) copyProxyToRemote(host string) error {
 	startTime := time.Now()
 	
 	// Create a temporary file with the proxy script
@@ -167,6 +191,7 @@ func copyProxyToRemote(host string) error {
 	}
 	
 	// Make the script executable on the remote host
+	pm.reportStatus(fmt.Sprintf("Setting up proxy on %s...", host))
 	chmodCmd := exec.Command("ssh",
 		host,
 		"-o", "ControlMaster=no", 

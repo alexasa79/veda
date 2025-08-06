@@ -260,6 +260,13 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		editor.notifyLSPFileChange()
 	}
 
+	// Set up proxy status callback to update connection status
+	proxyManager.SetStatusCallback(func(status string) {
+		editor.connectionStatus = status
+		// Trigger a render to show the updated status immediately
+		editor.render()
+	})
+
 	// Register commands
 	editor.registerCommands()
 
