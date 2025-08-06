@@ -39,7 +39,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 			te.InsertChar(ch)
 		}
 		
-		// Type opening quote - this will create a pair ""
+		// Type opening quote (no auto-pairing)
 		te.InsertChar('"')
 		
 		// Type "fmt"
@@ -47,12 +47,12 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 			te.InsertChar(ch)
 		}
 		
-		// Move past the auto-paired closing quote
-		te.ExecuteCommand("right")
+		// Type closing quote manually (auto-pairing disabled)
+		te.InsertChar('"')
 		
 		// Verify the complete content
 		AssertBufferEquals(t, te, "package main\nimport \"fmt\"")
-		AssertCursorAt(t, te, 11, 1) // After the closing quote
+		AssertCursorAt(t, te, 12, 1) // After the closing quote (now at position 12 since no auto-pairing)
 		
 		// Force a render to trigger syntax highlighting
 		// This would have crashed before the fix

@@ -94,8 +94,8 @@ func TestMarkdownLinkInsertMode(t *testing.T) {
 }
 
 func TestMarkdownLinkEscapeIssue(t *testing.T) {
-	// This test reproduces the exact issue: typing "[link" and pressing Escape
-	// should result in "[link]" not "[link][link]"
+	// This test verifies that typing "[link" and pressing Escape
+	// leaves the buffer as "[link" (no auto-pairing or duplication)
 	
 	te := NewTestEditorWithContent(80, 24, "")
 	
@@ -124,8 +124,8 @@ func TestMarkdownLinkEscapeIssue(t *testing.T) {
 		t.Logf("  Cursor at: (%d, %d)", te.buffer.CursorX, te.buffer.CursorIterator.LineNumber())
 	}
 	
-	// Buffer should be "[link]" at this point (with auto-paired bracket)
-	expectedBeforeEsc := "[link]"
+	// Buffer should be "[link" at this point (auto-pairing disabled)
+	expectedBeforeEsc := "[link"
 	actualBeforeEsc := te.buffer.Rope.String()
 	if actualBeforeEsc != expectedBeforeEsc {
 		t.Errorf("Buffer before ESC is wrong\nExpected: %q\nGot: %q", expectedBeforeEsc, actualBeforeEsc)
@@ -140,8 +140,8 @@ func TestMarkdownLinkEscapeIssue(t *testing.T) {
 	t.Logf("  Buffer after ESC: %q", te.buffer.Rope.String())
 	t.Logf("  Cursor at: (%d, %d)", te.buffer.CursorX, te.buffer.CursorIterator.LineNumber())
 	
-	// Buffer should still be "[link]", not "[link][link]"
-	expectedAfterEsc := "[link]"
+	// Buffer should still be "[link", not duplicated
+	expectedAfterEsc := "[link"
 	actualAfterEsc := te.buffer.Rope.String()
 	if actualAfterEsc != expectedAfterEsc {
 		t.Errorf("Buffer changed after ESC!\nExpected: %q\nGot: %q", expectedAfterEsc, actualAfterEsc)
