@@ -268,7 +268,14 @@ func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, cha
 		textCol = 0
 	}
 	
-	charPos = wl.StartChar + textCol
+	// Get the text segment for this wrapped line
+	lineText := wl.Text
+	
+	// Convert visual column to byte position within the line segment
+	byteOffsetInSegment := e.bytePositionFromVisualColumn(lineText, textCol)
+	
+	// Add to the start position to get absolute position
+	charPos = wl.StartChar + byteOffsetInSegment
 	if charPos > wl.EndChar {
 		charPos = wl.EndChar
 	}
