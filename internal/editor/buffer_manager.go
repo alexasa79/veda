@@ -25,6 +25,11 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	// Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
 	e.buffer = buf
 	
+	// Set up LSP notification callback
+	e.buffer.OnContentChange = func() {
+		e.notifyLSPFileChange()
+	}
+	
 	// Set up syntax highlighting
 	if e.highlighter != nil {
 		// Check if this is a special buffer that should use markdown

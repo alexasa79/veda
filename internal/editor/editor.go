@@ -254,6 +254,11 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// Use empty string as the key for unnamed buffers
 	editor.buffers[""] = initialBuffer
 	editor.bufferOrder = append(editor.bufferOrder, "")
+	
+	// Set up LSP notification callback for the initial buffer
+	initialBuffer.OnContentChange = func() {
+		editor.notifyLSPFileChange()
+	}
 
 	// Register commands
 	editor.registerCommands()
@@ -1561,6 +1566,24 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 	}
 
 	return nil
+}
+
+// notifyLSPFileChange sends a didChange notification to the LSP server if applicable
+func (e *Editor) notifyLSPFileChange() {
+	// Only send notification if buffer has LSP enabled and has a file path
+	if !e.buffer.HasLSP || e.buffer.FilePath == "" || e.buffer.IsInternal {
+		return
+	}
+	
+	// Get the full content of the buffer
+	content := e.buffer.Rope.String()
+	
+	// Send the notification asynchronously to avoid blocking
+	go func() {
+		if err := e.proxyManager.NotifyFileChange(e.buffer.FilePath, content); err != nil {
+			LL.Debug("Failed to notify LSP of file change: %v", err)
+		}
+	}()
 }
 
 func (e *Editor) goToDefinition(args []string) error {
