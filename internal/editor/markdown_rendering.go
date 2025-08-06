@@ -11,6 +11,9 @@ import (
 // This regex handles nested brackets in the link text by matching balanced brackets
 var markdownLinkRegex = regexp.MustCompile(`\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]\(([^)]+)\)`)
 
+// markdownBoldRegex matches bold text **text** or __text__
+var markdownBoldRegex = regexp.MustCompile(`\*\*([^*]+)\*\*|__([^_]+)__`)
+
 // MarkdownRenderInfo holds information about how to render markdown content
 type MarkdownRenderInfo struct {
 	// DisplayText is what should be shown on screen
@@ -44,7 +47,7 @@ func ProcessMarkdownLine(line string, mode commands.Mode) *MarkdownRenderInfo {
 		}
 	}
 
-	// In all modes except insert, hide link URLs
+	// In all modes except insert, hide link URLs and remove bold markers
 	info := &MarkdownRenderInfo{
 		OriginalToDisplay: make(map[int]int),
 		DisplayToOriginal: make(map[int]int),
@@ -53,80 +56,52 @@ func ProcessMarkdownLine(line string, mode commands.Mode) *MarkdownRenderInfo {
 
 	var displayText strings.Builder
 	displayPos := 0
-	lastEnd := 0
-
-	matches := markdownLinkRegex.FindAllStringSubmatchIndex(line, -1)
 	
-	for _, match := range matches {
-		// match[0], match[1] = full match start/end
-		// match[2], match[3] = link text start/end
-		// match[4], match[5] = url start/end
-		
-		linkStart := match[0]
-		linkEnd := match[1]
-		textStart := match[2]
-		textEnd := match[3]
-		
-		// Copy text before the link
-		for i := lastEnd; i < linkStart; i++ {
-			displayText.WriteByte(line[i])
-			info.OriginalToDisplay[i] = displayPos
-			info.DisplayToOriginal[displayPos] = i
-			displayPos++
+	// Process the line character by character
+	i := 0
+	for i < len(line) {
+		// Check for markdown links
+		if line[i] == '[' {
+			// Try to find a complete link pattern
+			linkMatch := markdownLinkRegex.FindStringSubmatchIndex(line[i:])
+			if linkMatch != nil {
+				// We found a link!
+				// linkMatch indices are relative to line[i:]
+				linkStart := i + linkMatch[0]
+				linkEnd := i + linkMatch[1]
+				textStart := i + linkMatch[2]
+				textEnd := i + linkMatch[3]
+				
+				// Map the opening bracket positions to the start of link text
+				for j := linkStart; j < textStart; j++ {
+					info.OriginalToDisplay[j] = displayPos
+				}
+				
+				// Copy and map the link text
+				for j := textStart; j < textEnd; j++ {
+					displayText.WriteByte(line[j])
+					info.OriginalToDisplay[j] = displayPos
+					info.DisplayToOriginal[displayPos] = j
+					displayPos++
+				}
+				
+				// Map the closing bracket and URL to the end of link text
+				for j := textEnd; j < linkEnd; j++ {
+					info.OriginalToDisplay[j] = displayPos
+				}
+				
+				// Skip to the end of the link
+				i = linkEnd
+				continue
+			}
 		}
 		
-		// Copy only the link text (without brackets)
-		linkText := line[textStart:textEnd]
-		displayTextStart := displayPos
-		
-		for i, ch := range linkText {
-			displayText.WriteRune(ch)
-			origPos := textStart + i
-			info.OriginalToDisplay[origPos] = displayPos
-			info.DisplayToOriginal[displayPos] = origPos
-			displayPos++
-		}
-		
-		// Record adjustments for tokens
-		// Hide the opening bracket
-		info.TokenAdjustments = append(info.TokenAdjustments, TokenAdjustment{
-			OriginalStart: linkStart,
-			OriginalEnd:   textStart,
-			Hidden:        true,
-		})
-		
-		// Adjust the link text position
-		info.TokenAdjustments = append(info.TokenAdjustments, TokenAdjustment{
-			OriginalStart: textStart,
-			OriginalEnd:   textEnd,
-			DisplayStart:  displayTextStart,
-			DisplayEnd:    displayPos,
-		})
-		
-		// Hide everything from closing bracket to end of link
-		info.TokenAdjustments = append(info.TokenAdjustments, TokenAdjustment{
-			OriginalStart: textEnd,
-			OriginalEnd:   linkEnd,
-			Hidden:        true,
-		})
-		
-		// Map hidden characters to the position after the link text
-		for i := linkStart; i < textStart; i++ {
-			info.OriginalToDisplay[i] = displayTextStart
-		}
-		for i := textEnd; i < linkEnd; i++ {
-			info.OriginalToDisplay[i] = displayPos
-		}
-		
-		lastEnd = linkEnd
-	}
-	
-	// Copy remaining text
-	for i := lastEnd; i < len(line); i++ {
+		// Regular character - copy and map
 		displayText.WriteByte(line[i])
 		info.OriginalToDisplay[i] = displayPos
 		info.DisplayToOriginal[displayPos] = i
 		displayPos++
+		i++
 	}
 	
 	info.DisplayText = displayText.String()
@@ -135,28 +110,43 @@ func ProcessMarkdownLine(line string, mode commands.Mode) *MarkdownRenderInfo {
 
 // AdjustTokenForMarkdown adjusts a syntax token based on markdown rendering info
 func AdjustTokenForMarkdown(token syntax.Token, renderInfo *MarkdownRenderInfo) (syntax.Token, bool) {
-	if renderInfo == nil || len(renderInfo.TokenAdjustments) == 0 {
+	if renderInfo == nil {
 		return token, true
 	}
 	
-	// Check if this token should be hidden
-	for _, adj := range renderInfo.TokenAdjustments {
-		if adj.Hidden && token.Start >= adj.OriginalStart && token.End <= adj.OriginalEnd {
-			return token, false // Hide this token
+	// Find the display positions for the token boundaries
+	// We need to handle tokens that span across hidden text
+	
+	// Find the first visible position at or after token.Start
+	displayStart := -1
+	for pos := token.Start; pos < token.End; pos++ {
+		if mappedPos, ok := renderInfo.OriginalToDisplay[pos]; ok {
+			displayStart = mappedPos
+			break
 		}
 	}
 	
-	// Adjust token positions
-	adjustedToken := token
-	
-	// Map start position
-	if newStart, ok := renderInfo.OriginalToDisplay[token.Start]; ok {
-		adjustedToken.Start = newStart
+	// If no visible start position found, token is completely hidden
+	if displayStart == -1 {
+		return token, false
 	}
 	
-	// Map end position
-	if newEnd, ok := renderInfo.OriginalToDisplay[token.End-1]; ok {
-		adjustedToken.End = newEnd + 1
+	// Find the last visible position before token.End
+	displayEnd := displayStart
+	for pos := token.Start; pos < token.End; pos++ {
+		if mappedPos, ok := renderInfo.OriginalToDisplay[pos]; ok {
+			displayEnd = mappedPos + 1
+		}
+	}
+	
+	// Create adjusted token with mapped positions
+	adjustedToken := token
+	adjustedToken.Start = displayStart
+	adjustedToken.End = displayEnd
+	
+	// Don't return empty tokens
+	if adjustedToken.Start >= adjustedToken.End {
+		return token, false
 	}
 	
 	return adjustedToken, true
