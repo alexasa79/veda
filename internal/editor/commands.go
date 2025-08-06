@@ -53,6 +53,7 @@ func (e *Editor) registerCommands() {
 
 	// Delete commands - apply to all cursors
 	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter, true)
+	e.commandRegistry.Register("delete-to-end-of-line", e.deleteToEndOfLine, true)
 
 	// Visual mode operations
 	e.commandRegistry.Register("delete-selection", e.deleteSelection, false)

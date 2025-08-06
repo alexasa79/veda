@@ -40,6 +40,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("o            - Open new line below and enter insert mode\n")
 	helpText.WriteString("O            - Open new line above and enter insert mode\n")
 	helpText.WriteString("x            - Delete character under cursor\n")
+	helpText.WriteString("D            - Delete from cursor to end of line\n")
 	helpText.WriteString("d<motion>    - Delete with motion (e.g., dw = delete word, dd = delete line)\n")
 	helpText.WriteString("c<motion>    - Change with motion (e.g., cw = change word, cc = change line)\n")
 	helpText.WriteString("y<motion>    - Yank with motion (e.g., yw = yank word, yy = yank line)\n")

@@ -56,6 +56,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Delete commands
 	e.registerKeyBinding(commands.NormalMode, "x", "delete-current-character")
+	e.registerKeyBinding(commands.NormalMode, "D", "delete-to-end-of-line")
 
 	// Insert mode keys
 	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
