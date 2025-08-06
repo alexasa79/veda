@@ -790,6 +790,41 @@ func (e *Editor) visualWidth(text string) int {
 	return width
 }
 
+// bytePositionFromVisualColumn converts a visual column position to byte position in the given line
+// accounting for tabs. Returns the byte position that corresponds to the visual column.
+// If visualCol exceeds the line width, returns the position at end of line.
+func (e *Editor) bytePositionFromVisualColumn(line string, visualCol int) int {
+	if visualCol <= 0 {
+		return 0
+	}
+	
+	currentVisualCol := 0
+	bytePos := 0
+	
+	for bytePos < len(line) {
+		if line[bytePos] == '\t' {
+			// Tab adds 4 visual columns
+			if currentVisualCol + 4 > visualCol {
+				// The desired visual column is within this tab
+				// Return the byte position of the tab
+				return bytePos
+			}
+			currentVisualCol += 4
+		} else {
+			// Regular character adds 1 visual column
+			if currentVisualCol + 1 > visualCol {
+				// We've reached the desired visual column
+				return bytePos
+			}
+			currentVisualCol += 1
+		}
+		bytePos++
+	}
+	
+	// Visual column is beyond the end of the line
+	return len(line)
+}
+
 // getVisualCursorX calculates the visual cursor position accounting for tabs
 func (e *Editor) getVisualCursorX() int {
 	if e.buffer.CursorIterator.IsEOF() {
