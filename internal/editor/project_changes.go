@@ -53,13 +53,43 @@ func (e *Editor) showProjectChanges(args []string) error {
 				stagedMark = "●"
 			}
 			
-			content.WriteString(fmt.Sprintf("[%s%s] %s (+%d -%d)\n", 
-				statusChar, stagedMark, change.File, 
+			// Create clickable file link with clear status indicator
+			content.WriteString(fmt.Sprintf("**%s%s** [%s](%s) (+%d -%d)\n", 
+				statusChar, stagedMark, change.File, change.File,
 				len(change.AddedLines), len(change.DeletedLines)))
 			
-			// Show hunks with context
+			// Show hunks with better formatting
 			for _, hunk := range change.Hunks {
-				content.WriteString(fmt.Sprintf("  %s\n", hunk.Header))
+				// Parse the hunk header to get line counts
+				var oldCount, newCount int
+				fmt.Sscanf(hunk.Header, "@@ -%d,%d +%d,%d @@", &hunk.OldStart, &oldCount, &hunk.NewStart, &newCount)
+				
+				// Create a more descriptive hunk link
+				hunkDesc := fmt.Sprintf("Lines %d-%d", hunk.NewStart, hunk.NewStart+newCount-1)
+				if newCount == 1 {
+					hunkDesc = fmt.Sprintf("Line %d", hunk.NewStart)
+				}
+				
+				content.WriteString(fmt.Sprintf("  • [%s](%s#L%d)", hunkDesc, change.File, hunk.NewStart))
+				
+				// Count additions and deletions in this hunk
+				hunkAdded := 0
+				hunkDeleted := 0
+				for _, line := range change.AddedLines {
+					if line >= hunk.NewStart && line < hunk.NewStart+newCount {
+						hunkAdded++
+					}
+				}
+				for _, line := range change.DeletedLines {
+					if line >= hunk.OldStart && line < hunk.OldStart+oldCount {
+						hunkDeleted++
+					}
+				}
+				
+				if hunkAdded > 0 || hunkDeleted > 0 {
+					content.WriteString(fmt.Sprintf(" (+%d -%d)", hunkAdded, hunkDeleted))
+				}
+				content.WriteString("\n")
 			}
 			
 			content.WriteString("\n")
