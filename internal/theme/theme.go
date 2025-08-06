@@ -82,15 +82,15 @@ type Theme struct {
 	MarkdownTableBorder StyleDef
 
 	// Bash-specific styles
-	BashKeyword      StyleDef // if, then, else, for, while, etc.
-	BashBuiltin      StyleDef // echo, cd, pwd, etc.
-	BashVariable     StyleDef // $VAR, ${VAR}, $1, $@, etc.
-	BashString       StyleDef // "string", 'string'
-	BashExpansion    StyleDef // $(command), `command`
-	BashOperator     StyleDef // &&, ||, |, >, <, etc.
-	BashComment      StyleDef // # comments
-	BashFunction     StyleDef // function names
-	BashSpecial      StyleDef // $?, $#, $$, etc.
+	BashKeyword      StyleDef
+	BashBuiltin      StyleDef
+	BashVariable     StyleDef
+	BashString       StyleDef
+	BashExpansion    StyleDef
+	BashOperator     StyleDef
+	BashComment      StyleDef
+	BashFunction     StyleDef
+	BashSpecial      StyleDef
 }
 
 // GetStyle returns a ui.Style for the given style definition
