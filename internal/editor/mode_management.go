@@ -81,7 +81,9 @@ func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
 		} else {
 			// Non-movement commands exit cursor mode first, then execute
 			e.exitCursorMode()
-			if err := e.commandRegistry.Execute(command, nil); err != nil {
+			// Use executeWithRepeatCount to properly handle multiple cursors
+			e.repeatCount = 1
+			if err := e.executeWithRepeatCount(command); err != nil {
 				LL.Debug("Command execution error: %v", err)
 			}
 		}
