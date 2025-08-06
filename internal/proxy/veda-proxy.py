@@ -38,6 +38,7 @@ class LSPManager:
         self.response_cache = {}  # language -> {request_id: response}
         self.diagnostics = {}  # uri -> list of diagnostics
         self.pending_file_opens = {}  # language -> set of file paths to open after init
+        self.file_versions = {}  # file_path -> version number for LSP synchronization
         self.language_servers = {
             'go': {
                 'command': ['gopls', '-logfile=/tmp/gopls.log', '-rpc.trace'],
@@ -131,7 +132,8 @@ class LSPManager:
                 'process': process,
                 'request_id': 0,
                 'initialized': False,
-                'open_files': set()
+                'open_files': set(),
+                'file_versions': {}  # file_path -> version number
             }
             
             # Initialize message buffer for this language
@@ -738,6 +740,11 @@ class LSPManager:
             logger.info(f"Deferring opening of {file_path} until {language} server is ready")
             return
             
+        # Check if file is already open
+        if file_path in server.get('open_files', set()):
+            logger.debug(f"File {file_path} is already open in {language} LSP server")
+            return
+            
         # Read file content
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -764,6 +771,11 @@ class LSPManager:
             '.pyw': 'python'
         }.get(ext, 'plaintext')
         
+        # Initialize version tracking for this file
+        if 'file_versions' not in self.servers[language]:
+            self.servers[language]['file_versions'] = {}
+        self.servers[language]['file_versions'][file_path] = 1
+        
         notification = {
             "jsonrpc": "2.0",
             "method": "textDocument/didOpen",
@@ -778,6 +790,49 @@ class LSPManager:
         }
         
         self._send_message(language, notification)
+        
+        # Track that this file is open
+        self.servers[language]['open_files'].add(file_path)
+    
+    def _send_did_change(self, language: str, file_path: str, content: str):
+        """Send textDocument/didChange notification to the LSP server."""
+        if language not in self.servers:
+            return
+            
+        server = self.servers[language]
+        
+        # Check if server is initialized and file is open
+        if server.get('initializing') or file_path not in server.get('open_files', set()):
+            return
+            
+        # Increment version number for this file
+        if 'file_versions' not in server:
+            server['file_versions'] = {}
+        
+        current_version = server['file_versions'].get(file_path, 0)
+        new_version = current_version + 1
+        server['file_versions'][file_path] = new_version
+        
+        file_uri = f"file://{Path(file_path).absolute()}"
+        
+        notification = {
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri,
+                    "version": new_version
+                },
+                "contentChanges": [
+                    {
+                        "text": content  # Full document sync
+                    }
+                ]
+            }
+        }
+        
+        self._send_message(language, notification)
+        logger.debug(f"Sent didChange for {file_path} version {new_version}")
     
     def _read_lsp_message(self, language: str) -> Optional[Dict[str, Any]]:
         """Read a single LSP message from the server."""
@@ -909,6 +964,7 @@ class VedaProxy:
             'get_completions': self.get_completions,
             'get_diagnostics': self.get_diagnostics,
             'get_project_changes': self.get_project_changes,
+            'notify_file_change': self.notify_file_change,
         }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
@@ -1369,6 +1425,37 @@ class VedaProxy:
         except Exception as e:
             logger.error(f"Error in get_diagnostics: {e}")
             return {'success': False, 'error': str(e)}
+    
+    def notify_file_change(self, file_path: str, content: str) -> Dict[str, Any]:
+        """
+        Notify LSP server about file content changes.
+        
+        Args:
+            file_path: The absolute path to the file
+            content: The full updated content of the file
+            
+        Returns:
+            Dictionary with status of the notification
+        """
+        try:
+            # Determine language from file extension
+            language = self.lsp.get_language_for_file(file_path)
+            
+            if not language:
+                return {"status": "skipped", "reason": "No LSP server for file type"}
+            
+            # Check if LSP server is running for this language
+            if language not in self.lsp.servers:
+                return {"status": "skipped", "reason": f"LSP server not running for {language}"}
+            
+            # Send the didChange notification
+            self.lsp._send_did_change(language, file_path, content)
+            
+            return {"status": "success", "language": language}
+            
+        except Exception as e:
+            logger.error(f"Failed to notify file change: {e}")
+            return {"error": str(e)}
     
     def get_project_changes(self, working_dir: str = None) -> Dict[str, Any]:
         """

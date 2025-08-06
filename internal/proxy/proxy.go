@@ -360,6 +360,19 @@ func (pm *ProxyManager) GetFoldingRanges(filePath string) ([]FoldingRange, error
 	return client.GetFoldingRanges(actualPath)
 }
 
+// NotifyFileChange notifies the LSP server about file content changes (supports HOST:PATH format)
+func (pm *ProxyManager) NotifyFileChange(filePath string, content string) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	
+	client, actualPath, err := pm.getClient(filePath)
+	if err != nil {
+		return err
+	}
+	
+	return client.NotifyFileChange(actualPath, content)
+}
+
 // GetSignatureHelp gets signature help for a function (supports HOST:PATH format)
 func (pm *ProxyManager) GetSignatureHelp(filePath string, line int, character int) (interface{}, error) {
 	client, actualPath, err := pm.getClient(filePath)
@@ -1351,6 +1364,66 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 	}
 
 	return nil, fmt.Errorf("failed to read proxy response")
+}
+
+// NotifyFileChange notifies the LSP server about file content changes
+func (c *Client) NotifyFileChange(filePath string, content string) error {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "notify_file_change",
+		Params: map[string]interface{}{
+			"file_path": filePath,
+			"content":   content,
+		},
+		ID: c.requestID,
+	}
+
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+
+	// Log the request for debugging (but not the full content)
+	LL.Trace("NotifyFileChange request for file: %s", filePath)
+
+	c.stdin.WriteString(string(requestBytes) + "\n")
+	c.stdin.Flush()
+
+	if c.stdout.Scan() {
+		responseText := c.stdout.Text()
+		
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
+			return fmt.Errorf("failed to unmarshal response: %v", err)
+		}
+
+		if response["error"] != nil {
+			return fmt.Errorf("proxy error: %v", response["error"])
+		}
+
+		if result, ok := response["result"].(map[string]interface{}); ok {
+			if status, ok := result["status"].(string); ok {
+				if status == "success" {
+					LL.Trace("Successfully sent didChange notification for %s", filePath)
+					return nil
+				} else if status == "skipped" {
+					// Not an error, just no LSP for this file
+					return nil
+				}
+			}
+			if errorMsg, ok := result["error"].(string); ok {
+				return fmt.Errorf("%s", errorMsg)
+			}
+		}
+		
+		return nil
+	}
+
+	if err := c.stdout.Err(); err != nil {
+		return fmt.Errorf("scanner error: %w", err)
+	}
+
+	return fmt.Errorf("failed to notify file change")
 }
 
 // GetSignatureHelp gets signature help for a function at the given position

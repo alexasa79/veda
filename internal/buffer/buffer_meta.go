@@ -96,6 +96,9 @@ type Buffer struct {
 	// Buffer flags
 	IsReadOnly bool // Whether this buffer is read-only
 	IsInternal bool // Whether this is an internal buffer (not tied to a file)
+	
+	// LSP notification callback
+	OnContentChange func() // Called when buffer content changes, for LSP notifications
 }
 
 // IndentationInfo holds information about file indentation
@@ -292,6 +295,11 @@ func (b *Buffer) Insert(pos int, text string) {
 	b.Rope.Insert(pos, text)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
+	
+	// Notify LSP if callback is set
+	if b.OnContentChange != nil {
+		b.OnContentChange()
+	}
 }
 
 // Delete removes characters between start and end positions and increments the generation
@@ -299,6 +307,11 @@ func (b *Buffer) Delete(start, end int) {
 	b.Rope.Delete(start, end)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
+	
+	// Notify LSP if callback is set
+	if b.OnContentChange != nil {
+		b.OnContentChange()
+	}
 }
 
 // AppendLine appends a line to the end of the buffer
