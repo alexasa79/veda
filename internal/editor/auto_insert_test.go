@@ -2,11 +2,11 @@ package editor
 
 import (
 	"testing"
-	"veda/internal/buffer"
 	"veda/internal/commands"
 )
 
-func TestAutoInsertPairedCharacters(t *testing.T) {
+// TestAutoInsertDisabled tests that auto-pairing has been disabled
+func TestAutoInsertDisabled(t *testing.T) {
 	tests := []struct {
 		name           string
 		initialContent string
@@ -16,68 +16,68 @@ func TestAutoInsertPairedCharacters(t *testing.T) {
 		expectedY      int
 	}{
 		{
-			name:           "parentheses",
+			name:           "parentheses_no_pairing",
 			initialContent: "fmt.Printf",
 			char:           '(',
-			expectedBuffer: "fmt.Printf()",
-			expectedX:      11, // Cursor between ( and )
+			expectedBuffer: "fmt.Printf(",
+			expectedX:      11, // Cursor after (
 			expectedY:      0,
 		},
 		{
-			name:           "square brackets",
+			name:           "square_brackets_no_pairing",
 			initialContent: "array",
 			char:           '[',
-			expectedBuffer: "array[]",
-			expectedX:      6, // Cursor between [ and ]
+			expectedBuffer: "array[",
+			expectedX:      6, // Cursor after [
 			expectedY:      0,
 		},
 		{
-			name:           "curly braces",
+			name:           "curly_braces_no_pairing",
 			initialContent: "func main() ",
 			char:           '{',
-			expectedBuffer: "func main() {}",
-			expectedX:      13, // Cursor between { and }
+			expectedBuffer: "func main() {",
+			expectedX:      13, // Cursor after {
 			expectedY:      0,
 		},
 		{
-			name:           "double quotes",
+			name:           "double_quotes_no_pairing",
 			initialContent: "fmt.Printf(",
 			char:           '"',
-			expectedBuffer: "fmt.Printf(\"\"",
-			expectedX:      12, // Cursor between quotes
+			expectedBuffer: "fmt.Printf(\"",
+			expectedX:      12, // Cursor after quote
 			expectedY:      0,
 		},
 		{
-			name:           "single quotes",
+			name:           "single_quotes_no_pairing",
 			initialContent: "var c = ",
 			char:           '\'',
-			expectedBuffer: "var c = ''",
-			expectedX:      9, // Cursor between quotes
+			expectedBuffer: "var c = '",
+			expectedX:      9, // Cursor after quote
 			expectedY:      0,
 		},
 		{
-			name:           "backticks",
+			name:           "backticks_no_pairing",
 			initialContent: "raw := ",
 			char:           '`',
-			expectedBuffer: "raw := ``",
-			expectedX:      8, // Cursor between backticks
+			expectedBuffer: "raw := `",
+			expectedX:      8, // Cursor after backtick
 			expectedY:      0,
 		},
 		{
-			name:           "middle of line parentheses",
-			initialContent: "if condition { fmt.Printf }",
-			char:           '(',
-			expectedBuffer: "if condition { fmt.Printf() }",
-			expectedX:      26, // Cursor between ( and )
+			name:           "closing_paren_inserts",
+			initialContent: "test(",
+			char:           ')',
+			expectedBuffer: "test()",
+			expectedX:      6, // Cursor after )
 			expectedY:      0,
 		},
 		{
-			name:           "multiline parentheses",
-			initialContent: "func test() {\n\tfmt.Printf\n}",
-			char:           '(',
-			expectedBuffer: "func test() {\n\tfmt.Printf()\n}",
-			expectedX:      12, // Cursor between ( and ) on line 2
-			expectedY:      1,
+			name:           "closing_bracket_inserts",
+			initialContent: "array[",
+			char:           ']',
+			expectedBuffer: "array[]",
+			expectedX:      7, // Cursor after ]
+			expectedY:      0,
 		},
 	}
 
@@ -88,20 +88,8 @@ func TestAutoInsertPairedCharacters(t *testing.T) {
 			// Enter insert mode first
 			te.ExecuteCommand("enter-insert-mode")
 
-			// Move cursor to correct position
-			switch tt.name {
-			case "middle of line parentheses":
-				// Position cursor after "Printf" but before " }"
-				te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 0)
-				te.buffer.CursorX = 25 // After 'f' in Printf
-			case "multiline parentheses":
-				// Position cursor on second line after Printf
-				te.ExecuteCommand("down-insert")
-				te.ExecuteCommand("end-of-line-insert")
-			default:
-				// Default: position at end of line
-				te.ExecuteCommand("end-of-line-insert")
-			}
+			// Position at end of line
+			te.ExecuteCommand("end-of-line-insert")
 
 			// Insert the character
 			te.insertChar(tt.char)
@@ -120,7 +108,7 @@ func TestAutoInsertPairedCharacters(t *testing.T) {
 	}
 }
 
-func TestAutoInsertDoesNotAffectNormalCharacters(t *testing.T) {
+func TestNormalCharactersStillWork(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "Hello")
 
 	// Enter insert mode
@@ -138,31 +126,54 @@ func TestAutoInsertDoesNotAffectNormalCharacters(t *testing.T) {
 	AssertCursorAt(t, te, 12, 0) // At end of line
 }
 
-func TestAutoInsertInEmptyBuffer(t *testing.T) {
+func TestInsertInEmptyBuffer(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "")
 
 	// Enter insert mode
 	te.ExecuteCommand("enter-insert-mode")
 
-	// Insert paired character
+	// Insert single character (no pairing)
 	te.insertChar('(')
 
 	// Check result
-	AssertBufferEquals(t, te, "()")
-	AssertCursorAt(t, te, 1, 0) // Between ( and )
+	AssertBufferEquals(t, te, "(")
+	AssertCursorAt(t, te, 1, 0) // After (
 }
 
-func TestAutoInsertAtBeginningOfLine(t *testing.T) {
+func TestInsertAtBeginningOfLine(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "existing text")
 
 	// Enter insert mode at beginning
 	te.ExecuteCommand("enter-insert-mode")
 	te.ExecuteCommand("beginning-of-line")
 
-	// Insert paired character
+	// Insert single character (no pairing)
 	te.insertChar('[')
 
 	// Check result
-	AssertBufferEquals(t, te, "[]existing text")
-	AssertCursorAt(t, te, 1, 0) // Between [ and ]
+	AssertBufferEquals(t, te, "[existing text")
+	AssertCursorAt(t, te, 1, 0) // After [
+}
+
+// TestManuallyTypingPairs tests that users can still manually type pairs
+func TestManuallyTypingPairs(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "")
+
+	// Enter insert mode
+	te.ExecuteCommand("enter-insert-mode")
+
+	// Manually type a pair
+	te.insertChar('(')
+	te.insertChar(')')
+
+	// Check result
+	AssertBufferEquals(t, te, "()")
+	AssertCursorAt(t, te, 2, 0) // After )
+
+	// Type more characters
+	te.insertChar('[')
+	te.insertChar(']')
+
+	AssertBufferEquals(t, te, "()[]")
+	AssertCursorAt(t, te, 4, 0) // After ]
 }

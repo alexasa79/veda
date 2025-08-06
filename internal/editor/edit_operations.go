@@ -272,27 +272,16 @@ func (e *Editor) insertTab(args []string) error {
 }
 
 func (e *Editor) insertChar(ch rune) error {
-	// Check if we should skip over a closing character
-	if e.shouldSkipClosingChar(ch) {
-		// Just move cursor forward without inserting
-		e.buffer.CursorX++
-		return nil
-	}
-
-	// Check for auto-pair characters
-	pairedChar, isPaired := e.getPairedChar(ch)
+	// Auto-pairing feature has been disabled
+	// Simply insert the character without any pairing or skipping logic
 
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	cursorX := e.buffer.CursorX
 
-	// Create history entry
+	// Create history entry for the single character
 	textToInsert := string(ch)
-	if isPaired {
-		textToInsert = string(ch) + string(pairedChar)
-	}
-
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
 
 	// Execute through history (this handles both direct execution and insert mode tracking)
@@ -313,14 +302,8 @@ func (e *Editor) insertChar(ch rune) error {
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-	// Move cursor appropriately
-	if isPaired {
-		// Move cursor between the pair (only forward by 1)
-		e.buffer.CursorX = cursorX + 1
-	} else {
-		// Move cursor forward
-		e.buffer.CursorX = cursorX + 1
-	}
+	// Move cursor forward by one position
+	e.buffer.CursorX = cursorX + 1
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -331,54 +314,7 @@ func (e *Editor) insertChar(ch rune) error {
 	return nil
 }
 
-// shouldSkipClosingChar checks if we should skip over a closing character
-// This happens when the character at the cursor position matches what we're trying to type
-// and it's a closing character from auto-pairing
-func (e *Editor) shouldSkipClosingChar(ch rune) bool {
-	// Check if this is a closing character
-	isClosing := false
-	switch ch {
-	case ')', ']', '}', '"', '\'', '`':
-		isClosing = true
-	}
-
-	if !isClosing {
-		return false
-	}
-
-	// Check if cursor is at a position where we have this character
-	if e.buffer.CursorIterator.IsEOF() {
-		return false
-	}
-
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX >= len(line) {
-		return false
-	}
-
-	// Check if the character at cursor position matches what we're typing
-	return rune(line[e.buffer.CursorX]) == ch
-}
-
-// getPairedChar returns the closing character for auto-pairing and whether the character should be paired
-func (e *Editor) getPairedChar(ch rune) (rune, bool) {
-	switch ch {
-	case '(':
-		return ')', true
-	case '[':
-		return ']', true
-	case '{':
-		return '}', true
-	case '"':
-		return '"', true
-	case '\'':
-		return '\'', true
-	case '`':
-		return '`', true
-	default:
-		return 0, false
-	}
-}
+// Auto-pairing functions removed - feature has been disabled
 
 func (e *Editor) insertNewline(args []string) error {
 	// Remember current position
