@@ -599,6 +599,9 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
 	}
 	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
 	return nil
 }
 
