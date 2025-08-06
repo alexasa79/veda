@@ -828,6 +828,65 @@ func (e *Editor) deleteWordForward(args []string) error {
 	return nil
 }
 
+// deleteToEndOfLine deletes from cursor position to end of line (D in vim)
+func (e *Editor) deleteToEndOfLine(args []string) error {
+	// If at EOF or empty buffer, nothing to delete
+	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+		return nil
+	}
+
+	// Remember current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	startX := e.buffer.CursorX
+
+	// Get current line
+	line := e.buffer.CursorIterator.Line()
+	
+	// If cursor is already at or past end of line, nothing to delete
+	if startX >= len(line) {
+		return nil
+	}
+
+	// Calculate text to delete (from cursor to end of line, not including newline)
+	deletedText := line[startX:]
+	
+	// Create history entry
+	entry := buffer.NewDeleteTextEntry(lineNum, startX, deletedText)
+
+	// Execute through history
+	if e.buffer.History != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		} else if executed != nil {
+			e.setLastChange(executed)
+		}
+	} else {
+		// Fallback if history is not initialized
+		pos := e.getAbsolutePosition()
+		e.buffer.Delete(pos, len(deletedText))
+	}
+
+	// Recreate iterators
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+	// Adjust cursor position if needed
+	line = e.buffer.CursorIterator.Line()
+	if e.buffer.CursorX > 0 && e.buffer.CursorX >= len(line) && len(line) > 0 {
+		// In normal mode, cursor should be on last character if line is not empty
+		e.buffer.CursorX = len(line) - 1
+	}
+
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+
+	// Note: Multi-cursor support will be handled automatically by the
+	// command registry since we marked this command with appliestoAllCursors=true
+
+	return nil
+}
+
 // deleteWordBackward deletes from beginning of current word to cursor (Alt+Backspace)
 func (e *Editor) deleteWordBackward(args []string) error {
 	// If at beginning of buffer, nothing to delete
