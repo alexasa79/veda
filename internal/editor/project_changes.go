@@ -58,8 +58,14 @@ func (e *Editor) showProjectChanges(args []string) error {
 			if stagedMark != "" {
 				statusIndicator = statusChar + stagedMark
 			}
+			// Use just the filename in display text for brevity
+			filename := change.File
+			if strings.Contains(filename, "/") {
+				parts := strings.Split(filename, "/")
+				filename = parts[len(parts)-1]
+			}
 			content.WriteString(fmt.Sprintf("[%s] [%s](%s) (+%d -%d)\n", 
-				statusIndicator, change.File, change.File,
+				statusIndicator, filename, change.File,
 				len(change.AddedLines), len(change.DeletedLines)))
 			
 			// Show hunks with better formatting
