@@ -55,13 +55,8 @@ func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
 	fuzzyListWidget.SetTitle("Open File")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
-	// Show appropriate loading message
-	host, _, isRemote := parsePathComponents(e.workingDirectory)
-	if isRemote {
-		fuzzyListWidget.SetContent([]string{fmt.Sprintf("Connecting to %s...", host)})
-	} else {
-		fuzzyListWidget.SetContent([]string{"Loading directory..."})
-	}
+	// Show loading message - actual connection status is shown in the status bar
+	fuzzyListWidget.SetContent([]string{"Loading..."})
 
 	return fuzzyListWidget
 }
