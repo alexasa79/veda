@@ -29,12 +29,9 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 		line := te.mockScreen.GetLine(0)
 		t.Logf("Initial render: %q", line)
 		
-		// Should show "Check this link out" in normal mode
-		if strings.Contains(line, "[this link](https://example.com)") {
-			t.Errorf("Markdown link should be processed in normal mode")
-		}
-		if !strings.Contains(line, "Check this link out") {
-			t.Errorf("Expected processed markdown to show 'Check this link out'")
+		// Should show full markdown syntax (we no longer hide URLs)
+		if !strings.Contains(line, "[this link](https://example.com)") {
+			t.Errorf("Markdown link should be shown in full in normal mode")
 		}
 		
 		// Now test selection

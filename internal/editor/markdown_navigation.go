@@ -4,12 +4,15 @@
 package editor
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 	"veda/internal/buffer"
-	"veda/internal/commands"
 	"veda/internal/proxy"
 )
+
+// markdownLinkRegex matches markdown links [text](url)
+var markdownLinkRegex = regexp.MustCompile(`\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]\(([^)]+)\)`)
 
 // jumpToReference is a command wrapper that checks if we're in a references buffer or on a markdown link
 func (e *Editor) jumpToReference(args []string) error {
@@ -48,21 +51,8 @@ func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 		urlStart := match[4]
 		urlEnd := match[5]
 		
-		// Check if cursor is within the link (considering rendered vs raw positions)
-		// In normal mode, the link is rendered as just the text, so we need to adjust positions
-		renderInfo := ProcessMarkdownLine(line, e.mode)
-		
-		// Map cursor position to source position
-		sourceCursorX := cursorX
-		if e.mode == commands.NormalMode {
-			// In normal mode, use the display to original mapping
-			if origPos, ok := renderInfo.DisplayToOriginal[cursorX]; ok {
-				sourceCursorX = origPos
-			}
-		}
-		
-		// Check if cursor is within the link in source coordinates
-		if sourceCursorX >= linkStart && sourceCursorX < linkEnd {
+		// Check if cursor is within the link
+		if cursorX >= linkStart && cursorX < linkEnd {
 			url := line[urlStart:urlEnd]
 			
 			// Parse line number from URL if present (e.g., file.go#L42)
@@ -85,15 +75,21 @@ func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 	// Convert to a Location object and use the existing jumpToLocation function
 	// This ensures consistent behavior with reference jumping
+	// If no line number specified, use 0 (first line)
+	targetLine := 0
+	if lineNum > 0 {
+		targetLine = lineNum - 1 // Convert 1-based to 0-based
+	}
+	
 	location := proxy.Location{
 		URI: "file://" + link,
 		Range: proxy.Range{
 			Start: proxy.Position{
-				Line:      lineNum - 1, // Convert 1-based to 0-based
+				Line:      targetLine,
 				Character: 0,
 			},
 			End: proxy.Position{
-				Line:      lineNum - 1,
+				Line:      targetLine,
 				Character: 0,
 			},
 		},
