@@ -55,7 +55,7 @@ func ParseKey(s string) (Key, error) {
 			result.Mod = result.Mod &^ events.ModCtrl
 		} else {
 			result.Key = events.KeyRune
-			result.Rune = 'o'
+			result.Rune = rune(keyName[0])
 		}
 	case "space":
 		// Check if this is Ctrl+Space (with or without Shift)
