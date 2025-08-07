@@ -97,12 +97,44 @@ func (t *Tokenizer) NextToken() Token {
 		return t.scanNumber()
 	}
 
-	// Check for "pre" keyword
+	// Check for preprocessor keywords: "pre", "hex", "bin", "oct"
 	if ch == 'p' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "pre" {
 		// Make sure it's not part of a larger word
 		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
 			t.pos += 3
 			return Token{Type: TokenPreprocessor, Value: "pre", Pos: t.start + tokenStart}
+		}
+	}
+	
+	if ch == 'h' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "hex" {
+		// Make sure it's not part of a larger word
+		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
+			t.pos += 3
+			return Token{Type: TokenPreprocessor, Value: "hex", Pos: t.start + tokenStart}
+		}
+	}
+	
+	if ch == 'b' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "bin" {
+		// Make sure it's not part of a larger word
+		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
+			t.pos += 3
+			return Token{Type: TokenPreprocessor, Value: "bin", Pos: t.start + tokenStart}
+		}
+	}
+	
+	if ch == 'o' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "oct" {
+		// Make sure it's not part of a larger word
+		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
+			t.pos += 3
+			return Token{Type: TokenPreprocessor, Value: "oct", Pos: t.start + tokenStart}
+		}
+	}
+	
+	if ch == 'd' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "dec" {
+		// Make sure it's not part of a larger word
+		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
+			t.pos += 3
+			return Token{Type: TokenPreprocessor, Value: "dec", Pos: t.start + tokenStart}
 		}
 	}
 
@@ -296,13 +328,29 @@ func ParseNumber(value string) (float64, error) {
 	}
 }
 
+// PreprocessorDirective holds information about preprocessor directives
+type PreprocessorDirective struct {
+	Precision int        // For "pre" directive
+	Format    FormatType // For "hex", "bin", "oct" directives
+	BitWidth  int        // For "hexNN", "binNN", "octNN" directives
+}
+
+// isPowerOfTwo checks if a number is a power of 2
+func isPowerOfTwo(n int) bool {
+	return n > 0 && (n&(n-1)) == 0
+}
+
 // TokenizeAndExtractPreprocessors tokenizes the expression and extracts preprocessor directives
-// Returns the tokens without preprocessor directives and the precision value if found
-func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, int, bool) {
+// Returns the tokens without preprocessor directives and the directive information
+func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *PreprocessorDirective, bool) {
 	tokenizer := NewTokenizer(expr, startPos)
 	var tokens []Token
-	precision := -1  // Default to -1 for no precision
-	hasPrecision := false
+	directive := &PreprocessorDirective{
+		Precision: -1,
+		Format:    FormatDecimal,
+		BitWidth:  0,
+	}
+	hasDirective := false
 	
 	for {
 		token := tokenizer.NextToken()
@@ -311,28 +359,78 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, int, b
 			break
 		}
 		
-		if token.Type == TokenPreprocessor && token.Value == "pre" {
-			// Look for the next token which should be a number
-			nextToken := tokenizer.NextToken()
-			if nextToken.Type == TokenNumber {
-				// Parse the precision value
-				precVal, err := strconv.Atoi(nextToken.Value)
-				if err == nil && precVal > 0 {
-					precision = precVal
-					hasPrecision = true
-					// Skip both the "pre" and the number tokens
-					continue
+		if token.Type == TokenPreprocessor {
+			switch token.Value {
+			case "pre":
+				// Look for the next token which should be a number
+				nextToken := tokenizer.NextToken()
+				if nextToken.Type == TokenNumber {
+					// Parse the precision value
+					precVal, err := strconv.Atoi(nextToken.Value)
+					if err == nil && precVal > 0 {
+						directive.Precision = precVal
+						hasDirective = true
+						// Skip both tokens
+						continue
+					}
 				}
-			}
-			// If not followed by a valid number, include both tokens
-			tokens = append(tokens, token)
-			if nextToken.Type != TokenEOF {
-				tokens = append(tokens, nextToken)
+				// If not followed by a valid number, include both tokens
+				tokens = append(tokens, token)
+				if nextToken.Type != TokenEOF {
+					tokens = append(tokens, nextToken)
+				}
+				
+			case "hex", "bin", "oct":
+				// Set the format
+				switch token.Value {
+				case "hex":
+					directive.Format = FormatHex
+				case "bin":
+					directive.Format = FormatBinary
+				case "oct":
+					directive.Format = FormatOctal
+				}
+				hasDirective = true
+				
+				// Check if followed by a number (bit width)
+				nextToken := tokenizer.NextToken()
+				if nextToken.Type == TokenNumber {
+					bitWidth, err := strconv.Atoi(nextToken.Value)
+					// Only consume the number if it's a valid bit width
+					// This allows "hex 255" to work (255 is not consumed as bit width)
+					if err == nil && isPowerOfTwo(bitWidth) && bitWidth >= 8 && bitWidth <= 128 {
+						directive.BitWidth = bitWidth
+						// Skip both tokens
+						continue
+					}
+					// Not a valid bit width, put the number back for the expression
+					tokens = append(tokens, nextToken)
+				} else if nextToken.Type != TokenEOF {
+					// Put the non-number token back
+					tokens = append(tokens, nextToken)
+				}
+				// Skip only the format directive token
+				
+			case "dec":
+				// Set format to decimal (explicit decimal output)
+				directive.Format = FormatDecimal
+				hasDirective = true
+				// "dec" doesn't support bit width, so check the next token
+				// and put it back into the stream for parsing
+				nextToken := tokenizer.NextToken()
+				if nextToken.Type != TokenEOF {
+					tokens = append(tokens, nextToken)
+				}
+				// Skip only the "dec" directive token
+				
+			default:
+				// Unknown preprocessor, include it
+				tokens = append(tokens, token)
 			}
 		} else {
 			tokens = append(tokens, token)
 		}
 	}
 	
-	return tokens, precision, hasPrecision
+	return tokens, directive, hasDirective
 }
