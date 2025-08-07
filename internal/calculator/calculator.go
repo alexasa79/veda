@@ -2,6 +2,7 @@ package calculator
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -47,8 +48,10 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 				afterArrow := strings.TrimSpace(line[afterArrowStart:endPos])
 				if afterArrow != "" {
 					parser := NewParser(afterArrow, afterArrowStart)
-					value, err := parser.Parse()
+					bigValue, err := parser.Parse()
 					if err == nil && (bestResult == nil || len(afterArrow) > len(bestResult.Expression)) {
+						// Convert to float64 for Result struct
+						value, _ := bigValue.Float64()
 						// Calculate actual start position in the original line
 						actualStart := afterArrowStart
 						// Skip leading whitespace to get actual expression start
@@ -77,10 +80,12 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 
 		// Try to parse and evaluate this expression
 		parser := NewParser(testExpr, startPos)
-		value, err := parser.Parse()
+		bigValue, err := parser.Parse()
 		
 		// If parsing succeeded, update best result (we want the longest valid expression)
 		if err == nil {
+			// Convert to float64 for Result struct
+			value, _ := bigValue.Float64()
 			// Adjust start position to account for trimmed whitespace
 			actualStartPos := startPos
 			for actualStartPos < endPos && (line[actualStartPos] == ' ' || line[actualStartPos] == '\t') {
@@ -101,8 +106,10 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 		testExpr := strings.TrimSpace(line[0:endPos])
 		if testExpr != "" {
 			parser := NewParser(testExpr, 0)
-			value, err := parser.Parse()
+			bigValue, err := parser.Parse()
 			if err == nil {
+				// Convert to float64 for Result struct
+				value, _ := bigValue.Float64()
 				// Only use this if it's longer than what we already found
 				if bestResult == nil || len(testExpr) > len(bestResult.Expression) {
 					// Adjust start position to account for trimmed whitespace
@@ -130,8 +137,40 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 
 // EvaluateExpression evaluates a mathematical expression and returns the result
 func EvaluateExpression(expr string) (float64, error) {
-	parser := NewParser(expr, 0)
-	return parser.Parse()
+	// Tokenize and extract preprocessor directives
+	tokens, _, _ := TokenizeAndExtractPreprocessors(expr, 0)
+	
+	// Parse and evaluate the expression
+	parser := NewParserFromTokens(tokens)
+	result, err := parser.Parse()
+	if err != nil {
+		return 0, err
+	}
+	
+	// Convert to float64 for backward compatibility
+	f64, _ := result.Float64()
+	return f64, nil
+}
+
+// EvaluateExpressionWithResult evaluates an expression and returns a CalculationResult with formatting info
+func EvaluateExpressionWithResult(expr string) (*CalculationResult, error) {
+	// Tokenize and extract preprocessor directives
+	tokens, precision, hasPrecision := TokenizeAndExtractPreprocessors(expr, 0)
+	
+	// Parse and evaluate the expression
+	parser := NewParserFromTokens(tokens)
+	value, err := parser.Parse()
+	if err != nil {
+		return nil, err
+	}
+	
+	// Create result with appropriate precision
+	result := NewCalculationResult(value)
+	if hasPrecision {
+		result.SetPrecision(precision)
+	}
+	
+	return result, nil
 }
 
 // FormatResult formats a calculation result as a string
@@ -151,18 +190,66 @@ func FormatResult(value float64) string {
 // ProcessLineAppend processes a line and appends the calculation result
 func ProcessLineAppend(line string, cursorPos int) (string, error) {
 	// Find expression from cursor position going backward
-	result, err := FindExpressionFromPosition(line, cursorPos)
+	exprInfo, err := FindExpressionFromPosition(line, cursorPos)
 	if err != nil {
 		return line, err
 	}
 
+	// Check if we need to include "pre" directive before or after the expression
+	fullExpr := exprInfo.Expression
+	
+	// Check if "pre" comes right before the found expression
+	if exprInfo.StartPos >= 3 {
+		checkStart := exprInfo.StartPos - 3
+		if checkStart >= 0 && line[checkStart:exprInfo.StartPos] == "pre" {
+			// This is "preNNN", we need to find the actual expression before "pre"
+			if checkStart > 0 {
+				exprBeforePre, err := FindExpressionFromPosition(line, checkStart)
+				if err == nil {
+					// Found a valid expression before "pre"
+					fullExpr = exprBeforePre.Expression + " pre" + exprInfo.Expression
+				}
+			}
+		}
+	}
+	
+	// Also check if there's a "preNNN" pattern before the expression
+	// Look for patterns like "pre20 2/3" where the expression is "2/3"
+	if exprInfo.StartPos > 0 && !strings.Contains(fullExpr, "pre") {
+		// Look backwards for "preNNN " pattern
+		searchStart := 0
+		if exprInfo.StartPos > 10 {
+			searchStart = exprInfo.StartPos - 10
+		}
+		beforeStr := line[searchStart:exprInfo.StartPos]
+		trimmed := strings.TrimSpace(beforeStr)
+		
+		// Check if it ends with "preNNN"
+		if strings.HasPrefix(trimmed, "pre") {
+			rest := strings.TrimPrefix(trimmed, "pre")
+			// Check if rest is a number
+			if rest != "" {
+				if _, err := strconv.Atoi(rest); err == nil {
+					// Include the pre directive in the expression
+					fullExpr = "pre" + rest + " " + exprInfo.Expression
+				}
+			}
+		}
+	}
+
+	// Evaluate with precision support
+	result, err := EvaluateExpressionWithResult(fullExpr)
+	if err != nil {
+		return line, err
+	}
+	
 	// Format the result
-	formattedResult := FormatResult(result.Value)
+	formattedResult := result.String()
 	
 	// Create the new line with the result appended
-	newLine := line[:result.EndPos] + " → " + formattedResult
-	if result.EndPos < len(line) {
-		newLine += line[result.EndPos:]
+	newLine := line[:exprInfo.EndPos] + " → " + formattedResult
+	if exprInfo.EndPos < len(line) {
+		newLine += line[exprInfo.EndPos:]
 	}
 	
 	return newLine, nil
@@ -171,27 +258,33 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 // ProcessLineReplace processes a line and replaces the expression with the result
 func ProcessLineReplace(line string, cursorPos int) (string, int, error) {
 	// Find expression from cursor position going backward
-	result, err := FindExpressionFromPosition(line, cursorPos)
+	exprInfo, err := FindExpressionFromPosition(line, cursorPos)
 	if err != nil {
 		return line, cursorPos, err
 	}
 
+	// Re-evaluate with precision support
+	result, err := EvaluateExpressionWithResult(exprInfo.Expression)
+	if err != nil {
+		return line, cursorPos, err
+	}
+	
 	// Format the result
-	formattedResult := FormatResult(result.Value)
+	formattedResult := result.String()
 	
 	// Check if there's a space before the expression position
 	// If so, we want to preserve it in the output
-	if result.StartPos > 0 && line[result.StartPos-1] == ' ' {
+	if exprInfo.StartPos > 0 && line[exprInfo.StartPos-1] == ' ' {
 		formattedResult = " " + formattedResult
 		// Adjust to include the space in the replacement
-		result.StartPos--
+		exprInfo.StartPos--
 	}
 	
 	// Create the new line with the expression replaced
-	newLine := line[:result.StartPos] + formattedResult
-	newCursorPos := result.StartPos + len(formattedResult)
-	if result.EndPos < len(line) {
-		newLine += line[result.EndPos:]
+	newLine := line[:exprInfo.StartPos] + formattedResult
+	newCursorPos := exprInfo.StartPos + len(formattedResult)
+	if exprInfo.EndPos < len(line) {
+		newLine += line[exprInfo.EndPos:]
 	}
 	
 	return newLine, newCursorPos, nil
