@@ -163,32 +163,32 @@ func NewTheme() *Theme {
 
 		Normal: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		Selection: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#5a5c4e", // Even brighter grey-brown for better visibility
+			Background: "#403d3d", // Molokai selection color
 		},
 
 		LineNumber: StyleDef{
-			Foreground: "#75715e",
-			Background: "#272822",
+			Foreground: "#465457",
+			Background: "#1b1d1e",
 		},
 
 		CurrentLine: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#3e3d32", // Slightly brighter than #272822
+			Background: "#24241e", // Molokai current line
 		},
 
 		Context: StyleDef{
-			Foreground: "#f8f8f2",
-			Background: "#000000", // Darker than normal background
+			Foreground: "#66d9ef",
+			Background: "#000000", // Molokai popup/help background
 		},
 
 		SearchHighlight: StyleDef{
-			Foreground: "#f8f8f2",
-			Background: "#5a5a52", // Brighter grey background for search matches
+			Foreground: "#000000",
+			Background: "#fd971f", // Molokai cursor match
 		},
 
 		FlashHighlight: StyleDef{
@@ -197,18 +197,18 @@ func NewTheme() *Theme {
 		},
 
 		Whitespace: StyleDef{
-			Foreground: "#373635", // Dim gray, same as comments/line numbers
+			Foreground: "#88846F", // Molokai virtual whitespace
 			Background: "",       // No background change
 		},
 
 		VerticalRuler: StyleDef{
 			Foreground: "", // Keep foreground unchanged
-			Background: "#323330", // Slightly brighter than normal background
+			Background: "#24241e", // Molokai virtual ruler
 		},
 
 		VirtualCursor: StyleDef{
-			Foreground: "#000000", // Black text on white background
-			Background: "#ffffff", // White background for maximum visibility
+			Foreground: "#000000", // Black text
+			Background: "#f8f8f0", // Molokai cursor primary
 		},
 
 		// Git change indicators for line numbers
@@ -237,75 +237,75 @@ func NewTheme() *Theme {
 			Background: "#66d9ef", // Bright cyan background for selection
 		},
 
-		// Monokai syntax highlighting colors
+		// Molokai syntax highlighting colors (based on Helix molokai theme)
 		SyntaxText: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxKeyword: StyleDef{
-			Foreground: "#f92672",
-			Background: "#272822",
+			Foreground: "#f92672[B]",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxFunction: StyleDef{
 			Foreground: "#a6e22e",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxVariable: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxConstant: StyleDef{
-			Foreground: "#ae81ff",
-			Background: "#272822",
+			Foreground: "#ae81ff[B]",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxString: StyleDef{
 			Foreground: "#e6db74",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxComment: StyleDef{
-			Foreground: "#75715e",
-			Background: "#272822",
+			Foreground: "#7e8e91[B]",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxNumber: StyleDef{
 			Foreground: "#ae81ff",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxOperator: StyleDef{
 			Foreground: "#f92672",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxPunctuation: StyleDef{
-			Foreground: "#f8f8f2",
-			Background: "#272822",
+			Foreground: "#8f8f8f",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxType: StyleDef{
-			Foreground: "#66d9ef[I]",
-			Background: "#272822",
+			Foreground: "#66d9ef",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxNamespace: StyleDef{
-			Foreground: "#a6e22e",
-			Background: "#272822",
+			Foreground: "#66d9ef",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxAttribute: StyleDef{
 			Foreground: "#a6e22e",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		SyntaxTag: StyleDef{
 			Foreground: "#f92672",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		// Markdown styles

@@ -306,6 +306,8 @@ func (e *Editor) exitInsertMode(args []string) error {
 		entry := e.buffer.History.EndInsertSession()
 		if entry != nil {
 			e.setLastChange(entry)
+			// Clear simple command when we have a new insert session
+			e.lastSimpleCommand = ""
 		}
 	}
 

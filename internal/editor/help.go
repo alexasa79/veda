@@ -26,6 +26,7 @@ func (e *Editor) showHelp(args []string) error {
 	
 	helpText.WriteString("= Movement (Normal Mode) =\n")
 	helpText.WriteString("↑/↓/←/→      - Move cursor up/down/left/right\n")
+	helpText.WriteString("h/j/k/l      - Move cursor left/down/up/right (vim-style)\n")
 	helpText.WriteString("w            - Move forward by word\n")
 	helpText.WriteString("b            - Move backward by word\n")
 	helpText.WriteString("0 or Home    - Move to beginning of line\n")
@@ -53,6 +54,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
 	helpText.WriteString("Alt+Q        - Rewrap paragraph (press again for 100, 120 columns)\n")
+	helpText.WriteString(">>           - Indent current line\n")
+	helpText.WriteString("<<           - Unindent current line\n")
 	helpText.WriteString("m            - Enter cursor mode for multiple cursors\n\n")
 	
 	helpText.WriteString("= Cursor Mode =\n")
