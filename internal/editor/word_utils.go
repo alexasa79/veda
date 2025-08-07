@@ -88,6 +88,95 @@ func FindNextWordBoundary(buf *buffer.Buffer, startLine, startChar int) *WordBou
 	return nil
 }
 
+// FindPreviousWordBoundary finds the boundary of the previous word from the given position
+// This implements vim's word backward navigation logic:
+// - From a word: finds the start of the current word or previous word
+// - From whitespace: finds the start of the previous word
+// - From punctuation: finds the start of the previous word
+func FindPreviousWordBoundary(buf *buffer.Buffer, startLine, startChar int) *WordBoundary {
+	iter := buffer.NewBufferIteratorAtLine(buf, startLine)
+	if iter.IsEOF() {
+		return nil
+	}
+	
+	x := startChar
+	line := iter.Line()
+	
+	// If we're at the beginning of the buffer, nothing to do
+	if startLine == 0 && x <= 0 {
+		return nil
+	}
+	
+	// Move back one character first to start the search
+	if x > 0 {
+		x--
+	} else {
+		// Move to previous line
+		iter = iter.Previous()
+		if iter.LineNumber() == startLine {
+			// Couldn't move back, we're at beginning
+			return nil
+		}
+		prevLine := iter.Line()
+		x = len(prevLine) - 1
+		line = prevLine
+	}
+	
+	// Skip whitespace backwards
+	for !iter.IsEOF() {
+		line = iter.Line()
+		
+		// Skip whitespace on current line
+		for x >= 0 && x < len(line) && unicode.IsSpace(rune(line[x])) {
+			x--
+		}
+		
+		// If we found a non-space character, we're at a word or punctuation
+		if x >= 0 && x < len(line) {
+			break
+		}
+		
+		// Move to previous line
+		iter = iter.Previous()
+		if iter.LineNumber() == startLine {
+			// Couldn't move back further
+			return nil
+		}
+		prevLine := iter.Line()
+		if len(prevLine) > 0 {
+			x = len(prevLine) - 1
+		} else {
+			x = 0
+		}
+	}
+	
+	// If we're at EOF or couldn't find anything, return nil
+	if iter.IsEOF() || x < 0 || x >= len(line) {
+		return nil
+	}
+	
+	// Now we're on a non-whitespace character
+	currentChar := rune(line[x])
+	
+	if isWordChar(currentChar) {
+		// We're on a word character, find the start of this word
+		for x > 0 && isWordChar(rune(line[x-1])) {
+			x--
+		}
+	} else {
+		// We're on punctuation, find the start of this punctuation sequence or previous word
+		// For vim compatibility, punctuation is treated as separate words
+		// So we just position at this punctuation character
+	}
+	
+	return &WordBoundary{
+		StartLine: iter.LineNumber(),
+		StartChar: x,
+		EndLine:   iter.LineNumber(),
+		EndChar:   x,
+	}
+}
+
 // FindCurrentWordBoundary finds the boundary of the word at the current position
 // Used by text objects to determine what to delete/change
 // includeTrailingSpace: if true, includes trailing whitespace (for 'dw')
