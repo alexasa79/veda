@@ -140,4 +140,8 @@ func (e *Editor) registerCommands() {
 	
 	// Error testing command
 	e.commandRegistry.Register("error", e.errorCommand, false)
+	
+	// Calculator commands
+	e.commandRegistry.Register("calculate-append", e.calculateAppend, false)
+	e.commandRegistry.Register("calculate-replace", e.calculateReplace, false)
 }

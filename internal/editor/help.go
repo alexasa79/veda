@@ -88,6 +88,12 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space s w    - List project symbols\n")
 	helpText.WriteString("Space s d    - List document symbols\n\n")
 	
+	helpText.WriteString("= Calculator =\n")
+	helpText.WriteString("==           - Calculate expression and append result (e.g., 2+2 → 4)\n")
+	helpText.WriteString("=r           - Calculate expression and replace with result\n")
+	helpText.WriteString("Supports: +, -, *, /, ** (power), parentheses\n")
+	helpText.WriteString("Number formats: decimal, 0xFF (hex), 0o77 (octal), 0b1010 (binary)\n\n")
+	
 	helpText.WriteString("= References Buffer =\n")
 	helpText.WriteString("Enter        - Jump to reference under cursor\n")
 	helpText.WriteString("gn/gp        - Navigate through all references\n\n")

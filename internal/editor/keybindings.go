@@ -140,6 +140,10 @@ func (e *Editor) setupDefaultBindings() {
 	// Special handling for references buffers
 	e.registerKeyBinding(commands.NormalMode, "enter", "jump-to-reference")
 
+	// Calculator operations
+	e.registerKeyBinding(commands.NormalMode, "= =", "calculate-append")
+	e.registerKeyBinding(commands.NormalMode, "= r", "calculate-replace")
+	
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
 	e.registerKeyBinding(commands.NormalMode, "N", "find-previous")
