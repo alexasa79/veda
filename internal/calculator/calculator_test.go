@@ -157,10 +157,12 @@ func TestProcessLineAppend(t *testing.T) {
 		{"1+1", 3, "1+1 → 2", false},
 		{"Calculate: 2*3", 14, "Calculate: 2*3 → 6", false},
 		{"1+1 → 2+3", 11, "1+1 → 2+3 → 5", false},
-		{"Result: 0xFF", 12, "Result: 0xFF → 255", false},
+		{"Result: 0xFF", 12, "Result: 0xFF → 0xff", false}, // Auto-detect hex base
 		{"2**3", 4, "2**3 → 8", false},
 		{"10/2", 4, "10/2 → 5", false},
 		{"3.5*2", 5, "3.5*2 → 7", false},
+		{"15 hex", 6, "15 hex → 0xf", false}, // Suffix directive
+		{"255 bin", 7, "255 bin → 0b11111111", false}, // Suffix directive binary
 		{"No math here", 12, "No math here", true},
 	}
 
@@ -195,7 +197,7 @@ func TestProcessLineReplace(t *testing.T) {
 		{"1+1", 3, "2", 1, false},
 		{"Calculate: 2*3", 14, "Calculate: 6", 12, false},
 		{"x = 10/2", 8, "x = 5", 5, false},
-		{"0xFF+1", 6, "256", 3, false},
+		{"0xFF+1", 6, "0x100", 5, false},  // Hex output since hex is only non-decimal base
 		{"The answer is 3.5*2", 19, "The answer is 7", 15, false},
 		{"No math", 7, "No math", 7, true},
 	}

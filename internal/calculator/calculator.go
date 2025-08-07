@@ -47,7 +47,9 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 			if afterArrowStart < endPos {
 				afterArrow := strings.TrimSpace(line[afterArrowStart:endPos])
 				if afterArrow != "" {
-					parser := NewParser(afterArrow, afterArrowStart)
+					// Tokenize and extract preprocessor directives
+					tokens, _, _ := TokenizeAndExtractPreprocessors(afterArrow, afterArrowStart)
+					parser := NewParserFromTokens(tokens)
 					bigValue, err := parser.Parse()
 					if err == nil && (bestResult == nil || len(afterArrow) > len(bestResult.Expression)) {
 						// Convert to float64 for Result struct
@@ -78,8 +80,12 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 			break
 		}
 
-		// Try to parse and evaluate this expression
-		parser := NewParser(testExpr, startPos)
+		// Try to parse and evaluate this expression with preprocessing
+		// First tokenize and extract preprocessor directives
+		tokens, _, _ := TokenizeAndExtractPreprocessors(testExpr, startPos)
+		
+		// Parse using the tokens (which have directives removed)
+		parser := NewParserFromTokens(tokens)
 		bigValue, err := parser.Parse()
 		
 		// If parsing succeeded, update best result (we want the longest valid expression)
@@ -105,7 +111,9 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 	if endPos > 0 {
 		testExpr := strings.TrimSpace(line[0:endPos])
 		if testExpr != "" {
-			parser := NewParser(testExpr, 0)
+			// Tokenize and extract preprocessor directives
+			tokens, _, _ := TokenizeAndExtractPreprocessors(testExpr, 0)
+			parser := NewParserFromTokens(tokens)
 			bigValue, err := parser.Parse()
 			if err == nil {
 				// Convert to float64 for Result struct
