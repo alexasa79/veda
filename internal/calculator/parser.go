@@ -43,12 +43,14 @@ type Parser struct {
 	tokens    []Token
 	tokenIdx  int
 	current   Token
+	variables *Variables // Variable storage
 }
 
 // NewParser creates a new parser for the given input
 func NewParser(input string, start int) *Parser {
 	p := &Parser{
 		tokenizer: NewTokenizer(input, start),
+		variables: GetDefaultVariables(),
 	}
 	p.advance() // Load the first token
 	return p
@@ -57,8 +59,9 @@ func NewParser(input string, start int) *Parser {
 // NewParserFromTokens creates a new parser from a list of tokens
 func NewParserFromTokens(tokens []Token) *Parser {
 	p := &Parser{
-		tokens:   tokens,
-		tokenIdx: 0,
+		tokens:    tokens,
+		tokenIdx:  0,
+		variables: GetDefaultVariables(),
 	}
 	if len(tokens) > 0 {
 		p.current = tokens[0]
@@ -66,6 +69,11 @@ func NewParserFromTokens(tokens []Token) *Parser {
 		p.current = Token{Type: TokenEOF}
 	}
 	return p
+}
+
+// SetVariables sets the variable storage for the parser
+func (p *Parser) SetVariables(vars *Variables) {
+	p.variables = vars
 }
 
 // advance moves to the next token
@@ -203,6 +211,17 @@ func (p *Parser) parsePrimary() (*big.Float, error) {
 	// Handle numbers
 	if p.current.Type == TokenNumber {
 		value, err := ParseNumberBig(p.current.Value)
+		if err != nil {
+			return nil, err
+		}
+		p.advance()
+		return value, nil
+	}
+	
+	// Handle variables
+	if p.current.Type == TokenVariable {
+		varRef := p.current.Value
+		value, err := EvaluateVariable(varRef, p.variables)
 		if err != nil {
 			return nil, err
 		}
