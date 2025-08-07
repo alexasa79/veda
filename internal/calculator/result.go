@@ -51,18 +51,20 @@ func (r *CalculationResult) String() string {
 		return "0"
 	}
 
-	// Handle non-decimal formats
-	if r.Format != FormatDecimal {
-		return r.formatNonDecimal()
-	}
-
-	// Handle decimal format with precision
+	// If precision is specified, always use decimal format
+	// (precision only makes sense for decimal numbers)
 	if r.Precision >= 0 {
 		// Format with specific precision
 		return r.formatWithPrecision()
 	}
 
-	// Default formatting - try to be smart about it
+	// Handle non-decimal formats (only when no precision is specified)
+	// Note: Non-decimal formats will truncate floats to integers
+	if r.Format != FormatDecimal {
+		return r.formatNonDecimal()
+	}
+
+	// Default formatting - decimal for floats or when format is decimal
 	return r.formatDefault()
 }
 
@@ -93,15 +95,19 @@ func (r *CalculationResult) formatNonDecimal() string {
 	// Convert to integer (truncate if necessary)
 	intVal, _ := r.Value.Int(nil)
 	
-	// Handle negative values - use two's complement representation
-	if intVal.Sign() < 0 {
-		// Determine bit width
-		bitWidth := r.BitWidth
-		if bitWidth == 0 {
-			// Auto-determine bit width based on value
-			bitWidth = r.autoDetermineBitWidth(intVal)
-		}
+	// If bit width is specified, mask the value to fit
+	if r.BitWidth > 0 {
+		// Create a mask for the bit width
+		one := big.NewInt(1)
+		mask := new(big.Int).Lsh(one, uint(r.BitWidth))
+		mask.Sub(mask, one) // mask = (1 << bitWidth) - 1
 		
+		// Apply mask to get only the bits that fit
+		intVal = new(big.Int).And(intVal, mask)
+	} else if intVal.Sign() < 0 {
+		// Handle negative values - use two's complement representation
+		// Auto-determine bit width based on value
+		bitWidth := r.autoDetermineBitWidth(intVal)
 		// Convert to two's complement
 		intVal = r.toTwosComplement(intVal, bitWidth)
 	}
@@ -110,18 +116,48 @@ func (r *CalculationResult) formatNonDecimal() string {
 	switch r.Format {
 	case FormatHex:
 		result := fmt.Sprintf("%x", intVal)
+		// Pad to match bit width if specified
+		if r.BitWidth > 0 {
+			// Calculate hex digits needed for bit width (4 bits per hex digit)
+			hexDigits := r.BitWidth / 4
+			if len(result) < hexDigits {
+				padding := strings.Repeat("0", hexDigits-len(result))
+				result = padding + result
+			} else if len(result) > hexDigits {
+				// Trim if too long
+				result = result[len(result)-hexDigits:]
+			}
+		}
 		// Add 0x prefix
 		return "0x" + result
 	case FormatBinary:
 		result := fmt.Sprintf("%b", intVal)
-		// Pad to bit width if specified
-		if r.BitWidth > 0 && len(result) < r.BitWidth {
-			padding := strings.Repeat("0", r.BitWidth-len(result))
-			result = padding + result
+		// Pad or trim to bit width if specified
+		if r.BitWidth > 0 {
+			if len(result) < r.BitWidth {
+				padding := strings.Repeat("0", r.BitWidth-len(result))
+				result = padding + result
+			} else if len(result) > r.BitWidth {
+				// Trim if too long
+				result = result[len(result)-r.BitWidth:]
+			}
 		}
 		return "0b" + result
 	case FormatOctal:
 		result := fmt.Sprintf("%o", intVal)
+		// Pad to match bit width if specified
+		if r.BitWidth > 0 {
+			// Calculate octal digits needed for bit width (3 bits per octal digit)
+			// Round up to ensure we have enough digits
+			octalDigits := (r.BitWidth + 2) / 3
+			if len(result) < octalDigits {
+				padding := strings.Repeat("0", octalDigits-len(result))
+				result = padding + result
+			} else if len(result) > octalDigits {
+				// Trim if too long
+				result = result[len(result)-octalDigits:]
+			}
+		}
 		return "0o" + result
 	default:
 		return r.formatDefault()

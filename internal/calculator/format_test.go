@@ -55,12 +55,12 @@ func TestFormatDirectives(t *testing.T) {
 		{
 			name:     "hex format with bit width 8",
 			expr:     "15 hex8",
-			expected: "0xf",
+			expected: "0x0f",  // Padded to 2 hex digits (8 bits)
 		},
 		{
 			name:     "hex format with bit width 16",
 			expr:     "255 hex16",
-			expected: "0xff",
+			expected: "0x00ff",  // Padded to 4 hex digits (16 bits)
 		},
 		{
 			name:     "hex format negative number",
@@ -359,7 +359,7 @@ func TestProcessLineWithFormats(t *testing.T) {
 			name:      "hex with bit width",
 			line:      "Status: 255 hex16",
 			cursorPos: 11,  // Cursor at end of "255"
-			expected:  "Status: 255 → 0xff hex16",
+			expected:  "Status: 255 → 0x00ff hex16",  // Padded to 16 bits
 		},
 	}
 	

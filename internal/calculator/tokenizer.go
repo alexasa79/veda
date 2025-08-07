@@ -25,11 +25,22 @@ const (
 	TokenInvalid
 )
 
+// NumberBase represents the base of a number token
+type NumberBase int
+
+const (
+	BaseDecimal NumberBase = iota
+	BaseHex
+	BaseBinary
+	BaseOctal
+)
+
 // Token represents a single token in the expression
 type Token struct {
 	Type  TokenType
 	Value string
-	Pos   int // Position in the original string
+	Pos   int        // Position in the original string
+	Base  NumberBase // For number tokens, tracks the input base
 }
 
 // Tokenizer handles tokenization of expressions
@@ -146,6 +157,7 @@ func (t *Tokenizer) NextToken() Token {
 // scanNumber scans a number token (decimal, hex, octal, or binary)
 func (t *Tokenizer) scanNumber() Token {
 	tokenStart := t.pos
+	base := BaseDecimal
 	
 	// Check for hex, octal, or binary prefix
 	if t.input[t.pos] == '0' && t.pos+1 < len(t.input) {
@@ -157,21 +169,21 @@ func (t *Tokenizer) scanNumber() Token {
 			if !t.scanHexDigits() {
 				return Token{Type: TokenInvalid, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
 			}
-			return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
+			return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart, Base: BaseHex}
 		case 'o', 'O':
 			// Octal
 			t.pos += 2
 			if !t.scanOctalDigits() {
 				return Token{Type: TokenInvalid, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
 			}
-			return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
+			return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart, Base: BaseOctal}
 		case 'b', 'B':
 			// Binary
 			t.pos += 2
 			if !t.scanBinaryDigits() {
 				return Token{Type: TokenInvalid, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
 			}
-			return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
+			return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart, Base: BaseBinary}
 		}
 	}
 
@@ -216,7 +228,7 @@ func (t *Tokenizer) scanNumber() Token {
 		return Token{Type: TokenInvalid, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
 	}
 
-	return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
+	return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart, Base: base}
 }
 
 // scanHexDigits scans hexadecimal digits
@@ -352,6 +364,10 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 	}
 	hasDirective := false
 	
+	// Track the bases of all numbers in the expression for auto-detection
+	var numberBases []NumberBase
+	hasExplicitDirective := false
+	
 	for {
 		token := tokenizer.NextToken()
 		if token.Type == TokenEOF {
@@ -359,7 +375,11 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 			break
 		}
 		
-		if token.Type == TokenPreprocessor {
+		if token.Type == TokenNumber {
+			// Track the base of this number
+			numberBases = append(numberBases, token.Base)
+			tokens = append(tokens, token)
+		} else if token.Type == TokenPreprocessor {
 			switch token.Value {
 			case "pre":
 				// Look for the next token which should be a number
@@ -377,6 +397,9 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 				// If not followed by a valid number, include both tokens
 				tokens = append(tokens, token)
 				if nextToken.Type != TokenEOF {
+					if nextToken.Type == TokenNumber {
+						numberBases = append(numberBases, nextToken.Base)
+					}
 					tokens = append(tokens, nextToken)
 				}
 				
@@ -391,6 +414,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					directive.Format = FormatOctal
 				}
 				hasDirective = true
+				hasExplicitDirective = true
 				
 				// Check if followed by a number (bit width)
 				nextToken := tokenizer.NextToken()
@@ -404,6 +428,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 						continue
 					}
 					// Not a valid bit width, put the number back for the expression
+					numberBases = append(numberBases, nextToken.Base)
 					tokens = append(tokens, nextToken)
 				} else if nextToken.Type != TokenEOF {
 					// Put the non-number token back
@@ -415,10 +440,14 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 				// Set format to decimal (explicit decimal output)
 				directive.Format = FormatDecimal
 				hasDirective = true
+				hasExplicitDirective = true
 				// "dec" doesn't support bit width, so check the next token
 				// and put it back into the stream for parsing
 				nextToken := tokenizer.NextToken()
 				if nextToken.Type != TokenEOF {
+					if nextToken.Type == TokenNumber {
+						numberBases = append(numberBases, nextToken.Base)
+					}
 					tokens = append(tokens, nextToken)
 				}
 				// Skip only the "dec" directive token
@@ -430,6 +459,46 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 		} else {
 			tokens = append(tokens, token)
 		}
+	}
+	
+	// Apply automatic base detection if no explicit directive was given
+	if !hasExplicitDirective && len(numberBases) > 0 {
+		// Collect all non-decimal bases
+		var nonDecimalBases []NumberBase
+		for _, base := range numberBases {
+			if base != BaseDecimal {
+				nonDecimalBases = append(nonDecimalBases, base)
+			}
+		}
+		
+		// If there are non-decimal bases, check if they're all the same
+		if len(nonDecimalBases) > 0 {
+			firstNonDecimal := nonDecimalBases[0]
+			allSameBase := true
+			for _, base := range nonDecimalBases[1:] {
+				if base != firstNonDecimal {
+					allSameBase = false
+					break
+				}
+			}
+			
+			// If all non-decimal numbers have the same base, use that base for output
+			if allSameBase {
+				switch firstNonDecimal {
+				case BaseHex:
+					directive.Format = FormatHex
+					hasDirective = true
+				case BaseBinary:
+					directive.Format = FormatBinary
+					hasDirective = true
+				case BaseOctal:
+					directive.Format = FormatOctal
+					hasDirective = true
+				}
+			}
+			// If mixed non-decimal bases, keep default (decimal)
+		}
+		// If only decimal numbers, keep default (decimal)
 	}
 	
 	return tokens, directive, hasDirective
