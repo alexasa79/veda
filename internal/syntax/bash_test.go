@@ -45,25 +45,25 @@ done`
 		tokenType TokenType
 		partial   bool // If true, match substring instead of exact match
 	}{
-		{"#!/bin/bash", TokenTypeBashComment, false},
-		{"# This is a comment", TokenTypeBashComment, false},
-		{"NAME", TokenTypeBashVariable, false},
-		{"Hello World", TokenTypeBashString, true}, // String content
-		{"echo", TokenTypeBashBuiltin, false},
-		{"NAME", TokenTypeBashVariable, true}, // Variable reference (part of $NAME)
-		{"if", TokenTypeBashKeyword, false},
-		{"then", TokenTypeBashKeyword, false},
-		{"fi", TokenTypeBashKeyword, false},
-		{"function", TokenTypeBashKeyword, false},
-		{"test", TokenTypeBashFunction, false},
-		{"local", TokenTypeBashKeyword, false},
-		{"return", TokenTypeBashKeyword, false},
-		{"for", TokenTypeBashKeyword, false},
-		{"do", TokenTypeBashKeyword, false},
-		{"done", TokenTypeBashKeyword, false},
-		{"-eq", TokenTypeBashOperator, false},
-		{"?", TokenTypeBashSpecial, true}, // Part of $?
-		{"1", TokenTypeBashVariable, true}, // Part of $1
+		{"#!/bin/bash", TokenTypeComment, false},
+		{"# This is a comment", TokenTypeComment, false},
+		{"NAME", TokenTypeVariable, false},
+		{"Hello World", TokenTypeString, true}, // String content
+		{"echo", TokenTypeFunction, false}, // echo is parsed as a function by tree-sitter
+		{"NAME", TokenTypeVariable, true}, // Variable reference (part of $NAME)
+		{"if", TokenTypeKeyword, false},
+		{"then", TokenTypeKeyword, false},
+		{"fi", TokenTypeKeyword, false},
+		{"function", TokenTypeKeyword, false},
+		{"test", TokenTypeFunction, false},
+		{"local", TokenTypeKeyword, false},
+		{"return", TokenTypeKeyword, false},
+		{"for", TokenTypeKeyword, false},
+		{"do", TokenTypeKeyword, false},
+		{"done", TokenTypeKeyword, false},
+		{"-eq", TokenTypeOperator, false},
+		{"?", TokenTypeConstant, true}, // Part of $? - special variable parsed as constant
+		{"1", TokenTypeVariable, true}, // Part of $1
 	}
 	
 	// Check each test case
@@ -131,39 +131,35 @@ done`
 		testTheme := theme.NewTheme()
 		style := GetStyleForToken(foundToken.TokenType, testTheme)
 		
-		// Verify that bash-specific tokens get bash-specific styles
+		// Verify that tokens get appropriate styles
 		switch tc.tokenType {
-		case TokenTypeBashKeyword:
-			if style != testTheme.BashKeyword {
-				t.Errorf("Token %s should use BashKeyword style", tc.text)
+		case TokenTypeKeyword:
+			if style != testTheme.SyntaxKeyword {
+				t.Errorf("Token %s should use SyntaxKeyword style", tc.text)
 			}
-		case TokenTypeBashBuiltin:
-			if style != testTheme.BashBuiltin {
-				t.Errorf("Token %s should use BashBuiltin style", tc.text)
+		case TokenTypeVariable:
+			if style != testTheme.SyntaxVariable {
+				t.Errorf("Token %s should use SyntaxVariable style", tc.text)
 			}
-		case TokenTypeBashVariable:
-			if style != testTheme.BashVariable {
-				t.Errorf("Token %s should use BashVariable style", tc.text)
+		case TokenTypeString:
+			if style != testTheme.SyntaxString {
+				t.Errorf("Token %s should use SyntaxString style", tc.text)
 			}
-		case TokenTypeBashString:
-			if style != testTheme.BashString {
-				t.Errorf("Token %s should use BashString style", tc.text)
+		case TokenTypeComment:
+			if style != testTheme.SyntaxComment {
+				t.Errorf("Token %s should use SyntaxComment style", tc.text)
 			}
-		case TokenTypeBashComment:
-			if style != testTheme.BashComment {
-				t.Errorf("Token %s should use BashComment style", tc.text)
+		case TokenTypeFunction:
+			if style != testTheme.SyntaxFunction {
+				t.Errorf("Token %s should use SyntaxFunction style", tc.text)
 			}
-		case TokenTypeBashFunction:
-			if style != testTheme.BashFunction {
-				t.Errorf("Token %s should use BashFunction style", tc.text)
+		case TokenTypeOperator:
+			if style != testTheme.SyntaxOperator {
+				t.Errorf("Token %s should use SyntaxOperator style", tc.text)
 			}
-		case TokenTypeBashSpecial:
-			if style != testTheme.BashSpecial {
-				t.Errorf("Token %s should use BashSpecial style", tc.text)
-			}
-		case TokenTypeBashOperator:
-			if style != testTheme.BashOperator {
-				t.Errorf("Token %s should use BashOperator style", tc.text)
+		case TokenTypeConstant:
+			if style != testTheme.SyntaxConstant {
+				t.Errorf("Token %s should use SyntaxConstant style", tc.text)
 			}
 		}
 	}
