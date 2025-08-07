@@ -40,6 +40,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("i            - Enter insert mode\n")
 	helpText.WriteString("o            - Open new line below and enter insert mode\n")
 	helpText.WriteString("O            - Open new line above and enter insert mode\n")
+	helpText.WriteString("Ctrl+O       - From insert mode: execute one normal mode command\n")
 	helpText.WriteString("x            - Delete character under cursor\n")
 	helpText.WriteString("D            - Delete from cursor to end of line\n")
 	helpText.WriteString("d<motion>    - Delete with motion (e.g., dw = delete word, dd = delete line)\n")
@@ -89,8 +90,10 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space s d    - List document symbols\n\n")
 	
 	helpText.WriteString("= Calculator =\n")
-	helpText.WriteString("==           - Calculate expression and append result (e.g., 2+2 → 4)\n")
-	helpText.WriteString("=r           - Calculate expression and replace with result\n")
+	helpText.WriteString("- -          - Calculate expression and append result (e.g., 2+2 → 4)\n")
+	helpText.WriteString("- =          - Calculate expression and replace with result\n")
+	helpText.WriteString("Ctrl+O - -   - Use from insert mode to calculate without leaving insert\n")
+	helpText.WriteString("Ctrl+O - =   - Use from insert mode to replace without leaving insert\n")
 	helpText.WriteString("Supports: +, -, *, /, ** (power), parentheses\n")
 	helpText.WriteString("Number formats: decimal, 0xFF (hex), 0o77 (octal), 0b1010 (binary)\n\n")
 	

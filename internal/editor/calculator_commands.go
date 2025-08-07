@@ -11,6 +11,8 @@ func (e *Editor) calculateAppend(args []string) error {
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	line := e.buffer.CursorIterator.Line()
 	cursorX := e.buffer.CursorX
+	// Save view position before any buffer modifications
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	
 	// If cursor is past the end of the line, adjust to the end
 	if cursorX > len(line) {
@@ -49,8 +51,7 @@ func (e *Editor) calculateAppend(args []string) error {
 	// Move cursor to the end of the new line
 	e.buffer.CursorX = len(newLine)
 	
-	// Recreate iterators
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	// Recreate iterators after buffer modifications
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 	
@@ -66,6 +67,8 @@ func (e *Editor) calculateReplace(args []string) error {
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	line := e.buffer.CursorIterator.Line()
 	cursorX := e.buffer.CursorX
+	// Save view position before any buffer modifications
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	
 	// If cursor is past the end of the line, adjust to the end
 	if cursorX > len(line) {
@@ -104,8 +107,7 @@ func (e *Editor) calculateReplace(args []string) error {
 	// Move cursor to the new position
 	e.buffer.CursorX = newCursorX
 	
-	// Recreate iterators
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	// Recreate iterators after buffer modifications
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 	

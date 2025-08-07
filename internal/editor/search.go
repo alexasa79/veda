@@ -338,5 +338,15 @@ func (e *Editor) getCurrentMatchIndex(pos int) int {
 // clearSearchCmd is the command handler for clearing the search
 func (e *Editor) clearSearchCmd(args []string) error {
 	e.clearSearch()
+	
+	// If we're in temporary normal mode, return to insert mode
+	if e.temporaryNormal {
+		e.temporaryNormal = false
+		e.mode = commands.InsertMode
+	}
+	
+	// Also reset any pending key sequences
+	e.keyMapper.ResetPending()
+	
 	return nil
 }

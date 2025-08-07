@@ -44,6 +44,7 @@ type Editor struct {
 	buffer          *buffer.Buffer          // Current buffer
 	config          *config.Config
 	mode            commands.Mode
+	temporaryNormal bool                       // True when in temporary normal mode (Ctrl+O from insert)
 	commandLine     *widgets.CommandLineWidget
 	searchLine      *widgets.CommandLineWidget  // For search mode (/)
 	proxyManager    *proxy.ProxyManager
@@ -213,7 +214,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		commandRegistry: commands.NewCommandRegistry(),
 		keyMapper:       commands.NewKeyMapper(),
 		highlighter:     syntax.NewHighlighter(),
-		perfTracker:     perf.New(true, 5*time.Second), // Report every 5 seconds
+		perfTracker:     perf.New(true, 60*time.Second), // Report every 60 seconds
 		buffers:         make(map[string]*buffer.Buffer),
 		bufferOrder:     []string{},
 		navHistory:      []NavigationEntry{},
@@ -530,6 +531,13 @@ func (e *Editor) handleEvent(ev events.Event) {
 				if e.mode == commands.NormalMode {
 					e.countPrefix = ""
 					e.repeatCount = 0
+					
+					// If we're in temporary normal mode and no keys are pending,
+					// return to insert mode
+					if e.temporaryNormal && !e.keyMapper.HasPending() {
+						e.temporaryNormal = false
+						e.mode = commands.InsertMode
+					}
 				}
 			}
 		}
@@ -563,6 +571,9 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 	if count <= 0 {
 		count = 1
 	}
+	
+	// Store whether we're in temporary normal mode before executing
+	wasTemporaryNormal := e.temporaryNormal
 
 	// Commands that need special handling for count
 	switch command {
@@ -599,6 +610,15 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 				}
 			}
 		}
+		
+		// After executing a command in temporary normal mode, return to insert mode
+		// unless the command itself changes the mode
+		if wasTemporaryNormal && e.mode == commands.NormalMode {
+			LL.Debug("executeWithRepeatCount: Returning to insert mode after temporary normal command")
+			e.temporaryNormal = false
+			e.mode = commands.InsertMode
+		}
+		
 		return nil
 	}
 }

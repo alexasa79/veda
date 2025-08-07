@@ -220,6 +220,11 @@ func (km *KeyMapper) ResetPending() {
 	km.pending = KeySequence{}
 }
 
+// HasPending returns true if there are pending keys in a sequence
+func (km *KeyMapper) HasPending() bool {
+	return len(km.pending) > 0
+}
+
 // GetAllBindings returns all registered key bindings
 func (km *KeyMapper) GetAllBindings() []Binding {
 	return km.bindings

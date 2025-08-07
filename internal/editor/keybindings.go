@@ -143,8 +143,9 @@ func (e *Editor) setupDefaultBindings() {
 	// Calculator operations
 	e.registerKeyBinding(commands.NormalMode, "- -", "calculate-append")
 	e.registerKeyBinding(commands.NormalMode, "- =", "calculate-replace")
-	e.registerKeyBinding(commands.InsertMode, "ctrl+- ctrl+-", "calculate-append")
-	e.registerKeyBinding(commands.InsertMode, "ctrl+- ctrl+=", "calculate-replace")
+	
+	// Temporary normal mode from insert mode (like vim's Ctrl+O)
+	e.registerKeyBinding(commands.InsertMode, "ctrl+o", "enter-temporary-normal-mode")
 	
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")

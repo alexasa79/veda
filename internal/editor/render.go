@@ -707,6 +707,8 @@ func (e *Editor) drawStatusBar() {
 			modeText = " VISUAL LINE "
 		} else if e.mode == commands.CursorMode {
 			modeText = " CURSOR "
+		} else if e.mode == commands.NormalMode && e.temporaryNormal {
+			modeText = " NORMAL (i) "
 		}
 		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil, -1, 0, -1)
 		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space after mode

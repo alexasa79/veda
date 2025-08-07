@@ -47,6 +47,16 @@ func ParseKey(s string) (Key, error) {
 
 	// Check special key names (convert to lowercase for comparison)
 	switch strings.ToLower(keyName) {
+	case "o":
+		// Check if this is Ctrl+O
+		if result.Mod&events.ModCtrl != 0 {
+			result.Key = events.KeyCtrlO
+			// Clear Ctrl since it's part of the key
+			result.Mod = result.Mod &^ events.ModCtrl
+		} else {
+			result.Key = events.KeyRune
+			result.Rune = 'o'
+		}
 	case "space":
 		// Check if this is Ctrl+Space (with or without Shift)
 		if result.Mod&events.ModCtrl != 0 {
