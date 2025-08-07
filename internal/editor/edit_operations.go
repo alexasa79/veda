@@ -276,6 +276,9 @@ func (e *Editor) insertChar(ch rune) error {
 	// Auto-pairing feature has been disabled
 	// Simply insert the character without any pairing or skipping logic
 
+	// Reset desired column when inserting text
+	e.desiredColumn = -1
+
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()

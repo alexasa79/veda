@@ -9,11 +9,16 @@ import (
 func (e *Editor) moveUp(args []string) error {
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
+	
+	// Set desired column if not already set
+	if e.desiredColumn == -1 {
+		e.desiredColumn = visualCol
+	}
 
 	if visualLine > 0 {
-		// Map to new position one visual line up
+		// Map to new position one visual line up, using desired column
 		newVisualLine := visualLine - 1
-		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, visualCol)
+		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
 
 		// Update cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newLogicalLine)
@@ -35,14 +40,19 @@ func (e *Editor) moveUp(args []string) error {
 func (e *Editor) moveDown(args []string) error {
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
+	
+	// Set desired column if not already set
+	if e.desiredColumn == -1 {
+		e.desiredColumn = visualCol
+	}
 
 	// Calculate wrapped lines to check bounds
 	wrappedLines := e.CalculateWrappedLines()
 
 	if visualLine < len(wrappedLines)-1 {
-		// Map to new position one visual line down
+		// Map to new position one visual line down, using desired column
 		newVisualLine := visualLine + 1
-		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, visualCol)
+		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
 
 		// Update cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newLogicalLine)
@@ -65,6 +75,8 @@ func (e *Editor) moveLeft(args []string) error {
 	if e.buffer.CursorX > 0 {
 		e.buffer.CursorX--
 	}
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
 	e.updateCursorState()
 	return nil
 }
@@ -79,6 +91,8 @@ func (e *Editor) moveRight(args []string) error {
 		// Simply move to the next character - the visual rendering handles tab width
 		e.buffer.CursorX++
 	}
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
 	e.updateCursorState()
 	return nil
 }
@@ -94,99 +108,34 @@ func (e *Editor) wordForward(args []string) error {
 		e.buffer.CursorX = nextWord.StartChar
 	}
 
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
 	e.updateCursorState()
 	return nil
 }
 
 // wordBackward moves the cursor to the beginning of the previous word
 func (e *Editor) wordBackward(args []string) error {
-	// If we're at the very beginning, can't go back
-	if e.buffer.CursorIterator.LineNumber() == 0 && e.buffer.CursorX == 0 {
-		return nil
+	currentLine := e.buffer.CursorIterator.LineNumber()
+	prevWord := FindPreviousWordBoundary(e.buffer, currentLine, e.buffer.CursorX)
+
+	if prevWord != nil {
+		// Move cursor to the previous word
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, prevWord.StartLine)
+		e.buffer.CursorX = prevWord.StartChar
 	}
 
-	// Start from current position
-	iter := e.buffer.CursorIterator
-	x := e.buffer.CursorX
-	currentLine := iter.Line()
-
-
-	// Move left one position
-	x--
-	if x < 0 {
-		// Move to previous line
-		iter = iter.Previous()
-		if iter.LineNumber() == e.buffer.CursorIterator.LineNumber() {
-			// Couldn't move back, we're at beginning
-			return nil
-		}
-		currentLine = iter.Line()
-		x = len(currentLine) - 1
-		if x < 0 {
-			x = 0
-		}
-	}
-
-	// State: are we looking for a word start?
-	lookingForWord := true
-
-	// If we're on a word character, we need to skip to the beginning of this word
-	if x < len(currentLine) && isWordChar(rune(currentLine[x])) {
-		lookingForWord = false
-	}
-
-	// Search backwards
-	for {
-		line := iter.Line()
-
-		for x >= 0 {
-			if x < len(line) {
-				ch := rune(line[x])
-				if lookingForWord {
-					// Looking for a word character
-					if isWordChar(ch) {
-						// Found end of a word, now find its beginning
-						lookingForWord = false
-					}
-				} else {
-					// In a word, looking for its beginning
-					if !isWordChar(ch) {
-						// Found non-word character, word starts at x+1
-						e.buffer.CursorX = x + 1
-						e.buffer.CursorIterator = iter
-						return nil
-					}
-				}
-			}
-
-			x--
-		}
-
-		// If we were in a word and reached beginning of line
-		if !lookingForWord {
-			e.buffer.CursorX = 0
-			e.buffer.CursorIterator = iter
-			return nil
-		}
-
-		// Move to previous line
-		prevIter := iter.Previous()
-		if prevIter.LineNumber() == iter.LineNumber() {
-			// Can't go back further
-			break
-		}
-		iter = prevIter
-		x = len(iter.Line()) - 1
-		lookingForWord = true // Line break is a word boundary
-	}
-
-	// Reached beginning of buffer
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	e.updateCursorState()
 	return nil
 }
 
 // beginningOfLine moves cursor to the beginning of the current line
 func (e *Editor) beginningOfLine(args []string) error {
 	e.buffer.CursorX = 0
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
 	e.updateCursorState()
 	return nil
 }
@@ -216,6 +165,8 @@ func (e *Editor) endOfLine(args []string) error {
 	} else {
 		e.buffer.CursorX = 0
 	}
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
 	e.updateCursorState()
 	return nil
 }
