@@ -5,7 +5,7 @@ import (
 	"veda/internal/commands"
 	"veda/internal/events"
 	"veda/internal/syntax"
-	"veda/internal/ui"
+	"veda/internal/theme"
 )
 
 func TestCursorMode(t *testing.T) {
@@ -204,11 +204,12 @@ func TestCursorRendering(t *testing.T) {
 		}
 		
 		// Check that background style is applied
-		// Virtual cursors should have white background (#ffffff)
-		// The theme uses NewRGBColor for #ffffff which creates an RGB color value
-		virtualCursorBg, _ := ui.ParseHexColor("#ffffff")
+		// Get the virtual cursor background color from the theme
+		theme := theme.NewTheme()
+		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
+		virtualCursorBg := virtualCursorStyle.Bg
 		if style.Bg != virtualCursorBg {
-			t.Errorf("Expected virtual cursor to have white background (#ffffff), got %v", style.Bg)
+			t.Errorf("Expected virtual cursor background, got %v, expected %v", style.Bg, virtualCursorBg)
 		}
 	})
 	
@@ -246,10 +247,12 @@ func TestCursorRendering(t *testing.T) {
 					pos.char, pos.x, pos.y, char)
 			}
 			
-			// Check background style - should be white (#ffffff)
-			virtualCursorBg, _ := ui.ParseHexColor("#ffffff")
+			// Check background style - should match theme's VirtualCursor style
+			theme := theme.NewTheme()
+		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
+		virtualCursorBg := virtualCursorStyle.Bg
 			if style.Bg != virtualCursorBg {
-				t.Errorf("Expected white background (#ffffff) at virtual cursor (%d,%d), got %v", pos.x, pos.y, style.Bg)
+				t.Errorf("Expected virtual cursor background at (%d,%d), got %v, expected %v", pos.x, pos.y, style.Bg, virtualCursorBg)
 			}
 		}
 	})
@@ -293,10 +296,12 @@ func TestCursorRendering(t *testing.T) {
 			t.Errorf("Expected 'W' at virtual cursor position (screen x=%d), got '%c'", lineNumWidth+6, char)
 		}
 		
-		// Check that it has white background
-		virtualCursorBg, _ := ui.ParseHexColor("#ffffff")
+		// Check that it has the correct virtual cursor background
+		theme := theme.NewTheme()
+		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
+		virtualCursorBg := virtualCursorStyle.Bg
 		if style.Bg != virtualCursorBg {
-			t.Errorf("Expected white background for virtual cursor at screen position %d, got %v", lineNumWidth+6, style.Bg)
+			t.Errorf("Expected virtual cursor background at screen position %d, got %v, expected %v", lineNumWidth+6, style.Bg, virtualCursorBg)
 		}
 		
 		// Also check the characters before and after don't have virtual cursor styling
@@ -336,7 +341,9 @@ func TestCursorRendering(t *testing.T) {
 		
 		// Check that line numbers don't have virtual cursor styling
 		lineNumWidth := 2
-		virtualCursorBg, _ := ui.ParseHexColor("#ffffff")
+		theme := theme.NewTheme()
+		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
+		virtualCursorBg := virtualCursorStyle.Bg
 		
 		// Check line number area
 		for x := 0; x < lineNumWidth; x++ {
@@ -352,7 +359,7 @@ func TestCursorRendering(t *testing.T) {
 			t.Errorf("Expected 'A' at position 0 in text, got '%c'", char)
 		}
 		if style.Bg != virtualCursorBg {
-			t.Errorf("Expected white background for virtual cursor at beginning of line, got %v", style.Bg)
+			t.Errorf("Expected virtual cursor background at beginning of line, got %v, expected %v", style.Bg, virtualCursorBg)
 		}
 	})
 	
@@ -441,7 +448,9 @@ This is a **bold** text.
 		// Check first virtual cursor (at beginning of first line)
 		lineNumWidth := 2
 		char1, style1 := te.mockScreen.GetCell(lineNumWidth, 0)
-		virtualCursorBg, _ := ui.ParseHexColor("#ffffff")
+		theme := theme.NewTheme()
+		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
+		virtualCursorBg := virtualCursorStyle.Bg
 		
 		if char1 != '#' {
 			t.Errorf("Expected '#' at first virtual cursor position, got '%c'", char1)
@@ -460,7 +469,7 @@ This is a **bold** text.
 					t.Logf("       x=%d: '%c' bg=%v", x, ch, bgColor)
 				}
 			}
-			t.Errorf("Expected white background for first virtual cursor, got %v", style1.Bg)
+			t.Errorf("Expected virtual cursor background for first virtual cursor, got %v, expected %v", style1.Bg, virtualCursorBg)
 		}
 		
 		// Check second virtual cursor (on "bold")
@@ -469,11 +478,11 @@ This is a **bold** text.
 			vc2 := virtualCursors[1]
 			t.Logf("Second virtual cursor at: (%d, %d)", vc2.X, vc2.Y)
 			
-			// Check that position has white background
+			// Check that position has virtual cursor background
 			char2, style2 := te.mockScreen.GetCell(lineNumWidth+vc2.X, vc2.Y)
 			if style2.Bg != virtualCursorBg {
-				t.Errorf("Expected white background for second virtual cursor at (%d,%d), got %v. Character: '%c'", 
-					vc2.X, vc2.Y, style2.Bg, char2)
+				t.Errorf("Expected virtual cursor background for second virtual cursor at (%d,%d), got %v, expected %v. Character: '%c'", 
+					vc2.X, vc2.Y, style2.Bg, virtualCursorBg, char2)
 			}
 		}
 	})
@@ -504,16 +513,18 @@ This is a **bold** text.
 		// Force render
 		te.render()
 		
-		// Verify all virtual cursors are rendered with white background
+		// Verify all virtual cursors are rendered with the theme's virtual cursor background
 		lineNumWidth := 2
-		virtualCursorBg, _ := ui.ParseHexColor("#ffffff")
+		theme := theme.NewTheme()
+		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
+		virtualCursorBg := virtualCursorStyle.Bg
 		
 		virtualCursors := te.GetVirtualCursors()
 		for i, vc := range virtualCursors {
 			char, style := te.mockScreen.GetCell(lineNumWidth+vc.X, vc.Y)
 			if style.Bg != virtualCursorBg {
-				t.Errorf("Virtual cursor %d at (%d,%d) doesn't have white background. Got %v, char '%c'",
-					i, vc.X, vc.Y, style.Bg, char)
+				t.Errorf("Virtual cursor %d at (%d,%d) doesn't have expected background. Got %v, expected %v, char '%c'",
+					i, vc.X, vc.Y, style.Bg, virtualCursorBg, char)
 			}
 			
 			// Verify line number area doesn't have cursor styling
