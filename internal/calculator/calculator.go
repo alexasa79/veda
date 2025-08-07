@@ -156,6 +156,9 @@ func EvaluateExpression(expr string) (float64, error) {
 		return 0, err
 	}
 	
+	// Save result to $? variable
+	parser.variables.SetLastResult(result)
+	
 	// Convert to float64 for backward compatibility
 	f64, _ := result.Float64()
 	return f64, nil
@@ -172,6 +175,9 @@ func EvaluateExpressionWithResult(expr string) (*CalculationResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	
+	// Save result to $? variable
+	parser.variables.SetLastResult(value)
 	
 	// Create result with appropriate formatting
 	result := NewCalculationResult(value)

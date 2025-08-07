@@ -21,6 +21,7 @@ const (
 	TokenLeftParen
 	TokenRightParen
 	TokenPreprocessor // "pre" directive
+	TokenVariable     // Variable reference like $?
 	TokenEOF
 	TokenInvalid
 )
@@ -103,6 +104,11 @@ func (t *Tokenizer) NextToken() Token {
 	case ')':
 		t.pos++
 		return Token{Type: TokenRightParen, Value: ")", Pos: t.start + tokenStart}
+	}
+
+	// Check for variable references (e.g., $?, $var)
+	if ch == '$' {
+		return t.scanVariable()
 	}
 
 	// Check for numbers
@@ -334,6 +340,35 @@ func (t *Tokenizer) scanBinaryDigits() bool {
 	return t.pos > start
 }
 
+// scanVariable scans a variable reference starting with $
+func (t *Tokenizer) scanVariable() Token {
+	tokenStart := t.pos
+	t.pos++ // Skip the $
+	
+	// Special case for $? (last result)
+	if t.pos < len(t.input) && t.input[t.pos] == '?' {
+		t.pos++
+		return Token{Type: TokenVariable, Value: "$?", Pos: t.start + tokenStart}
+	}
+	
+	// Scan alphanumeric variable name
+	varStart := t.pos
+	for t.pos < len(t.input) {
+		ch := t.input[t.pos]
+		if !unicode.IsLetter(rune(ch)) && !unicode.IsDigit(rune(ch)) && ch != '_' {
+			break
+		}
+		t.pos++
+	}
+	
+	// Check if we got a valid variable name
+	if t.pos > varStart {
+		return Token{Type: TokenVariable, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
+	}
+	
+	// Invalid variable reference
+	return Token{Type: TokenInvalid, Value: "$", Pos: t.start + tokenStart}
+}
 
 // ParseNumberBig parses a number token value into a big.Float
 func ParseNumberBig(value string) (*big.Float, error) {
