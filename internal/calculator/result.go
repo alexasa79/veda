@@ -14,6 +14,8 @@ const (
 	FormatHex
 	FormatBinary
 	FormatOctal
+	FormatComma      // Decimal with comma separators
+	FormatUnderscore // Decimal with underscore separators
 )
 
 // CalculationResult represents a calculation result with arbitrary precision
@@ -60,8 +62,13 @@ func (r *CalculationResult) String() string {
 
 	// Handle non-decimal formats (only when no precision is specified)
 	// Note: Non-decimal formats will truncate floats to integers
-	if r.Format != FormatDecimal {
+	if r.Format == FormatHex || r.Format == FormatBinary || r.Format == FormatOctal {
 		return r.formatNonDecimal()
+	}
+	
+	// Handle separator formats (comma or underscore)
+	if r.Format == FormatComma || r.Format == FormatUnderscore {
+		return r.formatWithSeparator()
 	}
 
 	// Default formatting - decimal for floats or when format is decimal
@@ -88,6 +95,88 @@ func (r *CalculationResult) formatWithPrecision() string {
 	// Use Text with 'f' format for fixed-point notation
 	str := r.Value.Text('f', r.Precision)
 	return str
+}
+
+// formatWithSeparator formats the number with comma or underscore separators
+func (r *CalculationResult) formatWithSeparator() string {
+	// Get the string representation
+	var str string
+	if r.isInteger() {
+		intVal, _ := r.Value.Int(nil)
+		str = intVal.String()
+	} else {
+		// Use automatic precision for floats
+		str = r.Value.Text('g', 10)
+	}
+	
+	// Determine separator
+	sep := ","
+	if r.Format == FormatUnderscore {
+		sep = "_"
+	}
+	
+	// Split into integer and fractional parts
+	parts := strings.Split(str, ".")
+	intPart := parts[0]
+	fracPart := ""
+	if len(parts) > 1 {
+		fracPart = parts[1]
+	}
+	
+	// Handle negative sign
+	negative := false
+	if strings.HasPrefix(intPart, "-") {
+		negative = true
+		intPart = intPart[1:]
+	}
+	
+	// Add separators to integer part (from right to left, every 3 digits)
+	formattedInt := addSeparators(intPart, sep, 3, true)
+	
+	// Add separators to fractional part (from left to right, every 3 digits)
+	result := formattedInt
+	if fracPart != "" {
+		formattedFrac := addSeparators(fracPart, sep, 3, false)
+		result = result + "." + formattedFrac
+	}
+	
+	// Add back negative sign
+	if negative {
+		result = "-" + result
+	}
+	
+	return result
+}
+
+// addSeparators adds separators to a string of digits
+func addSeparators(s string, sep string, groupSize int, fromRight bool) string {
+	if len(s) <= groupSize {
+		return s
+	}
+	
+	var result []string
+	
+	if fromRight {
+		// For integer part: group from right to left
+		for i := len(s); i > 0; i -= groupSize {
+			start := i - groupSize
+			if start < 0 {
+				start = 0
+			}
+			result = append([]string{s[start:i]}, result...)
+		}
+	} else {
+		// For fractional part: group from left to right
+		for i := 0; i < len(s); i += groupSize {
+			end := i + groupSize
+			if end > len(s) {
+				end = len(s)
+			}
+			result = append(result, s[i:end])
+		}
+	}
+	
+	return strings.Join(result, sep)
 }
 
 // formatNonDecimal formats the result as hex, binary, or octal

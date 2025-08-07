@@ -33,6 +33,8 @@ const (
 	BaseHex
 	BaseBinary
 	BaseOctal
+	BaseDecimalComma      // Decimal with comma separators
+	BaseDecimalUnderscore // Decimal with underscore separators
 )
 
 // Token represents a single token in the expression
@@ -108,7 +110,7 @@ func (t *Tokenizer) NextToken() Token {
 		return t.scanNumber()
 	}
 
-	// Check for preprocessor keywords: "pre", "hex", "bin", "oct"
+	// Check for preprocessor keywords: "pre", "hex", "bin", "oct", "dec", "cs", "us"
 	if ch == 'p' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "pre" {
 		// Make sure it's not part of a larger word
 		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
@@ -148,6 +150,22 @@ func (t *Tokenizer) NextToken() Token {
 			return Token{Type: TokenPreprocessor, Value: "dec", Pos: t.start + tokenStart}
 		}
 	}
+	
+	if ch == 'c' && t.pos+1 < len(t.input) && t.input[t.pos:t.pos+2] == "cs" {
+		// Make sure it's not part of a larger word
+		if t.pos+2 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+2])) {
+			t.pos += 2
+			return Token{Type: TokenPreprocessor, Value: "cs", Pos: t.start + tokenStart}
+		}
+	}
+	
+	if ch == 'u' && t.pos+1 < len(t.input) && t.input[t.pos:t.pos+2] == "us" {
+		// Make sure it's not part of a larger word
+		if t.pos+2 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+2])) {
+			t.pos += 2
+			return Token{Type: TokenPreprocessor, Value: "us", Pos: t.start + tokenStart}
+		}
+	}
 
 	// Invalid character
 	t.pos++
@@ -158,6 +176,7 @@ func (t *Tokenizer) NextToken() Token {
 func (t *Tokenizer) scanNumber() Token {
 	tokenStart := t.pos
 	base := BaseDecimal
+	hasSeparator := false
 	
 	// Check for hex, octal, or binary prefix
 	if t.input[t.pos] == '0' && t.pos+1 < len(t.input) {
@@ -187,20 +206,54 @@ func (t *Tokenizer) scanNumber() Token {
 		}
 	}
 
-	// Scan decimal number (including floating point)
+	// Scan decimal number (including floating point) with support for separators
 	hasDigits := false
-	for t.pos < len(t.input) && unicode.IsDigit(rune(t.input[t.pos])) {
-		hasDigits = true
-		t.pos++
+	lastWasSeparator := false
+	
+	for t.pos < len(t.input) {
+		ch := t.input[t.pos]
+		if unicode.IsDigit(rune(ch)) {
+			hasDigits = true
+			lastWasSeparator = false
+			t.pos++
+		} else if (ch == ',' || ch == '_') && hasDigits && !lastWasSeparator {
+			// Allow comma or underscore as separator, but not consecutively
+			// and not at the beginning
+			if t.pos+1 < len(t.input) && unicode.IsDigit(rune(t.input[t.pos+1])) {
+				hasSeparator = true
+				lastWasSeparator = true
+				t.pos++
+			} else {
+				break // Separator not followed by digit
+			}
+		} else {
+			break
+		}
 	}
 
 	// Check for decimal point
 	if t.pos < len(t.input) && t.input[t.pos] == '.' {
 		t.pos++
-		// Scan fractional part
-		for t.pos < len(t.input) && unicode.IsDigit(rune(t.input[t.pos])) {
-			hasDigits = true
-			t.pos++
+		lastWasSeparator = false
+		// Scan fractional part with separators
+		for t.pos < len(t.input) {
+			ch := t.input[t.pos]
+			if unicode.IsDigit(rune(ch)) {
+				hasDigits = true
+				lastWasSeparator = false
+				t.pos++
+			} else if (ch == ',' || ch == '_') && !lastWasSeparator {
+				// Allow separator in fractional part too
+				if t.pos+1 < len(t.input) && unicode.IsDigit(rune(t.input[t.pos+1])) {
+					hasSeparator = true
+					lastWasSeparator = true
+					t.pos++
+				} else {
+					break
+				}
+			} else {
+				break
+			}
 		}
 	}
 
@@ -212,7 +265,7 @@ func (t *Tokenizer) scanNumber() Token {
 		if t.pos < len(t.input) && (t.input[t.pos] == '+' || t.input[t.pos] == '-') {
 			t.pos++
 		}
-		// Exponent digits
+		// Exponent digits (no separators in exponent)
 		hasExpDigits := false
 		for t.pos < len(t.input) && unicode.IsDigit(rune(t.input[t.pos])) {
 			hasExpDigits = true
@@ -226,6 +279,17 @@ func (t *Tokenizer) scanNumber() Token {
 
 	if !hasDigits {
 		return Token{Type: TokenInvalid, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
+	}
+
+	// Determine base based on separator type
+	if hasSeparator {
+		// Check which separator was used
+		value := t.input[tokenStart:t.pos]
+		if strings.Contains(value, ",") {
+			base = BaseDecimalComma
+		} else if strings.Contains(value, "_") {
+			base = BaseDecimalUnderscore
+		}
 	}
 
 	return Token{Type: TokenNumber, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart, Base: base}
@@ -296,9 +360,13 @@ func ParseNumberBig(value string) (*big.Float, error) {
 		}
 		return new(big.Float).SetInt64(n), nil
 	} else {
-		// Decimal (including floating point)
+		// Decimal (including floating point), possibly with separators
+		// Remove any comma or underscore separators
+		cleanValue := strings.ReplaceAll(value, ",", "")
+		cleanValue = strings.ReplaceAll(cleanValue, "_", "")
+		
 		bf := new(big.Float).SetPrec(256) // Use high precision
-		bf, _, err := bf.Parse(value, 10)
+		bf, _, err := bf.Parse(cleanValue, 10)
 		if err != nil {
 			return nil, fmt.Errorf("invalid number: %s", value)
 		}
@@ -452,6 +520,36 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 				}
 				// Skip only the "dec" directive token
 				
+			case "cs":
+				// Set format to comma-separated decimal (may be overridden later)
+				directive.Format = FormatComma
+				hasDirective = true
+				// Note: don't set hasExplicitDirective for cs/us - they can be overridden
+				// Check the next token and put it back
+				nextToken := tokenizer.NextToken()
+				if nextToken.Type != TokenEOF {
+					if nextToken.Type == TokenNumber {
+						numberBases = append(numberBases, nextToken.Base)
+					}
+					tokens = append(tokens, nextToken)
+				}
+				// Skip only the "cs" directive token
+				
+			case "us":
+				// Set format to underscore-separated decimal (may be overridden later)
+				directive.Format = FormatUnderscore
+				hasDirective = true
+				// Note: don't set hasExplicitDirective for cs/us - they can be overridden
+				// Check the next token and put it back
+				nextToken := tokenizer.NextToken()
+				if nextToken.Type != TokenEOF {
+					if nextToken.Type == TokenNumber {
+						numberBases = append(numberBases, nextToken.Base)
+					}
+					tokens = append(tokens, nextToken)
+				}
+				// Skip only the "us" directive token
+				
 			default:
 				// Unknown preprocessor, include it
 				tokens = append(tokens, token)
@@ -461,44 +559,99 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 		}
 	}
 	
+	// Check if we need to override cs/us directives when hex/octal/binary is present
+	if (directive.Format == FormatComma || directive.Format == FormatUnderscore) && len(numberBases) > 0 {
+		// Check if any number has hex/octal/binary base
+		for _, base := range numberBases {
+			if base == BaseHex || base == BaseOctal || base == BaseBinary {
+				// Override cs/us with appropriate base format
+				directive.Format = FormatDecimal  // Reset to decimal first
+				hasExplicitDirective = false  // Allow auto-detection to take over
+				break
+			}
+		}
+	}
+	
 	// Apply automatic base detection if no explicit directive was given
 	if !hasExplicitDirective && len(numberBases) > 0 {
-		// Collect all non-decimal bases
-		var nonDecimalBases []NumberBase
+		// First check for hex/octal/binary - these override separator formats
+		hasHexOctBin := false
 		for _, base := range numberBases {
-			if base != BaseDecimal {
-				nonDecimalBases = append(nonDecimalBases, base)
+			if base == BaseHex || base == BaseOctal || base == BaseBinary {
+				hasHexOctBin = true
+				break
 			}
 		}
 		
-		// If there are non-decimal bases, check if they're all the same
-		if len(nonDecimalBases) > 0 {
-			firstNonDecimal := nonDecimalBases[0]
-			allSameBase := true
-			for _, base := range nonDecimalBases[1:] {
-				if base != firstNonDecimal {
-					allSameBase = false
-					break
+		// If we have hex/octal/binary, ignore separator formats and apply normal base detection
+		if hasHexOctBin {
+			// Collect all non-decimal bases (hex, octal, binary)
+			var nonDecimalBases []NumberBase
+			for _, base := range numberBases {
+				if base == BaseHex || base == BaseOctal || base == BaseBinary {
+					nonDecimalBases = append(nonDecimalBases, base)
 				}
 			}
 			
 			// If all non-decimal numbers have the same base, use that base for output
-			if allSameBase {
-				switch firstNonDecimal {
-				case BaseHex:
-					directive.Format = FormatHex
-					hasDirective = true
-				case BaseBinary:
-					directive.Format = FormatBinary
-					hasDirective = true
-				case BaseOctal:
-					directive.Format = FormatOctal
-					hasDirective = true
+			if len(nonDecimalBases) > 0 {
+				firstNonDecimal := nonDecimalBases[0]
+				allSameBase := true
+				for _, base := range nonDecimalBases[1:] {
+					if base != firstNonDecimal {
+						allSameBase = false
+						break
+					}
+				}
+				
+				if allSameBase {
+					switch firstNonDecimal {
+					case BaseHex:
+						directive.Format = FormatHex
+						hasDirective = true
+					case BaseBinary:
+						directive.Format = FormatBinary
+						hasDirective = true
+					case BaseOctal:
+						directive.Format = FormatOctal
+						hasDirective = true
+					}
+				}
+				// If mixed non-decimal bases, keep default (decimal)
+			}
+		} else {
+			// No hex/octal/binary - check for separator formats
+			var separatorBases []NumberBase
+			for _, base := range numberBases {
+				if base == BaseDecimalComma || base == BaseDecimalUnderscore {
+					separatorBases = append(separatorBases, base)
 				}
 			}
-			// If mixed non-decimal bases, keep default (decimal)
+			
+			// If all separator numbers have the same format, use that format for output
+			if len(separatorBases) > 0 {
+				firstSeparator := separatorBases[0]
+				allSameSeparator := true
+				for _, base := range separatorBases[1:] {
+					if base != firstSeparator {
+						allSameSeparator = false
+						break
+					}
+				}
+				
+				if allSameSeparator {
+					switch firstSeparator {
+					case BaseDecimalComma:
+						directive.Format = FormatComma
+						hasDirective = true
+					case BaseDecimalUnderscore:
+						directive.Format = FormatUnderscore
+						hasDirective = true
+					}
+				}
+				// If mixed separator types, keep default (plain decimal)
+			}
 		}
-		// If only decimal numbers, keep default (decimal)
 	}
 	
 	return tokens, directive, hasDirective
