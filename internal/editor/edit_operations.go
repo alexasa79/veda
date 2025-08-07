@@ -4,6 +4,7 @@ import (
 	"strings"
 	"veda/internal/buffer"
 	"veda/internal/commands"
+	"veda/internal/config"
 )
 
 // Edit operations handle text insertion, deletion, and manipulation
@@ -968,3 +969,158 @@ func (e *Editor) wordBackwardInsert(args []string) error {
 	// Use the same logic as normal mode
 	return e.wordBackward(args)
 }
+
+// indentLine indents the current line by one level (>> in vim)
+func (e *Editor) indentLine(args []string) error {
+	// Get current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	
+	// Get the indentation string for this buffer
+	indentStr := e.buffer.GetIndentationString()
+	
+	// Create history entry to insert indentation at beginning of line
+	entry := buffer.NewInsertTextEntry(lineNum, 0, indentStr)
+	
+	// Execute through history
+	if e.buffer.History != nil {
+		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			return err
+		} else if executed != nil {
+			e.setLastChange(executed)
+			// Mark this as an indent command for proper repeat
+			e.lastSimpleCommand = "indent-line"
+		}
+	} else {
+		// Fallback if history is not initialized
+		lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
+		e.buffer.Insert(lineStart, indentStr)
+	}
+	
+	// Recreate iterators
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	// Move cursor to first non-whitespace character
+	line := e.buffer.CursorIterator.Line()
+	foundNonWhitespace := false
+	for i, ch := range line {
+		if ch != ' ' && ch != '\t' {
+			e.buffer.CursorX = i
+			foundNonWhitespace = true
+			break
+		}
+	}
+	// If line is all whitespace, leave cursor at current position
+	if !foundNonWhitespace && len(line) > 0 {
+		e.buffer.CursorX = len(line)
+	}
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
+	return nil
+}
+
+// unindentLine unindents the current line by one level (<< in vim)
+func (e *Editor) unindentLine(args []string) error {
+	// Get current position
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	
+	// Get current line
+	line := e.buffer.CursorIterator.Line()
+	
+	// Calculate how much indentation to remove
+	indentInfo := e.buffer.GetLineIndentInfo(line)
+	if indentInfo.Tabs == 0 && indentInfo.Spaces == 0 {
+		// No indentation to remove
+		return nil
+	}
+	
+	// Determine how much to remove based on buffer's indentation settings
+	var toRemove int
+	deletedText := ""
+	
+	if e.buffer.Indentation.Type == config.IndentTabs {
+		// Remove one tab if present at the beginning
+		if len(line) > 0 && line[0] == '\t' {
+			toRemove = 1
+			deletedText = "\t"
+		} else {
+			// Count leading spaces only and remove up to 4
+			spaceCount := 0
+			for _, ch := range line {
+				if ch == ' ' {
+					spaceCount++
+				} else {
+					break
+				}
+				if spaceCount >= 4 {
+					break
+				}
+			}
+			toRemove = spaceCount
+			if toRemove > 0 {
+				deletedText = line[:toRemove]
+			}
+		}
+	} else {
+		// In spaces mode, remove up to indent width of leading spaces
+		spaceCount := 0
+		for _, ch := range line {
+			if ch == ' ' {
+				spaceCount++
+			} else {
+				break
+			}
+			if spaceCount >= e.buffer.Indentation.Width {
+				break
+			}
+		}
+		toRemove = spaceCount
+		if toRemove > 0 {
+			deletedText = line[:toRemove]
+		}
+	}
+	
+	// Create history entry to delete indentation
+	if toRemove > 0 && deletedText != "" {
+		entry := buffer.NewDeleteTextEntry(lineNum, 0, deletedText)
+		
+		// Execute through history
+		if e.buffer.History != nil {
+			if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+				return err
+			} else if executed != nil {
+				e.setLastChange(executed)
+				// Mark this as an unindent command for proper repeat
+				e.lastSimpleCommand = "unindent-line"
+			}
+		} else {
+			// Fallback if history is not initialized
+			lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
+			e.buffer.Delete(lineStart, toRemove)
+		}
+	}
+	
+	// Recreate iterators
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	
+	// Move cursor to first non-whitespace character
+	line = e.buffer.CursorIterator.Line()
+	e.buffer.CursorX = 0 // Start at beginning
+	for i, ch := range line {
+		if ch != ' ' && ch != '\t' {
+			e.buffer.CursorX = i
+			break
+		}
+	}
+	
+	// Update syntax highlighting
+	e.updateSyntaxHighlighting()
+	
+	return nil
+}
+

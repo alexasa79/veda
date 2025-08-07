@@ -105,6 +105,7 @@ type Editor struct {
 	// providing the correct vim-like behavior for all command types.
 	lastChange      buffer.HistoryEntry     // Last text modification for repeat command
 	lastCommand     *RepeatableCommand      // Last operator+text object command for repeat
+	lastSimpleCommand string                // Name of last simple command (like indent-line) for repeat
 
 	// Pending operation for multi-key commands
 	pendingOperator Operator                // Current operator waiting for text object
@@ -1097,6 +1098,10 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 		return
 	}
 	e.lastCommand = nil // Clear operator+text object command for other cases
+	// Clear simple command unless it was just set (indent/unindent set it right before calling this)
+	if e.lastSimpleCommand != "indent-line" && e.lastSimpleCommand != "unindent-line" {
+		e.lastSimpleCommand = ""
+	}
 }
 
 // Undo/Redo commands
@@ -1256,7 +1261,13 @@ func (e *Editor) yankMultipleLines(count int) error {
 
 // repeatLastChange repeats the last text modification at the current cursor position
 func (e *Editor) repeatLastChange(args []string) error {
-	// First check if we have a repeatable command (operator + text object)
+	// First check if we have a simple command to repeat (like indent-line)
+	if e.lastSimpleCommand != "" {
+		// Execute the simple command again
+		return e.commandRegistry.Execute(e.lastSimpleCommand, []string{})
+	}
+	
+	// Then check if we have a repeatable command (operator + text object)
 	if e.lastCommand != nil {
 		// Check if the last command was a change operator
 		if e.lastCommand.Operator.GetType() == "change" && e.lastChange != nil {

@@ -48,12 +48,12 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 		te.TypeKeys("$")
 		te.PressKey(events.KeyEnter, 0)
 		
-		// Move to end of "World" and add cursor
-		te.TypeKeys("j$")
+		// Now at line 1 after auto-move, go to end of "World" and add cursor
+		te.TypeKeys("$")
 		te.PressKey(events.KeyEnter, 0)
 		
-		// Move to end of "Test"
-		te.TypeKeys("j$")
+		// Now at line 2 after auto-move, go to end of "Test"
+		te.TypeKeys("$")
 		
 		// Exit cursor mode
 		te.TypeKeys("m")
@@ -137,7 +137,7 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 		te.PressKey(events.KeyEnter, 0)
 		
 		// Move down (should only move primary cursor)
-		te.TypeKeys("j")
+		te.TypeKeys("down")
 		
 		// Add another virtual cursor
 		te.PressKey(events.KeyEnter, 0)
@@ -156,9 +156,10 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 				t.Errorf("Expected first virtual cursor on line 0, got line %d", 
 					virtualCursors[0].Y)
 			}
-			// Second cursor should be at line 1 (where we added it after moving down)
-			if virtualCursors[1].Y != 1 {
-				t.Errorf("Expected second virtual cursor on line 1, got line %d", 
+			// Second cursor should be at line 2 (where we added it after moving down twice)
+			// First move is automatic after adding first cursor, second is explicit "down"
+			if virtualCursors[1].Y != 2 {
+				t.Errorf("Expected second virtual cursor on line 2, got line %d", 
 					virtualCursors[1].Y)
 			}
 		}

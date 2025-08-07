@@ -33,6 +33,11 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "right", "right")
 	e.registerKeyBinding(commands.NormalMode, "pageup", "page-up")
 	e.registerKeyBinding(commands.NormalMode, "pagedown", "page-down")
+	// Vim-style movement keys
+	e.registerKeyBinding(commands.NormalMode, "h", "left")
+	e.registerKeyBinding(commands.NormalMode, "j", "down")
+	e.registerKeyBinding(commands.NormalMode, "k", "up")
+	e.registerKeyBinding(commands.NormalMode, "l", "right")
 	e.registerKeyBinding(commands.NormalMode, "w", "word-forward")
 	e.registerKeyBinding(commands.NormalMode, "b", "word-backward")
 	e.registerKeyBinding(commands.NormalMode, "0", "beginning-of-line")
@@ -120,6 +125,10 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Change operations
 	e.registerKeyBinding(commands.NormalMode, "c", "start-change")
+	
+	// Indentation operations
+	e.registerKeyBinding(commands.NormalMode, "> >", "indent-line")
+	e.registerKeyBinding(commands.NormalMode, "< <", "unindent-line")
 
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
