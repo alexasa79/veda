@@ -155,7 +155,7 @@ func EvaluateExpression(expr string) (float64, error) {
 // EvaluateExpressionWithResult evaluates an expression and returns a CalculationResult with formatting info
 func EvaluateExpressionWithResult(expr string) (*CalculationResult, error) {
 	// Tokenize and extract preprocessor directives
-	tokens, precision, hasPrecision := TokenizeAndExtractPreprocessors(expr, 0)
+	tokens, directive, hasDirective := TokenizeAndExtractPreprocessors(expr, 0)
 	
 	// Parse and evaluate the expression
 	parser := NewParserFromTokens(tokens)
@@ -164,10 +164,15 @@ func EvaluateExpressionWithResult(expr string) (*CalculationResult, error) {
 		return nil, err
 	}
 	
-	// Create result with appropriate precision
+	// Create result with appropriate formatting
 	result := NewCalculationResult(value)
-	if hasPrecision {
-		result.SetPrecision(precision)
+	if hasDirective {
+		if directive.Precision >= 0 {
+			result.SetPrecision(directive.Precision)
+		}
+		if directive.Format != FormatDecimal {
+			result.SetFormat(directive.Format, directive.BitWidth)
+		}
 	}
 	
 	return result, nil
@@ -195,28 +200,103 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 		return line, err
 	}
 
-	// Check if we need to include "pre" directive before or after the expression
+	// Check if we need to include preprocessor directives before or after the expression
 	fullExpr := exprInfo.Expression
 	
-	// Check if "pre" comes right before the found expression
-	if exprInfo.StartPos >= 3 {
-		checkStart := exprInfo.StartPos - 3
-		if checkStart >= 0 && line[checkStart:exprInfo.StartPos] == "pre" {
-			// This is "preNNN", we need to find the actual expression before "pre"
-			if checkStart > 0 {
-				exprBeforePre, err := FindExpressionFromPosition(line, checkStart)
-				if err == nil {
-					// Found a valid expression before "pre"
-					fullExpr = exprBeforePre.Expression + " pre" + exprInfo.Expression
+	// Helper function to check if a number is power of 2
+	isPowerOfTwo := func(n int) bool {
+		return n > 0 && (n&(n-1)) == 0
+	}
+	
+	// Check for preprocessor directives right before the found expression
+	// Check for "pre", "hex", "bin", "oct", "dec"
+	for _, directive := range []string{"pre", "hex", "bin", "oct", "dec"} {
+		dirLen := len(directive)
+		if exprInfo.StartPos >= dirLen {
+			checkStart := exprInfo.StartPos - dirLen
+			if checkStart >= 0 && line[checkStart:exprInfo.StartPos] == directive {
+				// This is a directive followed by number, need to find the actual expression
+				if checkStart > 0 && directive == "pre" {
+					// For "pre", look for expression before it
+					exprBeforeDirective, err := FindExpressionFromPosition(line, checkStart)
+					if err == nil {
+						fullExpr = exprBeforeDirective.Expression + " " + directive + exprInfo.Expression
+						break
+					}
+				} else if directive != "pre" {
+					// For hex/bin/oct, this might be a bit width, look for expression before
+					if checkStart > 0 {
+						exprBeforeDirective, err := FindExpressionFromPosition(line, checkStart)
+						if err == nil {
+							// Check if the found expression is just a number that could be bit width
+							num, err := strconv.Atoi(exprInfo.Expression)
+							if err == nil && isPowerOfTwo(num) && num >= 8 && num <= 128 {
+								// It's a bit width
+								fullExpr = exprBeforeDirective.Expression + " " + directive + exprInfo.Expression
+							} else {
+								// Not a bit width, the directive applies to the expression after
+								fullExpr = directive + " " + exprInfo.Expression
+							}
+							break
+						}
+					}
 				}
 			}
 		}
 	}
 	
-	// Also check if there's a "preNNN" pattern before the expression
-	// Look for patterns like "pre20 2/3" where the expression is "2/3"
-	if exprInfo.StartPos > 0 && !strings.Contains(fullExpr, "pre") {
-		// Look backwards for "preNNN " pattern
+	// Check if there's a directive AFTER the expression
+	// Look for patterns like "15 hex", "255 hex16", "7 bin", "15 dec"
+	if exprInfo.EndPos < len(line) && !strings.Contains(fullExpr, "pre") && 
+	   !strings.Contains(fullExpr, "hex") && !strings.Contains(fullExpr, "bin") && 
+	   !strings.Contains(fullExpr, "oct") && !strings.Contains(fullExpr, "dec") {
+		// Look forward for directive patterns
+		searchEnd := exprInfo.EndPos + 10
+		if searchEnd > len(line) {
+			searchEnd = len(line)
+		}
+		afterStr := line[exprInfo.EndPos:searchEnd]
+		trimmed := strings.TrimSpace(afterStr)
+		
+		// Check for directive patterns
+		for _, directive := range []string{"pre", "hex", "bin", "oct", "dec"} {
+			if strings.HasPrefix(trimmed, directive) {
+				rest := strings.TrimPrefix(trimmed, directive)
+				// Check if rest starts with a number (bit width)
+				// Note: "dec" doesn't support bit width
+				if rest != "" && len(rest) > 0 && directive != "dec" {
+					// Try to extract number at the beginning
+					numStr := ""
+					for i, ch := range rest {
+						if ch >= '0' && ch <= '9' {
+							numStr += string(ch)
+						} else {
+							break
+						}
+						if i > 3 { // Reasonable limit for bit width
+							break
+						}
+					}
+					if numStr != "" {
+						fullExpr = exprInfo.Expression + " " + directive + numStr
+					} else {
+						fullExpr = exprInfo.Expression + " " + directive
+					}
+				} else {
+					// Just the directive without number
+					fullExpr = exprInfo.Expression + " " + directive
+				}
+				break
+			}
+		}
+	}
+	
+	// Also check if there's a directive pattern before the expression
+	// Look for patterns like "pre20 2/3", "hex 15", "dec 3.14" where the expression comes after
+	if exprInfo.StartPos > 0 && !strings.Contains(fullExpr, "pre") && 
+	   !strings.Contains(fullExpr, "hex") && !strings.Contains(fullExpr, "bin") && 
+	   !strings.Contains(fullExpr, "oct") && !strings.Contains(fullExpr, "dec") {
+		// Look backwards for directive patterns
 		searchStart := 0
 		if exprInfo.StartPos > 10 {
 			searchStart = exprInfo.StartPos - 10
@@ -224,14 +304,21 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 		beforeStr := line[searchStart:exprInfo.StartPos]
 		trimmed := strings.TrimSpace(beforeStr)
 		
-		// Check if it ends with "preNNN"
-		if strings.HasPrefix(trimmed, "pre") {
-			rest := strings.TrimPrefix(trimmed, "pre")
-			// Check if rest is a number
-			if rest != "" {
-				if _, err := strconv.Atoi(rest); err == nil {
-					// Include the pre directive in the expression
-					fullExpr = "pre" + rest + " " + exprInfo.Expression
+		// Check for directive patterns
+		for _, directive := range []string{"pre", "hex", "bin", "oct", "dec"} {
+			if strings.HasPrefix(trimmed, directive) {
+				rest := strings.TrimPrefix(trimmed, directive)
+				// Check if rest is a number (could be bit width or precision)
+				if rest != "" {
+					if _, err := strconv.Atoi(rest); err == nil {
+						// Include the directive in the expression
+						fullExpr = directive + rest + " " + exprInfo.Expression
+						break
+					}
+				} else {
+					// Just the directive without number
+					fullExpr = directive + " " + exprInfo.Expression
+					break
 				}
 			}
 		}
