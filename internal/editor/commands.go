@@ -144,4 +144,7 @@ func (e *Editor) registerCommands() {
 	// Calculator commands
 	e.commandRegistry.Register("calculate-append", e.calculateAppend, false)
 	e.commandRegistry.Register("calculate-replace", e.calculateReplace, false)
+	
+	// Temporary normal mode
+	e.commandRegistry.Register("enter-temporary-normal-mode", e.enterTemporaryNormalMode, false)
 }

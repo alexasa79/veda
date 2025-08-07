@@ -299,8 +299,28 @@ func (e *Editor) enterInsertMode(args []string) error {
 	return nil
 }
 
+// enterTemporaryNormalMode enters normal mode temporarily from insert mode (Ctrl+O behavior)
+func (e *Editor) enterTemporaryNormalMode(args []string) error {
+	if e.mode != commands.InsertMode {
+		LL.Debug("enterTemporaryNormalMode: Not in insert mode, current mode: %v", e.mode)
+		return nil
+	}
+	
+	LL.Debug("enterTemporaryNormalMode: Switching from insert to temporary normal mode")
+	
+	// Switch to normal mode but mark it as temporary
+	e.mode = commands.NormalMode
+	e.temporaryNormal = true
+	
+	// Don't end the insert session yet - we'll resume it
+	return nil
+}
+
 // exitInsertMode switches the editor back to normal mode
 func (e *Editor) exitInsertMode(args []string) error {
+	// Clear temporary normal flag if set
+	e.temporaryNormal = false
+	
 	// End the insert session
 	if e.buffer != nil && e.buffer.History != nil {
 		entry := e.buffer.History.EndInsertSession()
