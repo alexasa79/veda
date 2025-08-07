@@ -80,17 +80,6 @@ type Theme struct {
 	MarkdownStrikethrough StyleDef
 	MarkdownTable     StyleDef
 	MarkdownTableBorder StyleDef
-
-	// Bash-specific styles
-	BashKeyword      StyleDef
-	BashBuiltin      StyleDef
-	BashVariable     StyleDef
-	BashString       StyleDef
-	BashExpansion    StyleDef
-	BashOperator     StyleDef
-	BashComment      StyleDef
-	BashFunction     StyleDef
-	BashSpecial      StyleDef
 }
 
 // GetStyle returns a ui.Style for the given style definition
@@ -415,52 +404,6 @@ func NewTheme() *Theme {
 
 		MarkdownTableBorder: StyleDef{
 			Foreground: "#7e8e91",
-			Background: "#1b1d1e",
-		},
-
-		// Bash-specific styles with distinctive colors
-		BashKeyword: StyleDef{
-			Foreground: "#f92672[B]", // Bright magenta, bold for control structures
-			Background: "#1b1d1e",
-		},
-
-		BashBuiltin: StyleDef{
-			Foreground: "#66d9ef", // Cyan for built-in commands
-			Background: "#1b1d1e",
-		},
-
-		BashVariable: StyleDef{
-			Foreground: "#fd971f", // Orange for variables (from molokai variable.parameter)
-			Background: "#1b1d1e",
-		},
-
-		BashString: StyleDef{
-			Foreground: "#e6db74", // Yellow for strings (same as general strings)
-			Background: "#1b1d1e",
-		},
-
-		BashExpansion: StyleDef{
-			Foreground: "#ae81ff", // Purple for command substitutions
-			Background: "#1b1d1e",
-		},
-
-		BashOperator: StyleDef{
-			Foreground: "#f92672", // Magenta for operators
-			Background: "#1b1d1e",
-		},
-
-		BashComment: StyleDef{
-			Foreground: "#7e8e91",
-			Background: "#1b1d1e",
-		},
-
-		BashFunction: StyleDef{
-			Foreground: "#a6e22e[B]", // Green bold for function names
-			Background: "#1b1d1e",
-		},
-
-		BashSpecial: StyleDef{
-			Foreground: "#ae81ff[B]", // Purple bold for special parameters
 			Background: "#1b1d1e",
 		},
 	}

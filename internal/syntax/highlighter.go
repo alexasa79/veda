@@ -59,16 +59,6 @@ const (
 	TokenTypeMarkdownTable     TokenType = "markdown_table"
 	TokenTypeMarkdownTableBorder TokenType = "markdown_table_border"
 	
-	// Bash-specific token types
-	TokenTypeBashKeyword   TokenType = "bash_keyword"
-	TokenTypeBashBuiltin   TokenType = "bash_builtin"
-	TokenTypeBashVariable  TokenType = "bash_variable"
-	TokenTypeBashString    TokenType = "bash_string"
-	TokenTypeBashExpansion TokenType = "bash_expansion"
-	TokenTypeBashOperator  TokenType = "bash_operator"
-	TokenTypeBashComment   TokenType = "bash_comment"
-	TokenTypeBashFunction  TokenType = "bash_function"
-	TokenTypeBashSpecial   TokenType = "bash_special"
 	
 	// Python-specific token types
 	TokenTypePythonKeyword     TokenType = "python_keyword"
@@ -941,23 +931,23 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 		"function", "return", "break", "continue", "exit",
 		"source", "export", "local", "readonly", "declare",
 		"unset", "shift", "eval", "exec", "in":
-		return TokenTypeBashKeyword
+		return TokenTypeKeyword
 		
 	// Comments
 	case "comment":
-		return TokenTypeBashComment
+		return TokenTypeComment
 		
 	// Strings
 	case "string", "raw_string", "ansi_c_string", "string_content":
-		return TokenTypeBashString
+		return TokenTypeString
 		
 	// Variables and expansions
 	case "variable_name", "simple_expansion":
-		return TokenTypeBashVariable
+		return TokenTypeVariable
 		
 	// Command substitution and process substitution
 	case "command_substitution", "process_substitution":
-		return TokenTypeBashExpansion
+		return TokenTypeConstant
 		
 	// Numbers
 	case "number":
@@ -967,12 +957,12 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 	case "||", "&&", "|", "&", ";", ";;", ">&", "&>", ">", "<", ">>", "<<",
 		"=", "+=", "-=", "*=", "/=", "%=", "==", "!=", "<=", ">=",
 		"-eq", "-ne", "-lt", "-le", "-gt", "-ge", "test_operator":
-		return TokenTypeBashOperator
+		return TokenTypeOperator
 		
 	// Functions
 	case "function_definition":
 		// Mark the whole definition as a function
-		return TokenTypeBashFunction
+		return TokenTypeFunction
 		
 	// Command names (first word in simple commands)
 	case "command_name":
@@ -988,7 +978,7 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 					"for", "while", "do", "done", "function", "in",
 					"return", "break", "continue", "exit", "export", "local",
 					"readonly", "declare", "unset", "shift", "eval":
-					return TokenTypeBashKeyword
+					return TokenTypeKeyword
 				// Then check for builtins
 				case "echo", "printf", "read", "cd", "pwd", "ls", "cp", "mv", "rm",
 					"mkdir", "rmdir", "touch", "cat", "grep", "sed", "awk", "find",
@@ -1000,7 +990,7 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 					"caller", "command", "compgen", "complete", "dirs", "disown",
 					"enable", "fc", "getopts", "let", "mapfile", "popd", "pushd",
 					"readarray", "shopt", "typeset":
-					return TokenTypeBashBuiltin
+					return TokenTypeFunction
 				default:
 					return TokenTypeText
 				}
@@ -1010,7 +1000,7 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 		
 	// Special parameters
 	case "special_variable_name":
-		return TokenTypeBashSpecial
+		return TokenTypeConstant
 		
 	// File descriptors and redirections
 	case "file_descriptor", "file_redirect":
@@ -1030,7 +1020,7 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 				switch text {
 				case "if", "then", "else", "elif", "fi", "case", "esac",
 					"for", "while", "do", "done", "function", "in":
-					return TokenTypeBashKeyword
+					return TokenTypeKeyword
 				}
 				
 				// If this is inside a function definition, it might be the function name
@@ -1038,7 +1028,7 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 					for i := 0; i < int(parent.ChildCount()); i++ {
 						if parent.Child(i) == node {
 							if i == 0 || (i == 1 && parent.Child(0).Type() == "function") {
-								return TokenTypeBashFunction
+								return TokenTypeFunction
 							}
 							break
 						}
@@ -1049,14 +1039,14 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 				if parentType == "variable_assignment" {
 					// First word in assignment is the variable name
 					if parent.Child(0) == node {
-						return TokenTypeBashVariable
+						return TokenTypeVariable
 					}
 				}
 			}
 			
 			// Special handling for expansion-like constructs
 			if strings.HasPrefix(nodeType, "expansion") || nodeType == "substitution" {
-				return TokenTypeBashExpansion
+				return TokenTypeConstant
 			}
 		}
 		
@@ -1270,15 +1260,6 @@ func (h *Highlighter) isMoreSpecific(type1, type2 TokenType) bool {
 		TokenTypeMarkdownH2:             27,
 		TokenTypeMarkdownH1:             28,
 		// Bash types with appropriate specificity
-		TokenTypeBashOperator:           2,  // Same as general operator
-		TokenTypeBashVariable:           3,  // Same as general variable
-		TokenTypeBashSpecial:            9,  // Same as constant (special vars are like constants)
-		TokenTypeBashBuiltin:            10, // Same as function
-		TokenTypeBashFunction:           10, // Same as general function
-		TokenTypeBashKeyword:            11, // Same as general keyword
-		TokenTypeBashString:             12, // Same as general string
-		TokenTypeBashComment:            13, // Same as general comment
-		TokenTypeBashExpansion:          14, // Slightly higher than string (it's a special construct)
 	}
 
 	return specificity[type1] > specificity[type2]
@@ -1359,24 +1340,6 @@ func GetStyleForToken(tokenType TokenType, theme *theme.Theme) theme.StyleDef {
 	case TokenTypeMarkdownTableBorder:
 		return theme.MarkdownTableBorder
 	// Bash token types
-	case TokenTypeBashKeyword:
-		return theme.BashKeyword
-	case TokenTypeBashBuiltin:
-		return theme.BashBuiltin
-	case TokenTypeBashVariable:
-		return theme.BashVariable
-	case TokenTypeBashString:
-		return theme.BashString
-	case TokenTypeBashExpansion:
-		return theme.BashExpansion
-	case TokenTypeBashOperator:
-		return theme.BashOperator
-	case TokenTypeBashComment:
-		return theme.BashComment
-	case TokenTypeBashFunction:
-		return theme.BashFunction
-	case TokenTypeBashSpecial:
-		return theme.BashSpecial
 	// Python token types
 	case TokenTypePythonKeyword:
 		return theme.SyntaxKeyword
