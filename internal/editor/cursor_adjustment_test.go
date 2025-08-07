@@ -30,9 +30,9 @@ func TestCursorAdjustmentOnShorterLines(t *testing.T) {
 	te2.ExecuteCommand("down")
 	AssertCursorAt(t, te2, 0, 1) // Should be at the 'x'
 	
-	// Move down again
+	// Move down again - with desired column feature, should try to return to column 20
 	te2.ExecuteCommand("down")
-	AssertCursorAt(t, te2, 0, 2) // Should be at start of "Another long line"
+	AssertCursorAt(t, te2, 16, 2) // Should remember desired column 20, but line only has 17 chars, so position 16 (last char)
 	
 	// Test with empty line
 	te3 := NewTestEditorWithContent(80, 24, "Some text\n\nMore text")

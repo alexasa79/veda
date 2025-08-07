@@ -131,6 +131,9 @@ type Editor struct {
 
 	// Multiple cursors
 	virtualCursors     []VirtualCursor      // Additional cursors for multi-cursor editing
+	
+	// Desired column for vertical cursor movement
+	desiredColumn      int                  // Desired column position when moving up/down (-1 means unset)
 
 	// References tracking
 	currentReferencesBuffer *ReferencesBuffer            // Current references buffer for g n/g p navigation
@@ -226,6 +229,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		flashStartLine:     -1,  // -1 means no flash
 		flashStartChar:     -1,
 		flashEndLine:       -1,
+		desiredColumn:      -1,  // -1 means unset
 		currentMatch:       -1,  // -1 means no current match
 		flashEndChar:       -1,
 		flashEndTime:       0,
