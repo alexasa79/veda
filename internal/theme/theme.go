@@ -122,43 +122,43 @@ func NewTheme() *Theme {
 		Name: "main",
 
 		StatusBar: StyleDef{
-			Foreground: "#000",
-			Background: "#fff",
+			Foreground: "#ffffff",
+			Background: "#414339",
 		},
 
 		StatusBarSubdued: StyleDef{
-			Foreground: "#666",
-			Background: "#ddd",
+			Foreground: "#ffffff",
+			Background: "#75715e",
 		},
 
 		CommandLine: StyleDef{
-			Foreground: "#000",
-			Background: "#fff",
+			Foreground: "#f8f8f2",
+			Background: "#1e1f1c",
 		},
 
 		DialogBorder: StyleDef{
-			Foreground: "#333",
-			Background: "#ddd",
+			Foreground: "#8f8f8f",
+			Background: "#1e1f1c",
 		},
 
 		DialogContent: StyleDef{
-			Foreground: "#000",
-			Background: "#fff",
+			Foreground: "#f8f8f2",
+			Background: "#1e1f1c",
 		},
 
 		FuzzyListBorder: StyleDef{
-			Foreground: "#b8b9b4",
-			Background: "#26292c",
+			Foreground: "#8f8f8f",
+			Background: "#1e1f1c",
 		},
 
 		FuzzyListContent: StyleDef{
-			Foreground: "#fff",
-			Background: "#000",
+			Foreground: "#f8f8f2",
+			Background: "#1e1f1c",
 		},
 
 		FuzzyListSelection: StyleDef{
-			Foreground: "#000",
-			Background: "#0af",
+			Foreground: "#f8f8f2",
+			Background: "#414339",
 		},
 
 		Normal: StyleDef{
@@ -168,7 +168,7 @@ func NewTheme() *Theme {
 
 		Selection: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#403d3d", // Molokai selection color
+			Background: "#403d3d",
 		},
 
 		LineNumber: StyleDef{
@@ -178,66 +178,65 @@ func NewTheme() *Theme {
 
 		CurrentLine: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#24241e", // Molokai current line
+			Background: "#24241e",
 		},
 
 		Context: StyleDef{
 			Foreground: "#66d9ef",
-			Background: "#000000", // Molokai popup/help background
+			Background: "#000000",
 		},
 
 		SearchHighlight: StyleDef{
 			Foreground: "#000000",
-			Background: "#fd971f", // Molokai cursor match
+			Background: "#fd971f",
 		},
 
 		FlashHighlight: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#364462", // Muted blue-grey for better visibility
+			Background: "#364462",
 		},
 
 		Whitespace: StyleDef{
-			Foreground: "#88846F", // Molokai virtual whitespace
-			Background: "",       // No background change
+			Foreground: "#2b2a24",
+			Background: "",
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "", // Keep foreground unchanged
-			Background: "#24241e", // Molokai virtual ruler
+			Foreground: "",
+			Background: "#24241e",
 		},
 
 		VirtualCursor: StyleDef{
-			Foreground: "#000000", // Black text
-			Background: "#f8f8f0", // Molokai cursor primary
+			Foreground: "#000000",
+			Background: "#f8f8f0",
 		},
 
 		// Git change indicators for line numbers
 		GitAdded: StyleDef{
-			Foreground: "#a6e22e", // Bright green for better contrast
-			Background: "#1a4d1a", // Brighter green background
+			Foreground: "#a6e22e",
+			Background: "#1a4d1a",
 		},
 
 		GitModified: StyleDef{
-			Foreground: "#e6db74", // Bright yellow for better contrast
-			Background: "#4d4d1a", // Brighter yellow background
+			Foreground: "#e6db74",
+			Background: "#4d4d1a",
 		},
 
 		GitDeleted: StyleDef{
-			Foreground: "#f92672", // Bright red/pink for better contrast
-			Background: "#4d1a1a", // Brighter red background
+			Foreground: "#f92672",
+			Background: "#4d1a1a",
 		},
 
 		CompletionMenu: StyleDef{
-			Foreground: "#f8f8f2", // Bright foreground
-			Background: "#1a1a1a", // Dark background
+			Foreground: "#f8f8f2",
+			Background: "#1e1f1c",
 		},
 
 		CompletionMenuSelected: StyleDef{
-			Foreground: "#000000", // Black text
-			Background: "#66d9ef", // Bright cyan background for selection
+			Foreground: "#f8f8f2",
+			Background: "#414339",
 		},
 
-		// Molokai syntax highlighting colors (based on Helix molokai theme)
 		SyntaxText: StyleDef{
 			Foreground: "#f8f8f2",
 			Background: "#1b1d1e",
@@ -311,158 +310,158 @@ func NewTheme() *Theme {
 		// Markdown styles
 		MarkdownH1: StyleDef{
 			Foreground: "#f92672[B]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownH2: StyleDef{
 			Foreground: "#ae81ff[B]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownH3: StyleDef{
 			Foreground: "#a6e22e[B]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownH4: StyleDef{
 			Foreground: "#66d9ef[B]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownH5: StyleDef{
 			Foreground: "#e6db74[B]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownH6: StyleDef{
 			Foreground: "#fd971f[B]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownBold: StyleDef{
 			Foreground: "#f8f8f2[B]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownItalic: StyleDef{
 			Foreground: "#f8f8f2[I]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownBoldItalic: StyleDef{
 			Foreground: "#f8f8f2[BI]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownCode: StyleDef{
 			Foreground: "#e6db74",
-			Background: "#3e3d32",
+			Background: "#24241e",
 		},
 
 		MarkdownCodeBlock: StyleDef{
 			Foreground: "#e6db74",
-			Background: "#3e3d32",
+			Background: "#24241e",
 		},
 
 		MarkdownBlockquote: StyleDef{
-			Foreground: "#24ac15ff[I]",
-			Background: "#272822",
+			Foreground: "#7e8e91[I]",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownLink: StyleDef{
 			Foreground: "#66d9ef[U]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownLinkText: StyleDef{
 			Foreground: "#66d9ef[U]",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownLinkUrl: StyleDef{
 			Foreground: "#ae81ff",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownImage: StyleDef{
 			Foreground: "#a6e22e",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownList: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownListMarker: StyleDef{
 			Foreground: "#a2a2a2",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownHorizontalRule: StyleDef{
-			Foreground: "#75715e",
-			Background: "#272822",
+			Foreground: "#7e8e91",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownStrikethrough: StyleDef{
-			Foreground: "#75715e",
-			Background: "#272822",
+			Foreground: "#7e8e91",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownTable: StyleDef{
 			Foreground: "#f8f8f2",
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		MarkdownTableBorder: StyleDef{
-			Foreground: "#75715e",
-			Background: "#272822",
+			Foreground: "#7e8e91",
+			Background: "#1b1d1e",
 		},
 
 		// Bash-specific styles with distinctive colors
 		BashKeyword: StyleDef{
 			Foreground: "#f92672[B]", // Bright magenta, bold for control structures
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		BashBuiltin: StyleDef{
 			Foreground: "#66d9ef", // Cyan for built-in commands
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		BashVariable: StyleDef{
-			Foreground: "#ffffff", // Orange for variables
-			Background: "#272822",
+			Foreground: "#fd971f", // Orange for variables (from molokai variable.parameter)
+			Background: "#1b1d1e",
 		},
 
 		BashString: StyleDef{
 			Foreground: "#e6db74", // Yellow for strings (same as general strings)
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		BashExpansion: StyleDef{
 			Foreground: "#ae81ff", // Purple for command substitutions
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		BashOperator: StyleDef{
 			Foreground: "#f92672", // Magenta for operators
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		BashComment: StyleDef{
-			Foreground: "#75715e", // Gray for comments
-			Background: "#272822",
+			Foreground: "#7e8e91",
+			Background: "#1b1d1e",
 		},
 
 		BashFunction: StyleDef{
 			Foreground: "#a6e22e[B]", // Green bold for function names
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 
 		BashSpecial: StyleDef{
 			Foreground: "#ae81ff[B]", // Purple bold for special parameters
-			Background: "#272822",
+			Background: "#1b1d1e",
 		},
 	}
 }
