@@ -74,7 +74,8 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 		}
 		
 		// Check for other delimiter characters
-		if ch == '=' || ch == ';' || ch == ',' || ch == '[' || ch == ']' || 
+		// Note: Don't treat comma as delimiter since it can be part of numbers (1,000)
+		if ch == '=' || ch == ';' || ch == '[' || ch == ']' || 
 		   ch == '{' || ch == '}' || ch == '"' || ch == '\'' || ch == '`' {
 			// Found delimiter, can't include it in expression
 			break
