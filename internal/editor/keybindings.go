@@ -141,8 +141,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "enter", "jump-to-reference")
 
 	// Calculator operations
-	e.registerKeyBinding(commands.NormalMode, "= =", "calculate-append")
-	e.registerKeyBinding(commands.NormalMode, "= r", "calculate-replace")
+	e.registerKeyBinding(commands.NormalMode, "- -", "calculate-append")
+	e.registerKeyBinding(commands.NormalMode, "- =", "calculate-replace")
 	
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
