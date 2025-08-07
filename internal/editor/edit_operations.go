@@ -281,6 +281,19 @@ func (e *Editor) insertChar(ch rune) error {
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	cursorX := e.buffer.CursorX
 
+	// Check if we're typing a closing brace and should auto-dedent
+	if ch == '}' && e.shouldAutoDedentClosingBrace(lineNum, cursorX) {
+		// Apply auto-dedent before inserting the closing brace
+		if err := e.autoDedentCurrentLine(lineNum); err != nil {
+			return err
+		}
+		// Update cursor position after dedent
+		cursorX = e.buffer.CursorX
+		// Recreate iterators after buffer modification
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	}
+
 	// Create history entry for the single character
 	textToInsert := string(ch)
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
@@ -1120,6 +1133,162 @@ func (e *Editor) unindentLine(args []string) error {
 	
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
+	
+	return nil
+}
+
+// shouldAutoDedentClosingBrace checks if we should auto-dedent when typing a closing brace
+func (e *Editor) shouldAutoDedentClosingBrace(lineNum int, cursorX int) bool {
+	// Get current line
+	line := e.buffer.CursorIterator.Line()
+	
+	// Check if line only contains whitespace before cursor
+	for i := 0; i < cursorX && i < len(line); i++ {
+		if line[i] != ' ' && line[i] != '\t' {
+			return false // Non-whitespace before cursor, don't auto-dedent
+		}
+	}
+	
+	// Find the matching open brace by looking backwards
+	openBraceLineNum, openBraceIndentLevel := e.findMatchingOpenBrace(lineNum)
+	if openBraceLineNum == -1 {
+		return false // No matching open brace found
+	}
+	
+	// Get current line's indentation level
+	currentIndentInfo := e.buffer.GetLineIndentInfo(line)
+	
+	// We should dedent if current indentation is greater than the open brace line's indentation
+	return currentIndentInfo.Level > openBraceIndentLevel
+}
+
+// findMatchingOpenBrace looks backwards for the matching open brace
+func (e *Editor) findMatchingOpenBrace(startLine int) (lineNum int, indentLevel int) {
+	braceCount := 1 // We're starting from a closing brace position
+	
+	// Search backwards from the previous line
+	for lineNum := startLine - 1; lineNum >= 0; lineNum-- {
+		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		if iter.IsEOF() {
+			continue
+		}
+		
+		line := iter.Line()
+		
+		// Count braces in this line (backwards)
+		for i := len(line) - 1; i >= 0; i-- {
+			if line[i] == '}' {
+				braceCount++
+			} else if line[i] == '{' {
+				braceCount--
+				if braceCount == 0 {
+					// Found the matching open brace
+					indentInfo := e.buffer.GetLineIndentInfo(line)
+					return lineNum, indentInfo.Level
+				}
+			}
+		}
+	}
+	
+	return -1, 0 // No matching brace found
+}
+
+// autoDedentCurrentLine removes one level of indentation from the current line
+func (e *Editor) autoDedentCurrentLine(lineNum int) error {
+	// Get current line
+	line := e.buffer.CursorIterator.Line()
+	indentInfo := e.buffer.GetLineIndentInfo(line)
+	
+	if indentInfo.Level == 0 {
+		return nil // No indentation to remove
+	}
+	
+	// First, check if the line only contains whitespace
+	// If so, we need to clear the entire line's whitespace after dedenting
+	isOnlyWhitespace := true
+	for _, ch := range line {
+		if ch != ' ' && ch != '\t' {
+			isOnlyWhitespace = false
+			break
+		}
+	}
+	
+	// Calculate how much indentation to remove (one level)
+	var toRemove int
+	var deletedText string
+	
+	if e.buffer.Indentation.Type == config.IndentTabs {
+		// Remove one tab if present
+		if indentInfo.Tabs > 0 {
+			toRemove = 1
+			deletedText = "\t"
+		}
+	} else {
+		// Remove one indent width of spaces
+		if indentInfo.Spaces >= e.buffer.Indentation.Width {
+			toRemove = e.buffer.Indentation.Width
+			deletedText = strings.Repeat(" ", toRemove)
+		}
+	}
+	
+	if toRemove == 0 || deletedText == "" {
+		return nil // Nothing to remove
+	}
+	
+	// If the line only contains whitespace, we need to delete ALL the whitespace
+	// and replace it with the dedented amount
+	if isOnlyWhitespace && len(line) > toRemove {
+		// Delete all whitespace
+		allWhitespace := line
+		entry := buffer.NewDeleteTextEntry(lineNum, 0, allWhitespace)
+		
+		// Execute through history
+		if e.buffer.History != nil {
+			if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+				return err
+			}
+		} else {
+			lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
+			e.buffer.Delete(lineStart, len(allWhitespace))
+		}
+		
+		// Now insert the dedented whitespace
+		dedentedWhitespace := line[toRemove:]
+		if len(dedentedWhitespace) > 0 {
+			insertEntry := buffer.NewInsertTextEntry(lineNum, 0, dedentedWhitespace)
+			if e.buffer.History != nil {
+				if _, err := e.buffer.History.Execute(e.buffer, insertEntry); err != nil {
+					return err
+				}
+			} else {
+				lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
+				e.buffer.Insert(lineStart, dedentedWhitespace)
+			}
+		}
+		
+		// Set cursor to end of dedented whitespace (where brace will go)
+		e.buffer.CursorX = len(dedentedWhitespace)
+	} else {
+		// Normal case: just remove indentation from beginning
+		entry := buffer.NewDeleteTextEntry(lineNum, 0, deletedText)
+		
+		// Execute through history
+		if e.buffer.History != nil {
+			if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+				return err
+			}
+		} else {
+			lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
+			e.buffer.Delete(lineStart, toRemove)
+		}
+		
+		// Update cursor position after dedent
+		if e.buffer.CursorX >= toRemove {
+			e.buffer.CursorX -= toRemove
+		} else {
+			e.buffer.CursorX = 0
+		}
+	}
 	
 	return nil
 }
