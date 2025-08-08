@@ -396,3 +396,61 @@ func (b BracketTextObject) GetType() string {
 	return fmt.Sprintf("around-%s", bracket)
 }
 
+// FindCharacterTextObject represents text from cursor to the next occurrence of a character
+type FindCharacterTextObject struct {
+	character string
+}
+
+func (f FindCharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+	if iter.IsEOF() {
+		return 0, 0, 0, 0, false
+	}
+	
+	line := iter.Line()
+	
+	// Search for the character starting from the position after the cursor
+	for i := cursorChar + 1; i < len(line); i++ {
+		if string(line[i]) == f.character {
+			// Include the found character (like vim's df command)
+			return cursorLine, cursorChar, cursorLine, i + 1, true
+		}
+	}
+	
+	// Character not found
+	return 0, 0, 0, 0, false
+}
+
+func (f FindCharacterTextObject) GetType() string {
+	return fmt.Sprintf("find-%s", f.character)
+}
+
+// TillCharacterTextObject represents text from cursor to just before the next occurrence of a character
+type TillCharacterTextObject struct {
+	character string
+}
+
+func (t TillCharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+	if iter.IsEOF() {
+		return 0, 0, 0, 0, false
+	}
+	
+	line := iter.Line()
+	
+	// Search for the character starting from the position after the cursor
+	for i := cursorChar + 1; i < len(line); i++ {
+		if string(line[i]) == t.character {
+			// Stop just before the found character (like vim's dt command)
+			return cursorLine, cursorChar, cursorLine, i, true
+		}
+	}
+	
+	// Character not found
+	return 0, 0, 0, 0, false
+}
+
+func (t TillCharacterTextObject) GetType() string {
+	return fmt.Sprintf("till-%s", t.character)
+}
+
