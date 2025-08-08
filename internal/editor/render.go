@@ -228,9 +228,17 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		trailingStart = detectTrailingSpaces(originalLine)
 	}
 
-	// If no highlighter is set up, just draw normally  
+	// Try to get syntax tokens first, even with background overrides
 	var x int
-	if e.highlighter == nil || !e.buffer.HasFile() {
+	
+	// Get syntax tokens for this line using iterator position
+	tokens := e.getLineTokens(iter)
+	
+	// If we have syntax tokens and highlighter, use syntax highlighting path
+	// even with background overrides (like context lines)
+	if len(tokens) > 0 && e.highlighter != nil && e.buffer.HasFile() {
+		// Use syntax highlighting (this will be handled below)
+	} else if e.highlighter == nil || !e.buffer.HasFile() {
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 		// Fill rest of line if we have background
@@ -299,128 +307,59 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			}
 		}
 	}
-	return
 
-	// Get syntax tokens for this line using iterator position
-	tokens := e.getLineTokens(iter)
+	// Handle syntax highlighting path
+	if len(tokens) > 0 && e.highlighter != nil && e.buffer.HasFile() {
+		// Draw with syntax highlighting
+		x = startX
+		lastEnd := 0
 
-	// Use standard rendering for all files (no special markdown processing)
-	if len(tokens) == 0 {
+		for _, token := range tokens {
+			// Draw any text before this token with normal style
+			if token.Start > lastEnd && token.Start <= len(originalLine) {
+				endPos := token.Start
+				if endPos > len(originalLine) {
+					endPos = len(originalLine)
+				}
+				prefix := originalLine[lastEnd:endPos]
+				x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
+			}
+
+			// Draw the token with its style
+			if token.Start < len(originalLine) && token.End > token.Start {
+				endPos := token.End
+				if endPos > len(originalLine) {
+					endPos = len(originalLine)
+				}
+				tokenText := originalLine[token.Start:endPos]
+
+				tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
+				if bgOverride != nil {
+					// Override background with the provided override
+					tokenStyle = tokenStyle.Background(*bgOverride)
+				} else if isCurrentLine {
+					// Override background for current line
+					tokenStyle = tokenStyle.Background(lineBg)
+				}
+
+				x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches, lineIndex, token.Start, trailingStart)
+				lastEnd = endPos
+			}
+		}
+
+		// Draw any remaining text with normal style
+		if lastEnd < len(originalLine) {
+			suffix := originalLine[lastEnd:]
+			x += e.drawText(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
+		}
+	} else {
+		// Use standard rendering for files without syntax highlighting
 		// No tokens, draw with normal style
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
-		// Fill rest of line if we have background
-		if hasBg {
-			width, _ := e.screen.Size()
-			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
-			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-			
-			for i := x; i < width; i++ {
-				fillStyle := normalStyle
-				
-				// Check if this column is a ruler position
-				// Calculate text column position (i minus line number width)
-				textColumn := i - e.buffer.LineNumberWidth
-				for _, rulerPos := range e.config.VerticalRulers {
-					if textColumn == rulerPos {
-						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-						break
-					}
-				}
-				
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					charPosInLine := textColumn
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == charPosInLine {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-				
-				// Apply virtual cursor style if needed
-				if hasVirtualCursor {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-				}
-				
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-			}
-		}
-	} else {
-		// Even if no background fill, we still need to render virtual cursors beyond end of line
-		width, _ := e.screen.Size()
-		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-		
-		for i := x; i < width; i++ {
-			// Check if this position has a virtual cursor beyond the end of line
-			hasVirtualCursor := false
-			if lineIndex >= 0 {
-				// Calculate the character position in the line for this screen position
-				textColumn := i - e.buffer.LineNumberWidth
-				for _, vc := range e.virtualCursors {
-					if vc.Y == lineIndex && vc.X == textColumn {
-						hasVirtualCursor = true
-						break
-					}
-				}
-			}
-			
-			// Render virtual cursor if needed
-			if hasVirtualCursor {
-				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-			}
-		}
-	}
-	return
-
-	// Draw with syntax highlighting
-	x = startX
-	lastEnd := 0
-
-	for _, token := range tokens {
-		// Draw any text before this token with normal style
-		if token.Start > lastEnd && token.Start <= len(originalLine) {
-			endPos := token.Start
-			if endPos > len(originalLine) {
-				endPos = len(originalLine)
-			}
-			prefix := originalLine[lastEnd:endPos]
-			x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
-		}
-
-		// Draw the token with its style
-		if token.Start < len(originalLine) && token.End > token.Start {
-			endPos := token.End
-			if endPos > len(originalLine) {
-				endPos = len(originalLine)
-			}
-			tokenText := originalLine[token.Start:endPos]
-
-			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-			if bgOverride != nil {
-				// Override background with the provided override
-				tokenStyle = tokenStyle.Background(*bgOverride)
-			} else if isCurrentLine {
-				// Override background for current line
-				tokenStyle = tokenStyle.Background(lineBg)
-			}
-
-			x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches, lineIndex, token.Start, trailingStart)
-			lastEnd = endPos
-		}
 	}
 
-	// Draw any remaining text with normal style
-	if lastEnd < len(originalLine) {
-		suffix := originalLine[lastEnd:]
-		x += e.drawText(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
-	}
-
-	// Fill rest of line if we have background
+	// Fill rest of line with background if needed
 	if hasBg {
 		width, _ := e.screen.Size()
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
