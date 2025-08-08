@@ -79,6 +79,22 @@ func (e *Editor) handlePendingOperation(key string) error {
 		return nil // Wait for text object
 	}
 	
+	// Check for 'f' or 't' motions - need to wait for character
+	if len(e.pendingKeys) == 2 && (key == "f" || key == "t") {
+		// Don't consume the key yet, we need one more character
+		return nil // Wait for the character to find/till
+	}
+	
+	// Check for 'f' or 't' with character (3 keys total: operator + f/t + character)
+	if len(e.pendingKeys) == 3 && (e.pendingKeys[1] == "f" || e.pendingKeys[1] == "t") {
+		character := key
+		if e.pendingKeys[1] == "f" {
+			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, FindCharacterTextObject{character: character})
+		} else if e.pendingKeys[1] == "t" {
+			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, TillCharacterTextObject{character: character})
+		}
+	}
+	
 	// Try to find a text object
 	textObj := e.getTextObjectForKey(key)
 	if textObj != nil {
@@ -94,7 +110,7 @@ func (e *Editor) handlePendingOperation(key string) error {
 	}
 	
 	// If we get here and have accumulated too many keys, cancel the operation
-	if len(e.pendingKeys) > 3 {
+	if len(e.pendingKeys) > 4 {
 		e.clearPendingOperation()
 	}
 	
