@@ -29,6 +29,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("h/j/k/l      - Move cursor left/down/up/right (vim-style)\n")
 	helpText.WriteString("w            - Move forward by word\n")
 	helpText.WriteString("b            - Move backward by word\n")
+	helpText.WriteString("f<char>      - Find next occurrence of character on current line\n")
+	helpText.WriteString("t<char>      - Move to character before next occurrence of character\n")
 	helpText.WriteString("0 or Home    - Move to beginning of line\n")
 	helpText.WriteString("$ or End     - Move to end of line\n")
 	helpText.WriteString("gg           - Go to beginning of file\n")

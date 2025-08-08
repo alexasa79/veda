@@ -26,6 +26,21 @@ func (e *Editor) startYankOperation(args []string) error {
 
 // handlePendingOperation processes keys when there's a pending operation
 func (e *Editor) handlePendingOperation(key string) error {
+	// Handle character search operations (f/t) when no operator is pending
+	if e.pendingOperator == nil && len(e.pendingKeys) > 0 {
+		if len(e.pendingKeys) == 1 {
+			if e.pendingKeys[0] == "f" {
+				// Execute find character operation
+				e.pendingKeys = nil
+				return e.findCharacter([]string{key})
+			} else if e.pendingKeys[0] == "t" {
+				// Execute till character operation
+				e.pendingKeys = nil
+				return e.tillCharacter([]string{key})
+			}
+		}
+	}
+	
 	if e.pendingOperator == nil {
 		return nil
 	}
@@ -177,5 +192,5 @@ func (e *Editor) cancelPendingOperation() error {
 
 // hasPendingOperation returns true if there's a pending operation
 func (e *Editor) hasPendingOperation() bool {
-	return e.pendingOperator != nil
+	return e.pendingOperator != nil || len(e.pendingKeys) > 0
 }

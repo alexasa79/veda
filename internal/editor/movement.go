@@ -280,3 +280,74 @@ func (e *Editor) goToLine(lineNum int) {
 	e.scrollToCenter()
 	e.updateCursorState()
 }
+
+// findCharacter moves cursor to the next occurrence of the specified character on the current line
+func (e *Editor) findCharacter(args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	
+	char := args[0]
+	if len(char) == 0 {
+		return nil
+	}
+	
+	line := e.buffer.CursorIterator.Line()
+	currentX := e.buffer.CursorX
+	
+	// Search for the character starting from the position after the cursor
+	for i := currentX + 1; i < len(line); i++ {
+		if string(line[i]) == char {
+			e.buffer.CursorX = i
+			e.desiredColumn = -1
+			e.updateCursorState()
+			return nil
+		}
+	}
+	
+	// Character not found
+	return nil
+}
+
+// tillCharacter moves cursor to the character before the next occurrence of the specified character on the current line
+func (e *Editor) tillCharacter(args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	
+	char := args[0]
+	if len(char) == 0 {
+		return nil
+	}
+	
+	line := e.buffer.CursorIterator.Line()
+	currentX := e.buffer.CursorX
+	
+	// Search for the character starting from the position after the cursor
+	for i := currentX + 1; i < len(line); i++ {
+		if string(line[i]) == char {
+			// Move to the position before the character
+			if i > 0 {
+				e.buffer.CursorX = i - 1
+				e.desiredColumn = -1
+				e.updateCursorState()
+			}
+			return nil
+		}
+	}
+	
+	// Character not found
+	return nil
+}
+
+// startFindCharacterOperation begins a find character operation, waiting for character input
+func (e *Editor) startFindCharacterOperation(args []string) error {
+	e.pendingKeys = []string{"f"}
+	return nil
+}
+
+// startTillCharacterOperation begins a till character operation, waiting for character input
+func (e *Editor) startTillCharacterOperation(args []string) error {
+	e.pendingKeys = []string{"t"}
+	return nil
+}
