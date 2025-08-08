@@ -720,9 +720,20 @@ func (e *Editor) listDocumentSymbolsCmd(args []string) error {
 
 // writeFile writes the current buffer to disk
 func (e *Editor) writeFile(args []string) error {
-	// Check if buffer has a file path
-	if !e.buffer.HasFile() {
-		// TODO: Could implement "save as" functionality here
+	var filePath string
+	var saveAs bool
+
+	// Determine the file path to use
+	if len(args) > 0 {
+		// Save as - use the provided filename
+		filePath = e.resolvePath(args[0])
+		saveAs = true
+	} else if e.buffer.HasFile() {
+		// Save to current file
+		filePath = e.buffer.FilePath
+		saveAs = false
+	} else {
+		// No filename and buffer has no file
 		return fmt.Errorf("no file name")
 	}
 
@@ -731,23 +742,53 @@ func (e *Editor) writeFile(args []string) error {
 
 	// Save to local history first (don't fail the save if history fails)
 	if e.localHistory != nil {
-		if err := e.localHistory.SaveFileHistory(e.buffer.FilePath, content); err != nil {
+		if err := e.localHistory.SaveFileHistory(filePath, content); err != nil {
 			LL.Error("Failed to save file history: %v", err)
 			// Continue with the actual save even if history fails
 		}
 	}
 
 	// Write the file
-	err := e.proxyManager.WriteFile(e.buffer.FilePath, content)
+	err := e.proxyManager.WriteFile(filePath, content)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	// If this is a "save as" operation, update the buffer's file path
+	if saveAs {
+		// Remove old buffer from maps if it had a file
+		if e.buffer.HasFile() {
+			delete(e.buffers, e.buffer.FilePath)
+			// Update buffer order
+			for i, path := range e.bufferOrder {
+				if path == e.buffer.FilePath {
+					e.bufferOrder[i] = filePath
+					break
+				}
+			}
+		} else {
+			// This was an unnamed buffer, remove it and add the new one
+			delete(e.buffers, "")
+			for i, path := range e.bufferOrder {
+				if path == "" {
+					e.bufferOrder[i] = filePath
+					break
+				}
+			}
+		}
+		
+		// Update buffer's file path
+		e.buffer.FilePath = filePath
+		
+		// Add buffer with new path
+		e.buffers[filePath] = e.buffer
 	}
 
 	// Mark buffer as saved
 	e.buffer.MarkSaved()
 
 	// Show success message
-	LL.Info("Wrote %s", e.buffer.FilePath)
+	LL.Info("Wrote %s", filePath)
 
 	return nil
 }
