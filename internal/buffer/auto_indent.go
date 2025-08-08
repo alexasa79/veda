@@ -24,6 +24,11 @@ type AutoIndentInfo struct {
 //    indent to current line's indentation level plus one indent unit
 // 5. Otherwise (balanced parens or no parens), maintain the same indentation level
 func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo {
+	// Special case: For empty lines, determine indentation from block context
+	if strings.TrimSpace(line) == "" {
+		return b.calculateIndentForEmptyLine()
+	}
+	
 	// Get current line's base indentation
 	baseIndentInfo := b.GetLineIndentInfo(line)
 	
@@ -46,22 +51,25 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		}
 	}
 	
+	// Count parentheses balance up to cursor first (before continuation line check)
+	balance, lastOpenCol, hasCharsAfter := analyzeParentheses(line, cursorCol)
+	
 	// Check if this line appears to be a continuation line
 	// A continuation line has unusual indentation that doesn't match standard indent levels
 	actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8) // Visual columns
 	
 	// If the indentation is not a multiple of the indent width, it's likely a continuation line
 	// (e.g., 9 or 10 spaces when indent width is 4)
-	if actualIndent > 0 && actualIndent % b.Indentation.Width != 0 {
-		// Maintain the exact same indentation as the current line
+	// BUT: if parentheses are balanced AND we're positioned after what looks like a statement
+	// terminator (not a continuation character like comma), we should return to block level instead
+	atEndOfStatement := balance == 0 && isAfterStatementEndCharacter(line, cursorCol)
+	if actualIndent > 0 && actualIndent % b.Indentation.Width != 0 && !atEndOfStatement {
+		// Maintain the exact same indentation as the current line (only if not at end of statement)
 		return AutoIndentInfo{
 			Column:    actualIndent,
 			IndentStr: baseIndentInfo.ActualPrefix,
 		}
 	}
-	
-	// Count parentheses balance up to cursor
-	balance, lastOpenCol, hasCharsAfter := analyzeParentheses(line, cursorCol)
 	
 	// Rule 2: Unbalanced parens with content after - align to position after last open paren
 	if balance > 0 && lastOpenCol >= 0 && hasCharsAfter {
@@ -100,7 +108,39 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		}
 	}
 	
-	// Rule 4: Balanced parens or no parens - maintain same indentation
+	// Rule 4: Balanced parentheses - return to block-level indentation  
+	// When parentheses are balanced, we're likely at the end of a statement/expression
+	// and should return to the containing block's indentation level
+	if balance == 0 {
+		actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8)
+		
+		// If current indentation is not a standard indent level (parameter alignment), 
+		// return to closest block level
+		if actualIndent > 0 && actualIndent % b.Indentation.Width != 0 {
+			// For parameter alignment, the block level should be based on the nearest
+			// standard indent level at or below the current indentation
+			blockLevel := actualIndent / b.Indentation.Width // Integer division rounds down
+			
+			// Special case: if we have parameter alignment (like 11 spaces for 4-space indent),
+			// we should return to the same level as the line that started the alignment
+			// For example: 11 spaces parameter alignment → return to L1 (4 spaces)
+			// This assumes the function call started at L1
+			if blockLevel > 0 {
+				blockLevel-- // Go one level up from the calculated level
+			}
+			
+			indentStr := strings.Repeat(b.GetIndentationString(), blockLevel)
+			visualCol := blockLevel * b.Indentation.Width
+			
+			return AutoIndentInfo{
+				Column:    visualCol,
+				IndentStr: indentStr,
+			}
+		}
+		// If already at a standard indent level, maintain it (fall through)
+	}
+	
+	// Rule 5: Default - maintain same indentation level
 	indentStr := strings.Repeat(b.GetIndentationString(), baseIndentInfo.Level)
 	
 	// Calculate visual column for this indentation
@@ -241,6 +281,105 @@ func shouldIndentAfterBrace(line string, cursorCol int) bool {
 		for i := len(line) - 1; i >= 0; i-- {
 			if !unicode.IsSpace(rune(line[i])) {
 				return line[i] == '{'
+			}
+		}
+	}
+	
+	return false
+}
+
+// calculateIndentForEmptyLine determines the appropriate indentation for an empty line
+// by analyzing the surrounding block context in the buffer
+func (b *Buffer) calculateIndentForEmptyLine() AutoIndentInfo {
+	// We need to find the current cursor position in the buffer to analyze context
+	if b.CursorIterator == nil {
+		// Fallback to no indentation if we can't determine context
+		return AutoIndentInfo{Column: 0, IndentStr: ""}
+	}
+	
+	currentLineNum := b.CursorIterator.LineNumber()
+	
+	// Look backward from current position to find the most recent non-empty line
+	// and analyze the block structure
+	braceBalance := 0
+	baseIndentLevel := 0
+	
+	// Start from the line before current and go backward
+	for lineNum := currentLineNum - 1; lineNum >= 0; lineNum-- {
+		iter := NewBufferIteratorAtLine(b, lineNum)
+		if iter.IsEOF() {
+			continue
+		}
+		
+		lineContent := strings.TrimSpace(iter.Line())
+		if lineContent == "" {
+			continue // Skip empty lines
+		}
+		
+		// This is the first non-empty line we found going backward
+		// Analyze its brace content and indentation
+		lineIndentInfo := b.GetLineIndentInfo(iter.Line())
+		
+		// Count braces in this line
+		openBraces := strings.Count(lineContent, "{")
+		closeBraces := strings.Count(lineContent, "}")
+		braceBalance = openBraces - closeBraces
+		
+		// The base indent level should be this line's level plus any brace changes
+		baseIndentLevel = lineIndentInfo.Level
+		if braceBalance > 0 {
+			// There are more opening braces, so we should be one level deeper
+			baseIndentLevel += braceBalance
+		}
+		
+		break // We found our context line
+	}
+	
+	// Create the indentation
+	indentStr := strings.Repeat(b.GetIndentationString(), baseIndentLevel)
+	visualCol := len(indentStr)
+	if b.Indentation.Type == config.IndentTabs {
+		visualCol = baseIndentLevel * 8
+	}
+	
+	return AutoIndentInfo{
+		Column:    visualCol,
+		IndentStr: indentStr,
+	}
+}
+
+// isAfterStatementEndCharacter checks if the cursor is positioned after a character
+// that typically ends a statement (as opposed to continuing it).
+// Returns true for characters like ';', '}' that end statements.
+// Returns false for characters like ',' that indicate continuation.
+func isAfterStatementEndCharacter(line string, cursorCol int) bool {
+	if cursorCol == 0 {
+		return false
+	}
+	
+	// Ensure we don't go beyond the line length
+	searchStart := cursorCol - 1
+	if searchStart >= len(line) {
+		searchStart = len(line) - 1
+	}
+	
+	// Look backward from cursor position to find the last non-whitespace character
+	for i := searchStart; i >= 0; i-- {
+		char := line[i]
+		if !unicode.IsSpace(rune(char)) {
+			// Check if this character typically ends a statement
+			switch char {
+			case ';':  // Statement terminator in C/C++/Java/etc
+				return true
+			case '}':  // Block terminator
+				return true
+			case ',':  // Continuation character
+				return false
+			default:
+				// For other characters, consider context
+				// If we're at the end of the line, it might be end of statement
+				// but for now, be conservative and assume continuation
+				return false
 			}
 		}
 	}
