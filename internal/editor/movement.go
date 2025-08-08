@@ -7,6 +7,9 @@ import (
 
 // Movement commands
 func (e *Editor) moveUp(args []string) error {
+	// Check for auto-indent cleanup before moving
+	e.checkAndCleanupAutoIndent()
+	
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
 	
@@ -38,6 +41,9 @@ func (e *Editor) moveUp(args []string) error {
 }
 
 func (e *Editor) moveDown(args []string) error {
+	// Check for auto-indent cleanup before moving
+	e.checkAndCleanupAutoIndent()
+	
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
 	
@@ -72,6 +78,7 @@ func (e *Editor) moveDown(args []string) error {
 }
 
 func (e *Editor) moveLeft(args []string) error {
+	// Auto-indent cleanup not needed for horizontal movement on same line
 	if e.buffer.CursorX > 0 {
 		e.buffer.CursorX--
 	}

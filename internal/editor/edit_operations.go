@@ -49,6 +49,11 @@ func (e *Editor) openLineBelow(args []string) error {
 	// Move cursor to end of indentation
 	e.buffer.CursorX = len(autoIndent.IndentStr)
 
+	// Track auto-indentation for cleanup when cursor moves away
+	if len(autoIndent.IndentStr) > 0 {
+		e.trackAutoIndent(lineNum + 1, len(autoIndent.IndentStr))
+	}
+
 	// Enter insert mode
 	e.mode = commands.InsertMode
 	// Start tracking insert mode changes
@@ -134,6 +139,11 @@ func (e *Editor) openLineAbove(args []string) error {
 
 	// Move cursor to end of indentation
 	e.buffer.CursorX = len(autoIndent.IndentStr)
+
+	// Track auto-indentation for cleanup when cursor moves away
+	if len(autoIndent.IndentStr) > 0 {
+		e.trackAutoIndent(lineNum, len(autoIndent.IndentStr))
+	}
 
 	// Enter insert mode
 	e.mode = commands.InsertMode
@@ -278,6 +288,11 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Reset desired column when inserting text
 	e.desiredColumn = -1
+	
+	// If user types non-whitespace content, mark the line as having user content
+	if ch != ' ' && ch != '\t' {
+		e.markLineHasUserContent(e.buffer.CursorIterator.LineNumber())
+	}
 
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
@@ -393,6 +408,11 @@ func (e *Editor) insertNewline(args []string) error {
 
 	// Move cursor to end of indentation
 	e.buffer.CursorX = finalCursorX
+
+	// Track auto-indentation for cleanup when cursor moves away
+	if len(autoIndent.IndentStr) > 0 {
+		e.trackAutoIndent(lineNum + 1, len(autoIndent.IndentStr))
+	}
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
