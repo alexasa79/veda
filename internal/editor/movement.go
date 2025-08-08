@@ -98,9 +98,23 @@ func (e *Editor) moveRight(args []string) error {
 }
 
 // wordForward moves the cursor to the beginning of the next word
+// Enhanced to stop at end of line when a word extends to the line boundary
 func (e *Editor) wordForward(args []string) error {
 	currentLine := e.buffer.CursorIterator.LineNumber()
-	nextWord := FindNextWordBoundary(e.buffer, currentLine, e.buffer.CursorX)
+	startX := e.buffer.CursorX
+	line := e.buffer.CursorIterator.Line()
+	
+	// Check if we should stop at end of line first
+	if shouldStopAtEndOfLine(e.buffer, currentLine, startX) {
+		// Move to end of current line
+		e.buffer.CursorX = len(line) - 1
+		e.desiredColumn = -1
+		e.updateCursorState()
+		return nil
+	}
+	
+	// Use normal word boundary logic
+	nextWord := FindNextWordBoundary(e.buffer, currentLine, startX)
 
 	if nextWord != nil {
 		// Move cursor to the next word

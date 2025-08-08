@@ -76,11 +76,12 @@ func TestMultiCursorYank(t *testing.T) {
 		te.ExecuteCommand("add-virtual-cursor")
 		
 		// Move to "bar" on line 3 ("func bar() {")
-		// We're currently on line 1 after adding virtual cursor
+		// After add-virtual-cursor, we need to navigate to the "b" in "bar"
 		for i := 0; i < 2; i++ {
 			te.ExecuteCommand("down")
 		}
-		// Move to start of "bar"
+		// Move to beginning of line 3, then move to "b" in "bar" (position 5)
+		te.ExecuteCommand("beginning-of-line")
 		for i := 0; i < 5; i++ {
 			te.ExecuteCommand("right")
 		}
