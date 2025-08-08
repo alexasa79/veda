@@ -318,8 +318,8 @@ func (e *Editor) enterTemporaryNormalMode(args []string) error {
 
 // exitInsertMode switches the editor back to normal mode
 func (e *Editor) exitInsertMode(args []string) error {
-	// Clean up auto-indent on current line when exiting insert mode
-	e.cleanupAutoIndentOnLine(e.buffer.CursorIterator.LineNumber())
+	// Clean up auto-indent on all tracked lines when exiting insert mode
+	e.cleanupAllAutoIndentLines()
 	
 	// Clear temporary normal flag if set
 	e.temporaryNormal = false

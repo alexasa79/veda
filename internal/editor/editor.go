@@ -1871,6 +1871,46 @@ func (e *Editor) hasFlashHighlight() bool {
 	return e.flashStartLine != -1 && e.flashEndTime > 0 && time.Now().UnixMilli() <= e.flashEndTime
 }
 
+// cleanupAllAutoIndentLines cleans up all tracked auto-indented lines for the current buffer
+// This should be called when exiting insert mode to clean up all empty auto-indented lines
+func (e *Editor) cleanupAllAutoIndentLines() {
+	if e.buffer == nil {
+		return
+	}
+	
+	currentBufferPath := e.buffer.FilePath
+	keysToCleanup := make([]string, 0)
+	
+	// Collect all keys for the current buffer
+	for key, info := range e.autoIndentLines {
+		// Check if this key belongs to the current buffer
+		if keyBufferPath := e.extractBufferPathFromKey(key); keyBufferPath == currentBufferPath {
+			// Only cleanup lines that don't have user content
+			if !info.HasUserContent {
+				keysToCleanup = append(keysToCleanup, key)
+			}
+		}
+	}
+	
+	// Clean up all the identified lines
+	for _, key := range keysToCleanup {
+		if info, exists := e.autoIndentLines[key]; exists {
+			e.cleanupAutoIndentOnLine(info.LineNumber)
+		}
+	}
+}
+
+// extractBufferPathFromKey extracts the buffer path from an auto-indent key
+func (e *Editor) extractBufferPathFromKey(key string) string {
+	// Key format is: bufferPath + ":" + lineNumber
+	// Find the last colon to separate buffer path from line number
+	lastColon := strings.LastIndex(key, ":")
+	if lastColon == -1 {
+		return key // Fallback if format is unexpected
+	}
+	return key[:lastColon]
+}
+
 // makeAutoIndentKey creates a unique key for tracking auto-indent on a specific line
 func (e *Editor) makeAutoIndentKey(bufferPath string, lineNumber int) string {
 	return fmt.Sprintf("%s:%d", bufferPath, lineNumber)
