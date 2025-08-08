@@ -21,7 +21,7 @@ func NewLocalHistory() (*LocalHistory, error) {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 	
-	baseDir := filepath.Join(homeDir, ".cache", "veda")
+	baseDir := filepath.Join(homeDir, ".cache", "veda", "history")
 	return &LocalHistory{
 		baseDir: baseDir,
 	}, nil

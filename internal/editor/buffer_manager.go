@@ -162,6 +162,11 @@ func (e *Editor) closeBuffer(args []string) error {
 		e.switchToBuffer(nextBuffer)
 	}
 	
+	// Clean up auto-save file since the buffer is being closed without saving
+	if e.autoSaveManager != nil && currentPath != "" {
+		e.autoSaveManager.CleanupAutoSave(currentPath)
+	}
+	
 	// Remove the closed buffer
 	delete(e.buffers, currentPath)
 	e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
