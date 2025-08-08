@@ -67,13 +67,21 @@ func TestWordNavigation(t *testing.T) {
 		te.SetCursorPosition(6, 0)
 		AssertCursorAt(t, te, 6, 0)
 		
-		// Jump to "foo" on next line
+		// First jump should go to end of line (end of "world")
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 10, 0) // End of "world"
+		
+		// Next jump should go to "foo" on next line
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 0, 1)
 		
 		// Jump to "bar"
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 4, 1)
+		
+		// Jump to end of "bar"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 6, 1) // End of "bar"
 		
 		// Jump to "baz" on next line
 		te.ExecuteCommand("word-forward")
@@ -188,5 +196,25 @@ func TestWordNavigation(t *testing.T) {
 		
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 24, 0) // Start of closing quote
+	})
+	
+	t.Run("word forward stops at end of line like user requested", func(t *testing.T) {
+		// Test the exact scenario described by the user
+		te := NewTestEditorWithContent(80, 24, "hello1\nhello22")
+		
+		// Start at beginning of "hello1"
+		AssertCursorAt(t, te, 0, 0)
+		
+		// Press "w" - should jump to end of "hello1" (the "1")
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 5, 0) // Position of "1"
+		
+		// Press "w" again - should jump to "h" in second line
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 0, 1) // Position of "h" in "hello22"
+		
+		// Press "w" again - should stop at the last "2"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 6, 1) // Position of last "2"
 	})
 }

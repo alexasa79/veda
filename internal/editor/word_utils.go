@@ -164,9 +164,18 @@ func FindPreviousWordBoundary(buf *buffer.Buffer, startLine, startChar int) *Wor
 			x--
 		}
 	} else {
-		// We're on punctuation, find the start of this punctuation sequence or previous word
-		// For vim compatibility, punctuation is treated as separate words
-		// So we just position at this punctuation character
+		// We're on punctuation - continue searching backwards for the next word character
+		// This matches vim behavior where 'b' skips over punctuation to find previous words
+		for x > 0 {
+			x--
+			if x < len(line) && isWordChar(rune(line[x])) {
+				// Found a word character, find the start of this word
+				for x > 0 && isWordChar(rune(line[x-1])) {
+					x--
+				}
+				break
+			}
+		}
 	}
 	
 	return &WordBoundary{
@@ -238,4 +247,86 @@ func FindCurrentWordBoundary(buf *buffer.Buffer, cursorLine, cursorChar int, inc
 		EndLine:   cursorLine,
 		EndChar:   end,
 	}
+}
+
+// shouldStopAtEndOfLine determines if word-forward navigation should stop at the end of the current line
+// This implements the enhanced navigation behavior where words extending to line boundaries get an intermediate stop
+func shouldStopAtEndOfLine(buf *buffer.Buffer, startLine, startChar int) bool {
+	iter := buffer.NewBufferIteratorAtLine(buf, startLine)
+	if iter.IsEOF() {
+		return false
+	}
+	
+	line := iter.Line()
+	
+	// Special case: if we're already at or near the end of line, don't stop
+	if startChar >= len(line) - 1 || len(line) == 0 {
+		return false
+	}
+	
+	// Find where the current word ends
+	wordEndPos := startChar
+	if wordEndPos < len(line) {
+		currentChar := rune(line[wordEndPos])
+		if isWordChar(currentChar) {
+			// Skip word characters to find end of word
+			for wordEndPos < len(line) && isWordChar(rune(line[wordEndPos])) {
+				wordEndPos++
+			}
+		} else if !unicode.IsSpace(currentChar) {
+			// Skip a single punctuation character
+			wordEndPos++
+		} else {
+			// On whitespace, don't apply end-of-line logic
+			return false
+		}
+	}
+	
+	// Only stop at end of line if the word extends to the very end of the line
+	if wordEndPos < len(line) {
+		return false
+	}
+	
+	// Check if there's a next line and what it contains
+	nextIter := iter.Next()
+	if nextIter.IsEOF() {
+		// End of file - apply the logic if we're not on the first line (multi-line file)
+		return startLine > 0
+	}
+	
+	// Check if the next line has actual content (not just whitespace)
+	nextLine := nextIter.Line()
+	nextLineHasContent := false
+	for i := 0; i < len(nextLine); i++ {
+		if !unicode.IsSpace(rune(nextLine[i])) {
+			nextLineHasContent = true
+			break
+		}
+	}
+	
+	// Only apply end-of-line stopping if the next line has content
+	// (skip over empty lines with original vim behavior)
+	if !nextLineHasContent {
+		return false
+	}
+	
+	// Find the actual start of the current word to check if we're at the beginning
+	wordStartPos := startChar
+	if startChar < len(line) && !unicode.IsSpace(rune(line[startChar])) {
+		// Find the actual start of the current word
+		for wordStartPos > 0 {
+			prevChar := rune(line[wordStartPos-1])
+			if !isWordChar(prevChar) || unicode.IsSpace(prevChar) {
+				break
+			}
+			wordStartPos--
+		}
+		
+		// Don't stop at end if we're at the start of the last word in a single-line file
+		if startLine == 0 && wordStartPos == startChar && nextIter.IsEOF() {
+			return false
+		}
+	}
+	
+	return true
 }
