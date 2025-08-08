@@ -49,7 +49,7 @@ func CleanupLogging() {
 }
 
 func NewLogger(name string) *Logger {
-	logger := &Logger{INFO, name}
+	logger := &Logger{DEBUG, name}
 	AllLoggers = append(AllLoggers, logger)
 	return logger
 }
