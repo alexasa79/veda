@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 	"veda/internal/buffer"
@@ -335,6 +336,27 @@ func (e *Editor) openFile(filePath string) {
 		content = fileContent.Content
 		changes = &fileContent.Changes
 		branch = fileContent.Branch
+		
+		// Check for auto-save recovery if we have a file
+		if e.autoSaveManager != nil {
+			// For now, check if auto-save exists without time comparison
+			// TODO: Get file modification time from proxy for better recovery detection
+			if exists, _, _ := e.autoSaveManager.GetAutoSaveInfo(resolvedPath); exists {
+				// Show recovery dialog and handle user's choice
+				if e.showRecoveryDialog(resolvedPath) {
+					// User chose to recover from auto-save
+					if recoveredContent, err := e.autoSaveManager.GetAutoSaveContent(resolvedPath); err == nil {
+						content = recoveredContent
+						LL.Info("Recovered content from auto-save for: %s", resolvedPath)
+					} else {
+						LL.Error("Failed to read auto-save content: %v", err)
+					}
+				} else {
+					// User chose not to recover, clean up auto-save
+					e.autoSaveManager.CleanupAutoSave(resolvedPath)
+				}
+			}
+		}
 	}
 
 	// Create a new buffer with the file content (empty for new files)
@@ -787,6 +809,11 @@ func (e *Editor) writeFile(args []string) error {
 	// Mark buffer as saved
 	e.buffer.MarkSaved()
 
+	// Clean up auto-save since file was successfully saved
+	if e.autoSaveManager != nil {
+		e.autoSaveManager.CleanupAutoSave(filePath)
+	}
+
 	// Show success message
 	LL.Info("Wrote %s", filePath)
 
@@ -825,4 +852,58 @@ func (e *Editor) editFile(args []string) error {
 	// It's a file - open it
 	e.openFile(path)
 	return nil
+}
+
+// showRecoveryDialog displays a dialog asking the user whether to recover from auto-save
+func (e *Editor) showRecoveryDialog(filePath string) bool {
+	width, height := e.screen.Size()
+	
+	// Create a centered dialog
+	dialogWidth := 60
+	dialogHeight := 8
+	dialogX := (width - dialogWidth) / 2
+	dialogY := (height - dialogHeight) / 2
+	
+	message := fmt.Sprintf("Auto-save found for %s. Recover unsaved changes?", filepath.Base(filePath))
+	
+	dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, 
+		"Recovery", message, e.config.Theme)
+	
+	// Show the dialog and wait for user input
+	for !dialog.IsClosed() {
+		// Clear screen and render dialog
+		e.screen.Clear()
+		dialog.Render(e.screen)
+		e.screen.Show()
+		
+		// Handle events
+		event := e.screen.PollEvent()
+		dialog.HandleEvent(event)
+	}
+	
+	result := dialog.GetResult()
+	return result == widgets.DialogResultYes
+}
+
+// performAutoSave performs auto-save for a specific file
+func (e *Editor) performAutoSave(filePath string) {
+	// Find the buffer for this file
+	if buf, exists := e.buffers[filePath]; exists {
+		content := buf.Rope.String()
+		if err := e.autoSaveManager.saveFile(filePath, content); err != nil {
+			LL.Error("Failed to auto-save file %s: %v", filePath, err)
+		} else {
+			// Update last save time
+			e.autoSaveManager.mutex.Lock()
+			e.autoSaveManager.lastSaveTimes[filePath] = time.Now()
+			e.autoSaveManager.mutex.Unlock()
+		}
+	}
+}
+
+// markBufferDirty marks a buffer as having unsaved changes for auto-save
+func (e *Editor) markBufferDirty() {
+	if e.autoSaveManager != nil && e.buffer.HasFile() {
+		e.autoSaveManager.MarkDirty(e.buffer.FilePath)
+	}
 }

@@ -171,6 +171,9 @@ type Editor struct {
 	// Local history
 	localHistory    *LocalHistory          // Manages local file history
 	
+	// Auto-save manager
+	autoSaveManager *AutoSaveManager       // Manages auto-save functionality
+	
 	// Rewrap tracking
 	lastRewrapLine  int                    // Line where last rewrap was performed
 	lastRewrapChar  int                    // Character position where last rewrap was performed
@@ -255,6 +258,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	} else {
 		editor.localHistory = localHistory
 	}
+
+	// Initialize auto-save manager
+	editor.autoSaveManager = NewAutoSaveManager()
+	editor.autoSaveManager.SetSaveCallback(editor.performAutoSave)
 
 	// Add the initial empty buffer to the buffers map
 	// Use empty string as the key for unnamed buffers
@@ -756,6 +763,11 @@ func (e *Editor) Close() {
 		e.perfTracker.Stop()
 	}
 
+	// Stop the auto-save manager
+	if e.autoSaveManager != nil {
+		e.autoSaveManager.Stop()
+	}
+
 	e.screen.Fini()
 	if e.proxyManager != nil {
 		e.proxyManager.Close()
@@ -889,6 +901,15 @@ func (e *Editor) updateCursorState() {
 
 // actuallyQuit exits the editor completely
 func (e *Editor) actuallyQuit(args []string) error {
+	// Clean up auto-save files for all open buffers since user is quitting without saving
+	if e.autoSaveManager != nil {
+		for filePath := range e.buffers {
+			if filePath != "" { // Skip unnamed buffers
+				e.autoSaveManager.CleanupAutoSave(filePath)
+			}
+		}
+	}
+	
 	e.shouldExit = true
 	return nil
 }
@@ -1115,6 +1136,10 @@ func (e *Editor) appendAtEndOfLine(args []string) error {
 // setLastChange sets the last change and clears any lastCommand
 func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 	e.lastChange = entry
+	
+	// Mark buffer as dirty for auto-save whenever content changes
+	e.markBufferDirty()
+	
 	// Only clear lastCommand if it's not a change operator
 	// Change operators need both lastCommand and lastChange for proper repeat
 	if e.lastCommand != nil && e.lastCommand.Operator.GetType() == "change" {
