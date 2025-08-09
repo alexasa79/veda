@@ -86,7 +86,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Completion
 	e.registerKeyBinding(commands.InsertMode, "ctrl+space", "show-completions")
-	
+
 	// Paragraph rewrapping in insert mode
 	e.registerKeyBinding(commands.InsertMode, "alt+q", "rewrap-paragraph")
 
@@ -96,6 +96,7 @@ func (e *Editor) setupDefaultBindings() {
 	// Buffer operations
 	e.registerKeyBinding(commands.NormalMode, "s b", "show-buffers")
 	e.registerKeyBinding(commands.NormalMode, "space space", "switch-to-previous-buffer")
+	e.registerKeyBinding(commands.NormalMode, "space n", "new-buffer")
 
 	// Symbol operations
 	e.registerKeyBinding(commands.NormalMode, "s w", "list-project-symbols")
@@ -127,7 +128,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Change operations
 	e.registerKeyBinding(commands.NormalMode, "c", "start-change")
-	
+
 	// Indentation operations
 	e.registerKeyBinding(commands.NormalMode, "> >", "indent-line")
 	e.registerKeyBinding(commands.NormalMode, "< <", "unindent-line")
@@ -145,10 +146,10 @@ func (e *Editor) setupDefaultBindings() {
 	// Calculator operations
 	e.registerKeyBinding(commands.NormalMode, "- -", "calculate-append")
 	e.registerKeyBinding(commands.NormalMode, "- =", "calculate-replace")
-	
+
 	// Temporary normal mode from insert mode (like vim's Ctrl+O)
 	e.registerKeyBinding(commands.InsertMode, "ctrl+o", "enter-temporary-normal-mode")
-	
+
 	// Search navigation
 	e.registerKeyBinding(commands.NormalMode, "n", "find-next")
 	e.registerKeyBinding(commands.NormalMode, "N", "find-previous")

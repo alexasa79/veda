@@ -32,9 +32,9 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd, false)
 	e.commandRegistry.Register("enter-search-mode", e.enterSearchModeCmd, false)
 	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode, false)
-	e.commandRegistry.Register("append-after-cursor", e.appendAfterCursor, true) // Apply to all cursors for positioning
+	e.commandRegistry.Register("append-after-cursor", e.appendAfterCursor, true)   // Apply to all cursors for positioning
 	e.commandRegistry.Register("append-at-end-of-line", e.appendAtEndOfLine, true) // Apply to all cursors for positioning
-	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode, true) // Apply to all cursors for cursor adjustment
+	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode, true)         // Apply to all cursors for cursor adjustment
 	e.commandRegistry.Register("enter-visual-mode", e.enterVisualMode, false)
 	e.commandRegistry.Register("enter-visual-line-mode", e.enterVisualLineMode, false)
 	e.commandRegistry.Register("exit-visual-mode", e.exitVisualMode, false)
@@ -51,7 +51,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("delete-character-insert", e.deleteCharacterInsert, true)
 	e.commandRegistry.Register("delete-word-forward", e.deleteWordForward, true)
 	e.commandRegistry.Register("delete-word-backward", e.deleteWordBackward, true)
-	e.commandRegistry.Register("word-forward-insert", e.wordForwardInsert, true) // Movement in insert mode
+	e.commandRegistry.Register("word-forward-insert", e.wordForwardInsert, true)   // Movement in insert mode
 	e.commandRegistry.Register("word-backward-insert", e.wordBackwardInsert, true) // Movement in insert mode
 	e.commandRegistry.Register("insert-tab", e.insertTab, true)
 
@@ -66,16 +66,16 @@ func (e *Editor) registerCommands() {
 
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd, false)
-	e.commandRegistry.Register("q", e.closeBuffer, false)  // Close current buffer
-	e.commandRegistry.Register("q!", e.actuallyQuit, false)  // Force quit
-	e.commandRegistry.Register("qa", e.actuallyQuit, false)  // Force quit (shortcut for :Q)
-	e.commandRegistry.Register("Quit", e.actuallyQuit, false)  // Actually quit the editor
-	e.commandRegistry.Register("Q", e.actuallyQuit, false)  // Shortcut for Quit
+	e.commandRegistry.Register("q", e.closeBuffer, false)     // Close current buffer
+	e.commandRegistry.Register("q!", e.actuallyQuit, false)   // Force quit
+	e.commandRegistry.Register("qa", e.actuallyQuit, false)   // Force quit (shortcut for :Q)
+	e.commandRegistry.Register("Quit", e.actuallyQuit, false) // Actually quit the editor
+	e.commandRegistry.Register("Q", e.actuallyQuit, false)    // Shortcut for Quit
 	e.commandRegistry.Register("write", e.writeFile, false)
-	e.commandRegistry.Register("w", e.writeFile, false)  // Shortcut for write
-	e.commandRegistry.Register("wq", e.writeAndQuit, false)  // Write and quit
+	e.commandRegistry.Register("w", e.writeFile, false)     // Shortcut for write
+	e.commandRegistry.Register("wq", e.writeAndQuit, false) // Write and quit
 	e.commandRegistry.Register("edit", e.editFile, false)
-	e.commandRegistry.Register("e", e.editFile, false)  // Shortcut for edit
+	e.commandRegistry.Register("e", e.editFile, false) // Shortcut for edit
 	e.commandRegistry.Register("cd", e.changeDirectory, false)
 
 	// LSP commands
@@ -94,6 +94,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("show-buffers", e.showBuffers, false)
 	e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious, false)
 	e.commandRegistry.Register("show-buffer-list-previous", e.showBufferListWithPrevious, false) // More descriptive alias
+	e.commandRegistry.Register("new-buffer", e.newBuffer, false)                                 // Create a new empty buffer
 
 	// Symbol commands
 	e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd, false)
@@ -121,11 +122,11 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("start-change", e.startChangeOperation, false)
 
 	// Indentation commands
-	e.commandRegistry.Register("indent-line", e.indentLine, true) // Apply to all cursors
+	e.commandRegistry.Register("indent-line", e.indentLine, true)     // Apply to all cursors
 	e.commandRegistry.Register("unindent-line", e.unindentLine, true) // Apply to all cursors
 
 	// Search commands
-	e.commandRegistry.Register("find-next", e.findNextCmd, true) // Apply to all cursors for navigation
+	e.commandRegistry.Register("find-next", e.findNextCmd, true)         // Apply to all cursors for navigation
 	e.commandRegistry.Register("find-previous", e.findPreviousCmd, true) // Apply to all cursors for navigation
 	e.commandRegistry.Register("clear-search", e.clearSearchCmd, false)
 	e.commandRegistry.Register("search-word-under-cursor", e.searchWordUnderCursorCmd, false)
@@ -133,23 +134,23 @@ func (e *Editor) registerCommands() {
 	// Help commands
 	e.commandRegistry.Register("help", e.showHelp, false)
 	e.commandRegistry.Register("help-keys", e.showHelpKeys, false)
-	
+
 	// Diagnostics commands
 	e.commandRegistry.Register("diagnostics", e.showDiagnostics, false)
-	
+
 	// Project changes commands
 	e.commandRegistry.Register("show-project-changes", e.showProjectChanges, false)
 
 	// Completion commands
 	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() }, false)
-	
+
 	// Error testing command
 	e.commandRegistry.Register("error", e.errorCommand, false)
-	
+
 	// Calculator commands
 	e.commandRegistry.Register("calculate-append", e.calculateAppend, false)
 	e.commandRegistry.Register("calculate-replace", e.calculateReplace, false)
-	
+
 	// Temporary normal mode
 	e.commandRegistry.Register("enter-temporary-normal-mode", e.enterTemporaryNormalMode, false)
 }
