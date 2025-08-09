@@ -115,6 +115,7 @@ type Editor struct {
 	lastChange        buffer.HistoryEntry // Last text modification for repeat command
 	lastCommand       *RepeatableCommand  // Last operator+text object command for repeat
 	lastSimpleCommand string              // Name of last simple command (like indent-line) for repeat
+	lastCommandCount  int                 // Count used with the last command for repeat
 
 	// Pending operation for multi-key commands
 	pendingOperator Operator           // Current operator waiting for text object
@@ -606,11 +607,13 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 	switch command {
 	case "yank-line":
 		// For yy, count means "yank N lines" not "yank same line N times"
+		e.lastCommandCount = count
 		return e.yankMultipleLines(count)
 	case "start-delete", "start-change", "start-yank":
 		// For dd/cc/yy, count means "delete/change/yank N lines" not "repeat operation N times"
 		// Store the count for the pending operation
 		e.pendingCount = count
+		e.lastCommandCount = count
 		return e.executeCommandForAllCursors(command, nil)
 	default:
 		// Check if we should apply to all cursors
@@ -646,8 +649,38 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 			e.mode = commands.InsertMode
 		}
 
+		// Store the count for repeat command only for text-modifying commands
+		// Movement commands should not overwrite the repeat count
+		if e.isTextModifyingCommand(command) {
+			e.lastCommandCount = count
+		}
+
 		return nil
 	}
+}
+
+// isTextModifyingCommand returns true if the command modifies text content
+func (e *Editor) isTextModifyingCommand(command string) bool {
+	// Commands that modify text and should store count for repeat
+	textModifyingCommands := map[string]bool{
+		"delete-current-character":  true,
+		"delete-to-end-of-line":     true,
+		"delete-character-insert":   true,
+		"delete-word-forward":       true,
+		"delete-word-backward":      true,
+		"indent-line":               true,
+		"unindent-line":             true,
+		"yank-line":                 true,
+		"insert-tab":                true,
+		"enter-insert-mode":         true,
+		"append-after-cursor":       true,
+		"append-at-end-of-line":     true,
+		"start-delete":              true,
+		"start-change":              true,
+		"start-yank":                true,
+	}
+
+	return textModifyingCommands[command]
 }
 
 // executeCommandForAllCursors executes a command for all cursors
@@ -1325,10 +1358,21 @@ func (e *Editor) yankMultipleLines(count int) error {
 
 // repeatLastChange repeats the last text modification at the current cursor position
 func (e *Editor) repeatLastChange(args []string) error {
+	// Get the count to use for repetition
+	count := e.lastCommandCount
+	if count <= 0 {
+		count = 1
+	}
+
 	// First check if we have a simple command to repeat (like indent-line)
 	if e.lastSimpleCommand != "" {
-		// Execute the simple command again
-		return e.commandRegistry.Execute(e.lastSimpleCommand, []string{})
+		// Execute the simple command with the original count
+		for i := 0; i < count; i++ {
+			if err := e.commandRegistry.Execute(e.lastSimpleCommand, []string{}); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	// Then check if we have a repeatable command (operator + text object)
@@ -1396,8 +1440,13 @@ func (e *Editor) repeatLastChange(args []string) error {
 			return nil
 		}
 
-		// For non-change operators, just repeat the operator+text object
-		return e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject)
+		// For non-change operators, repeat the operator+text object with the original count
+		for i := 0; i < count; i++ {
+			if err := e.executeOperatorWithTextObject(e.lastCommand.Operator, e.lastCommand.TextObject); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	// Otherwise fall back to repeating the last change
@@ -1409,177 +1458,180 @@ func (e *Editor) repeatLastChange(args []string) error {
 		return nil
 	}
 
-	// Get current cursor position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	cursorX := e.buffer.CursorX
+	// Repeat the change for the original count
+	for repeatIdx := 0; repeatIdx < count; repeatIdx++ {
+		// Get current cursor position
+		lineNum := e.buffer.CursorIterator.LineNumber()
+		cursorX := e.buffer.CursorX
 
-	// Create a new entry based on the type of the last change
-	var newEntry buffer.HistoryEntry
+		// Create a new entry based on the type of the last change
+		var newEntry buffer.HistoryEntry
 
-	switch original := e.lastChange.(type) {
-	case *buffer.InsertTextEntry:
-		// For insert, we need to insert after the current cursor position in normal mode
-		// This mimics pressing 'i' which inserts before the cursor
-		newEntry = buffer.NewInsertTextEntry(lineNum, cursorX, original.Text)
+		switch original := e.lastChange.(type) {
+		case *buffer.InsertTextEntry:
+			// For insert, we need to insert after the current cursor position in normal mode
+			// This mimics pressing 'i' which inserts before the cursor
+			newEntry = buffer.NewInsertTextEntry(lineNum, cursorX, original.Text)
 
-	case *buffer.DeleteTextEntry:
-		// Delete happens at the current cursor position
-		newEntry = buffer.NewDeleteTextEntry(lineNum, cursorX, original.Text)
+		case *buffer.DeleteTextEntry:
+			// Delete happens at the current cursor position
+			newEntry = buffer.NewDeleteTextEntry(lineNum, cursorX, original.Text)
 
-	case *buffer.InsertModeEntry:
-		// For insert mode entries, check if we need to move cursor first
-		if original.InitCommand == "A" {
-			// Move to end of line first
-			line := e.buffer.CursorIterator.Line()
-			cursorX = len(line)
+		case *buffer.InsertModeEntry:
+			// For insert mode entries, check if we need to move cursor first
+			if original.InitCommand == "A" {
+				// Move to end of line first
+				line := e.buffer.CursorIterator.Line()
+				cursorX = len(line)
+			}
+
+			// Then replay the composite entry
+			composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
+
+			// Calculate the base position offset
+			var baseLineOffset, baseCharOffset int
+			var firstLine int
+			if len(original.Entries) > 0 {
+				// Get the first entry's position as reference
+				switch first := original.Entries[0].(type) {
+				case *buffer.InsertTextEntry:
+					firstLine = first.Line
+					baseLineOffset = lineNum - first.Line
+					baseCharOffset = cursorX - first.Character
+					// For 'a' command, we need to adjust by 1 since 'a' moves cursor right before inserting
+					if original.InitCommand == "a" {
+						baseCharOffset += 1
+					}
+				case *buffer.DeleteTextEntry:
+					firstLine = first.Line
+					baseLineOffset = lineNum - first.Line
+					baseCharOffset = cursorX - first.Character
+				}
+			}
+
+			// Translate each sub-entry
+			for _, subEntry := range original.Entries {
+				switch se := subEntry.(type) {
+				case *buffer.InsertTextEntry:
+					newLine := se.Line + baseLineOffset
+					newChar := se.Character
+					// Only apply character offset to the first entry on the same line
+					if se.Line == firstLine {
+						newChar = se.Character + baseCharOffset
+					}
+					composite.Add(buffer.NewInsertTextEntry(newLine, newChar, se.Text))
+
+				case *buffer.DeleteTextEntry:
+					newLine := se.Line + baseLineOffset
+					newChar := se.Character
+					// Only apply character offset to the first entry on the same line
+					if se.Line == firstLine {
+						newChar = se.Character + baseCharOffset
+					}
+					composite.Add(buffer.NewDeleteTextEntry(newLine, newChar, se.Text))
+				}
+			}
+			newEntry = composite
+
+		case *buffer.CompositeEntry:
+			// For composite entries (like insert mode sessions), replay all operations
+			// starting from the current cursor position
+			composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
+
+			// Calculate the base position offset
+			var baseLineOffset, baseCharOffset int
+			var firstLine int
+			if len(original.Entries) > 0 {
+				// Get the first entry's position as reference
+				switch first := original.Entries[0].(type) {
+				case *buffer.InsertTextEntry:
+					firstLine = first.Line
+					baseLineOffset = lineNum - first.Line
+					baseCharOffset = cursorX - first.Character
+				case *buffer.DeleteTextEntry:
+					firstLine = first.Line
+					baseLineOffset = lineNum - first.Line
+					baseCharOffset = cursorX - first.Character
+				}
+			}
+
+			// Translate each sub-entry
+			for _, subEntry := range original.Entries {
+				switch se := subEntry.(type) {
+				case *buffer.InsertTextEntry:
+					newLine := se.Line + baseLineOffset
+					newChar := se.Character
+					// Only apply character offset to the first entry on the same line
+					if se.Line == firstLine {
+						newChar = se.Character + baseCharOffset
+					}
+					composite.Add(buffer.NewInsertTextEntry(newLine, newChar, se.Text))
+
+				case *buffer.DeleteTextEntry:
+					newLine := se.Line + baseLineOffset
+					newChar := se.Character
+					// Only apply character offset to the first entry on the same line
+					if se.Line == firstLine {
+						newChar = se.Character + baseCharOffset
+					}
+					composite.Add(buffer.NewDeleteTextEntry(newLine, newChar, se.Text))
+				}
+			}
+			newEntry = composite
+
+		default:
+			// Unknown entry type, cannot repeat
+			return nil
 		}
 
-		// Then replay the composite entry
-		composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
+		// Save the original lastChange before executing
+		originalLastChange := e.lastChange
 
-		// Calculate the base position offset
-		var baseLineOffset, baseCharOffset int
-		var firstLine int
-		if len(original.Entries) > 0 {
-			// Get the first entry's position as reference
-			switch first := original.Entries[0].(type) {
-			case *buffer.InsertTextEntry:
-				firstLine = first.Line
-				baseLineOffset = lineNum - first.Line
-				baseCharOffset = cursorX - first.Character
-				// For 'a' command, we need to adjust by 1 since 'a' moves cursor right before inserting
-				if original.InitCommand == "a" {
-					baseCharOffset += 1
-				}
-			case *buffer.DeleteTextEntry:
-				firstLine = first.Line
-				baseLineOffset = lineNum - first.Line
-				baseCharOffset = cursorX - first.Character
+		// Remember the view position before we make changes
+		viewLine := e.buffer.ViewIterator.LineNumber()
+
+		// Execute the new entry (this will also update lastChange)
+		if _, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
+			return err
+		}
+
+		// Restore the original lastChange to maintain it for future repeats
+		e.lastChange = originalLastChange
+
+		// Recreate iterators to ensure they're valid after buffer changes
+		// This is especially important for ViewIterator which can become invalid
+
+		// Recreate cursor iterator
+		cursorLine := e.buffer.CursorIterator.LineNumber()
+		if cursorLine >= e.buffer.LineCount {
+			cursorLine = e.buffer.LineCount - 1
+			if cursorLine < 0 {
+				cursorLine = 0
+			}
+		}
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+
+		// Recreate view iterator
+		if viewLine >= e.buffer.LineCount {
+			viewLine = e.buffer.LineCount - 1
+			if viewLine < 0 {
+				viewLine = 0
+			}
+		}
+		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+
+		// Ensure cursor X is within bounds
+		line := e.buffer.CursorIterator.Line()
+		if e.buffer.CursorX > len(line) {
+			e.buffer.CursorX = len(line)
+			if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+				e.buffer.CursorX--
 			}
 		}
 
-		// Translate each sub-entry
-		for _, subEntry := range original.Entries {
-			switch se := subEntry.(type) {
-			case *buffer.InsertTextEntry:
-				newLine := se.Line + baseLineOffset
-				newChar := se.Character
-				// Only apply character offset to the first entry on the same line
-				if se.Line == firstLine {
-					newChar = se.Character + baseCharOffset
-				}
-				composite.Add(buffer.NewInsertTextEntry(newLine, newChar, se.Text))
-
-			case *buffer.DeleteTextEntry:
-				newLine := se.Line + baseLineOffset
-				newChar := se.Character
-				// Only apply character offset to the first entry on the same line
-				if se.Line == firstLine {
-					newChar = se.Character + baseCharOffset
-				}
-				composite.Add(buffer.NewDeleteTextEntry(newLine, newChar, se.Text))
-			}
-		}
-		newEntry = composite
-
-	case *buffer.CompositeEntry:
-		// For composite entries (like insert mode sessions), replay all operations
-		// starting from the current cursor position
-		composite := buffer.NewCompositeEntry("Repeat: " + original.Description())
-
-		// Calculate the base position offset
-		var baseLineOffset, baseCharOffset int
-		var firstLine int
-		if len(original.Entries) > 0 {
-			// Get the first entry's position as reference
-			switch first := original.Entries[0].(type) {
-			case *buffer.InsertTextEntry:
-				firstLine = first.Line
-				baseLineOffset = lineNum - first.Line
-				baseCharOffset = cursorX - first.Character
-			case *buffer.DeleteTextEntry:
-				firstLine = first.Line
-				baseLineOffset = lineNum - first.Line
-				baseCharOffset = cursorX - first.Character
-			}
-		}
-
-		// Translate each sub-entry
-		for _, subEntry := range original.Entries {
-			switch se := subEntry.(type) {
-			case *buffer.InsertTextEntry:
-				newLine := se.Line + baseLineOffset
-				newChar := se.Character
-				// Only apply character offset to the first entry on the same line
-				if se.Line == firstLine {
-					newChar = se.Character + baseCharOffset
-				}
-				composite.Add(buffer.NewInsertTextEntry(newLine, newChar, se.Text))
-
-			case *buffer.DeleteTextEntry:
-				newLine := se.Line + baseLineOffset
-				newChar := se.Character
-				// Only apply character offset to the first entry on the same line
-				if se.Line == firstLine {
-					newChar = se.Character + baseCharOffset
-				}
-				composite.Add(buffer.NewDeleteTextEntry(newLine, newChar, se.Text))
-			}
-		}
-		newEntry = composite
-
-	default:
-		// Unknown entry type, cannot repeat
-		return nil
+		// Update cursor state
+		e.updateCursorState()
 	}
-
-	// Save the original lastChange before executing
-	originalLastChange := e.lastChange
-
-	// Remember the view position before we make changes
-	viewLine := e.buffer.ViewIterator.LineNumber()
-
-	// Execute the new entry (this will also update lastChange)
-	if _, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
-		return err
-	}
-
-	// Restore the original lastChange to maintain it for future repeats
-	e.lastChange = originalLastChange
-
-	// Recreate iterators to ensure they're valid after buffer changes
-	// This is especially important for ViewIterator which can become invalid
-
-	// Recreate cursor iterator
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	if cursorLine >= e.buffer.LineCount {
-		cursorLine = e.buffer.LineCount - 1
-		if cursorLine < 0 {
-			cursorLine = 0
-		}
-	}
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
-
-	// Recreate view iterator
-	if viewLine >= e.buffer.LineCount {
-		viewLine = e.buffer.LineCount - 1
-		if viewLine < 0 {
-			viewLine = 0
-		}
-	}
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-
-	// Ensure cursor X is within bounds
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(line) {
-		e.buffer.CursorX = len(line)
-		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-			e.buffer.CursorX--
-		}
-	}
-
-	// Update cursor state
-	e.updateCursorState()
 
 	return nil
 }
