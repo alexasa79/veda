@@ -40,21 +40,21 @@ type VirtualCursor struct {
 
 // AutoIndentInfo tracks auto-inserted indentation on a line
 type AutoIndentInfo struct {
-	LineNumber         int     // Line number where auto-indent was applied
-	AutoIndentLength   int     // Number of characters that were auto-inserted
-	HasUserContent     bool    // Whether user has typed non-whitespace content on this line
-	BufferGeneration   uint64  // Buffer generation when this was created (for invalidation)
+	LineNumber       int    // Line number where auto-indent was applied
+	AutoIndentLength int    // Number of characters that were auto-inserted
+	HasUserContent   bool   // Whether user has typed non-whitespace content on this line
+	BufferGeneration uint64 // Buffer generation when this was created (for invalidation)
 }
 
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen          Screen
-	buffer          *buffer.Buffer          // Current buffer
+	buffer          *buffer.Buffer // Current buffer
 	config          *config.Config
 	mode            commands.Mode
-	temporaryNormal bool                       // True when in temporary normal mode (Ctrl+O from insert)
+	temporaryNormal bool // True when in temporary normal mode (Ctrl+O from insert)
 	commandLine     *widgets.CommandLineWidget
-	searchLine      *widgets.CommandLineWidget  // For search mode (/)
+	searchLine      *widgets.CommandLineWidget // For search mode (/)
 	proxyManager    *proxy.ProxyManager
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
@@ -62,21 +62,21 @@ type Editor struct {
 	perfTracker     *perf.TimeTracker
 
 	// Buffer management
-	buffers         map[string]*buffer.Buffer  // Map of file path to buffer
-	bufferOrder     []string                   // Order of buffers for cycling
-	previousBuffer  *buffer.Buffer             // Previous buffer for quick switching
+	buffers        map[string]*buffer.Buffer // Map of file path to buffer
+	bufferOrder    []string                  // Order of buffers for cycling
+	previousBuffer *buffer.Buffer            // Previous buffer for quick switching
 
 	// Navigation history
-	navHistory      []NavigationEntry       // Stack of previous positions
-	maxNavHistory   int                     // Maximum number of entries to keep
+	navHistory    []NavigationEntry // Stack of previous positions
+	maxNavHistory int               // Maximum number of entries to keep
 
 	// Context display
-	contextCache    []int                   // Cached context line numbers
-	contextLine     int                     // Line number for which context was cached
-	showContext     bool                    // Whether to show context
+	contextCache []int // Cached context line numbers
+	contextLine  int   // Line number for which context was cached
+	showContext  bool  // Whether to show context
 
 	// Async notifications
-	asyncEvents     chan events.Event       // Channel for async events
+	asyncEvents chan events.Event // Channel for async events
 
 	// LSP communication - removed channels, using goroutines on demand
 
@@ -112,84 +112,84 @@ type Editor struct {
 	//
 	// The repeat command checks lastCommand first, then falls back to lastChange,
 	// providing the correct vim-like behavior for all command types.
-	lastChange      buffer.HistoryEntry     // Last text modification for repeat command
-	lastCommand     *RepeatableCommand      // Last operator+text object command for repeat
-	lastSimpleCommand string                // Name of last simple command (like indent-line) for repeat
+	lastChange        buffer.HistoryEntry // Last text modification for repeat command
+	lastCommand       *RepeatableCommand  // Last operator+text object command for repeat
+	lastSimpleCommand string              // Name of last simple command (like indent-line) for repeat
 
 	// Pending operation for multi-key commands
-	pendingOperator Operator                // Current operator waiting for text object
-	pendingModifier TextObjectModifier      // Modifier for text object (a/i)
-	pendingKeys     []string                // Accumulated keys for current operation
-	countPrefix     string                  // Numeric prefix being built (e.g., "12" for 12j)
-	repeatCount     int                     // Parsed count for command repetition
-	pendingCount    int                     // Count for pending operations (dd, cc, etc.)
+	pendingOperator Operator           // Current operator waiting for text object
+	pendingModifier TextObjectModifier // Modifier for text object (a/i)
+	pendingKeys     []string           // Accumulated keys for current operation
+	countPrefix     string             // Numeric prefix being built (e.g., "12" for 12j)
+	repeatCount     int                // Parsed count for command repetition
+	pendingCount    int                // Count for pending operations (dd, cc, etc.)
 
 	// Search state
-	searchPattern   string                  // Current search pattern
-	searchDirection bool                    // true = forward, false = backward
-	searchMatches   []int                   // Positions of all search matches
-	currentMatch    int                     // Index of current match in searchMatches (-1 if none)
+	searchPattern   string // Current search pattern
+	searchDirection bool   // true = forward, false = backward
+	searchMatches   []int  // Positions of all search matches
+	currentMatch    int    // Index of current match in searchMatches (-1 if none)
 
 	// Flash highlight state
-	flashStartLine     int                  // Start line of flashed region
-	flashStartChar     int                  // Start char of flashed region
-	flashEndLine       int                  // End line of flashed region
-	flashEndChar       int                  // End char of flashed region
-	flashEndTime       int64                // When to stop flashing (unix millis)
+	flashStartLine int   // Start line of flashed region
+	flashStartChar int   // Start char of flashed region
+	flashEndLine   int   // End line of flashed region
+	flashEndChar   int   // End char of flashed region
+	flashEndTime   int64 // When to stop flashing (unix millis)
 
 	// Multiple cursors
-	virtualCursors     []VirtualCursor      // Additional cursors for multi-cursor editing
-	
+	virtualCursors []VirtualCursor // Additional cursors for multi-cursor editing
+
 	// Desired column for vertical cursor movement
-	desiredColumn      int                  // Desired column position when moving up/down (-1 means unset)
+	desiredColumn int // Desired column position when moving up/down (-1 means unset)
 
 	// References tracking
 	currentReferencesBuffer *ReferencesBuffer            // Current references buffer for g n/g p navigation
 	referencesBuffers       map[string]*ReferencesBuffer // All references buffers by buffer name
 
 	// Working directory
-	workingDirectory string                 // Current working directory (can include HOST: prefix)
-	pendingDirectoryOpen bool              // Flag to show fuzzy list after editor starts
-	pendingPath      string                 // Path to open after editor starts
-	connectionStatus string                 // Status message for ongoing connections
+	workingDirectory     string // Current working directory (can include HOST: prefix)
+	pendingDirectoryOpen bool   // Flag to show fuzzy list after editor starts
+	pendingPath          string // Path to open after editor starts
+	connectionStatus     string // Status message for ongoing connections
 
 	// Ex-command support
-	lastCommandArgs  []string               // Arguments from the last ex-command
+	lastCommandArgs []string // Arguments from the last ex-command
 
 	// Rendering state
-	renderingState  *RenderingState        // Manages overlay/modal state
+	renderingState *RenderingState // Manages overlay/modal state
 
 	// Async operation tracking
-	asyncOperations map[string]bool        // Track active async operations by ID
-	spinnerIndex    int                    // Current spinner animation frame
-	lastSpinnerTime time.Time              // Last time spinner was updated
+	asyncOperations map[string]bool // Track active async operations by ID
+	spinnerIndex    int             // Current spinner animation frame
+	lastSpinnerTime time.Time       // Last time spinner was updated
 
 	// Completion menu
-	completionMenu  *widgets.CompletionMenu // Completion menu widget
+	completionMenu *widgets.CompletionMenu // Completion menu widget
 
 	// Whitespace rendering
-	whitespaceStyle whitespaceStyle        // Style and settings for whitespace visualization
+	whitespaceStyle whitespaceStyle // Style and settings for whitespace visualization
 
 	// Exit control
-	shouldExit      bool                   // Flag to signal the editor should exit
+	shouldExit bool // Flag to signal the editor should exit
 
 	// Error management
-	errorManager    *ErrorManager          // Manages error display and logging
-	
+	errorManager *ErrorManager // Manages error display and logging
+
 	// Local history
-	localHistory    *LocalHistory          // Manages local file history
-	
+	localHistory *LocalHistory // Manages local file history
+
 	// Auto-save manager
-	autoSaveManager *AutoSaveManager       // Manages auto-save functionality
-	
+	autoSaveManager *AutoSaveManager // Manages auto-save functionality
+
 	// Auto-indent cleanup tracking
 	autoIndentLines map[string]AutoIndentInfo // Maps buffer path + line number to auto-indent info
 	lastCursorLine  int                       // Last line cursor was on (for cleanup tracking)
-	
+
 	// Rewrap tracking
-	lastRewrapLine  int                    // Line where last rewrap was performed
-	lastRewrapChar  int                    // Character position where last rewrap was performed
-	lastRewrapIndex int                    // Index into VerticalRulers for last rewrap
+	lastRewrapLine  int // Line where last rewrap was performed
+	lastRewrapChar  int // Character position where last rewrap was performed
+	lastRewrapIndex int // Index into VerticalRulers for last rewrap
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -221,45 +221,45 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// LSP channels will be removed - using goroutines on demand instead
 
 	editor := &Editor{
-		screen:          screen,
-		buffer:          initialBuffer,
-		config:          config,
-		mode:            commands.NormalMode,
-		commandLine:     commandLine,
-		renderingState:  NewRenderingState(),
-		searchLine:      searchLine,
-		proxyManager:    proxyManager,
-		commandRegistry: commands.NewCommandRegistry(),
-		keyMapper:       commands.NewKeyMapper(),
-		highlighter:     syntax.NewHighlighter(),
-		perfTracker:     perf.New(true, 60*time.Second), // Report every 60 seconds
-		buffers:         make(map[string]*buffer.Buffer),
-		bufferOrder:     []string{},
-		navHistory:      []NavigationEntry{},
-		maxNavHistory:   50, // Keep last 50 navigation entries
-		showContext:     true, // Show context by default
-		contextCache:    nil,
-		contextLine:     -1,
-		asyncEvents:     make(chan events.Event, 100), // Buffered channel for async events
-		flashStartLine:     -1,  // -1 means no flash
-		flashStartChar:     -1,
-		flashEndLine:       -1,
-		desiredColumn:      -1,  // -1 means unset
-		currentMatch:       -1,  // -1 means no current match
-		flashEndChar:       -1,
-		flashEndTime:       0,
-		referencesBuffers:  make(map[string]*ReferencesBuffer),
+		screen:            screen,
+		buffer:            initialBuffer,
+		config:            config,
+		mode:              commands.NormalMode,
+		commandLine:       commandLine,
+		renderingState:    NewRenderingState(),
+		searchLine:        searchLine,
+		proxyManager:      proxyManager,
+		commandRegistry:   commands.NewCommandRegistry(),
+		keyMapper:         commands.NewKeyMapper(),
+		highlighter:       syntax.NewHighlighter(),
+		perfTracker:       perf.New(true, 60*time.Second), // Report every 60 seconds
+		buffers:           make(map[string]*buffer.Buffer),
+		bufferOrder:       []string{},
+		navHistory:        []NavigationEntry{},
+		maxNavHistory:     50,   // Keep last 50 navigation entries
+		showContext:       true, // Show context by default
+		contextCache:      nil,
+		contextLine:       -1,
+		asyncEvents:       make(chan events.Event, 100), // Buffered channel for async events
+		flashStartLine:    -1,                           // -1 means no flash
+		flashStartChar:    -1,
+		flashEndLine:      -1,
+		desiredColumn:     -1, // -1 means unset
+		currentMatch:      -1, // -1 means no current match
+		flashEndChar:      -1,
+		flashEndTime:      0,
+		referencesBuffers: make(map[string]*ReferencesBuffer),
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
-		whitespaceStyle:    newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
+		whitespaceStyle:  newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
 		workingDirectory: ".", // Default to current directory
-		asyncOperations: make(map[string]bool),
-		lastSpinnerTime: time.Now(),
+		asyncOperations:  make(map[string]bool),
+		lastSpinnerTime:  time.Now(),
 		connectionStatus: "",
-		errorManager:    NewErrorManager(),
-		completionMenu: widgets.NewCompletionMenu(config.Theme),
-		lastRewrapLine:  -1,  // -1 means no previous rewrap
-		lastRewrapChar:  -1,
-		lastRewrapIndex: 0,
+		errorManager:     NewErrorManager(),
+		completionMenu:   widgets.NewCompletionMenu(config.Theme),
+		lastRewrapLine:   -1, // -1 means no previous rewrap
+		lastRewrapChar:   -1,
+		lastRewrapIndex:  0,
 	}
 
 	// Initialize local history
@@ -280,10 +280,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	editor.lastCursorLine = -1
 
 	// Add the initial empty buffer to the buffers map
-	// Use empty string as the key for unnamed buffers
-	editor.buffers[""] = initialBuffer
-	editor.bufferOrder = append(editor.bufferOrder, "")
-	
+	// Use consistent naming for unnamed buffers
+	editor.buffers["[No Name]"] = initialBuffer
+	editor.bufferOrder = append(editor.bufferOrder, "[No Name]")
+
 	// Set up LSP notification callback for the initial buffer
 	initialBuffer.OnContentChange = func() {
 		editor.notifyLSPFileChange()
@@ -515,7 +515,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 						return
 					}
 				}
-				
+
 				if keyStr != "" {
 					if err := e.handlePendingOperation(keyStr); err != nil {
 						LL.Debug("Pending operation error: %v", err)
@@ -558,7 +558,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 				if e.mode == commands.NormalMode {
 					e.countPrefix = ""
 					e.repeatCount = 0
-					
+
 					// If we're in temporary normal mode and no keys are pending,
 					// return to insert mode
 					if e.temporaryNormal && !e.keyMapper.HasPending() {
@@ -598,7 +598,7 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 	if count <= 0 {
 		count = 1
 	}
-	
+
 	// Store whether we're in temporary normal mode before executing
 	wasTemporaryNormal := e.temporaryNormal
 
@@ -637,7 +637,7 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 				}
 			}
 		}
-		
+
 		// After executing a command in temporary normal mode, return to insert mode
 		// unless the command itself changes the mode
 		if wasTemporaryNormal && e.mode == commands.NormalMode {
@@ -645,11 +645,10 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 			e.temporaryNormal = false
 			e.mode = commands.InsertMode
 		}
-		
+
 		return nil
 	}
 }
-
 
 // executeCommandForAllCursors executes a command for all cursors
 func (e *Editor) executeCommandForAllCursors(command string, args []string) error {
@@ -862,14 +861,14 @@ func (e *Editor) bytePositionFromVisualColumn(line string, visualCol int) int {
 	if visualCol <= 0 {
 		return 0
 	}
-	
+
 	currentVisualCol := 0
 	bytePos := 0
-	
+
 	for bytePos < len(line) {
 		if line[bytePos] == '\t' {
 			// Tab adds 4 visual columns
-			if currentVisualCol + 4 > visualCol {
+			if currentVisualCol+4 > visualCol {
 				// The desired visual column is within this tab
 				// Return the byte position of the tab
 				return bytePos
@@ -877,7 +876,7 @@ func (e *Editor) bytePositionFromVisualColumn(line string, visualCol int) int {
 			currentVisualCol += 4
 		} else {
 			// Regular character adds 1 visual column
-			if currentVisualCol + 1 > visualCol {
+			if currentVisualCol+1 > visualCol {
 				// We've reached the desired visual column
 				return bytePos
 			}
@@ -885,7 +884,7 @@ func (e *Editor) bytePositionFromVisualColumn(line string, visualCol int) int {
 		}
 		bytePos++
 	}
-	
+
 	// Visual column is beyond the end of the line
 	return len(line)
 }
@@ -925,7 +924,7 @@ func (e *Editor) actuallyQuit(args []string) error {
 			}
 		}
 	}
-	
+
 	e.shouldExit = true
 	return nil
 }
@@ -959,7 +958,7 @@ func (e *Editor) getSelectionRange() (int, int, bool) {
 		// Get byte offset for end of last line (including newline)
 		endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
 		endOffset := endIter.LineEnd()
-		if endLine < e.buffer.LineCount - 1 {
+		if endLine < e.buffer.LineCount-1 {
 			endOffset++ // Include the newline character
 		}
 
@@ -1152,10 +1151,10 @@ func (e *Editor) appendAtEndOfLine(args []string) error {
 // setLastChange sets the last change and clears any lastCommand
 func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 	e.lastChange = entry
-	
+
 	// Mark buffer as dirty for auto-save whenever content changes
 	e.markBufferDirty()
-	
+
 	// Only clear lastCommand if it's not a change operator
 	// Change operators need both lastCommand and lastChange for proper repeat
 	if e.lastCommand != nil && e.lastCommand.Operator.GetType() == "change" {
@@ -1271,7 +1270,7 @@ func (e *Editor) yankMultipleLines(count int) error {
 	if count <= 0 {
 		count = 1
 	}
-	
+
 	// If we have virtual cursors and count is 1, use multi-cursor yank
 	if len(e.virtualCursors) > 0 && count == 1 {
 		return e.yankForAllCursors(e.yankLineForCursor)
@@ -1290,7 +1289,7 @@ func (e *Editor) yankMultipleLines(count int) error {
 	var textToYank strings.Builder
 	iter := e.buffer.CursorIterator
 
-	for i := 0; i <= endLine - startLine; i++ {
+	for i := 0; i <= endLine-startLine; i++ {
 		if i > 0 {
 			iter = iter.Next()
 			if iter.IsEOF() {
@@ -1331,7 +1330,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 		// Execute the simple command again
 		return e.commandRegistry.Execute(e.lastSimpleCommand, []string{})
 	}
-	
+
 	// Then check if we have a repeatable command (operator + text object)
 	if e.lastCommand != nil {
 		// Check if the last command was a change operator
@@ -1585,14 +1584,6 @@ func (e *Editor) repeatLastChange(args []string) error {
 	return nil
 }
 
-
-
-
-
-
-
-
-
 // goToDefinition uses LSP to navigate to the definition of the symbol under cursor
 func (e *Editor) showLSPBufferGo(args []string) error {
 	// Save current buffer state first
@@ -1657,10 +1648,10 @@ func (e *Editor) notifyLSPFileChange() {
 	if !e.buffer.HasLSP || e.buffer.FilePath == "" || e.buffer.IsInternal {
 		return
 	}
-	
+
 	// Get the full content of the buffer
 	content := e.buffer.Rope.String()
-	
+
 	// Send the notification asynchronously to avoid blocking
 	go func() {
 		if err := e.proxyManager.NotifyFileChange(e.buffer.FilePath, content); err != nil {
@@ -1877,10 +1868,10 @@ func (e *Editor) cleanupAllAutoIndentLines() {
 	if e.buffer == nil {
 		return
 	}
-	
+
 	currentBufferPath := e.buffer.FilePath
 	keysToCleanup := make([]string, 0)
-	
+
 	// Collect all keys for the current buffer
 	for key, info := range e.autoIndentLines {
 		// Check if this key belongs to the current buffer
@@ -1891,7 +1882,7 @@ func (e *Editor) cleanupAllAutoIndentLines() {
 			}
 		}
 	}
-	
+
 	// Clean up all the identified lines
 	for _, key := range keysToCleanup {
 		if info, exists := e.autoIndentLines[key]; exists {
@@ -1947,7 +1938,7 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 	// Check if buffer generation has changed significantly
 	// We only invalidate if there have been many changes that might affect line numbering
 	// Minor changes (like typing in other lines) shouldn't invalidate our tracking
-	if e.buffer.Generation > info.BufferGeneration + 20 {
+	if e.buffer.Generation > info.BufferGeneration+20 {
 		delete(e.autoIndentLines, key)
 		return
 	}
@@ -1960,7 +1951,7 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 	}
 
 	line := iter.Line()
-	
+
 	// Check if line has only whitespace up to AutoIndentLength
 	if len(line) <= info.AutoIndentLength {
 		// Check if the line contains only whitespace
@@ -1971,13 +1962,13 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 				break
 			}
 		}
-		
+
 		if hasOnlyWhitespace {
 			// Save current positions before buffer modification
 			// Use safe access to avoid iterator generation mismatch
 			var cursorLine, viewLine int
 			var cursorX int
-			
+
 			// Safely get cursor line, defaulting to 0 if iterator is invalid
 			if e.buffer.CursorIterator != nil {
 				if e.buffer.CursorIterator.Generation == e.buffer.Generation {
@@ -1986,8 +1977,8 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 					cursorLine = 0 // Default fallback
 				}
 			}
-			
-			// Safely get view line, defaulting to 0 if iterator is invalid  
+
+			// Safely get view line, defaulting to 0 if iterator is invalid
 			if e.buffer.ViewIterator != nil {
 				if e.buffer.ViewIterator.Generation == e.buffer.Generation {
 					viewLine = e.buffer.ViewIterator.LineNumber()
@@ -1995,9 +1986,9 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 					viewLine = 0 // Default fallback
 				}
 			}
-			
+
 			cursorX = e.buffer.CursorX
-			
+
 			// Remove the auto-indented whitespace
 			deleteEntry := buffer.NewDeleteTextEntry(lineNumber, 0, line)
 			if e.buffer.History != nil {
@@ -2007,7 +1998,7 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 			} else {
 				deleteEntry.Execute(e.buffer)
 			}
-			
+
 			// Refresh iterators after buffer modification
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
 			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
@@ -2034,4 +2025,3 @@ func (e *Editor) checkAndCleanupAutoIndent() {
 	}
 	e.lastCursorLine = currentLine
 }
-

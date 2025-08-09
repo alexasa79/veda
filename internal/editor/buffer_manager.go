@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"strings"
 	"veda/internal/buffer"
 	"veda/internal/syntax"
@@ -21,24 +22,24 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	if e.buffer != nil && e.buffer != buf {
 		e.previousBuffer = e.buffer
 	}
-	
+
 	// Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
 	e.buffer = buf
-	
+
 	// Set up LSP notification callback
 	e.buffer.OnContentChange = func() {
 		e.notifyLSPFileChange()
 	}
-	
+
 	// Set up syntax highlighting
 	if e.highlighter != nil {
 		// Check if this is a special buffer that should use markdown
 		if (strings.HasPrefix(buf.FilePath, "*References:") && strings.HasSuffix(buf.FilePath, "*")) ||
-		   buf.FilePath == "*Help*" ||
-		   buf.FilePath == "*Key Bindings*" ||
-		   buf.FilePath == "*Diagnostics*" ||
-		   buf.FilePath == "*Messages*" ||
-		   buf.FilePath == "*Project Changes*" {
+			buf.FilePath == "*Help*" ||
+			buf.FilePath == "*Key Bindings*" ||
+			buf.FilePath == "*Diagnostics*" ||
+			buf.FilePath == "*Messages*" ||
+			buf.FilePath == "*Project Changes*" {
 			// Set markdown language for special buffers
 			e.highlighter.SetLanguage("markdown")
 			e.highlighter.ParseFull([]byte(buf.Rope.String()))
@@ -57,54 +58,54 @@ func (e *Editor) showBuffers(args []string) error {
 	if len(e.buffers) == 0 {
 		return nil
 	}
-	
+
 	width, height := e.screen.Size()
-	
+
 	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListWidth := width * 4 / 5    // 80% of screen width
 	fuzzyListHeight := height * 7 / 10 // 70% of screen height
 	fuzzyListX := (width - fuzzyListWidth) / 2
 	fuzzyListY := (height - fuzzyListHeight) / 2
-	
+
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
 	fuzzyListWidget.SetTitle("Open Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
-	
+
 	// Create list of buffer display names
 	var bufferDisplays []string
 	pathToDisplay := make(map[string]string)
-	
+
 	for _, path := range e.bufferOrder {
 		if buf, exists := e.buffers[path]; exists {
 			displayName := buf.DisplayName()
 			if path == e.buffer.FilePath {
 				// Mark current buffer
-				bufferDisplays = append(bufferDisplays, displayName + " [current]")
+				bufferDisplays = append(bufferDisplays, displayName+" [current]")
 			} else {
 				bufferDisplays = append(bufferDisplays, displayName)
 			}
 			pathToDisplay[displayName] = path
 		}
 	}
-	
+
 	fuzzyListWidget.SetContent(bufferDisplays)
-	
+
 	// Create overlay and get result channel
 	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
 	resultChan := e.renderingState.SetOverlay(overlay)
-	
+
 	// Wait for result in a goroutine
 	go func() {
 		selection := <-resultChan
-		
+
 		// If a buffer was selected, switch to it
 		if selection != "" {
 			// Remove the " [current]" suffix if present
 			selection = strings.TrimSuffix(selection, " [current]")
-			
+
 			// Save current buffer state before switching
 			e.saveCurrentBufferState()
-			
+
 			// Look up the actual path from the display name
 			if path, ok := pathToDisplay[selection]; ok {
 				// Switch to selected buffer
@@ -114,7 +115,7 @@ func (e *Editor) showBuffers(args []string) error {
 			}
 		}
 	}()
-	
+
 	return nil
 }
 
@@ -124,7 +125,7 @@ func (e *Editor) closeBuffer(args []string) error {
 	if len(e.buffers) <= 1 {
 		return e.actuallyQuit(args)
 	}
-	
+
 	// Find the buffer to switch to
 	currentPath := e.buffer.FilePath
 	currentIndex := -1
@@ -134,7 +135,7 @@ func (e *Editor) closeBuffer(args []string) error {
 			break
 		}
 	}
-	
+
 	// Switch to the next buffer (or previous if we're at the end)
 	var nextBuffer *buffer.Buffer
 	if currentIndex >= 0 {
@@ -146,7 +147,7 @@ func (e *Editor) closeBuffer(args []string) error {
 			nextBuffer = e.buffers[e.bufferOrder[nextIndex]]
 		}
 	}
-	
+
 	// If we couldn't find a next buffer, just pick the first one that's not current
 	if nextBuffer == nil {
 		for path, buf := range e.buffers {
@@ -156,21 +157,21 @@ func (e *Editor) closeBuffer(args []string) error {
 			}
 		}
 	}
-	
+
 	// Switch to the next buffer
 	if nextBuffer != nil {
 		e.switchToBuffer(nextBuffer)
 	}
-	
+
 	// Clean up auto-save file since the buffer is being closed without saving
 	if e.autoSaveManager != nil && currentPath != "" {
 		e.autoSaveManager.CleanupAutoSave(currentPath)
 	}
-	
+
 	// Remove the closed buffer
 	delete(e.buffers, currentPath)
 	e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
-	
+
 	return nil
 }
 
@@ -180,30 +181,30 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 	if len(e.buffers) == 0 {
 		return nil
 	}
-	
+
 	width, height := e.screen.Size()
-	
+
 	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListWidth := width * 4 / 5    // 80% of screen width
 	fuzzyListHeight := height * 7 / 10 // 70% of screen height
 	fuzzyListX := (width - fuzzyListWidth) / 2
 	fuzzyListY := (height - fuzzyListHeight) / 2
-	
+
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
 	fuzzyListWidget.SetTitle("Open Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
-	
+
 	// Create list of buffer display names
 	var bufferDisplays []string
 	pathToDisplay := make(map[string]string)
 	previousBufferIndex := -1
-	
+
 	for _, path := range e.bufferOrder {
 		if buf, exists := e.buffers[path]; exists {
 			displayName := buf.DisplayName()
 			if path == e.buffer.FilePath {
 				// Mark current buffer
-				bufferDisplays = append(bufferDisplays, displayName + " [current]")
+				bufferDisplays = append(bufferDisplays, displayName+" [current]")
 			} else {
 				bufferDisplays = append(bufferDisplays, displayName)
 				// Track the previous buffer's index
@@ -214,9 +215,9 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 			pathToDisplay[displayName] = path
 		}
 	}
-	
+
 	fuzzyListWidget.SetContent(bufferDisplays)
-	
+
 	// Set cursor on previous buffer if available
 	if previousBufferIndex >= 0 {
 		fuzzyListWidget.SetSelectedIndex(previousBufferIndex)
@@ -224,23 +225,23 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 		// If no previous buffer, select the first non-current buffer
 		fuzzyListWidget.SetSelectedIndex(1)
 	}
-	
+
 	// Create overlay and get result channel
 	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
 	resultChan := e.renderingState.SetOverlay(overlay)
-	
+
 	// Wait for result in a goroutine
 	go func() {
 		selection := <-resultChan
-		
+
 		// If a buffer was selected, switch to it
 		if selection != "" {
 			// Remove the " [current]" suffix if present
 			selection = strings.TrimSuffix(selection, " [current]")
-			
+
 			// Save current buffer state before switching
 			e.saveCurrentBufferState()
-			
+
 			// Look up the actual path from the display name
 			if path, ok := pathToDisplay[selection]; ok {
 				// Switch to selected buffer
@@ -250,7 +251,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 			}
 		}
 	}()
-	
+
 	return nil
 }
 
@@ -272,4 +273,30 @@ func removeFromSlice(slice []string, item string) []string {
 		}
 	}
 	return result
+}
+
+// newBuffer creates a new empty buffer
+func (e *Editor) newBuffer(args []string) error {
+	// Generate a unique buffer name for the new empty buffer
+	bufferName := ""
+	counter := 2 // Start from 2 since [No Name] is already used
+	for {
+		bufferName = fmt.Sprintf("[No Name %d]", counter)
+		if _, exists := e.buffers[bufferName]; !exists {
+			break
+		}
+		counter++
+	}
+
+	// Create a new empty buffer
+	newBuffer := buffer.NewBuffer("", bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+
+	// Add to buffers map and order
+	e.buffers[bufferName] = newBuffer
+	e.bufferOrder = append(e.bufferOrder, bufferName)
+
+	// Switch to the new buffer
+	e.switchToBuffer(newBuffer)
+
+	return nil
 }
