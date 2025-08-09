@@ -544,4 +544,48 @@ func TestRepeatLastChange(t *testing.T) {
 		
 		AssertBufferEquals(t, te, "hello test\nfoo test\nbaz qux")
 	})
+	
+	t.Run("repeat command with count prefix", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "abcdefghijklmnop")
+		
+		// Manually execute "3x" by setting the count and executing delete command
+		te.repeatCount = 3
+		te.lastCommandCount = 3
+		te.executeWithRepeatCount("delete-current-character")
+		AssertBufferEquals(t, te, "defghijklmnop")
+		AssertCursorAt(t, te, 0, 0) // Cursor should be at 'd'
+		
+		// Move to position 2 (on 'f')
+		te.ExecuteCommand("right")
+		te.ExecuteCommand("right")
+		AssertCursorAt(t, te, 2, 0) // Cursor on 'f'
+		
+		// Repeat with "." should delete 3 characters again
+		te.ExecuteCommand("repeat-last-change")
+		AssertBufferEquals(t, te, "deijklmnop")
+		AssertCursorAt(t, te, 2, 0) // Cursor should be on 'i'
+	})
+	
+	t.Run("repeat simple command with count", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello\nworld")
+		
+		// Manually execute "3>>" (indent 3 times) by setting count and executing
+		te.repeatCount = 3
+		te.lastCommandCount = 3
+		te.executeWithRepeatCount("indent-line")
+		// Each indent should add the configured indent (assuming default of 4 spaces)
+		// So 3 indents should add 12 spaces total
+		expectedContent := "            hello\nworld" // 12 spaces added
+		AssertBufferEquals(t, te, expectedContent)
+		
+		// Move to second line to test repeat
+		te.ExecuteCommand("down")
+		te.ExecuteCommand("beginning-of-line")  // Move to start of line
+		AssertCursorAt(t, te, 0, 1) // Cursor at 'w' on line 1
+		
+		// Repeat should indent 3 times again
+		te.ExecuteCommand("repeat-last-change")
+		expectedContent = "            hello\n            world" // 12 spaces on second line
+		AssertBufferEquals(t, te, expectedContent)
+	})
 }
