@@ -257,7 +257,7 @@ func NewTheme() *Theme {
 		},
 
 		SyntaxComment: StyleDef{
-			Foreground: "#7e8e91[B]",
+			Foreground: "#7e8e91",
 			Background: "#1b1d1e",
 		},
 
