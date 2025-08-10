@@ -144,6 +144,9 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 		if e.pendingModifier != ModifierNone {
 			return NewFunctionTextObject(e.pendingModifier, e.proxyManager)
 		}
+	case "s":
+		// 's' for search result
+		return NewSearchResultTextObject(e)
 	case "left":
 		return CharacterTextObject{Direction: "left"}
 	case "right":
