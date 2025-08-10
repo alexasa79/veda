@@ -1188,6 +1188,11 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 	// Mark buffer as dirty for auto-save whenever content changes
 	e.markBufferDirty()
 
+	// Update search matches after any text modification to keep positions current
+	if e.searchPattern != "" {
+		e.updateSearchMatches()
+	}
+
 	// Only clear lastCommand if it's not a change operator
 	// Change operators need both lastCommand and lastChange for proper repeat
 	if e.lastCommand != nil && e.lastCommand.Operator.GetType() == "change" {
