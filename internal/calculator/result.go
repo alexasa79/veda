@@ -84,9 +84,30 @@ func (r *CalculationResult) formatDefault() string {
 		return intVal.String()
 	}
 
-	// Use Text with 'g' format for automatic precision
-	// 'g' removes trailing zeros automatically
-	str := r.Value.Text('g', 10)
+	// For reasonable sized numbers, use moderate precision (similar to old 'g' format behavior)
+	// For very small or very large numbers, use higher precision to avoid scientific notation
+	precision := 10 // Start with 10 decimal places (similar to old behavior)
+	
+	// Check if the number would round to zero with our default precision
+	testStr := r.Value.Text('f', precision)
+	if strings.TrimRight(strings.TrimRight(testStr, "0"), ".") == "0" && r.Value.Sign() != 0 {
+		// Number is very small, try with higher precision to avoid showing 0
+		precision = 100
+		testStr = r.Value.Text('f', precision)
+		
+		// If still zero, try even higher
+		if strings.TrimRight(strings.TrimRight(testStr, "0"), ".") == "0" && r.Value.Sign() != 0 {
+			precision = 200
+		}
+	}
+	
+	// Use Text with 'f' format to avoid scientific notation
+	str := r.Value.Text('f', precision)
+	
+	// Remove trailing zeros and decimal point if not needed
+	str = strings.TrimRight(str, "0")
+	str = strings.TrimRight(str, ".")
+	
 	return str
 }
 
@@ -105,8 +126,23 @@ func (r *CalculationResult) formatWithSeparator() string {
 		intVal, _ := r.Value.Int(nil)
 		str = intVal.String()
 	} else {
-		// Use automatic precision for floats
-		str = r.Value.Text('g', 10)
+		// Use 'f' format to avoid scientific notation, then trim trailing zeros
+		precision := 10 // Start with reasonable precision
+		str = r.Value.Text('f', precision)
+		
+		// If we got zero but the value is non-zero, increase precision
+		if strings.TrimRight(strings.TrimRight(str, "0"), ".") == "0" && r.Value.Sign() != 0 {
+			precision = 100
+			str = r.Value.Text('f', precision)
+			// If still zero, try even higher
+			if strings.TrimRight(strings.TrimRight(str, "0"), ".") == "0" && r.Value.Sign() != 0 {
+				precision = 200
+				str = r.Value.Text('f', precision)
+			}
+		}
+		
+		str = strings.TrimRight(str, "0")
+		str = strings.TrimRight(str, ".")
 	}
 	
 	// Determine separator
