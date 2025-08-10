@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"strings"
 	"veda/internal/buffer"
 )
 
@@ -452,5 +453,133 @@ func (t TillCharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursor
 
 func (t TillCharacterTextObject) GetType() string {
 	return fmt.Sprintf("till-%s", t.character)
+}
+
+// SearchResultTextObject represents a search match with captured pattern
+type SearchResultTextObject struct {
+	editor        *Editor
+	searchPattern string // Captured search pattern at time of creation
+}
+
+func NewSearchResultTextObject(editor *Editor) *SearchResultTextObject {
+	// Capture only the search pattern to preserve it for repeat
+	// We'll recalculate matches dynamically since buffer positions change
+	return &SearchResultTextObject{
+		editor:        editor,
+		searchPattern: editor.searchPattern,
+	}
+}
+
+func (s SearchResultTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	// Use the stored search pattern (captured at creation time)
+	if s.searchPattern == "" {
+		return 0, 0, 0, 0, false
+	}
+	
+	// Recalculate matches for the stored pattern in the current buffer
+	searchMatches := s.findMatchesInBuffer(buf, s.searchPattern)
+	if len(searchMatches) == 0 {
+		return 0, 0, 0, 0, false
+	}
+	
+	// Get current cursor position in absolute terms
+	currentPos := s.editor.getAbsolutePosition()
+	
+	// Find which search match we're currently on or closest to
+	var matchPos int = -1
+	
+	// First check if we're exactly on a match
+	patternLen := len(s.searchPattern)
+	for _, pos := range searchMatches {
+		if currentPos >= pos && currentPos < pos+patternLen {
+			matchPos = pos
+			break
+		}
+	}
+	
+	// If we're not on a match, find the closest one
+	if matchPos == -1 {
+		// Find the closest match (prefer the one after cursor, then before)
+		closestDistance := int(^uint(0) >> 1) // Max int
+		
+		for _, pos := range searchMatches {
+			distance := pos - currentPos
+			if distance >= 0 && distance < closestDistance {
+				matchPos = pos
+				closestDistance = distance
+			}
+		}
+		
+		// If no match found after cursor, find closest before
+		if matchPos == -1 {
+			for _, pos := range searchMatches {
+				distance := currentPos - pos
+				if distance >= 0 && distance < closestDistance {
+					matchPos = pos
+					closestDistance = distance
+				}
+			}
+		}
+	}
+	
+	if matchPos == -1 {
+		return 0, 0, 0, 0, false
+	}
+	
+	// Convert absolute position to line/char coordinates
+	startLine, startChar := s.absoluteToLineChar(buf, matchPos)
+	endLine, endChar := s.absoluteToLineChar(buf, matchPos+patternLen)
+	
+	return startLine, startChar, endLine, endChar, true
+}
+
+// absoluteToLineChar converts an absolute position to line and character coordinates
+func (s SearchResultTextObject) absoluteToLineChar(buf *buffer.Buffer, pos int) (int, int) {
+	iter := buffer.NewBufferIterator(buf)
+	lineNum := 0
+	lineStart := 0
+	
+	// Find the line containing the position
+	for !iter.IsEOF() {
+		lineEnd := iter.LineEnd()
+		if pos <= lineEnd {
+			// Position is on this line
+			return lineNum, pos - lineStart
+		}
+		lineStart = lineEnd + 1 // +1 for newline
+		iter = iter.Next()
+		lineNum++
+	}
+	
+	// Position is past end of buffer
+	return buf.LineCount - 1, 0
+}
+
+func (s SearchResultTextObject) GetType() string {
+	return "search-result"
+}
+
+// findMatchesInBuffer finds all matches for the given pattern in the buffer
+func (s SearchResultTextObject) findMatchesInBuffer(buf *buffer.Buffer, pattern string) []int {
+	if pattern == "" {
+		return []int{}
+	}
+	
+	// Get buffer content
+	content := buf.Rope.String()
+	
+	// Find all matches using the same logic as updateSearchMatches
+	var matches []int
+	pos := 0
+	for {
+		index := strings.Index(content[pos:], pattern)
+		if index == -1 {
+			break
+		}
+		matches = append(matches, pos+index)
+		pos = pos + index + 1
+	}
+	
+	return matches
 }
 
