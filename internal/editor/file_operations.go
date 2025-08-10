@@ -372,12 +372,12 @@ func (e *Editor) openFile(filePath string) {
 	// If this is replacing the empty buffer AND it's still empty, remove it
 	// We should keep the unnamed buffer if the user has typed anything into it
 	if !e.buffer.HasFile() {
-		if unnamedBuffer, exists := e.buffers[""]; exists {
+		if unnamedBuffer, exists := e.buffers["[No Name]"]; exists {
 			// Only remove if the buffer is truly empty
 			if unnamedBuffer.Rope.String() == "" {
-				delete(e.buffers, "")
+				delete(e.buffers, "[No Name]")
 				for i, path := range e.bufferOrder {
-					if path == "" {
+					if path == "[No Name]" {
 						e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
 						break
 					}
