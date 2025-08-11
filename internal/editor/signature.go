@@ -75,6 +75,14 @@ func (e *Editor) checkSignatureUpdate() {
 	if e.buffer.CurrentSignature == nil {
 		return
 	}
+
+    // If we've moved away from a likely function call context, clear the signature.
+    // Heuristic: on the current line, there should be an unmatched '(' to the left
+    // of the cursor (accounting for immediate ')' balancing on the same line).
+    if !e.isLikelyInsideCallOnCurrentLine() {
+        e.buffer.CurrentSignature = nil
+        return
+    }
 	
 	// Check if current character is comma or closing paren
 	if !e.buffer.CursorIterator.IsEOF() {
@@ -88,4 +96,45 @@ func (e *Editor) checkSignatureUpdate() {
 			}
 		}
 	}
+}
+
+// isLikelyInsideCallOnCurrentLine checks for an unmatched '(' to the left of the
+// cursor on the current line, accounting for same-line paren balancing.
+// This is a lightweight heuristic to decide whether signature help should remain visible.
+func (e *Editor) isLikelyInsideCallOnCurrentLine() bool {
+    if e.buffer == nil || e.buffer.CursorIterator.IsEOF() {
+        return false
+    }
+
+    line := e.buffer.CursorIterator.Line()
+    if len(line) == 0 {
+        return false
+    }
+
+    // Clamp cursor position within the line bounds (treat positions beyond end as end)
+    cursorX := e.buffer.CursorX
+    if cursorX < 0 {
+        cursorX = 0
+    }
+    if cursorX >= len(line) {
+        cursorX = len(line)
+    }
+
+    // Walk left from cursor, tracking paren depth on this line.
+    // depth counts unmatched ')' we've seen while scanning left.
+    depth := 0
+    for i := cursorX - 1; i >= 0; i-- {
+        switch line[i] {
+        case ')':
+            depth++
+        case '(':
+            if depth > 0 {
+                depth--
+            } else {
+                // Found an unmatched '('
+                return true
+            }
+        }
+    }
+    return false
 }
