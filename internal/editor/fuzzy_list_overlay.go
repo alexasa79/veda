@@ -31,7 +31,10 @@ func (flo *FuzzyListOverlay) CheckContentUpdates() {
 	if flo.contentUpdateChan != nil {
 		select {
 		case newContent := <-flo.contentUpdateChan:
-			flo.widget.SetContent(newContent)
+            // Update content and immediately apply current filter text
+            // so any text typed before results arrive is honored.
+            flo.widget.SetContent(newContent)
+            flo.widget.ApplyFilter()
 		default:
 			// No new content, continue
 		}

@@ -593,10 +593,12 @@ func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender fu
 		if useAsync {
 			// Use select for non-blocking event handling
 			select {
-			case newContent := <-contentUpdateChan:
-				// Update content asynchronously
-				flw.SetContent(newContent)
-				continue // Redraw with new content
+            case newContent := <-contentUpdateChan:
+                // Update content asynchronously and apply current filter
+                // so pre-typed search text filters incoming results.
+                flw.SetContent(newContent)
+                flw.ApplyFilter()
+                continue // Redraw with new content
 				
 			case ev = <-screenEvents:
 				// Got a keyboard event
