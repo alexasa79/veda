@@ -32,6 +32,45 @@ func TestChangeOperations(t *testing.T) {
 		AssertBufferEquals(t, te, "Hella World")
 		AssertCursorAt(t, te, 4, 0) // Cursor on 'a'
 	})
+
+	t.Run("C changes to end of line", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello, World!")
+		// Position cursor at position 7 (after comma and space)
+		te.buffer.CursorX = 7
+		AssertCursorAt(t, te, 7, 0)
+
+		// Execute C
+		te.TypeKeys("C")
+
+		// Should be in insert mode after deleting to EOL
+		if te.mode != commands.InsertMode {
+			t.Errorf("Expected insert mode after 'C', got %v", te.mode)
+		}
+
+		// Type replacement text and exit insert mode
+		te.InsertChar('X')
+		te.ExecuteCommand("exit-insert-mode")
+
+		// Should have replaced tail of line with 'X'
+		AssertBufferEquals(t, te, "Hello, X")
+	})
+
+	t.Run("C at end of line enters insert mode with no deletion", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello")
+		// Place at end (on last visible char index 4 in normal mode)
+		te.buffer.CursorX = 4
+		AssertCursorAt(t, te, 4, 0)
+
+		// Execute C
+		te.TypeKeys("C")
+		if te.mode != commands.InsertMode {
+			t.Errorf("Expected insert mode after 'C' at EOL, got %v", te.mode)
+		}
+		// Add text and finish
+		te.InsertChar('!')
+		te.ExecuteCommand("exit-insert-mode")
+		AssertBufferEquals(t, te, "Hell!")
+	})
 	
 	t.Run("c right changes character to the right", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello World")

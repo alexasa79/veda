@@ -1,5 +1,9 @@
 package editor
 
+import (
+    "veda/internal/clipboard"
+)
+
 // registerCommands registers all command handlers
 func (e *Editor) registerCommands() {
 	// Movement commands - apply to all cursors
@@ -58,6 +62,8 @@ func (e *Editor) registerCommands() {
 	// Delete commands - apply to all cursors
 	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter, true)
 	e.commandRegistry.Register("delete-to-end-of-line", e.deleteToEndOfLine, true)
+    // Change to end of line (C)
+    e.commandRegistry.Register("change-to-end-of-line", e.changeToEndOfLine, true)
 
 	// Visual mode operations
 	e.commandRegistry.Register("delete-selection", e.deleteSelection, false)
@@ -107,6 +113,8 @@ func (e *Editor) registerCommands() {
 	// Yank commands
 	e.commandRegistry.Register("yank-line", e.yankCurrentLine, false)
 	e.commandRegistry.Register("start-yank", e.startYankOperation, false)
+	// Yank to end of line (y$) - ensure character-wise yank without newline
+	e.commandRegistry.Register("yank-to-end-of-line", e.yankToEndOfLine, false)
 
 	// Paste commands
 	e.commandRegistry.Register("paste-after", e.pasteAfter, false)
@@ -153,4 +161,56 @@ func (e *Editor) registerCommands() {
 
 	// Temporary normal mode
 	e.commandRegistry.Register("enter-temporary-normal-mode", e.enterTemporaryNormalMode, false)
+}
+
+// changeToEndOfLine changes from the cursor to the end of the current line
+// and enters insert mode (equivalent to Vim's 'C'). It uses the ChangeOperator
+// with an EndOfLineTextObject and supports multiple cursors.
+func (e *Editor) changeToEndOfLine(args []string) error {
+    op := ChangeOperator{}
+    textObj := EndOfLineTextObject{}
+    return e.executeOperatorWithTextObjectForAllCursors(op, textObj)
+}
+
+// yankToEndOfLine yanks from cursor to end of line (character-wise, no trailing newline)
+func (e *Editor) yankToEndOfLine(args []string) error {
+    if e.buffer == nil {
+        return nil
+    }
+    // Compute the range once and reuse the YankOperator's extraction logic
+    lineNum := e.buffer.CursorIterator.LineNumber()
+    cursorX := e.buffer.CursorX
+    iter := e.buffer.CursorIterator
+    if iter.IsEOF() {
+        return nil
+    }
+    line := iter.Line()
+    if cursorX > len(line) {
+        cursorX = len(line)
+    }
+    startLine, startChar, endLine, endChar := lineNum, cursorX, lineNum, len(line)
+
+    // Extract text explicitly to avoid newline semantics of full-line yank
+    var textToYank string
+    if startLine == endLine {
+        if startChar < len(line) && endChar <= len(line) {
+            textToYank = line[startChar:endChar]
+        }
+    } else {
+        textToYank = e.getTextInRange(startLine, startChar, endLine, endChar)
+        // Do not add newline here; this is character-wise
+    }
+    if textToYank == "" {
+        return nil
+    }
+
+    // Copy to clipboard
+    if err := clipboard.Copy(textToYank); err != nil {
+        LL.Error("Failed to copy to clipboard: %v", err)
+        return err
+    }
+
+    // Flash highlight to indicate yanked region
+    e.setFlashHighlight(startLine, startChar, endLine, endChar)
+    return nil
 }

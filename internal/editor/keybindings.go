@@ -64,6 +64,8 @@ func (e *Editor) setupDefaultBindings() {
 	// Delete commands
 	e.registerKeyBinding(commands.NormalMode, "x", "delete-current-character")
 	e.registerKeyBinding(commands.NormalMode, "D", "delete-to-end-of-line")
+	// Change-to-end-of-line (Vim 'C')
+	e.registerKeyBinding(commands.NormalMode, "C", "change-to-end-of-line")
 
 	// Insert mode keys
 	e.registerKeyBinding(commands.InsertMode, "enter", "insert-newline")
@@ -115,6 +117,10 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Yank operations
 	e.registerKeyBinding(commands.NormalMode, "y", "start-yank")
+	// Provide a direct binding for y$ for ergonomics (optional; operators already support $)
+	// This binds the two-key sequence y + $ to a dedicated yank-to-EOL command.
+	// It's redundant but harmless and can improve keymap lookup speed in tests.
+	e.registerKeyBinding(commands.NormalMode, "y $", "yank-to-end-of-line")
 
 	// Paste operations
 	e.registerKeyBinding(commands.NormalMode, "p", "paste-after")

@@ -21,7 +21,27 @@ func (e *Editor) findReferences(args []string) error {
 
 	LL.Debug("findReferences: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
 
-	// Get references from LSP
+    // If a references buffer already exists, close it to ensure only one window
+    if e.currentReferencesBuffer != nil {
+        oldName := e.currentReferencesBuffer.BufferName
+        // Remove tracking first
+        delete(e.referencesBuffers, oldName)
+        e.currentReferencesBuffer = nil
+
+        // If the current visible buffer is the references buffer, close it using
+        // the standard close flow (will switch to another buffer automatically)
+        if e.buffer != nil && e.buffer.FilePath == oldName {
+            _ = e.closeBuffer(nil)
+        } else {
+            // Otherwise, remove the old references buffer silently
+            if _, exists := e.buffers[oldName]; exists {
+                delete(e.buffers, oldName)
+                e.bufferOrder = removeFromSlice(e.bufferOrder, oldName)
+            }
+        }
+    }
+
+    // Get references from LSP
 	locations, err := e.proxyManager.FindReferences(e.buffer.FilePath, line, character, true)
 	if err != nil {
 		LL.Debug("findReferences failed: %v", err)
