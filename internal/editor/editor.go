@@ -191,6 +191,9 @@ type Editor struct {
 	lastRewrapLine  int // Line where last rewrap was performed
 	lastRewrapChar  int // Character position where last rewrap was performed
 	lastRewrapIndex int // Index into VerticalRulers for last rewrap
+
+    // Bracketed paste state
+    inPasteMode bool // True while receiving bracketed paste content
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -260,7 +263,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		completionMenu:   widgets.NewCompletionMenu(config.Theme),
 		lastRewrapLine:   -1, // -1 means no previous rewrap
 		lastRewrapChar:   -1,
-		lastRewrapIndex:  0,
+        lastRewrapIndex:  0,
+        inPasteMode:      false,
 	}
 
 	// Initialize local history
@@ -361,7 +365,7 @@ func (e *Editor) Run() {
 			// Got an async event
 		}
 
-		// Handle overlay events first
+        // Handle overlay events first
 		if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
 			// Always check for content updates (even without events)
 			e.renderingState.GetOverlay().CheckContentUpdates()
@@ -379,11 +383,15 @@ func (e *Editor) Run() {
 			}
 		}
 
-		// Check if scrolling occurred
-		e.scroll()
+        // Check if scrolling occurred
+        if !e.inPasteMode {
+            e.scroll()
+        }
 
-		// Render the entire screen
-		e.render()
+        // Render the entire screen unless in paste mode
+        if !e.inPasteMode {
+            e.render()
+        }
 	}
 }
 
@@ -439,7 +447,37 @@ func (e *Editor) render() {
 // handleEvent processes a single event in normal (non-overlay) mode
 func (e *Editor) handleEvent(ev events.Event) {
 	switch ev := ev.(type) {
+    case *events.PasteEvent:
+        if ev.Start {
+            e.inPasteMode = true
+        } else {
+            // End paste: exit paste mode and perform a single flush
+            e.inPasteMode = false
+            // Re-parse syntax highlighting once
+            e.updateSyntaxHighlighting()
+            // Notify LSP once
+            e.notifyLSPFileChange()
+            // Render once
+            e.render()
+        }
+        return
 	case *events.KeyEvent:
+		// Fast-path for paste mode: treat runes and Enter directly, skip keymap logs
+		if e.inPasteMode {
+			if ev.Key == events.KeyRune {
+				if len(e.virtualCursors) > 0 {
+					e.insertCharForAllCursors(ev.Rune)
+				} else {
+					e.insertChar(ev.Rune)
+				}
+				return
+			}
+			if ev.Key == events.KeyEnter {
+				_ = e.insertNewline(nil)
+				return
+			}
+			// Allow Escape to cancel paste early or other control keys pass through
+		}
 		// Handle completion menu navigation if visible
 		if e.mode == commands.InsertMode && e.completionMenu.IsVisible() {
 			handled := e.handleCompletionMenuKey(ev)

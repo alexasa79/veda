@@ -322,3 +322,20 @@ func NewCustomEvent(eventType string, data interface{}) *CustomEvent {
 		Data:      data,
 	}
 }
+
+// PasteEvent represents a bracketed paste marker event
+// Start is true for paste start (ESC[200~), false for paste end (ESC[201~)
+type PasteEvent struct {
+    timestamp time.Time
+    Start     bool
+}
+
+func (e *PasteEvent) When() time.Time { return e.timestamp }
+
+// NewPasteEvent creates a new paste event
+func NewPasteEvent(start bool) *PasteEvent {
+    return &PasteEvent{
+        timestamp: time.Now(),
+        Start:     start,
+    }
+}

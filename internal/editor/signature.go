@@ -68,6 +68,9 @@ func (e *Editor) showSignature(args []string) error {
 
 // checkSignatureUpdate checks if we should re-request signature help based on cursor position
 func (e *Editor) checkSignatureUpdate() {
+    if e.inPasteMode {
+        return
+    }
 	// Only check if we have an active signature
 	if e.buffer.CurrentSignature == nil {
 		return
