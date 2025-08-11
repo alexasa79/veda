@@ -128,7 +128,8 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 		}
 		return WordTextObject{modifier: e.pendingModifier, excludeTrailingSpace: excludeTrailing}
 	case "W":
-		return WORDTextObject{}
+		// Use the same word boundary logic as 'w', but select from cursor to end of word
+		return WTextObject{}
 	case "b":
 		// 'b' for blocks through LSP folding ranges
 		if e.pendingModifier != ModifierNone {

@@ -213,40 +213,32 @@ func (w WordTextObject) GetType() string {
 	return "word"
 }
 
-// WORDTextObject represents a WORD (sequence of non-whitespace chars)
-type WORDTextObject struct{}
+// WTextObject represents a portion of the current word from the cursor to its end
+// It uses the same word boundary logic as other word operations, ensuring consistency with 'w'
+type WTextObject struct{}
 
-func (w WORDTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
-	if iter.IsEOF() {
-		return 0, 0, 0, 0, false
-	}
-	
-	line := iter.Line()
-	if cursorChar >= len(line) {
-		return 0, 0, 0, 0, false
-	}
-	
-	// For 'dW', delete from cursor to end of current WORD (similar to vim's dw)
-	end := cursorChar
-	
-	// Skip to end of current WORD
-	if cursorChar < len(line) && !isWhitespace(line[cursorChar]) {
-		for end < len(line) && !isWhitespace(line[end]) {
-			end++
-		}
-	} else {
-		// If we're on whitespace, skip it
-		for end < len(line) && isWhitespace(line[end]) {
-			end++
-		}
-	}
-	
-	return cursorLine, cursorChar, cursorLine, end, true
+func (w WTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+    // Use the unified current word boundary finder without trailing whitespace
+    boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, false)
+    if boundary == nil {
+        return 0, 0, 0, 0, false
+    }
+    // Start from the cursor position, end at the end of the current word
+    startLine := cursorLine
+    startChar := cursorChar
+    endLine := boundary.EndLine
+    endChar := boundary.EndChar
+
+    // Clamp start to not exceed end
+    if startLine == endLine && startChar > endChar {
+        startChar = endChar
+    }
+
+    return startLine, startChar, endLine, endChar, true
 }
 
-func (w WORDTextObject) GetType() string {
-	return "WORD"
+func (w WTextObject) GetType() string {
+    return "W-to-end"
 }
 
 // BracketTextObject represents text within brackets

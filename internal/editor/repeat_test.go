@@ -344,31 +344,28 @@ func TestRepeatLastChange(t *testing.T) {
 		AssertBufferEquals(t, te, "line1\nline2\nline3\nline4")
 	})
 	
-	t.Run("repeat dW on WORDS", func(t *testing.T) {
-		te := NewTestEditorWithContent(80, 24, "func(arg1, arg2) result")
-		
-		// Delete first WORD - dW deletes from cursor to end of WORD
-		te.TypeKeys("dW")
-		AssertBufferEquals(t, te, " arg2) result")
-		AssertCursorAt(t, te, 0, 0) // Cursor at space
-		
-		// Repeat on whitespace should delete the space
-		te.ExecuteCommand("repeat-last-change")
-		AssertBufferEquals(t, te, "arg2) result")
-		AssertCursorAt(t, te, 0, 0) // Cursor at 'a'
-		
-		// Another repeat to delete "arg2)"
-		te.ExecuteCommand("repeat-last-change")
-		AssertBufferEquals(t, te, " result")
-		
-		// Undo all
-		te.ExecuteCommand("undo")
-		AssertBufferEquals(t, te, "arg2) result")
-		te.ExecuteCommand("undo")
-		AssertBufferEquals(t, te, " arg2) result")
-		te.ExecuteCommand("undo") 
-		AssertBufferEquals(t, te, "func(arg1, arg2) result")
-	})
+    t.Run("repeat dW deletes to end of current word consistently", func(t *testing.T) {
+        te := NewTestEditorWithContent(80, 24, "one->two three")
+        
+        // Start at beginning and delete to end of first word ("one")
+        te.TypeKeys("dW")
+        AssertBufferEquals(t, te, "->two three")
+        AssertCursorAt(t, te, 0, 0)
+        
+        // Repeat should delete the next punctuation character '-'
+        te.ExecuteCommand("repeat-last-change")
+        AssertBufferEquals(t, te, ">two three")
+        AssertCursorAt(t, te, 0, 0)
+        
+        // Repeat again should delete the next punctuation character '>'
+        te.ExecuteCommand("repeat-last-change")
+        AssertBufferEquals(t, te, "two three")
+        AssertCursorAt(t, te, 0, 0)
+        
+        // Repeat again should delete "two"
+        te.ExecuteCommand("repeat-last-change")
+        AssertBufferEquals(t, te, " three")
+    })
 	
 	t.Run("repeat daw includes surrounding whitespace", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "one two three four")

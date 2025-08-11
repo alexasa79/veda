@@ -73,16 +73,16 @@ func TestDeleteOperations(t *testing.T) {
 		AssertCursorAt(t, te, 0, 0)
 	})
 	
-	t.Run("dW deletes from cursor to end of WORD", func(t *testing.T) {
-		te := NewTestEditorWithContent(80, 24, "func(arg1, arg2) result")
-		
-		// Execute dW at beginning
-		te.TypeKeys("dW")
-		
-		// Should delete "func(arg1," (until whitespace)
-		AssertBufferEquals(t, te, " arg2) result")
-		AssertCursorAt(t, te, 0, 0)
-	})
+    t.Run("dW deletes from cursor to end of current word segment", func(t *testing.T) {
+        te := NewTestEditorWithContent(80, 24, "func(arg1, arg2) result")
+        
+        // Execute dW at beginning
+        te.TypeKeys("dW")
+        
+        // Should delete from cursor to end of current word ("func")
+        AssertBufferEquals(t, te, "(arg1, arg2) result")
+        AssertCursorAt(t, te, 0, 0)
+    })
 	
 	t.Run("diw deletes inside word", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello world test")
@@ -242,7 +242,7 @@ func TestDeleteOperations(t *testing.T) {
 		AssertCursorAt(t, te, 0, 0)
 	})
 	
-	t.Run("dW in middle of WORD", func(t *testing.T) {
+    t.Run("dW in middle of word deletes to end of that word", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "func(arg1, arg2) result")
 		
 		// Move to middle of first WORD
@@ -253,8 +253,8 @@ func TestDeleteOperations(t *testing.T) {
 		// Execute dW
 		te.TypeKeys("dW")
 		
-		// Should delete from cursor to end of WORD
-		AssertBufferEquals(t, te, "fun arg2) result")
+        // Should delete from cursor to end of current word only (removes 'c')
+        AssertBufferEquals(t, te, "fun(arg1, arg2) result")
 	})
 	
 	t.Run("dw on whitespace", func(t *testing.T) {
