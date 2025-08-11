@@ -45,6 +45,33 @@ func (l LineTextObject) GetType() string {
 	return "line"
 }
 
+// EndOfLineTextObject represents text from the cursor to the end of the current line
+// This is used for commands like 'C' (change to end of line). It is not yet
+// exposed via the '$' motion for operators; that support can be added later.
+type EndOfLineTextObject struct{}
+
+func (eol EndOfLineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+    iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+    if iter.IsEOF() {
+        return 0, 0, 0, 0, false
+    }
+
+    line := iter.Line()
+    // Select from cursor to the end of the current line (exclusive of newline)
+    startChar := cursorChar
+    if startChar < 0 {
+        startChar = 0
+    }
+    if startChar > len(line) {
+        startChar = len(line)
+    }
+    return cursorLine, startChar, cursorLine, len(line), true
+}
+
+func (eol EndOfLineTextObject) GetType() string {
+    return "end-of-line"
+}
+
 // CharacterTextObject represents a single character movement
 type CharacterTextObject struct {
 	Direction string // "left" or "right"

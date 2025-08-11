@@ -148,6 +148,9 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 	case "s":
 		// 's' for search result
 		return NewSearchResultTextObject(e)
+    case "$":
+        // End of line motion for operators (e.g., d$, c$, y$)
+        return EndOfLineTextObject{}
 	case "left":
 		return CharacterTextObject{Direction: "left"}
 	case "right":
