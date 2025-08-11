@@ -305,24 +305,6 @@ func (k Key) String() string {
 	}
 }
 
-// PasteEvent represents a bracketed paste event
-type PasteEvent struct {
-	timestamp time.Time
-	Content   string
-	Start     bool // true for paste start, false for paste end
-}
-
-func (e *PasteEvent) When() time.Time { return e.timestamp }
-
-// NewPasteEvent creates a new paste event
-func NewPasteEvent(content string, start bool) *PasteEvent {
-	return &PasteEvent{
-		timestamp: time.Now(),
-		Content:   content,
-		Start:     start,
-	}
-}
-
 // CustomEvent represents a custom application event
 type CustomEvent struct {
 	timestamp time.Time

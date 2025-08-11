@@ -98,8 +98,8 @@ func (t *Terminal) Init() error {
 		return fmt.Errorf("failed to enter raw mode: %w", err)
 	}
 
-	// Switch to alternate screen buffer, clear screen, hide cursor initially, and enable bracketed paste
-	fmt.Fprint(t.tty, "\033[?1049h\033[2J\033[H\033[?25l\033[?2004h")
+	// Switch to alternate screen buffer, clear screen and hide cursor initially
+	fmt.Fprint(t.tty, "\033[?1049h\033[2J\033[H\033[?25l")
 
 	// Update terminal size after switching to alternate screen
 	if width, height, err := getTerminalSize(); err == nil {
@@ -135,8 +135,8 @@ func (t *Terminal) Close() {
 	// Stop input handler
 	close(t.stopChan)
 
-	// Show cursor, disable bracketed paste, and switch back to main screen buffer
-	fmt.Fprint(t.tty, "\033[?25h\033[?2004l\033[?1049l")
+	// Show cursor and switch back to main screen buffer
+	fmt.Fprint(t.tty, "\033[?25h\033[?1049l")
 
 	// Clear screen
 	fmt.Fprint(t.tty, "\033[2J\033[H")

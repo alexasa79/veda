@@ -234,16 +234,7 @@ func (t *Terminal) parseInput(buf *[]byte) {
 			}
 		}
 
-		// Check for bracketed paste sequences first
-		pasteMatched, pasteNeedMore := t.matchBracketedPaste(buf)
-		if pasteMatched {
-			continue
-		}
-		if pasteNeedMore {
-			return
-		}
-
-		// Try to match escape sequences
+		// Try to match escape sequences first
 		matched, needMoreData := t.matchKeyCode(buf)
 		if matched {
 			continue
@@ -345,42 +336,6 @@ func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
 		}
 	}
 
-	return false, false
-}
-
-// matchBracketedPaste handles bracketed paste sequences (\033[200~ ... \033[201~)
-func (t *Terminal) matchBracketedPaste(buf *[]byte) (bool, bool) {
-	// Check for paste start sequence: \033[200~
-	pasteStart := []byte{'\x1b', '[', '2', '0', '0', '~'}
-	pasteEnd := []byte{'\x1b', '[', '2', '0', '1', '~'}
-	
-	if len(*buf) >= len(pasteStart) && bytesEqual((*buf)[:len(pasteStart)], pasteStart) {
-		// Found paste start - send start event and consume the sequence
-		LL.Debug("BRACKETED PASTE START detected!")
-		event := events.NewPasteEvent("", true)
-		t.inputChan <- event
-		*buf = (*buf)[len(pasteStart):]
-		return true, false
-	}
-	
-	if len(*buf) >= len(pasteEnd) && bytesEqual((*buf)[:len(pasteEnd)], pasteEnd) {
-		// Found paste end - send end event and consume the sequence
-		LL.Debug("BRACKETED PASTE END detected!")
-		event := events.NewPasteEvent("", false)
-		t.inputChan <- event
-		*buf = (*buf)[len(pasteEnd):]
-		return true, false
-	}
-	
-	// Check for partial matches
-	if len(*buf) < len(pasteStart) && bytesEqual(*buf, pasteStart[:len(*buf)]) {
-		return false, true // Need more data for start sequence
-	}
-	
-	if len(*buf) < len(pasteEnd) && bytesEqual(*buf, pasteEnd[:len(*buf)]) {
-		return false, true // Need more data for end sequence
-	}
-	
 	return false, false
 }
 
