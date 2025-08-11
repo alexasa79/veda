@@ -189,8 +189,10 @@ func (e *Editor) executeOperatorWithTextObject(op Operator, textObj TextObject) 
 		return err
 	}
 	
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 	
 	return nil
 }

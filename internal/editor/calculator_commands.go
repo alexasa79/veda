@@ -55,8 +55,10 @@ func (e *Editor) calculateAppend(args []string) error {
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 	
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 	
 	return nil
 }
@@ -111,8 +113,10 @@ func (e *Editor) calculateReplace(args []string) error {
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 	
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 	
 	return nil
 }

@@ -61,8 +61,10 @@ func (e *Editor) openLineBelow(args []string) error {
 		e.buffer.History.StartInsertSession("o")
 	}
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 
 	// Ensure the new line is visible
 	e.scroll()
@@ -152,8 +154,10 @@ func (e *Editor) openLineAbove(args []string) error {
 		e.buffer.History.StartInsertSession("O")
 	}
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 
 	return nil
 }
@@ -234,8 +238,10 @@ func (e *Editor) joinLines(args []string) error {
 	// Set cursor position to the join point
 	e.buffer.CursorX = cursorX
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 
 	return nil
 }
@@ -273,8 +279,10 @@ func (e *Editor) insertTab(args []string) error {
 	// Move cursor forward by the length of the indentation
 	e.buffer.CursorX = cursorX + len(indentStr)
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 
 	// Update completion menu filter if visible
 	e.updateCompletionFilter()
@@ -299,8 +307,8 @@ func (e *Editor) insertChar(ch rune) error {
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	cursorX := e.buffer.CursorX
 
-	// Check if we're typing a closing brace and should auto-dedent
-	if ch == '}' && e.shouldAutoDedentClosingBrace(lineNum, cursorX) {
+    // Check if we're typing a closing brace and should auto-dedent (disabled during paste)
+    if !e.inPasteMode && ch == '}' && e.shouldAutoDedentClosingBrace(lineNum, cursorX) {
 		// Apply auto-dedent before inserting the closing brace
 		if err := e.autoDedentCurrentLine(lineNum); err != nil {
 			return err
@@ -337,8 +345,10 @@ func (e *Editor) insertChar(ch rune) error {
 	// Move cursor forward by one position
 	e.buffer.CursorX = cursorX + 1
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 
 	// Update completion menu filter if visible
 	e.updateCompletionFilter()
@@ -349,6 +359,34 @@ func (e *Editor) insertChar(ch rune) error {
 // Auto-pairing functions removed - feature has been disabled
 
 func (e *Editor) insertNewline(args []string) error {
+    // During paste mode, insert a raw newline without auto-indentation
+    if e.inPasteMode {
+        lineNum := e.buffer.CursorIterator.LineNumber()
+        viewLineNum := e.buffer.ViewIterator.LineNumber()
+        cursorX := e.buffer.CursorX
+
+        entry := buffer.NewInsertTextEntry(lineNum, cursorX, "\n")
+
+        if e.buffer.History != nil {
+            if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+                return err
+            } else if executed != nil {
+                e.setLastChange(executed)
+            }
+        } else {
+            if err := entry.Execute(e.buffer); err != nil {
+                return err
+            }
+        }
+
+        // Move cursor to the next line at column 0
+        e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum+1)
+        e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+        e.buffer.CursorX = 0
+
+        // Skip highlighting during paste; it will be refreshed once at paste end
+        return nil
+    }
 	// Remember current position
 	lineNum := e.buffer.CursorIterator.LineNumber()
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
@@ -414,8 +452,10 @@ func (e *Editor) insertNewline(args []string) error {
 		e.trackAutoIndent(lineNum + 1, len(autoIndent.IndentStr))
 	}
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+            // Update syntax highlighting (skip during paste mode)
+            if !e.inPasteMode {
+                e.updateSyntaxHighlighting()
+            }
 
 	return nil
 }
@@ -502,8 +542,10 @@ func (e *Editor) backspace(args []string) error {
 			// Position cursor at end of previous line
 			e.buffer.CursorX = prevLineLen
 
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
+            // Update syntax highlighting (skip during paste mode)
+            if !e.inPasteMode {
+                e.updateSyntaxHighlighting()
+            }
 		}
 	} else {
 		// Delete character before cursor
@@ -535,8 +577,10 @@ func (e *Editor) backspace(args []string) error {
 			// Move cursor back one position
 			e.buffer.CursorX = cursorX - 1
 
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
+            // Update syntax highlighting (skip during paste mode)
+            if !e.inPasteMode {
+                e.updateSyntaxHighlighting()
+            }
 
 			// Update completion menu filter if visible
 			e.updateCompletionFilter()
@@ -587,8 +631,10 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 			return nil
 		}
 		return nil
@@ -633,8 +679,10 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 		}
 	}
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+            // Update syntax highlighting (skip during paste mode)
+            if !e.inPasteMode {
+                e.updateSyntaxHighlighting()
+            }
 
 	return nil
 }
@@ -678,8 +726,10 @@ func (e *Editor) deleteCharacterInsert(args []string) error {
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 			return nil
 		}
 		return nil
@@ -716,8 +766,10 @@ func (e *Editor) deleteCharacterInsert(args []string) error {
 		e.buffer.CursorX = len(newLine)
 	}
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 
 	// Update completion filter if menu is visible
 	e.updateCompletionFilter()
@@ -792,8 +844,10 @@ func (e *Editor) deleteWordForward(args []string) error {
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+    // Update syntax highlighting (skip during paste mode)
+    if !e.inPasteMode {
+        e.updateSyntaxHighlighting()
+    }
 
 	// Update completion filter if menu is visible
 	e.updateCompletionFilter()

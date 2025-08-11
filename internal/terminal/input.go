@@ -202,6 +202,15 @@ func (t *Terminal) inputHandler() {
 // parseInput processes the input buffer and generates events
 func (t *Terminal) parseInput(buf *[]byte) {
 	for len(*buf) > 0 {
+		// Check for bracketed paste sequences first
+		pasteMatched, pasteNeedMore := t.matchBracketedPaste(buf)
+		if pasteMatched {
+			continue
+		}
+		if pasteNeedMore {
+			return
+		}
+
 		// Special handling for ESC that might be part of Alt+key
 		if len(*buf) > 0 && (*buf)[0] == '\x1b' && len(*buf) > 1 {
 			// Check if ESC is followed by a letter or common Alt+key character
@@ -276,6 +285,36 @@ func (t *Terminal) parseInput(buf *[]byte) {
 		t.inputChan <- event
 		*buf = (*buf)[size:]
 	}
+}
+
+// matchBracketedPaste handles bracketed paste sequences (\033[200~ ... \033[201~)
+func (t *Terminal) matchBracketedPaste(buf *[]byte) (bool, bool) {
+    pasteStart := []byte{'\x1b', '[', '2', '0', '0', '~'}
+    pasteEnd := []byte{'\x1b', '[', '2', '0', '1', '~'}
+
+    if len(*buf) >= len(pasteStart) && bytesEqual((*buf)[:len(pasteStart)], pasteStart) {
+        event := events.NewPasteEvent(true)
+        t.inputChan <- event
+        *buf = (*buf)[len(pasteStart):]
+        return true, false
+    }
+    if len(*buf) >= len(pasteEnd) && bytesEqual((*buf)[:len(pasteEnd)], pasteEnd) {
+        event := events.NewPasteEvent(false)
+        t.inputChan <- event
+        *buf = (*buf)[len(pasteEnd):]
+        return true, false
+    }
+
+    // Partial matches: require at least ESC '[' before stalling to avoid delaying lone ESC
+    if len(*buf) >= 2 {
+        if len(*buf) < len(pasteStart) && bytesEqual(*buf, pasteStart[:len(*buf)]) {
+            return false, true
+        }
+        if len(*buf) < len(pasteEnd) && bytesEqual(*buf, pasteEnd[:len(*buf)]) {
+            return false, true
+        }
+    }
+    return false, false
 }
 
 // matchKeyCodeWithAlt tries to match the buffer against known key codes and sends Alt version
