@@ -276,8 +276,10 @@ func (e *Editor) insertTab(args []string) error {
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
 
-	// Update completion menu filter if visible
-	e.updateCompletionFilter()
+	// Update completion menu filter if visible (skip during paste operations for performance)
+	if !e.inPasteMode {
+		e.updateCompletionFilter()
+	}
 
 	return nil
 }
@@ -289,8 +291,8 @@ func (e *Editor) insertChar(ch rune) error {
 	// Reset desired column when inserting text
 	e.desiredColumn = -1
 	
-	// If user types non-whitespace content, mark the line as having user content
-	if ch != ' ' && ch != '\t' {
+	// If user types non-whitespace content, or we're in paste mode, mark the line as having user content
+	if ch != ' ' && ch != '\t' || e.inPasteMode {
 		e.markLineHasUserContent(e.buffer.CursorIterator.LineNumber())
 	}
 
@@ -337,11 +339,15 @@ func (e *Editor) insertChar(ch rune) error {
 	// Move cursor forward by one position
 	e.buffer.CursorX = cursorX + 1
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+	// Update syntax highlighting (skip during paste operations for performance)
+	if !e.inPasteMode {
+		e.updateSyntaxHighlighting()
+	}
 
-	// Update completion menu filter if visible
-	e.updateCompletionFilter()
+	// Update completion menu filter if visible (skip during paste operations for performance)
+	if !e.inPasteMode {
+		e.updateCompletionFilter()
+	}
 
 	return nil
 }
@@ -363,25 +369,32 @@ func (e *Editor) insertNewline(args []string) error {
 	// Check if cursor is between braces on the same line
 	isBetweenBraces := e.isCursorBetweenBraces(currentLine, cursorX)
 
-	// Calculate auto-indent for the new line
-	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
-
 	// Create the text to insert
 	var textToInsert string
 	var finalCursorX int
 
-	if isBetweenBraces {
-		// Special case: cursor between {}
-		// Insert newline with indent, then another newline with base indent for closing brace
-		baseIndentInfo := e.buffer.GetLineIndentInfo(currentLine)
-		baseIndentStr := strings.Repeat(e.buffer.GetIndentationString(), baseIndentInfo.Level)
-
-		textToInsert = "\n" + autoIndent.IndentStr + "\n" + baseIndentStr
-		finalCursorX = len(autoIndent.IndentStr)
+	// Skip auto-indent during bracketed paste operations
+	if e.inPasteMode {
+		// During paste, just insert newline without any auto-indentation
+		textToInsert = "\n"
+		finalCursorX = 0
 	} else {
-		// Normal case
-		textToInsert = "\n" + autoIndent.IndentStr
-		finalCursorX = len(autoIndent.IndentStr)
+		// Calculate auto-indent for the new line (normal typing)
+		autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
+
+		if isBetweenBraces {
+			// Special case: cursor between {}
+			// Insert newline with indent, then another newline with base indent for closing brace
+			baseIndentInfo := e.buffer.GetLineIndentInfo(currentLine)
+			baseIndentStr := strings.Repeat(e.buffer.GetIndentationString(), baseIndentInfo.Level)
+
+			textToInsert = "\n" + autoIndent.IndentStr + "\n" + baseIndentStr
+			finalCursorX = len(autoIndent.IndentStr)
+		} else {
+			// Normal case
+			textToInsert = "\n" + autoIndent.IndentStr
+			finalCursorX = len(autoIndent.IndentStr)
+		}
 	}
 
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
@@ -409,13 +422,15 @@ func (e *Editor) insertNewline(args []string) error {
 	// Move cursor to end of indentation
 	e.buffer.CursorX = finalCursorX
 
-	// Track auto-indentation for cleanup when cursor moves away
-	if len(autoIndent.IndentStr) > 0 {
-		e.trackAutoIndent(lineNum + 1, len(autoIndent.IndentStr))
+	// Track auto-indentation for cleanup when cursor moves away (only during normal typing, not paste)
+	if !e.inPasteMode && finalCursorX > 0 {
+		e.trackAutoIndent(lineNum + 1, finalCursorX)
 	}
 
-	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+	// Update syntax highlighting (skip during paste operations for performance)
+	if !e.inPasteMode {
+		e.updateSyntaxHighlighting()
+	}
 
 	return nil
 }
@@ -502,8 +517,10 @@ func (e *Editor) backspace(args []string) error {
 			// Position cursor at end of previous line
 			e.buffer.CursorX = prevLineLen
 
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
+			// Update syntax highlighting (skip during paste operations for performance)
+			if !e.inPasteMode {
+				e.updateSyntaxHighlighting()
+			}
 		}
 	} else {
 		// Delete character before cursor
@@ -535,8 +552,10 @@ func (e *Editor) backspace(args []string) error {
 			// Move cursor back one position
 			e.buffer.CursorX = cursorX - 1
 
-			// Update syntax highlighting
-			e.updateSyntaxHighlighting()
+			// Update syntax highlighting (skip during paste operations for performance)
+			if !e.inPasteMode {
+				e.updateSyntaxHighlighting()
+			}
 
 			// Update completion menu filter if visible
 			e.updateCompletionFilter()

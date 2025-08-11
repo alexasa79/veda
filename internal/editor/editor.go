@@ -53,6 +53,7 @@ type Editor struct {
 	config          *config.Config
 	mode            commands.Mode
 	temporaryNormal bool // True when in temporary normal mode (Ctrl+O from insert)
+	inPasteMode     bool // True when receiving bracketed paste content
 	commandLine     *widgets.CommandLineWidget
 	searchLine      *widgets.CommandLineWidget // For search mode (/)
 	proxyManager    *proxy.ProxyManager
@@ -571,6 +572,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 		}
 	case *events.ResizeEvent:
 		e.handleResize()
+	case *events.PasteEvent:
+		e.handlePasteEvent(ev)
 	case *events.CustomEvent:
 		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
 		switch ev.Type {
@@ -2081,4 +2084,20 @@ func (e *Editor) checkAndCleanupAutoIndent() {
 		e.cleanupAutoIndentOnLine(e.lastCursorLine)
 	}
 	e.lastCursorLine = currentLine
+}
+
+// handlePasteEvent processes bracketed paste events
+func (e *Editor) handlePasteEvent(ev *events.PasteEvent) {
+	if ev.Start {
+		// Paste operation starting
+		e.inPasteMode = true
+		LL.Debug("Bracketed paste mode: START")
+	} else {
+		// Paste operation ending
+		e.inPasteMode = false
+		LL.Debug("Bracketed paste mode: END")
+		
+		// Update syntax highlighting once after paste is complete
+		e.updateSyntaxHighlighting()
+	}
 }
