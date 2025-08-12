@@ -19,6 +19,11 @@ var LL *log.Logger = log.NewLogger("PROXY")
 // maxScanTokenSize defines the maximum size for scanner buffers (1 GiB)
 const maxScanTokenSize = 1024 * 1024 * 1024 // 1 GiB
 
+// ProxyVersion must match the version reported by the Python proxy script.
+// IMPORTANT: Increment this every time you change either this Go file
+// or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
+const ProxyVersion = "1.0.0"
+
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
 
@@ -89,73 +94,98 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	
 	// Report initial connection status
 	pm.reportStatus(fmt.Sprintf("Connecting to %s...", host))
-	
-	// First, copy the proxy script to the remote host
-	pm.reportStatus(fmt.Sprintf("Copying proxy to %s...", host))
-	if err := pm.copyProxyToRemote(host); err != nil {
-		return nil, fmt.Errorf("failed to copy proxy to remote: %w", err)
-	}
-	
-	// Start SSH connection and run the proxy
-	pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
-	sshArgs := []string{
-		host,
-		"-o", "ControlMaster=no",
-		"-o", "ControlPath=none",
-		"python3", "/tmp/veda-proxy.py",
-	}
-	
-	cmd := exec.Command("ssh", sshArgs...)
-	
-	stdinPipe, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-	
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-	
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	
-	// Log any stderr output from SSH/proxy
-	go func() {
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			LL.Debug("Remote proxy stderr [%s]: %s", host, line)
-			fmt.Fprintf(os.Stderr, "REMOTE PROXY STDERR [%s]: %s\n", host, line)
+
+	// Helper to start a remote proxy instance and perform version handshake
+	startRemote := func() (*Client, *exec.Cmd, error) {
+		pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
+		sshArgs := []string{
+			host,
+			"-o", "ControlMaster=no",
+			"-o", "ControlPath=none",
+			"python3", "/tmp/veda-proxy.py",
 		}
-	}()
-	
-	stdin := bufio.NewWriter(stdinPipe)
-	stdout := bufio.NewScanner(stdoutPipe)
-	
-	// Increase scanner buffer size to handle large responses
-	buf := make([]byte, 0, maxScanTokenSize)
-	stdout.Buffer(buf, maxScanTokenSize)
-	
-	client := &Client{
-		cmd:       cmd,
-		stdin:     stdin,
-		stdout:    stdout,
-		requestID: 0,
+		cmd := exec.Command("ssh", sshArgs...)
+
+		stdinPipe, err := cmd.StdinPipe()
+		if err != nil {
+			return nil, nil, err
+		}
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			return nil, nil, err
+		}
+		stderrPipe, err := cmd.StderrPipe()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := cmd.Start(); err != nil {
+			return nil, nil, err
+		}
+
+		// Log any stderr output from SSH/proxy
+		go func() {
+			scanner := bufio.NewScanner(stderrPipe)
+			for scanner.Scan() {
+				line := scanner.Text()
+				LL.Debug("Remote proxy stderr [%s]: %s", host, line)
+				fmt.Fprintf(os.Stderr, "REMOTE PROXY STDERR [%s]: %s\n", host, line)
+			}
+		}()
+
+		stdin := bufio.NewWriter(stdinPipe)
+		stdout := bufio.NewScanner(stdoutPipe)
+
+		// Increase scanner buffer size to handle large responses
+		buf := make([]byte, 0, maxScanTokenSize)
+		stdout.Buffer(buf, maxScanTokenSize)
+
+		// Wait for the hello/version line with a timeout
+		version, err := readProxyHello(stdout, 3*time.Second)
+		if err != nil {
+			LL.Debug("Failed to read proxy hello on %s: %v", host, err)
+			return nil, cmd, err
+		}
+		if version != ProxyVersion {
+			LL.Info("Proxy version mismatch on %s (got %s, want %s)", host, version, ProxyVersion)
+			return nil, cmd, fmt.Errorf("version mismatch: got=%s, want=%s", version, ProxyVersion)
+		}
+
+		client := &Client{
+			cmd:       cmd,
+			stdin:     stdin,
+			stdout:    stdout,
+			requestID: 0,
+		}
+		return client, cmd, nil
 	}
-	
+
+	// First try without copying (assume proxy exists on remote). If it fails or
+	// version mismatches, copy and retry once.
+	client, cmd, err := startRemote()
+	if err != nil {
+		if cmd != nil && cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		pm.reportStatus(fmt.Sprintf("Updating proxy on %s...", host))
+		if errCopy := pm.copyProxyToRemote(host); errCopy != nil {
+			return nil, fmt.Errorf("failed to copy proxy to remote: %w", errCopy)
+		}
+		client, cmd, err = startRemote()
+		if err != nil {
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			return nil, fmt.Errorf("failed to start proxy on %s after update: %w", host, err)
+		}
+	}
+
 	duration := time.Since(startTime)
 	LL.Info("Created remote proxy connection to %s in %v", host, duration)
-	
+
 	// Report successful connection
 	pm.reportStatus(fmt.Sprintf("Connected to %s", host))
-	
+
 	return client, nil
 }
 
@@ -641,6 +671,13 @@ func NewClient() (*Client, error) {
 	// Increase scanner buffer size to handle large responses
 	buf := make([]byte, 0, maxScanTokenSize)
 	stdout.Buffer(buf, maxScanTokenSize)
+
+	// Perform version handshake
+	if version, err := readProxyHello(stdout, 2*time.Second); err != nil {
+		LL.Debug("Failed to read local proxy hello: %v", err)
+	} else if version != ProxyVersion {
+		LL.Error("Local proxy version mismatch: got %s, want %s", version, ProxyVersion)
+	}
 
 	return &Client{
 		cmd:       cmd,
@@ -1891,4 +1928,43 @@ func getIntSlice(m map[string]interface{}, key string) []int {
 		}
 	}
 	return result
+}
+
+// readProxyHello waits for an initial JSON line with a version field from the proxy.
+// The proxy prints this as the very first line on startup.
+func readProxyHello(scanner *bufio.Scanner, timeout time.Duration) (string, error) {
+	type helloMsg struct {
+		Version string `json:"version"`
+	}
+
+	lineCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		if scanner.Scan() {
+			lineCh <- scanner.Text()
+			return
+		}
+		if err := scanner.Err(); err != nil {
+			errCh <- err
+		} else {
+			errCh <- fmt.Errorf("no data received")
+		}
+	}()
+
+	select {
+	case line := <-lineCh:
+		var h helloMsg
+		if err := json.Unmarshal([]byte(line), &h); err != nil {
+			return "", fmt.Errorf("invalid hello: %w", err)
+		}
+		if h.Version == "" {
+			return "", fmt.Errorf("hello missing version")
+		}
+		return h.Version, nil
+	case err := <-errCh:
+		return "", err
+	case <-time.After(timeout):
+		return "", fmt.Errorf("hello timeout after %v", timeout)
+	}
 }
