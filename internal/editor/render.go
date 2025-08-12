@@ -72,10 +72,10 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
     indicatorStyle := lineNumberStyle
     _, lnBg, _ := lineNumberStyle.Decompose()
     if isAdded {
-        ch = '▍'
+        ch = '█'
         indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
     } else if isModified {
-        ch = '▍'
+        ch = '█'
         indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
     } else if showDeleted {
         ch = '▁'
