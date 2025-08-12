@@ -92,6 +92,9 @@ type Buffer struct {
 	// Git changes tracking
 	GitChanges *proxy.FileChanges // Git changes for this buffer (added, deleted, modified lines)
 	GitBranch  string             // Current git branch for this buffer
+    
+    // Diagnostics from LSP (1-based lines)
+    Diagnostics []proxy.Diagnostic
 	
 	// Buffer flags
 	IsReadOnly bool // Whether this buffer is read-only
@@ -141,6 +144,46 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 	b.ViewIterator = NewBufferIterator(b)
 	b.CursorIterator = NewBufferIterator(b)
 	return b
+}
+
+// GetDiagnosticForLine returns the highest-severity diagnostic for a 1-based line.
+// Returns (nil, false) if no diagnostic exists for that line.
+func (b *Buffer) GetDiagnosticForLine(lineNum int) (*proxy.Diagnostic, bool) {
+    if b == nil || len(b.Diagnostics) == 0 {
+        return nil, false
+    }
+    // Higher rank is more severe
+    severityRank := func(s string) int {
+        switch s {
+        case "error":
+            return 4
+        case "warning":
+            return 3
+        case "info":
+            return 2
+        case "hint":
+            return 1
+        default:
+            return 0
+        }
+    }
+    bestIdx := -1
+    bestRank := 0
+    for i := range b.Diagnostics {
+        d := &b.Diagnostics[i]
+        if d.Line != lineNum {
+            continue
+        }
+        r := severityRank(d.Severity)
+        if r > bestRank {
+            bestRank = r
+            bestIdx = i
+        }
+    }
+    if bestIdx >= 0 {
+        return &b.Diagnostics[bestIdx], true
+    }
+    return nil, false
 }
 
 

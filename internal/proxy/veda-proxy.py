@@ -23,7 +23,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     filename='/tmp/veda-proxy.log',
-    filemode='a'
+    filemode='w'  # Truncate log at start of each proxy session
 )
 logger = logging.getLogger(__name__)
 
@@ -1104,10 +1104,12 @@ class VedaProxy:
                 if language not in self.lsp.servers:
                     logger.info(f"Starting LSP server for {language} asynchronously when opening {path}")
                     self.lsp.start_server_async(language)
-                
+
                 # Notify LSP about the opened file (will be deferred if server is still initializing)
                 self.lsp._open_file(language, str(file_path))
                 logger.info(f"Requested LSP notification for opened file: {path}")
+
+                # Do not block here; diagnostics will be collected from cache below when available
             
             lsp_time = time.time()
             logger.info(f"LSP operations took {(lsp_time - read_time) * 1000:.1f}ms")
@@ -1157,10 +1159,45 @@ class VedaProxy:
             logger.info(f"Git diff operations took {(git_time - branch_time) * 1000:.1f}ms")
             logger.info(f"Total get_file time: {(git_time - start_time) * 1000:.1f}ms")
             
+            # Collect diagnostics for this file from LSP cache (after short warm-up)
+            diagnostics_list = []
+            try:
+                uri = f"file://{str(file_path)}"
+                raw_diags = self.lsp.diagnostics.get(uri, []) or []
+                for d in raw_diags:
+                    rng = d.get('range', {})
+                    start = rng.get('start', {})
+                    end = rng.get('end', {})
+                    # LSP lines are 0-based; convert to 1-based
+                    line_1_based = int(start.get('line', 0)) + 1
+                    start_char = int(start.get('character', 0) or 0)
+                    end_char = int(end.get('character', start_char) or start_char)
+                    severity_num = int(d.get('severity', 0) or 0)
+                    if severity_num == 1:
+                        sev = 'error'
+                    elif severity_num == 2:
+                        sev = 'warning'
+                    elif severity_num == 3:
+                        sev = 'info'
+                    elif severity_num == 4:
+                        sev = 'hint'
+                    else:
+                        sev = 'info'
+                    diagnostics_list.append({
+                        'line': line_1_based,
+                        'severity': sev,
+                        'message': d.get('message', ''),
+                        'start_char': start_char,
+                        'end_char': end_char,
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to translate diagnostics for {path}: {e}")
+
             return {
                 'content': content,
                 'changes': changes,
-                'branch': branch
+                'branch': branch,
+                'diagnostics': diagnostics_list,
             }
         except UnicodeDecodeError:
             # Try reading as binary and return error

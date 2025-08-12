@@ -41,6 +41,10 @@ type Theme struct {
 	GitModified      StyleDef // Style for modified lines
 	GitDeleted       StyleDef // Style for deleted lines
 
+    // Diagnostics
+    DiagnosticError   StyleDef // Foreground for error indicator
+    DiagnosticWarning StyleDef // Foreground for warning indicator
+
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
 	SyntaxKeyword     StyleDef
@@ -216,6 +220,16 @@ func NewTheme() *Theme {
 			Foreground: "#f92672",
 			Background: "#4d1a1a",
 		},
+
+        // Diagnostics
+        DiagnosticError: StyleDef{
+            Foreground: "#f92672",
+            Background: "#1b1d1e",
+        },
+        DiagnosticWarning: StyleDef{
+            Foreground: "#ffd866",
+            Background: "#1b1d1e",
+        },
 
 		CompletionMenu: StyleDef{
 			Foreground: "#f8f8f2",

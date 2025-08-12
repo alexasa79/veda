@@ -1182,6 +1182,49 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 	}()
 }
 
+// requestDiagnosticsRefresh polls the proxy for diagnostics for a file and updates the buffer
+// This is used to bridge the gap between didOpen/didChange and when publishDiagnostics arrive
+func (e *Editor) requestDiagnosticsRefresh(filePath string) {
+    if filePath == "" {
+        return
+    }
+
+    // If the current buffer has LSP, send a didChange with current content as a nudge
+    buf, exists := e.buffers[filePath]
+    if !exists || !buf.HasFile() {
+        return
+    }
+
+    content := buf.Rope.String()
+    go func(target *buffer.Buffer) {
+        LL.Debug("requestDiagnosticsRefresh: starting for %s", filePath)
+        // Nudge
+        if err := e.proxyManager.NotifyFileChange(filePath, content); err != nil {
+            LL.Debug("requestDiagnosticsRefresh: notify failed for %s: %v", filePath, err)
+        } else {
+            LL.Debug("requestDiagnosticsRefresh: didChange nudge sent for %s", filePath)
+        }
+
+        // Poll briefly for diagnostics (non-blocking to UI)
+        deadline := time.Now().Add(3 * time.Second)
+        for time.Now().Before(deadline) {
+            fc, err := e.proxyManager.GetFile(filePath)
+            if err == nil && fc != nil && len(fc.Diagnostics) > 0 {
+                if b, ok := e.buffers[filePath]; ok && b == target {
+                    b.Diagnostics = fc.Diagnostics
+                    LL.Info("requestDiagnosticsRefresh: received %d diagnostics for %s", len(fc.Diagnostics), filePath)
+                    if b == e.buffer {
+                        e.render()
+                    }
+                }
+                return
+            }
+            time.Sleep(150 * time.Millisecond)
+        }
+        LL.Debug("requestDiagnosticsRefresh: timeout waiting for diagnostics for %s", filePath)
+    }(buf)
+}
+
 // Insert mode commands
 // appendAfterCursor enters insert mode after the current cursor position
 func (e *Editor) appendAfterCursor(args []string) error {
@@ -1749,8 +1792,10 @@ func (e *Editor) notifyLSPFileChange() {
 
 	// Send the notification asynchronously to avoid blocking
 	go func() {
-		if err := e.proxyManager.NotifyFileChange(e.buffer.FilePath, content); err != nil {
+        if err := e.proxyManager.NotifyFileChange(e.buffer.FilePath, content); err != nil {
 			LL.Debug("Failed to notify LSP of file change: %v", err)
+        } else {
+            LL.Debug("notifyLSPFileChange: didChange sent for %s", e.buffer.FilePath)
 		}
 	}()
 }
