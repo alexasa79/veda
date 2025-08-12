@@ -23,8 +23,30 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 		e.previousBuffer = e.buffer
 	}
 
-	// Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
-	e.buffer = buf
+    // Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
+    e.buffer = buf
+
+    // Ensure iterators are valid w.r.t. current buffer generation
+    // Iterators become invalid whenever the buffer content changes off-screen (e.g., messages buffer appends)
+    if e.buffer != nil {
+        // Validate and recreate ViewIterator if needed
+        if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
+            // Preserve previous desired line without triggering validation
+            desiredLine := 0
+            if e.buffer.ViewIterator != nil {
+                desiredLine = e.buffer.ViewIterator.LineNum
+            }
+            e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredLine)
+        }
+        // Validate and recreate CursorIterator if needed
+        if e.buffer.CursorIterator == nil || e.buffer.CursorIterator.Generation != e.buffer.Generation {
+            desiredCursorLine := 0
+            if e.buffer.CursorIterator != nil {
+                desiredCursorLine = e.buffer.CursorIterator.LineNum
+            }
+            e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredCursorLine)
+        }
+    }
 
 	// Set up LSP notification callback
 	e.buffer.OnContentChange = func() {
