@@ -316,7 +316,8 @@ func (e *Editor) openFile(filePath string) {
 	fileContent, err := e.proxyManager.GetFile(resolvedPath)
 	var content string
 	var changes *proxy.FileChanges
-	var branch string
+    var branch string
+    var diagnostics []proxy.Diagnostic
 	
 	if err != nil {
 		// Check if it's a file not found error
@@ -332,10 +333,11 @@ func (e *Editor) openFile(filePath string) {
 			// TODO: Show error to user
 			return
 		}
-	} else {
+    } else {
 		content = fileContent.Content
 		changes = &fileContent.Changes
 		branch = fileContent.Branch
+        diagnostics = fileContent.Diagnostics
 		
 		// Check for auto-save recovery if we have a file
 		if e.autoSaveManager != nil {
@@ -364,9 +366,10 @@ func (e *Editor) openFile(filePath string) {
 	
 	LL.Debug("Setting buffer changes to %+v", changes)
 	
-	// Store the git changes and branch in the buffer
+    // Store the git changes, branch, and diagnostics in the buffer
 	newBuffer.GitChanges = changes
 	newBuffer.GitBranch = branch
+    newBuffer.Diagnostics = diagnostics
 
 	// Add to buffers map and order
 	e.buffers[resolvedPath] = newBuffer
@@ -399,6 +402,12 @@ func (e *Editor) openFile(filePath string) {
 
 	// Request folding ranges from LSP worker thread
 	e.requestFoldingRanges(resolvedPath)
+
+    // Enable LSP support and request a non-blocking diagnostics refresh
+    if newBuffer.HasFile() {
+        newBuffer.HasLSP = true
+        e.requestDiagnosticsRefresh(resolvedPath)
+    }
 }
 
 // openFileCmd implements the open-file command

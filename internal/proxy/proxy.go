@@ -486,6 +486,7 @@ type FileContent struct {
 	Content string      `json:"content"`
 	Changes FileChanges `json:"changes"`
 	Branch  string      `json:"branch"`
+    Diagnostics []Diagnostic `json:"diagnostics"`
 }
 
 // FileChanges represents git changes in a file
@@ -493,6 +494,15 @@ type FileChanges struct {
 	Added    []int `json:"added"`
 	Deleted  []int `json:"deleted"`
 	Modified []int `json:"modified"`
+}
+
+// Diagnostic represents a single diagnostic item from LSP normalized for the editor
+type Diagnostic struct {
+    Line     int    `json:"line"`     // 1-based line number
+    Severity string `json:"severity"` // "error", "warning", "info", "hint"
+    Message  string `json:"message"`
+    StartChar int   `json:"start_char"` // 0-based start character in line
+    EndChar   int   `json:"end_char"`   // 0-based end character (exclusive)
 }
 
 // ProjectChange represents a changed file in the project
@@ -808,6 +818,7 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 				Deleted:  []int{},
 				Modified: []int{},
 			},
+			Diagnostics: []Diagnostic{},
 		}
 
 		if content, ok := response.Result["content"].(string); ok {
@@ -843,6 +854,23 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 				for _, v := range modified {
 					if line, ok := v.(float64); ok {
 						fileContent.Changes.Modified = append(fileContent.Changes.Modified, int(line))
+					}
+				}
+			}
+		}
+
+        // Parse diagnostics if present
+        if diags, ok := response.Result["diagnostics"].([]interface{}); ok {
+			for _, item := range diags {
+				if dm, ok := item.(map[string]interface{}); ok {
+					d := Diagnostic{}
+					if ln, ok := dm["line"].(float64); ok { d.Line = int(ln) }
+					if sev, ok := dm["severity"].(string); ok { d.Severity = sev }
+					if msg, ok := dm["message"].(string); ok { d.Message = msg }
+                    if sc, ok := dm["start_char"].(float64); ok { d.StartChar = int(sc) }
+                    if ec, ok := dm["end_char"].(float64); ok { d.EndChar = int(ec) }
+					if d.Line > 0 && d.Severity != "" {
+						fileContent.Diagnostics = append(fileContent.Diagnostics, d)
 					}
 				}
 			}

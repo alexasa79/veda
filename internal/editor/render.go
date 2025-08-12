@@ -6,6 +6,7 @@ import (
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
+	"veda/internal/proxy"
 	"veda/internal/syntax"
 	"veda/internal/theme"
 	"veda/internal/ui"
@@ -85,6 +86,35 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
     e.screen.SetContent(indicatorX, screenY, ch, nil, indicatorStyle)
 }
 
+// drawGutterDiagnosticsIndicator renders a diagnostics icon in the second gutter column
+func (e *Editor) drawGutterDiagnosticsIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
+    if e.buffer.Diagnostics == nil || len(e.buffer.Diagnostics) == 0 {
+        return
+    }
+
+    diag, ok := e.buffer.GetDiagnosticForLine(lineNum)
+    if !ok {
+        return
+    }
+
+    // Second indicator column position: digits + 2 (one padding already at digits)
+    diagX := digitsWidth + 2
+    if diagX >= lineNumberWidth { return }
+
+    var style ui.Style
+    _, lnBg, _ := lineNumberStyle.Decompose()
+    switch diag.Severity {
+    case "error":
+        style = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError).Background(lnBg)
+    case "warning":
+        style = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning).Background(lnBg)
+    default:
+        // Skip info/hint for now
+        return
+    }
+    e.screen.SetContent(diagX, screenY, '●', nil, style)
+}
+
 // drawText draws text with optional search highlighting, selection, and whitespace visualization
 // Returns the number of screen columns consumed
 // segmentStart is the character position in the original line where this text segment starts
@@ -108,9 +138,19 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		lineStartPos = lineStartIter.Position()
 	}
 
-	// Convert to slice of runes for position tracking
+    // Convert to slice of runes for position tracking
 	runes := []rune(text)
-	for i, r := range runes {
+    // Fetch diagnostic for this line (1-based)
+    var diagForLine *proxy.Diagnostic
+    var hasDiag bool
+    if lineNum >= 0 && e.buffer != nil && len(e.buffer.Diagnostics) > 0 {
+        if d, ok := e.buffer.GetDiagnosticForLine(lineNum+1); ok {
+            diagForLine = d
+            hasDiag = true
+        }
+    }
+
+    for i, r := range runes {
 		// Check if this character is part of a search match
 		// searchMatches contains positions relative to the line, not absolute positions
 		charPosInLine := segmentStart + i
@@ -118,7 +158,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		// Check if this character is part of the selection
 		// Only apply selection style if we're not drawing line numbers (x parameter is 0 for line numbers)
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd && x > 0
-		// Check if this character is part of the flash highlight
+        // Check if this character is part of the flash highlight
 		var inFlash bool
 		if lineNum >= 0 && e.hasFlashHighlight() {
 			charPosInLine := charPos - lineStartPos
@@ -126,6 +166,27 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		}
 
 		currentStyle := style
+
+        // Determine if this position is within a diagnostic range for this line
+        useDiagStyle := false
+        var diagStyle ui.Style
+        if hasDiag && (diagForLine.Severity == "error" || diagForLine.Severity == "warning") {
+            // Compare with line-relative position
+            posInLine := segmentStart + i
+            startChar := diagForLine.StartChar
+            endChar := diagForLine.EndChar
+            if endChar <= startChar {
+                endChar = startChar + 1 // ensure at least one column highlighted
+            }
+            if posInLine >= startChar && posInLine < endChar {
+                useDiagStyle = true
+                if diagForLine.Severity == "error" {
+                    diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError)
+                } else {
+                    diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning)
+                }
+            }
+        }
 
 		// Check if this position has a virtual cursor
 		hasVirtualCursor := false
@@ -152,7 +213,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			}
 		}
 
-		if inFlash {
+        if inFlash {
 			// Flash takes highest precedence
 			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
 		} else if inSelection {
@@ -162,6 +223,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			// Virtual cursor gets a distinct background color
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 			currentStyle = theme.ApplyBackgroundStyle(style, virtualCursorStyle)
+        } else if useDiagStyle {
+            // Apply diagnostic background for error/warning range
+            currentStyle = theme.ApplyBackgroundStyle(style, diagStyle)
 		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
 			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
@@ -681,7 +745,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	}
 
 
-	// Draw with syntax highlighting, but only for the wrapped segment
+    // Draw with syntax highlighting, but only for the wrapped segment
 	x := startX
 	pos := wl.StartChar
 
@@ -739,7 +803,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		x += e.drawText(x, screenY, normalStyle, text, lineStartOffset + pos, searchMatches, lineIndex, pos, trailingStart)
 	}
 
-	// Fill rest of line if we have background
+    // Fill rest of line if we have background
 	if hasBg {
 		width, _ := e.screen.Size()
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
@@ -768,6 +832,28 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 						break
 					}
 				}
+
+    // Special-case: zero-length diagnostic at end-of-line (e.g., missing semicolon)
+    // When a diagnostic range starts and ends at EOL, there are no characters to paint.
+    // Paint the single cell immediately after the last character of the final wrapped segment.
+    if e.buffer != nil && len(e.buffer.Diagnostics) > 0 && wl.EndChar == len(originalLine) {
+        if diag, ok := e.buffer.GetDiagnosticForLine(lineIndex + 1); ok {
+            if (diag.Severity == "error" || diag.Severity == "warning") && diag.EndChar <= diag.StartChar && diag.StartChar >= len(originalLine) {
+                // Use the current x position which is just after the drawn content of this segment
+                width, _ := e.screen.Size()
+                if x >= startX && x < width {
+                    var diagStyle ui.Style
+                    if diag.Severity == "error" {
+                        diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError)
+                    } else {
+                        diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning)
+                    }
+                    markerStyle := theme.ApplyBackgroundStyle(normalStyle, diagStyle)
+                    e.screen.SetContent(x, screenY, ' ', nil, markerStyle)
+                }
+            }
+        }
+    }
 			}
 			
 			// Apply virtual cursor style if needed
@@ -909,8 +995,10 @@ func (e *Editor) drawEditor() {
                 e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
             }
 
-            // Draw git change indicators in the gutter (2 columns after padding)
+            // Draw git change indicators in the first gutter column
             e.drawGutterGitIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+            // Draw diagnostics in the second gutter column
+            e.drawGutterDiagnosticsIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
 		} else {
 			// Fill line number area with spaces for wrapped lines
 			for x := 0; x < lineNumberWidth; x++ {
@@ -1140,27 +1228,42 @@ func (e *Editor) drawStatusBar() {
 
 // drawErrorLine renders the error message above the status bar
 func (e *Editor) drawErrorLine() {
-	currentError := e.errorManager.GetCurrentError()
-	if currentError == "" {
-		return
-	}
-	
-	width, _ := e.screen.Size()
-	errorY := e.getStatusBarY() - 1 // One line above status bar
-	
-	// Use error style (white text on red background)
-	errorStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-	errorStyle.Bg = ui.ColorRed
-	errorStyle.Fg = ui.ColorWhite
-	
-	// Clear the line first with red background
-	for i := 0; i < width; i++ {
-		e.screen.SetContent(i, errorY, ' ', nil, errorStyle)
-	}
-	
-	// Draw the error message with padding
-	errorText := " " + currentError + " "
-	e.drawText(0, errorY, errorStyle, errorText, 0, nil, -1, 0, -1)
+    width, _ := e.screen.Size()
+    bannerY := e.getStatusBarY() - 1
+
+    // Show temporary errors on top (override diagnostics)
+    if currentError := e.errorManager.GetCurrentError(); currentError != "" {
+        style := e.config.Theme.GetStyle(e.config.Theme.Normal)
+        style.Bg = ui.ColorRed
+        style.Fg = ui.ColorWhite
+        for i := 0; i < width; i++ {
+            e.screen.SetContent(i, bannerY, ' ', nil, style)
+        }
+        e.drawText(0, bannerY, style, " "+currentError+" ", 0, nil, -1, 0, -1)
+        return
+    }
+
+    // Otherwise, show diagnostic for cursor line persistently
+    cursorLine := e.buffer.CursorIterator.LineNumber() + 1
+    if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+        var style ui.Style
+        switch diag.Severity {
+        case "error":
+            style = e.config.Theme.GetStyle(e.config.Theme.Normal)
+            style.Bg = ui.ColorRed
+            style.Fg = ui.ColorWhite
+        case "warning":
+            style = e.config.Theme.GetStyle(e.config.Theme.Normal)
+            style.Bg = ui.ColorYellow
+            style.Fg = ui.ColorBlack
+        default:
+            return
+        }
+        for i := 0; i < width; i++ {
+            e.screen.SetContent(i, bannerY, ' ', nil, style)
+        }
+        e.drawText(0, bannerY, style, " "+diag.Message+" ", 0, nil, -1, 0, -1)
+    }
 }
 
 // drawSignature renders the function signature above the status bar
