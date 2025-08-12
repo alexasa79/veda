@@ -164,10 +164,11 @@ func NewTheme() *Theme {
 			Background: "#403d3d",
 		},
 
-		LineNumber: StyleDef{
-			Foreground: "#465457",
-			Background: "#1b1d1e",
-		},
+        LineNumber: StyleDef{
+            Foreground: "#465457",
+            // Distinct gutter background to stand out from content
+            Background: "#24241e",
+        },
 
 		CurrentLine: StyleDef{
 			Foreground: "#f8f8f2",

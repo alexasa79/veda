@@ -23,8 +23,10 @@ func TestDiagnosticsGutterAndBannerRendering(t *testing.T) {
     te.drawErrorLine()
     te.drawStatusBar()
 
-    // Indicator is drawn in second gutter column at x = LineNumberWidth - 1
-    diagX := te.buffer.LineNumberWidth - 1
+    // Indicator is drawn in the middle gutter column: digits + 1
+    digitsWidth := te.buffer.LineNumberWidth - 3
+    if digitsWidth < 1 { digitsWidth = 1 }
+    diagX := digitsWidth + 1
 
     // Line 2 (row 1) should have ●
     ch, _ := te.mockScreen.GetCell(diagX, 1)

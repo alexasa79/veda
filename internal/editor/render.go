@@ -12,9 +12,9 @@ import (
 	"veda/internal/ui"
 )
 
-// drawGutterGitIndicator renders git added/modified/deleted indicator in the gutter for a given wrapped line.
-// - Uses ▍ for added/modified with distinct colors
-// - Uses ▁ for deleted and only on the first line of a contiguous deleted range, placed on the nearest existing line
+// drawGutterGitIndicator renders git added/modified indicator in the gutter for a given wrapped line.
+// - Renders a space with background color corresponding to the change type
+// - Deleted indicators are intentionally not rendered
 func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
     if e.buffer.GitChanges == nil {
         return
@@ -22,7 +22,6 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 
     isAdded := false
     isModified := false
-    showDeleted := false
 
     // Added/Modified are 1-based
     for _, a := range e.buffer.GitChanges.Added {
@@ -40,48 +39,32 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
         }
     }
 
-    // Deleted indices are 1-based (same as Added/Modified). Show only for the first
-    // element of a contiguous block and render on the nearest existing line.
-    for _, d := range e.buffer.GitChanges.Deleted {
-        // Place the marker on the nearest existing line:
-        // - If deletion is within the file, show on current line when (wl.LogicalLineNum + 1) == d
-        // - If deletion is past EOF (index beyond total lines), show on the last line
-        isCandidate := (d == wl.LogicalLineNum+1) ||
-            (d > e.buffer.LineCount && wl.LogicalLineNum == e.buffer.LineCount-1)
-        if !isCandidate {
-            continue
-        }
-        hasPrev := false
-        for _, prev := range e.buffer.GitChanges.Deleted {
-            if prev == d-1 {
-                hasPrev = true
-                break
-            }
-        }
-        if !hasPrev {
-            showDeleted = true
-            break
-        }
-    }
+    // Deleted lines: do not render any indicator
 
-    indicatorX := digitsWidth + 1
+    // Leftmost gutter column (immediately after digits) is used for git indicators
+    indicatorX := digitsWidth
     if indicatorX >= lineNumberWidth {
         return
     }
 
-    var ch rune = ' '
+    // Only draw when added or modified
+    if !(isAdded || isModified) {
+        return
+    }
+
+    // Use distinct glyphs for added vs modified
+    var ch rune
     indicatorStyle := lineNumberStyle
     _, lnBg, _ := lineNumberStyle.Decompose()
     if isAdded {
-        ch = '█'
+        ch = '+'
         indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
-    } else if isModified {
-        ch = '█'
+    } else {
+        ch = '≋'
         indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
-    } else if showDeleted {
-        ch = '▁'
-        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitDeleted).Background(lnBg)
     }
+    // Make the indicator bold for visibility
+    indicatorStyle.Attrs |= ui.AttrBold
 
     e.screen.SetContent(indicatorX, screenY, ch, nil, indicatorStyle)
 }
@@ -97,8 +80,8 @@ func (e *Editor) drawGutterDiagnosticsIndicator(wl WrappedLine, lineNum, digitsW
         return
     }
 
-    // Second indicator column position: digits + 2 (one padding already at digits)
-    diagX := digitsWidth + 2
+    // Diagnostics in middle gutter column: digits + 1
+    diagX := digitsWidth + 1
     if diagX >= lineNumberWidth { return }
 
     var style ui.Style
