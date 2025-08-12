@@ -362,6 +362,8 @@ func (e *Editor) openFile(filePath string) {
 	// Create a new buffer with the file content (empty for new files)
 	newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 	
+	LL.Debug("Setting buffer changes to %+v", changes)
+	
 	// Store the git changes and branch in the buffer
 	newBuffer.GitChanges = changes
 	newBuffer.GitBranch = branch

@@ -11,6 +11,80 @@ import (
 	"veda/internal/ui"
 )
 
+// drawGutterGitIndicator renders git added/modified/deleted indicator in the gutter for a given wrapped line.
+// - Uses ▍ for added/modified with distinct colors
+// - Uses ▁ for deleted and only on the first line of a contiguous deleted range, placed on the nearest existing line
+func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
+    if e.buffer.GitChanges == nil {
+        return
+    }
+
+    isAdded := false
+    isModified := false
+    showDeleted := false
+
+    // Added/Modified are 1-based
+    for _, a := range e.buffer.GitChanges.Added {
+        if a == lineNum {
+            isAdded = true
+            break
+        }
+    }
+    if !isAdded {
+        for _, m := range e.buffer.GitChanges.Modified {
+            if m == lineNum {
+                isModified = true
+                break
+            }
+        }
+    }
+
+    // Deleted indices are 1-based (same as Added/Modified). Show only for the first
+    // element of a contiguous block and render on the nearest existing line.
+    for _, d := range e.buffer.GitChanges.Deleted {
+        // Place the marker on the nearest existing line:
+        // - If deletion is within the file, show on current line when (wl.LogicalLineNum + 1) == d
+        // - If deletion is past EOF (index beyond total lines), show on the last line
+        isCandidate := (d == wl.LogicalLineNum+1) ||
+            (d > e.buffer.LineCount && wl.LogicalLineNum == e.buffer.LineCount-1)
+        if !isCandidate {
+            continue
+        }
+        hasPrev := false
+        for _, prev := range e.buffer.GitChanges.Deleted {
+            if prev == d-1 {
+                hasPrev = true
+                break
+            }
+        }
+        if !hasPrev {
+            showDeleted = true
+            break
+        }
+    }
+
+    indicatorX := digitsWidth + 1
+    if indicatorX >= lineNumberWidth {
+        return
+    }
+
+    var ch rune = ' '
+    indicatorStyle := lineNumberStyle
+    _, lnBg, _ := lineNumberStyle.Decompose()
+    if isAdded {
+        ch = '▍'
+        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
+    } else if isModified {
+        ch = '▍'
+        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+    } else if showDeleted {
+        ch = '▁'
+        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitDeleted).Background(lnBg)
+    }
+
+    e.screen.SetContent(indicatorX, screenY, ch, nil, indicatorStyle)
+}
+
 // drawText draws text with optional search highlighting, selection, and whitespace visualization
 // Returns the number of screen columns consumed
 // segmentStart is the character position in the original line where this text segment starts
@@ -757,14 +831,16 @@ func (e *Editor) drawContext() {
 			}
 
 			// Draw line number with context background
-			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum+1) // Line numbers are 1-based
+			// Reserve 2 columns for indicators and 1 space padding
+			digitsWidth := lineNumberWidth - 3
+			if digitsWidth < 1 {
+				digitsWidth = 1
+			}
+			lineNumStr := fmt.Sprintf("%*d", digitsWidth, lineNum+1) // Line numbers are 1-based
 			// Create a new style with context background
 			_, contextBg, _ := contextBgStyle.Decompose()
 			lineNumWithContextBg := lineNumberStyle.Background(contextBg)
 			e.drawText(0, i, lineNumWithContextBg, lineNumStr, 0, nil, lineNum, 0, -1)
-
-			// Draw separator with context background
-			e.screen.SetContent(lineNumberWidth-1, i, ' ', nil, lineNumWithContextBg)
 
 			// Draw the line content with syntax highlighting but context background
 			e.drawContextLine(iter, lineNumberWidth, i, contextBg)
@@ -810,62 +886,31 @@ func (e *Editor) drawEditor() {
 			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
 		}
 
-		// Draw line number only for first visual line
+        // Draw line number only for first visual line
 		if wl.IsFirstLine {
 			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1
 			
-			// Check for git changes
-			isAdded := false
-			isModified := false
-			isDeleted := false
-			if e.buffer.GitChanges != nil {
-				for _, line := range e.buffer.GitChanges.Added {
-					if line == lineNum {
-						isAdded = true
-						break
-					}
-				}
-				if !isAdded {
-					for _, line := range e.buffer.GitChanges.Modified {
-						if line == lineNum {
-							isModified = true
-							break
-						}
-					}
-				}
-				// Check if there's a deletion marker on this line
-				for _, line := range e.buffer.GitChanges.Deleted {
-					if line == wl.LogicalLineNum { // Deleted lines are 0-based
-						isDeleted = true
-						break
-					}
-				}
+            // Draw line number with standard line number style
+			// Compute digit area width (exclude 2 indicator columns and 1 space padding)
+			digitsWidth := lineNumberWidth - 3
+			if digitsWidth < 1 {
+				digitsWidth = 1
 			}
-			
-			// Modify line number style based on git changes
-			lineStyle := lineNumberStyle
-			if isAdded {
-				// Use theme style for added lines
-				lineStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded)
-			} else if isModified {
-				// Use theme style for modified lines
-				lineStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified)
-			} else if isDeleted {
-				// Use theme style for deleted lines
-				lineStyle = e.config.Theme.GetStyle(e.config.Theme.GitDeleted)
-			}
-			
-			// Draw line number with appropriate background
-			lineNumStr := fmt.Sprintf("%*d", lineNumberWidth-1, lineNum)
-			// Fill entire line number area with the background color
+			lineNumStr := fmt.Sprintf("%*d", digitsWidth, lineNum)
+            // Fill entire line number area with the standard background
 			for x := 0; x < lineNumberWidth; x++ {
-				e.screen.SetContent(x, screenY, ' ', nil, lineStyle)
+                e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
 			}
-			// Draw the line number text
-			e.drawText(0, screenY, lineStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
-			
-			// Draw separator with normal style
-			e.screen.SetContent(lineNumberWidth-1, screenY, ' ', nil, lineNumberStyle)
+			// Draw the line number text starting at column 0
+            e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
+            // Draw 1 space padding after digits
+			padX := digitsWidth
+			if padX < lineNumberWidth {
+                e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
+            }
+
+            // Draw git change indicators in the gutter (2 columns after padding)
+            e.drawGutterGitIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
 		} else {
 			// Fill line number area with spaces for wrapped lines
 			for x := 0; x < lineNumberWidth; x++ {
@@ -876,8 +921,8 @@ func (e *Editor) drawEditor() {
 		// Get iterator for this logical line
 		iter := buffer.NewBufferIteratorAtLine(e.buffer, wl.LogicalLineNum)
 		if !iter.IsEOF() {
-			// Draw the wrapped line segment
-			e.drawWrappedLine(iter, wl, lineNumberWidth, screenY)
+            // Draw the wrapped line segment
+            e.drawWrappedLine(iter, wl, lineNumberWidth, screenY)
 		}
 	}
 

@@ -201,15 +201,16 @@ func NewTheme() *Theme {
 		},
 
 		// Git change indicators for line numbers
-		GitAdded: StyleDef{
-			Foreground: "#a6e22e",
-			Background: "#1a4d1a",
-		},
+        // Make added vs modified more distinct while keeping same glyph ▍
+        GitAdded: StyleDef{
+            Foreground: "#7ee031", // brighter, cooler green
+            Background: "#183d18",
+        },
 
-		GitModified: StyleDef{
-			Foreground: "#e6db74",
-			Background: "#4d4d1a",
-		},
+        GitModified: StyleDef{
+            Foreground: "#ffd866", // warmer yellow-orange
+            Background: "#3d3916",
+        },
 
 		GitDeleted: StyleDef{
 			Foreground: "#f92672",

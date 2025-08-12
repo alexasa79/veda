@@ -140,8 +140,8 @@ func TestWhitespaceRenderingIntegration(t *testing.T) {
 	// Get the rendered output
 	mockScreen := te.screen.(*MockScreen)
 	
-	// Line numbers are shown by default, so content starts at x=2 (for "1 ")
-	lineNumberWidth := 2
+    // Line numbers are shown by default; use buffer's configured width
+    lineNumberWidth := te.buffer.LineNumberWidth
 	
 	// Check that tab is rendered as arrow
 	if cell, ok := mockScreen.cells[0][lineNumberWidth]; ok {
