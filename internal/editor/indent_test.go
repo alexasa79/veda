@@ -466,15 +466,54 @@ func TestIndentWithVisualMode(t *testing.T) {
 		// Enter visual line mode
 		te.TypeKeys("V")
 		
-		// Select two lines
-		te.TypeKeys("j")
+        // Select two lines
+        te.TypeKeys("down")
 		
-		// Execute indent command (should work on selected lines)
-		te.ExecuteCommand("indent-line")
-		
-		// First two lines should be indented
-		// Note: This test documents current behavior - visual mode selection
-		// is not yet implemented for indent/unindent
-		AssertBufferEquals(t, te, "    line1\nline2\nline3")
+        // Execute visual indent (>>)
+        te.TypeKeys(">")
+        te.TypeKeys(">")
+        
+        // First two lines should be indented
+        AssertBufferEquals(t, te, "    line1\n    line2\nline3")
+
+        // Cursor should return to start of selection (line1)
+        AssertCursorAt(t, te, 0, 0)
 	})
+
+    t.Run("unindent in visual line mode", func(t *testing.T) {
+        te := NewTestEditorWithContent(80, 24, "    line1\n    line2\nline3")
+
+        te.TypeKeys("V")
+        te.TypeKeys("down")
+        // Execute visual unindent (<<)
+        te.TypeKeys("<")
+        te.TypeKeys("<")
+
+        AssertBufferEquals(t, te, "line1\nline2\nline3")
+        AssertCursorAt(t, te, 0, 0)
+    })
+
+    t.Run("counted visual indent (3>>)", func(t *testing.T) {
+        te := NewTestEditorWithContent(80, 24, "line1\nline2\nline3")
+
+        te.TypeKeys("V")
+        te.TypeKeys("down")
+        // Simulate count prefix by setting repeatCount before executing command
+        te.repeatCount = 3
+        _ = te.executeWithRepeatCount("indent-selection")
+
+        AssertBufferEquals(t, te, "            line1\n            line2\nline3")
+    })
+
+    t.Run("counted visual unindent (2<<)", func(t *testing.T) {
+        te := NewTestEditorWithContent(80, 24, "        line1\n        line2\n    line3")
+
+        te.TypeKeys("V")
+        te.TypeKeys("down")
+        // Simulate count prefix by setting repeatCount before executing command
+        te.repeatCount = 2
+        _ = te.executeWithRepeatCount("unindent-selection")
+
+        AssertBufferEquals(t, te, "line1\nline2\n    line3")
+    })
 }

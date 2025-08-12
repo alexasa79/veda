@@ -514,8 +514,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 		} else if e.mode == commands.CursorMode {
 			e.handleCursorMode(ev)
 		} else {
-			// Normal mode: Handle numeric prefix
-			if e.mode == commands.NormalMode && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' {
+            // Normal and Visual modes: Handle numeric prefix for count operations
+            if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' {
 				// Special case: '0' is a command if no prefix is being built
 				if ev.Rune == '0' && e.countPrefix == "" {
 					// Let it be processed as a normal command (beginning-of-line)
@@ -668,12 +668,25 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 		// For yy, count means "yank N lines" not "yank same line N times"
 		e.lastCommandCount = count
 		return e.yankMultipleLines(count)
+	case "indent-selection":
+		// In visual modes, apply indent by count levels
+		if e.mode == commands.VisualMode || e.mode == commands.VisualLineMode {
+			return e.indentSelectionWithCount(count)
+		}
+		fallthrough
 	case "start-delete", "start-change", "start-yank":
 		// For dd/cc/yy, count means "delete/change/yank N lines" not "repeat operation N times"
 		// Store the count for the pending operation
 		e.pendingCount = count
 		e.lastCommandCount = count
 		return e.executeCommandForAllCursors(command, nil)
+	case "unindent-selection":
+		// In visual modes, apply unindent by count levels
+		if e.mode == commands.VisualMode || e.mode == commands.VisualLineMode {
+			return e.unindentSelectionWithCount(count)
+		}
+		// Otherwise fall through to normal repetition handling
+		fallthrough
 	default:
 		// Check if we should apply to all cursors
 		applyToAll := false

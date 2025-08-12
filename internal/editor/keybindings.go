@@ -189,4 +189,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBindingForModes(visualModes, "x", "delete-selection")
 	e.registerKeyBindingForModes(visualModes, "y", "yank-selection")
 	e.registerKeyBindingForModes(visualModes, "c", "change-selection")
+	// Visual mode indentation
+	e.registerKeyBindingForModes(visualModes, "> >", "indent-selection")
+	e.registerKeyBindingForModes(visualModes, "< <", "unindent-selection")
 }

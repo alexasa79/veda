@@ -57,8 +57,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
 	helpText.WriteString("Alt+Q        - Rewrap paragraph (press again for 100, 120 columns)\n")
-	helpText.WriteString(">>           - Indent current line\n")
-	helpText.WriteString("<<           - Unindent current line\n")
+    helpText.WriteString(">>           - Indent current line (also works in VISUAL to indent selection)\n")
+    helpText.WriteString("<<           - Unindent current line (also works in VISUAL to unindent selection)\n")
 	helpText.WriteString("m            - Enter cursor mode for multiple cursors\n\n")
 	
 	helpText.WriteString("= Cursor Mode =\n")
@@ -109,7 +109,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("ESC          - Exit visual mode\n")
 	helpText.WriteString("d or x       - Delete selected text\n")
 	helpText.WriteString("y            - Yank (copy) selected text to clipboard\n")
-	helpText.WriteString("c            - Change selected text (delete and enter insert mode)\n")
+    helpText.WriteString("c            - Change selected text (delete and enter insert mode)\n")
+    helpText.WriteString(">> / <<      - Indent/Unindent all selected lines\n")
 	helpText.WriteString("All movement keys work in visual mode\n\n")
 	
 	helpText.WriteString("= Insert Mode =\n")
