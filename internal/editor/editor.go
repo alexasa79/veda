@@ -2075,13 +2075,12 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 		return // Nothing to clean up
 	}
 
-	// Check if buffer generation has changed significantly
-	// We only invalidate if there have been many changes that might affect line numbering
-	// Minor changes (like typing in other lines) shouldn't invalidate our tracking
-	if e.buffer.Generation > info.BufferGeneration+20 {
-		delete(e.autoIndentLines, key)
-		return
-	}
+    // Note: Do not invalidate cleanup based on buffer generation differences.
+    // Even if there have been many edits during the insert session, we can
+    // safely inspect the current line content and remove auto-inserted
+    // indentation when the line is whitespace-only. This ensures trailing
+    // spaces on empty auto-indented lines are cleaned up reliably on exit
+    // from insert mode.
 
 	// Get the line content
 	iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNumber)
@@ -2146,7 +2145,7 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 		}
 	}
 
-	// Remove from tracking
+    // Remove from tracking
 	delete(e.autoIndentLines, key)
 }
 
