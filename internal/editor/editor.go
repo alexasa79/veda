@@ -194,6 +194,9 @@ type Editor struct {
 
     // Bracketed paste state
     inPasteMode bool // True while receiving bracketed paste content
+
+    // Remote directory cache: maps normalized working directory to file list
+    dirCache map[string][]proxy.FileInfo
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -265,6 +268,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		lastRewrapChar:   -1,
         lastRewrapIndex:  0,
         inPasteMode:      false,
+        dirCache:         make(map[string][]proxy.FileInfo),
 	}
 
 	// Initialize local history
@@ -370,12 +374,27 @@ func (e *Editor) Run() {
 			// Always check for content updates (even without events)
 			e.renderingState.GetOverlay().CheckContentUpdates()
 
-			if ev != nil {
-				done, result := e.renderingState.GetOverlay().HandleEvent(ev)
-				if done {
-					e.renderingState.CompleteOverlay(result)
-				}
-			}
+            if ev != nil {
+                done, result := e.renderingState.GetOverlay().HandleEvent(ev)
+                if result == "__REFRESH__" {
+                    // Refresh current fuzzy list content from remote (bypass cache)
+                    // We need to identify if the active overlay is the file list. If so, trigger refresh.
+                    // Here we simply re-issue the directory listing request with useCache=false.
+                    if overlay := e.renderingState.GetOverlay(); overlay != nil {
+                        // Create a new update channel and swap it in by creating a new overlay
+                        contentUpdateChan := make(chan []string, 1)
+                        // Kick off fresh request
+                        _ = e.startFuzzyFileListRefresh(contentUpdateChan)
+                        // Replace overlay with a new one that uses the same widget and new channel
+                        // Keep same widget instance so selection and text persist
+                        newOverlay := NewFuzzyListOverlay(overlay.widget, overlay.onTextChanged, contentUpdateChan)
+                        e.renderingState.SetOverlay(newOverlay)
+                    }
+                }
+                if done {
+                    e.renderingState.CompleteOverlay(result)
+                }
+            }
 		} else {
 			// Handle normal editor events
 			if ev != nil {
