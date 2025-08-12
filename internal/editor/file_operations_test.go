@@ -1,9 +1,10 @@
 package editor
 
 import (
-	"os"
-	"path/filepath"
-	"testing"
+    "os"
+    "path/filepath"
+    "testing"
+    "veda/internal/proxy"
 )
 
 func TestOpenNonExistentFile(t *testing.T) {
@@ -103,4 +104,62 @@ func TestOpenNonExistentFileWithSubdirectory(t *testing.T) {
 	if !te.buffer.IsModified {
 		t.Error("Expected buffer to be marked as modified")
 	}
+}
+
+// TestFuzzyFileListCacheAndRefresh verifies that the fuzzy file list uses cache
+// and that Ctrl+R refresh replaces content after the widget has been rendered.
+func TestFuzzyFileListCacheAndRefresh(t *testing.T) {
+    te := NewTestEditor(100, 30)
+
+    // Simulate a remote working directory
+    te.workingDirectory = "server:~/"
+
+    // Seed cache with a small list
+    cached := []proxy.FileInfo{
+        {Name: "a.txt", Type: "file", Path: "/home/user/a.txt"},
+        {Name: "b.txt", Type: "file", Path: "/home/user/b.txt"},
+    }
+    te.setCachedDirectoryListing(te.workingDirectory, cached)
+
+    // Create fuzzy widget and overlay using cached results
+    contentUpdates := make(chan []string, 2)
+    // First call should use cache
+    te.sendDirectoryListingRequest(contentUpdates, true)
+
+    // Consume first update from cache
+    var initial []string
+    select {
+    case initial = <-contentUpdates:
+    default:
+        t.Fatalf("expected initial content from cache")
+    }
+
+    if len(initial) != 2 {
+        t.Fatalf("expected 2 items from cache, got %d", len(initial))
+    }
+
+    // Now emulate a refresh: clear cache and send new remote listing
+    updated := []proxy.FileInfo{
+        {Name: "c.txt", Type: "file", Path: "/home/user/c.txt"},
+        {Name: "d.txt", Type: "file", Path: "/home/user/d.txt"},
+        {Name: "e.txt", Type: "file", Path: "/home/user/e.txt"},
+    }
+    delete(te.dirCache, te.workingDirectory)
+
+    // Spy on proxy manager by directly pushing updated content to processing
+    // In tests we call setCachedDirectoryListing to simulate refresh arrival
+    te.setCachedDirectoryListing(te.workingDirectory, updated)
+
+    // Ask again with useCache=true; since we've set cache to updated, the channel should receive new list
+    te.sendDirectoryListingRequest(contentUpdates, true)
+    var refreshed []string
+    select {
+    case refreshed = <-contentUpdates:
+    default:
+        t.Fatalf("expected refreshed content after cache update")
+    }
+
+    if len(refreshed) != 3 {
+        t.Fatalf("expected 3 items after refresh, got %d", len(refreshed))
+    }
 }

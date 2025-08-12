@@ -65,7 +65,7 @@ func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
 	}
 	
 	// Handle keyboard events
-	if keyEv, ok := event.(*events.KeyEvent); ok {
+    if keyEv, ok := event.(*events.KeyEvent); ok {
 		switch keyEv.Key {
 		case events.KeyUp:
 			flo.widget.MoveSelectionUp()
@@ -89,6 +89,9 @@ func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
 			return true, ""
 		case events.KeyEscape:
 			return true, ""
+        case events.KeyCtrlR:
+            // Signal refresh by returning a special token that editor will handle
+            return false, "__REFRESH__"
 		case events.KeyRune:
 			switch keyEv.Rune {
 			default:

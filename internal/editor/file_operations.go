@@ -63,7 +63,7 @@ func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 }
 
 // sendDirectoryListingRequest sends an async request for directory listing
-func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string) chan fileListingResult {
+func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, useCache bool) chan fileListingResult {
 	// Start async operation tracking
 	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
 	e.startAsyncOperation(operationID)
@@ -79,13 +79,27 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string) ch
 	// Create a channel for the result
 	resultChan := make(chan fileListingResult, 1)
 
-	// Start goroutine to fetch directory listing
-	go func() {
+    // If we can satisfy from cache, do so synchronously
+    if files, ok := e.getCachedDirectoryListing(e.workingDirectory); ok && useCache {
+        LL.Debug("Using cached directory listing for %s", e.workingDirectory)
+        result := e.processFileList(files)
+        if len(result.paths) == 0 {
+            contentUpdateChan <- []string{"No files found"}
+        } else {
+            contentUpdateChan <- result.paths
+        }
+        // Return result immediately
+        resultChan <- result
+        return resultChan
+    }
+
+    // Start goroutine to fetch directory listing (and populate cache)
+    go func() {
 		defer e.endAsyncOperation(operationID)
 		defer func() { e.connectionStatus = "" }() // Clear status when done
 
 		LL.Debug("Fetching directory listing for %s", e.workingDirectory)
-		files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
+        files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
 
 		if err != nil {
 			LL.Debug("Directory listing error: %v", err)
@@ -95,6 +109,8 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string) ch
 		}
 
 		LL.Debug("Got %d files from proxy", len(files))
+        // Store in cache
+        e.setCachedDirectoryListing(e.workingDirectory, files)
 		result := e.processFileList(files)
 
 		if len(result.paths) == 0 {
@@ -210,6 +226,31 @@ func (e *Editor) processFileList(files []proxy.FileInfo) fileListingResult {
 	}
 }
 
+// getCachedDirectoryListing returns cached list if available for a path
+func (e *Editor) getCachedDirectoryListing(path string) ([]proxy.FileInfo, bool) {
+    if e == nil || e.dirCache == nil {
+        return nil, false
+    }
+    if files, ok := e.dirCache[path]; ok {
+        return files, true
+    }
+    return nil, false
+}
+
+// setCachedDirectoryListing stores a directory listing in cache
+func (e *Editor) setCachedDirectoryListing(path string, files []proxy.FileInfo) {
+    if e == nil {
+        return
+    }
+    if e.dirCache == nil {
+        e.dirCache = make(map[string][]proxy.FileInfo)
+    }
+    // Copy slice to avoid external mutation
+    copied := make([]proxy.FileInfo, len(files))
+    copy(copied, files)
+    e.dirCache[path] = copied
+}
+
 
 // resolveSelectedPath converts the selected display path back to full path
 func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]string) string {
@@ -253,8 +294,8 @@ func (e *Editor) ShowFuzzyListWidget() {
 	// Create a channel for content updates
 	contentUpdateChan := make(chan []string, 1)
 
-	// Send async request for directory listing and get result channel
-	resultChan := e.sendDirectoryListingRequest(contentUpdateChan)
+    // Send async request for directory listing and get result channel
+    resultChan := e.sendDirectoryListingRequest(contentUpdateChan, true)
 
 	// Store file paths for mapping back from display names
 	var filePaths map[string]string
@@ -266,7 +307,7 @@ func (e *Editor) ShowFuzzyListWidget() {
 		close(resultChan)
 	}()
 
-	// Create overlay and get result channel
+    // Create overlay and get result channel
     overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
 	overlayResultChan := e.renderingState.SetOverlay(overlay)
 
@@ -281,6 +322,15 @@ func (e *Editor) ShowFuzzyListWidget() {
 		// Don't close contentUpdateChan - the sending goroutine might still be running
 		// The channel will be garbage collected when no longer referenced
 	}()
+}
+
+// startFuzzyFileListRefresh issues a fresh directory request bypassing cache
+func (e *Editor) startFuzzyFileListRefresh(contentUpdateChan chan []string) chan fileListingResult {
+    // Clear any cached entry for this directory to force fetch
+    if e.dirCache != nil {
+        delete(e.dirCache, e.workingDirectory)
+    }
+    return e.sendDirectoryListingRequest(contentUpdateChan, false)
 }
 
 // OpenFile loads a file's content into the editor buffer (exported for main.go)
