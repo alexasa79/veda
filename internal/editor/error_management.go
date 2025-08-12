@@ -101,17 +101,15 @@ func (e *Editor) ShowError(format string, args ...interface{}) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	logEntry := fmt.Sprintf("[%s] %s", timestamp, errorMsg)
 	
-	// Append to messages buffer
-	messagesBuffer.AppendLine(logEntry)
+    // Append to messages buffer; recreating iterators afterwards to avoid generation mismatch
+    messagesBuffer.AppendLine(logEntry)
 	
 	// Ensure the buffer stays read-only
 	messagesBuffer.IsReadOnly = true
 	
-	// If this is the current buffer, recreate its iterators since we modified it
-	if e.buffer == messagesBuffer {
-		messagesBuffer.ViewIterator = buffer.NewBufferIterator(messagesBuffer)
-		messagesBuffer.CursorIterator = buffer.NewBufferIterator(messagesBuffer)
-	}
+    // Recreate iterators to match new generation (whether current or background)
+    messagesBuffer.ViewIterator = buffer.NewBufferIterator(messagesBuffer)
+    messagesBuffer.CursorIterator = buffer.NewBufferIterator(messagesBuffer)
 }
 
 // errorCommand implements the "error" command for testing
