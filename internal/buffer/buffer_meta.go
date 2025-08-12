@@ -281,13 +281,15 @@ func (b *Buffer) GetCurrentLineIndentInfo(iter *BufferIterator) LineIndentInfo {
 
 // UpdateLineNumberWidth calculates and caches the width needed for line numbers
 func (b *Buffer) UpdateLineNumberWidth() {
-	if b.LineCount == 0 {
-		b.LineNumberWidth = 2 // Minimum width for "1 "
-	} else {
-		// Calculate the width needed for the largest line number
-		width := len(fmt.Sprintf("%d", b.LineCount))
-		b.LineNumberWidth = width + 1 // +1 for padding space
-	}
+    if b.LineCount == 0 {
+        // Minimum width: 1 digit + 1 padding + 2 indicator columns
+        b.LineNumberWidth = 4
+    } else {
+        // Calculate the width needed for the largest line number
+        digitsWidth := len(fmt.Sprintf("%d", b.LineCount))
+        // Total = digits + 1 padding + 2 indicator columns
+        b.LineNumberWidth = digitsWidth + 3
+    }
 }
 
 // Insert inserts text at the given position and increments the generation

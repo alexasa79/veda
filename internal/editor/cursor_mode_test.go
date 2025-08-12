@@ -195,7 +195,7 @@ func TestCursorRendering(t *testing.T) {
 		
 		// Get the cell at position (0,0) where virtual cursor is
 		// Note: We need to account for line numbers which shift content right
-		lineNumWidth := 2 // Line number "1 " is 2 characters
+        lineNumWidth := te.buffer.LineNumberWidth
 		char, style := te.mockScreen.GetCell(lineNumWidth, 0)
 		
 		// Check that the character is still 'A'
@@ -228,7 +228,7 @@ func TestCursorRendering(t *testing.T) {
 		te.render()
 		
 		// Check each virtual cursor position has styled background
-		lineNumWidth := 2 // Line numbers are 2 characters
+        lineNumWidth := te.buffer.LineNumberWidth
 		positions := []struct {
 			x, y int
 			char rune
@@ -288,7 +288,7 @@ func TestCursorRendering(t *testing.T) {
 		
 		// Virtual cursor should be at column 6 in the text
 		// With line numbers, this is at screen position lineNumWidth + 6
-		lineNumWidth := 2 // Line numbers are 2 characters
+        lineNumWidth := te.buffer.LineNumberWidth
 		char, style := te.mockScreen.GetCell(lineNumWidth+6, 0)
 		
 		// Check that we're looking at 'W' from "World"
@@ -340,7 +340,7 @@ func TestCursorRendering(t *testing.T) {
 		te.render()
 		
 		// Check that line numbers don't have virtual cursor styling
-		lineNumWidth := 2
+		lineNumWidth := te.buffer.LineNumberWidth
 		theme := theme.NewTheme()
 		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
 		virtualCursorBg := virtualCursorStyle.Bg
@@ -383,7 +383,7 @@ func TestCursorRendering(t *testing.T) {
 		
 		// Check that mock screen's cursor position matches
 		// (accounting for line numbers)
-		lineNumWidth := 2 // Line numbers are 2 characters
+        lineNumWidth := te.buffer.LineNumberWidth
 		screenX, screenY := te.mockScreen.GetCursorPosition()
 		if screenX != lineNumWidth || screenY != 1 {
 			t.Errorf("Expected screen cursor at (%d,1), got (%d,%d)", 
@@ -446,7 +446,7 @@ This is a **bold** text.
 		}
 		
 		// Check first virtual cursor (at beginning of first line)
-		lineNumWidth := 2
+		lineNumWidth := te.buffer.LineNumberWidth
 		char1, style1 := te.mockScreen.GetCell(lineNumWidth, 0)
 		theme := theme.NewTheme()
 		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
@@ -514,7 +514,7 @@ This is a **bold** text.
 		te.render()
 		
 		// Verify all virtual cursors are rendered with the theme's virtual cursor background
-		lineNumWidth := 2
+		lineNumWidth := te.buffer.LineNumberWidth
 		theme := theme.NewTheme()
 		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
 		virtualCursorBg := virtualCursorStyle.Bg

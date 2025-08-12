@@ -33,10 +33,17 @@ func TestLineWrapping_Basic(t *testing.T) {
 	AssertScreenContent(t, screen, 0, 1, " ") // No line number on wrapped lines
 	AssertScreenContent(t, screen, 0, 2, " ")
 	
-	// Check wrapped content
-	AssertScreenLine(t, screen, 0, "1 This is a very")
-	AssertScreenLine(t, screen, 1, "  long line that")
-	AssertScreenLine(t, screen, 2, "  should wrap")
+    // Build expected lines with new gutter width (line number + 2-indicator column + 1 space)
+    digitsWidth := te.buffer.LineNumberWidth - 3
+    if digitsWidth < 1 { digitsWidth = 1 }
+    gutter1 := strings.Repeat(" ", te.buffer.LineNumberWidth)
+    // Compose numeric gutter directly
+    numGutter := func(n int) string { return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
+        func() string { return string('0'+byte(n)) }()) + strings.Repeat(" ", 3) }
+    // For single-digit, numGutter produces digit + 3 spaces
+    AssertScreenLine(t, screen, 0, numGutter(1)+"This is a very")
+    AssertScreenLine(t, screen, 1, gutter1+"long line that")
+    AssertScreenLine(t, screen, 2, gutter1+"should wrap")
 }
 
 // TestLineWrapping_WordBoundary tests wrapping happens at word boundaries
@@ -55,11 +62,15 @@ func TestLineWrapping_WordBoundary(t *testing.T) {
 	te.drawEditor()
 	screen := te.mockScreen.GetContent()
 	
-	// Should wrap at word boundaries, not in the middle of words
-	// Line 1: "1 Hello world"
-	// Line 2: "  programming"
-	AssertScreenLine(t, screen, 0, "1 Hello world")
-	AssertScreenLine(t, screen, 1, "  programming")
+    // Should wrap at word boundaries, not in the middle of words
+    // Compose expected with dynamic gutter
+    digitsWidth := te.buffer.LineNumberWidth - 3
+    if digitsWidth < 1 { digitsWidth = 1 }
+    numGutter := func(n int) string { return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
+        func() string { return string('0'+byte(n)) }()) + strings.Repeat(" ", 3) }
+    wrappedGutter := strings.Repeat(" ", te.buffer.LineNumberWidth)
+    AssertScreenLine(t, screen, 0, numGutter(1)+"Hello world")
+    AssertScreenLine(t, screen, 1, wrappedGutter+"programming")
 }
 
 // TestLineWrapping_LongWord tests wrapping of words longer than screen width
@@ -78,15 +89,20 @@ func TestLineWrapping_LongWord(t *testing.T) {
 	te.drawEditor()
 	screen := te.mockScreen.GetContent()
 	
-	// Long word should be broken at screen width
-	// With 10 columns total and line number "1 " taking 2 columns,
-	// we have 8 columns for text on first line
-	// Line 1: "1 supercal" (8 chars)
-	// Line 2: "  ifragili" (8 chars starting from position 8)
-	// Line 3: "  sticexpi" 
-	// etc.
-	AssertScreenLine(t, screen, 0, "1 supercal")
-	AssertScreenLine(t, screen, 1, "  ifragili")
+    // Long word should be broken at screen width
+    // With line number gutter width dynamic
+    digitsWidth := te.buffer.LineNumberWidth - 3
+    if digitsWidth < 1 { digitsWidth = 1 }
+    numGutter := func(n int) string { return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
+        func() string { return string('0'+byte(n)) }()) + strings.Repeat(" ", 3) }
+    wrappedGutter := strings.Repeat(" ", te.buffer.LineNumberWidth)
+    AssertScreenLine(t, screen, 0, numGutter(1)+"superc") // length depends on width; keep prefix check minimal
+    // Since AssertScreenLine checks full line, compute expected exact slices
+    // For width 10 and gutter 4 -> 6 chars fit on first line
+    expectedFirst := numGutter(1)+"superc"
+    AssertScreenLine(t, screen, 0, expectedFirst)
+    expectedSecond := wrappedGutter+"alifra"
+    AssertScreenLine(t, screen, 1, expectedSecond)
 }
 
 // TestLineWrapping_MultipleLines tests wrapping with multiple logical lines
@@ -114,25 +130,25 @@ func TestLineWrapping_MultipleLines(t *testing.T) {
 	te.drawEditor()
 	screen := te.mockScreen.GetContent()
 	
-	// Expected:
-	// Line 0: "1 Short line"
-	// Line 1: "2 This is a much"
-	// Line 2: "  longer line that"
-	// Line 3: "  wraps"
-	// Line 4: "3 Another short"
-	
-	AssertScreenLine(t, screen, 0, "1 Short line")
-	AssertScreenLine(t, screen, 1, "2 This is a much")
-	AssertScreenLine(t, screen, 2, "  longer line that")
-	AssertScreenLine(t, screen, 3, "  wraps")
-	AssertScreenLine(t, screen, 4, "3 Another short")
+    // Expected using dynamic gutter
+    digitsWidth := te.buffer.LineNumberWidth - 3
+    if digitsWidth < 1 { digitsWidth = 1 }
+    numGutter := func(n int) string { return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
+        func() string { return string('0'+byte(n)) }()) + strings.Repeat(" ", 3) }
+    wrappedGutter := strings.Repeat(" ", te.buffer.LineNumberWidth)
+    AssertScreenLine(t, screen, 0, numGutter(1)+"Short line")
+    AssertScreenLine(t, screen, 1, numGutter(2)+"This is a much")
+    AssertScreenLine(t, screen, 2, wrappedGutter+"longer line that")
+    AssertScreenLine(t, screen, 3, wrappedGutter+"wraps")
+    AssertScreenLine(t, screen, 4, numGutter(3)+"Another short")
 	
 	// Check line numbers
-	AssertScreenContent(t, screen, 0, 0, "1")
-	AssertScreenContent(t, screen, 0, 1, "2")
-	AssertScreenContent(t, screen, 0, 2, " ") // Wrapped line
-	AssertScreenContent(t, screen, 0, 3, " ") // Wrapped line
-	AssertScreenContent(t, screen, 0, 4, "3")
+    // Adjust to new gutter: first column still shows first digit or space; check at digit column 0
+    AssertScreenContent(t, screen, 0, 0, "1")
+    AssertScreenContent(t, screen, 0, 1, "2")
+    AssertScreenContent(t, screen, 0, 2, " ") // Wrapped line
+    AssertScreenContent(t, screen, 0, 3, " ") // Wrapped line
+    AssertScreenContent(t, screen, 0, 4, "3")
 }
 
 // TestLineWrapping_CursorNavigation tests cursor movement with wrapped lines
