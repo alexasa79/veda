@@ -69,6 +69,9 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("delete-selection", e.deleteSelection, false)
 	e.commandRegistry.Register("yank-selection", e.yankSelection, false)
 	e.commandRegistry.Register("change-selection", e.changeSelection, false)
+	// Visual mode indentation
+	e.commandRegistry.Register("indent-selection", e.indentSelection, false)
+	e.commandRegistry.Register("unindent-selection", e.unindentSelection, false)
 
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd, false)
