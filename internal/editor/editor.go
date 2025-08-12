@@ -462,19 +462,40 @@ func (e *Editor) handleEvent(ev events.Event) {
         }
         return
 	case *events.KeyEvent:
-		// Fast-path for paste mode: treat runes and Enter directly, skip keymap logs
+		// Fast-path for paste mode: route runes/enter to the active input target
 		if e.inPasteMode {
 			if ev.Key == events.KeyRune {
-				if len(e.virtualCursors) > 0 {
-					e.insertCharForAllCursors(ev.Rune)
-				} else {
-					e.insertChar(ev.Rune)
+				// If we're in a modal input (search/command), send characters there
+				switch e.mode {
+				case commands.SearchMode:
+					e.searchLine.HandleKey(ev)
+					return
+				case commands.CommandMode:
+					e.commandLine.HandleKey(ev)
+					return
+				default:
+					// Editor text input
+					if len(e.virtualCursors) > 0 {
+						e.insertCharForAllCursors(ev.Rune)
+					} else {
+						e.insertChar(ev.Rune)
+					}
+					return
 				}
-				return
 			}
 			if ev.Key == events.KeyEnter {
-				_ = e.insertNewline(nil)
-				return
+				// Delegate enter to current mode handler to preserve semantics
+				switch e.mode {
+				case commands.SearchMode:
+					e.handleSearchMode(ev)
+					return
+				case commands.CommandMode:
+					e.handleCommandMode(ev)
+					return
+				default:
+					_ = e.insertNewline(nil)
+					return
+				}
 			}
 			// Allow Escape to cancel paste early or other control keys pass through
 		}
