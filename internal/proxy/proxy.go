@@ -311,7 +311,10 @@ func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) 
 
 // GoToDefinition gets the definition location for a symbol (supports HOST:PATH format)
 func (pm *ProxyManager) GoToDefinition(filePath string, line int, character int) ([]Location, error) {
-	client, actualPath, err := pm.getClient(filePath)
+    pm.mu.Lock()
+    defer pm.mu.Unlock()
+
+    client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +324,10 @@ func (pm *ProxyManager) GoToDefinition(filePath string, line int, character int)
 
 // FindReferences finds all references to a symbol (supports HOST:PATH format)
 func (pm *ProxyManager) FindReferences(filePath string, line int, character int, includeDeclaration bool) ([]Location, error) {
-	client, actualPath, err := pm.getClient(filePath)
+    pm.mu.Lock()
+    defer pm.mu.Unlock()
+
+    client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +337,10 @@ func (pm *ProxyManager) FindReferences(filePath string, line int, character int,
 
 // GetCompletions gets completion suggestions at the given position (supports HOST:PATH format)
 func (pm *ProxyManager) GetCompletions(filePath string, line int, character int) (interface{}, error) {
-	client, actualPath, err := pm.getClient(filePath)
+    pm.mu.Lock()
+    defer pm.mu.Unlock()
+
+    client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +363,10 @@ func (pm *ProxyManager) GetDiagnostics(path string) (map[string][]interface{}, e
 
 // GetDocumentSymbols gets document symbols for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
-	client, actualPath, err := pm.getClient(filePath)
+    pm.mu.Lock()
+    defer pm.mu.Unlock()
+
+    client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +389,10 @@ func (pm *ProxyManager) GetLSPMessages(path string, language string) ([]interfac
 
 // GetFoldingRanges gets folding ranges for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
-	client, actualPath, err := pm.getClient(filePath)
+    pm.mu.Lock()
+    defer pm.mu.Unlock()
+
+    client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +415,10 @@ func (pm *ProxyManager) NotifyFileChange(filePath string, content string) error 
 
 // GetSignatureHelp gets signature help for a function (supports HOST:PATH format)
 func (pm *ProxyManager) GetSignatureHelp(filePath string, line int, character int) (interface{}, error) {
-	client, actualPath, err := pm.getClient(filePath)
+    pm.mu.Lock()
+    defer pm.mu.Unlock()
+
+    client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
