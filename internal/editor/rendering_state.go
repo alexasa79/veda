@@ -1,5 +1,7 @@
 package editor
 
+import "veda/internal/widgets"
+
 // RenderingMode represents the current mode of the editor's rendering system
 type RenderingMode int
 
@@ -13,7 +15,7 @@ const (
 // RenderingState manages the editor's rendering state
 type RenderingState struct {
 	mode          RenderingMode
-	overlay       *FuzzyListOverlay
+    overlay       Overlay
 	overlayResult chan string
 }
 
@@ -24,8 +26,16 @@ func NewRenderingState() *RenderingState {
 	}
 }
 
-// SetOverlay activates overlay mode with the given fuzzy list overlay
-func (rs *RenderingState) SetOverlay(overlay *FuzzyListOverlay) <-chan string {
+// Overlay is a generic interface implemented by modal UI overlays
+type Overlay interface {
+    Draw(screen widgets.Screen)
+    CheckContentUpdates()
+    HandleEvent(event interface{}) (bool, string)
+    GetCursorPosition() (int, int)
+}
+
+// SetOverlay activates overlay mode with the given overlay
+func (rs *RenderingState) SetOverlay(overlay Overlay) <-chan string {
 	rs.mode = ModeOverlay
 	rs.overlay = overlay
 	rs.overlayResult = make(chan string, 1)
@@ -52,8 +62,8 @@ func (rs *RenderingState) GetMode() RenderingMode {
 	return rs.mode
 }
 
-// GetOverlay returns the current fuzzy list overlay
-func (rs *RenderingState) GetOverlay() *FuzzyListOverlay {
+// GetOverlay returns the current overlay
+func (rs *RenderingState) GetOverlay() Overlay {
 	return rs.overlay
 }
 

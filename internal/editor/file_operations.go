@@ -248,7 +248,7 @@ func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]s
 
 // ShowFuzzyListWidget displays a fuzzy search widget for file selection
 func (e *Editor) ShowFuzzyListWidget() {
-	fuzzyListWidget := e.createFuzzyListWidget()
+    fuzzyListWidget := e.createFuzzyListWidget()
 
 	// Create a channel for content updates
 	contentUpdateChan := make(chan []string, 1)
@@ -267,7 +267,7 @@ func (e *Editor) ShowFuzzyListWidget() {
 	}()
 
 	// Create overlay and get result channel
-	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
+    overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
 	overlayResultChan := e.renderingState.SetOverlay(overlay)
 
 	// Wait for result in a goroutine
@@ -344,64 +344,90 @@ func (e *Editor) openFile(filePath string) {
 			// For now, check if auto-save exists without time comparison
 			// TODO: Get file modification time from proxy for better recovery detection
 			if exists, _, _ := e.autoSaveManager.GetAutoSaveInfo(resolvedPath); exists {
-				// Show recovery dialog and handle user's choice
-				if e.showRecoveryDialog(resolvedPath) {
-					// User chose to recover from auto-save
-					if recoveredContent, err := e.autoSaveManager.GetAutoSaveContent(resolvedPath); err == nil {
-						content = recoveredContent
-						LL.Info("Recovered content from auto-save for: %s", resolvedPath)
-					} else {
-						LL.Error("Failed to read auto-save content: %v", err)
-					}
-				} else {
-					// User chose not to recover, clean up auto-save
-					e.autoSaveManager.CleanupAutoSave(resolvedPath)
-				}
+                // Present non-blocking recovery dialog using overlay, then finish open based on result
+                width, height := e.screen.Size()
+                dialogWidth := 60
+                dialogHeight := 8
+                dialogX := (width - dialogWidth) / 2
+                dialogY := (height - dialogHeight) / 2
+
+                message := fmt.Sprintf("Auto-save found for %s. Recover unsaved changes?", filepath.Base(resolvedPath))
+                dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, "Recovery", message, e.config.Theme)
+
+                overlay := NewYesNoDialogOverlay(dialog)
+                resultChan := e.renderingState.SetOverlay(overlay)
+
+                // Defer finishing the open based on user's choice, then return immediately
+                go func(origContent string, origChanges *proxy.FileChanges, origBranch string, origDiagnostics []proxy.Diagnostic) {
+                    res := <-resultChan
+                    // Close overlay handled by renderingState when result arrives
+                    finalContent := origContent
+                    if res == string(widgets.DialogResultYes) {
+                        if recoveredContent, err := e.autoSaveManager.GetAutoSaveContent(resolvedPath); err == nil {
+                            finalContent = recoveredContent
+                            LL.Info("Recovered content from auto-save for: %s", resolvedPath)
+                        } else {
+                            LL.Error("Failed to read auto-save content: %v", err)
+                        }
+                    } else if res == string(widgets.DialogResultNo) {
+                        // Clean up auto-save on explicit No
+                        e.autoSaveManager.CleanupAutoSave(resolvedPath)
+                    }
+                    e.finishOpenFile(resolvedPath, finalContent, origChanges, origBranch, origDiagnostics)
+                }(content, changes, branch, diagnostics)
+
+                return
 			}
 		}
 	}
 
-	// Create a new buffer with the file content (empty for new files)
-	newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-	
-	LL.Debug("Setting buffer changes to %+v", changes)
-	
+    // Finish opening immediately (no recovery dialog shown)
+    e.finishOpenFile(resolvedPath, content, changes, branch, diagnostics)
+}
+
+// finishOpenFile finalizes opening a file into a buffer and switching to it
+func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *proxy.FileChanges, branch string, diagnostics []proxy.Diagnostic) {
+    // Create a new buffer with the file content (empty for new files)
+    newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+
+    LL.Debug("Setting buffer changes to %+v", changes)
+
     // Store the git changes, branch, and diagnostics in the buffer
-	newBuffer.GitChanges = changes
-	newBuffer.GitBranch = branch
+    newBuffer.GitChanges = changes
+    newBuffer.GitBranch = branch
     newBuffer.Diagnostics = diagnostics
 
-	// Add to buffers map and order
-	e.buffers[resolvedPath] = newBuffer
+    // Add to buffers map and order
+    e.buffers[resolvedPath] = newBuffer
 
-	// If this is replacing the empty buffer AND it's still empty, remove it
-	// We should keep the unnamed buffer if the user has typed anything into it
-	if !e.buffer.HasFile() {
-		if unnamedBuffer, exists := e.buffers["[No Name]"]; exists {
-			// Only remove if the buffer is truly empty
-			if unnamedBuffer.Rope.String() == "" {
-				delete(e.buffers, "[No Name]")
-				for i, path := range e.bufferOrder {
-					if path == "[No Name]" {
-						e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
-						break
-					}
-				}
-			}
-		}
-	}
+    // If this is replacing the empty buffer AND it's still empty, remove it
+    // We should keep the unnamed buffer if the user has typed anything into it
+    if !e.buffer.HasFile() {
+        if unnamedBuffer, exists := e.buffers["[No Name]"]; exists {
+            // Only remove if the buffer is truly empty
+            if unnamedBuffer.Rope.String() == "" {
+                delete(e.buffers, "[No Name]")
+                for i, path := range e.bufferOrder {
+                    if path == "[No Name]" {
+                        e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
+                        break
+                    }
+                }
+            }
+        }
+    }
 
-	// Add new buffer to order
-	e.bufferOrder = append(e.bufferOrder, resolvedPath)
+    // Add new buffer to order
+    e.bufferOrder = append(e.bufferOrder, resolvedPath)
 
-	// Switch to the new buffer
-	e.switchToBuffer(newBuffer)
+    // Switch to the new buffer
+    e.switchToBuffer(newBuffer)
 
-	// Detect indentation for the new file
-	newBuffer.Indentation = e.detectIndentation()
+    // Detect indentation for the new file
+    newBuffer.Indentation = e.detectIndentation()
 
-	// Request folding ranges from LSP worker thread
-	e.requestFoldingRanges(resolvedPath)
+    // Request folding ranges from LSP worker thread
+    e.requestFoldingRanges(resolvedPath)
 
     // Enable LSP support and request a non-blocking diagnostics refresh
     if newBuffer.HasFile() {

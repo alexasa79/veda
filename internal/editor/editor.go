@@ -414,8 +414,8 @@ func (e *Editor) render() {
 	e.drawStatusBar()
 	t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
 
-	// Render overlay if active
-	if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
+    // Render overlay if active
+    if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
 		if widgetScreen, ok := e.screen.(widgets.Screen); ok {
 			e.renderingState.GetOverlay().Draw(widgetScreen)
 		}
