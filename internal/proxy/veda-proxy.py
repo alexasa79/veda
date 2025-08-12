@@ -18,6 +18,9 @@ import threading
 import queue
 import re
 
+# Proxy version must match the Go client's ProxyVersion constant.
+PROXY_VERSION = "1.0.0"
+
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
     level=logging.DEBUG,
@@ -1694,6 +1697,13 @@ class JSONRPCHandler:
 
 def main():
     """Main entry point."""
+    # Emit version handshake as the very first line on stdout
+    try:
+        print(json.dumps({"version": PROXY_VERSION}), flush=True)
+    except Exception:
+        # If this fails, continue; client will time out and handle copying
+        pass
+
     proxy = VedaProxy()
     handler = JSONRPCHandler(proxy)
     

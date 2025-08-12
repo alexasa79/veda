@@ -152,6 +152,18 @@ Currently the buffer package and editor package have tests. When adding new func
 ## Proxy Implementation Notes
 - All access to the file is implemented via proxy process. The proxy is written in Python. It has a client side implemented in proxy.go.
 
+### Proxy Versioning and Startup
+- The proxy consists of two parts that must be kept in sync: the Go client (`internal/proxy/proxy.go`) and the Python server (`internal/proxy/veda-proxy.py`).
+- Both sides declare a version string which MUST always match:
+  - Go: `ProxyVersion` constant in `internal/proxy/proxy.go`
+  - Python: `PROXY_VERSION` constant in `internal/proxy/veda-proxy.py`
+- Every time you change either `proxy.go` or `veda-proxy.py`, increment both versions to a new value and keep them identical.
+- Startup behavior for remote hosts:
+  - On opening a remote path, the editor attempts to start `/tmp/veda-proxy.py` over SSH without copying first.
+  - The Python proxy prints a JSON hello line with its version as the first stdout message.
+  - If the version does not match the Go `ProxyVersion`, the editor kills the proxy, copies the embedded Python script to the remote host, and restarts it.
+  - If the proxy script is missing on the remote host, the editor copies it and proceeds as above.
+
 ## Project Language Notes
 - The project is written in Go. The only file written in other programming language is veda-proxy.py. This is the only non-Go file this project will ever have.
 
