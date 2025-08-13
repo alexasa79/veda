@@ -1082,6 +1082,46 @@ func (e *Editor) drawStatusBar() {
 			}
 		}
 
+		// Add diagnostic counts if there are any
+		if e.buffer.Diagnostics != nil && len(e.buffer.Diagnostics) > 0 {
+			errorCount := 0
+			warningCount := 0
+			
+			// Count errors and warnings
+			for _, diag := range e.buffer.Diagnostics {
+				switch diag.Severity {
+				case "error":
+					errorCount++
+				case "warning":
+					warningCount++
+				}
+			}
+			
+			// Show diagnostic counts with colored circles
+			if errorCount > 0 || warningCount > 0 {
+				x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space before diagnostics
+				
+				// Red circle for errors
+				if errorCount > 0 {
+					errorStyle := statusBarStyle
+					errorStyle.Fg = ui.ColorRed
+					x += e.drawText(x, statusBarY, errorStyle, "●", 0, nil, -1, 0, -1)
+					x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", errorCount), 0, nil, -1, 0, -1)
+				}
+				
+				// Yellow circle for warnings (with space if we have both)
+				if warningCount > 0 {
+					if errorCount > 0 {
+						x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space between error and warning
+					}
+					warningStyle := statusBarStyle
+					warningStyle.Fg = ui.ColorYellow
+					x += e.drawText(x, statusBarY, warningStyle, "●", 0, nil, -1, 0, -1)
+					x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", warningCount), 0, nil, -1, 0, -1)
+				}
+			}
+		}
+
 		// Add LSP indicator if LSP is available
 		if e.buffer.HasLSP {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1)
