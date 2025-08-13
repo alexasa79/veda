@@ -3,8 +3,9 @@ package editor
 import "time"
 
 // startAsyncOperation registers a new async operation
-func (e *Editor) startAsyncOperation(id string) {
+func (e *Editor) startAsyncOperation(id string, reason string) {
 	e.asyncOperations[id] = true
+	LL.Debug("Starting spinner for operation '%s': %s", id, reason)
 }
 
 // endAsyncOperation marks an async operation as complete

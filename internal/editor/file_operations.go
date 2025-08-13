@@ -66,7 +66,7 @@ func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, useCache bool) chan fileListingResult {
 	// Start async operation tracking
 	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
-	e.startAsyncOperation(operationID)
+	e.startAsyncOperation(operationID, "listing directory: "+e.workingDirectory)
 
 	// Set connection status
 	host, _, isRemote := parsePathComponents(e.workingDirectory)
@@ -88,6 +88,9 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
         } else {
             contentUpdateChan <- result.paths
         }
+        // End the async operation since we're serving from cache
+        e.endAsyncOperation(operationID)
+        e.connectionStatus = "" // Clear status when done
         // Return result immediately
         resultChan <- result
         return resultChan
@@ -589,7 +592,7 @@ func (e *Editor) showProjectSymbolsList() {
 
 		// Start async operation tracking
 		operationID := fmt.Sprintf("project-symbols-%s", newText)
-		e.startAsyncOperation(operationID)
+		e.startAsyncOperation(operationID, "searching project symbols: "+newText)
 		
 		// Set connection status
 		if len(newText) > 0 {
@@ -721,7 +724,7 @@ func (e *Editor) showDocumentSymbolsList() {
 
 	// Send async LSP request for document symbols
 	operationID := fmt.Sprintf("doc-symbols-%s", e.buffer.FilePath)
-	e.startAsyncOperation(operationID)
+	e.startAsyncOperation(operationID, "loading document symbols for: "+e.buffer.FilePath)
 	
 	// Set connection status
 	e.connectionStatus = "Loading document symbols"
