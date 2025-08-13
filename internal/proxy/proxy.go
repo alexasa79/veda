@@ -19,6 +19,9 @@ var LL *log.Logger = log.NewLogger("PROXY")
 // maxScanTokenSize defines the maximum size for scanner buffers (1 GiB)
 const maxScanTokenSize = 1024 * 1024 * 1024 // 1 GiB
 
+// ProxyRequestTimeout defines the timeout for proxy requests
+const ProxyRequestTimeout = 3 * time.Second
+
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
@@ -630,6 +633,76 @@ type Client struct {
 	requestID int
 }
 
+// sendRequestWithTimeout sends a JSON RPC request and waits for response with timeout
+func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]interface{}, error) {
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Send the request
+	if _, err := c.stdin.WriteString(string(requestBytes) + "\n"); err != nil {
+		return nil, fmt.Errorf("failed to write request: %w", err)
+	}
+	if err := c.stdin.Flush(); err != nil {
+		return nil, fmt.Errorf("failed to flush request: %w", err)
+	}
+
+	// Create channels for receiving response or timeout
+	responseChan := make(chan map[string]interface{}, 1)
+	errorChan := make(chan error, 1)
+
+	// Start goroutine to read response
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				errorChan <- fmt.Errorf("panic in response reading: %v", r)
+			}
+		}()
+		
+		if c.stdout.Scan() {
+			responseText := c.stdout.Text()
+			
+			// Only log first 500 chars to avoid spamming logs with large responses
+			logText := responseText
+			if len(logText) > 500 {
+				logText = logText[:500] + "... (truncated)"
+			}
+			LL.Trace("Proxy response: %s", logText)
+			
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(responseText), &response); err != nil {
+				LL.Debug("Failed to unmarshal proxy response: %v, response length: %d", err, len(responseText))
+				// Only log first 200 chars of raw response to avoid log spam
+				if len(responseText) > 200 {
+					LL.Debug("Raw response (first 200 chars): %q", responseText[:200])
+				} else {
+					LL.Debug("Raw response: %q", responseText)
+				}
+				errorChan <- fmt.Errorf("failed to unmarshal response: %w", err)
+				return
+			}
+			responseChan <- response
+		} else {
+			if err := c.stdout.Err(); err != nil {
+				errorChan <- fmt.Errorf("scanner error: %w", err)
+			} else {
+				errorChan <- fmt.Errorf("no data received from proxy")
+			}
+		}
+	}()
+
+	// Wait for response or timeout using time.After instead of context
+	select {
+	case response := <-responseChan:
+		return response, nil
+	case err := <-errorChan:
+		return nil, err
+	case <-time.After(ProxyRequestTimeout):
+		return nil, fmt.Errorf("proxy request timeout after %v", ProxyRequestTimeout)
+	}
+}
+
 // NewClient creates a new proxy client and starts the proxy process
 func NewClient() (*Client, error) {
 	cmd := exec.Command("python3", proxyScriptPath)
@@ -696,27 +769,18 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 		ID:     c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 
-
-	if c.stdout.Scan() {
-		var response JSONRPCResponse
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		var files []FileInfo
-		for _, item := range response.Result {
+	var files []FileInfo
+	if result, ok := response["result"].([]interface{}); ok {
+		for _, item := range result {
 			if fileMap, ok := item.(map[string]interface{}); ok {
 				file := FileInfo{}
 
@@ -740,46 +804,31 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 				}
 			}
 		}
-		return files, nil
 	}
-
-	// Check for scanner error
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("scanner error: %v", err)
-	}
-
-	return nil, fmt.Errorf("failed to read proxy response: no data received")
+	return files, nil
 }
 
 // ListDirectoryRecursive sends a JSON RPC request to get recursive directory listing
 func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
+	c.requestID++
 	request := JSONRPCRequest{
 		Method: "list_directory_recursive",
 		Params: map[string]interface{}{"path": path},
-		ID:     2,
+		ID:     c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 
-
-	if c.stdout.Scan() {
-		var response JSONRPCResponse
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		var files []FileInfo
-		for _, item := range response.Result {
+	var files []FileInfo
+	if result, ok := response["result"].([]interface{}); ok {
+		for _, item := range result {
 			if fileMap, ok := item.(map[string]interface{}); ok {
 				file := FileInfo{}
 
@@ -803,15 +852,8 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 				}
 			}
 		}
-		return files, nil
 	}
-
-	// Check for scanner error
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("scanner error: %v", err)
-	}
-
-	return nil, fmt.Errorf("failed to read proxy response: no data received")
+	return files, nil
 }
 
 // parseRemotePath parses a path and returns (host, path, isRemote)
@@ -838,59 +880,48 @@ func parseRemotePath(path string) (string, string, bool) {
 func (c *Client) GetFile(path string) (*FileContent, error) {
 	LL.Debug("Client.GetFile: path=%s", path)
 	
+	c.requestID++
 	request := JSONRPCRequest{
 		Method: "get_file",
 		Params: map[string]interface{}{"path": path},
-		ID:     3,
+		ID:     c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 
+	fileContent := &FileContent{
+		Changes: FileChanges{
+			Added:    []int{},
+			Deleted:  []int{},
+			Modified: []int{},
+		},
+		Diagnostics: []Diagnostic{},
+	}
 
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, err
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		fileContent := &FileContent{
-			Changes: FileChanges{
-				Added:    []int{},
-				Deleted:  []int{},
-				Modified: []int{},
-			},
-			Diagnostics: []Diagnostic{},
-		}
-
-		if content, ok := response.Result["content"].(string); ok {
+	// Parse result
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if content, ok := result["content"].(string); ok {
 			fileContent.Content = content
 		} else {
 			return nil, fmt.Errorf("missing content in response")
 		}
 		
 		// Parse branch if present
-		if branch, ok := response.Result["branch"].(string); ok {
+		if branch, ok := result["branch"].(string); ok {
 			fileContent.Branch = branch
 		} else {
 			fileContent.Branch = "main" // Default
 		}
 
 		// Parse changes if present
-		if changes, ok := response.Result["changes"].(map[string]interface{}); ok {
+		if changes, ok := result["changes"].(map[string]interface{}); ok {
 			if added, ok := changes["added"].([]interface{}); ok {
 				for _, v := range added {
 					if line, ok := v.(float64); ok {
@@ -914,109 +945,79 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 			}
 		}
 
-        // Parse diagnostics if present
-        if diags, ok := response.Result["diagnostics"].([]interface{}); ok {
+		// Parse diagnostics if present
+		if diags, ok := result["diagnostics"].([]interface{}); ok {
 			for _, item := range diags {
 				if dm, ok := item.(map[string]interface{}); ok {
 					d := Diagnostic{}
 					if ln, ok := dm["line"].(float64); ok { d.Line = int(ln) }
 					if sev, ok := dm["severity"].(string); ok { d.Severity = sev }
 					if msg, ok := dm["message"].(string); ok { d.Message = msg }
-                    if sc, ok := dm["start_char"].(float64); ok { d.StartChar = int(sc) }
-                    if ec, ok := dm["end_char"].(float64); ok { d.EndChar = int(ec) }
+					if sc, ok := dm["start_char"].(float64); ok { d.StartChar = int(sc) }
+					if ec, ok := dm["end_char"].(float64); ok { d.EndChar = int(ec) }
 					if d.Line > 0 && d.Severity != "" {
 						fileContent.Diagnostics = append(fileContent.Diagnostics, d)
 					}
 				}
 			}
 		}
-
-		return fileContent, nil
 	}
 
-	return nil, fmt.Errorf("failed to read proxy response")
+	return fileContent, nil
 }
 
 // StartLSPServer starts an LSP server for the specified language
 func (c *Client) StartLSPServer(language string) error {
+	c.requestID++
 	request := JSONRPCRequest{
 		Method: "start_lsp_server",
 		Params: map[string]interface{}{"language": language},
-		ID:     4,
+		ID:     c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return err
 	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && success {
-			return nil
-		}
-
-		return fmt.Errorf("failed to start LSP server for %s", language)
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return fmt.Errorf("proxy error: %s", errorMsg)
 	}
 
-	return fmt.Errorf("failed to read proxy response")
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("failed to start LSP server for %s", language)
 }
 
 // StopLSPServer stops the LSP server for the specified language
 func (c *Client) StopLSPServer(language string) error {
+	c.requestID++
 	request := JSONRPCRequest{
 		Method: "stop_lsp_server",
 		Params: map[string]interface{}{"language": language},
-		ID:     5,
+		ID:     c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return err
 	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && success {
-			return nil
-		}
-
-		return fmt.Errorf("failed to stop LSP server for %s", language)
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return fmt.Errorf("proxy error: %s", errorMsg)
 	}
 
-	return fmt.Errorf("failed to read proxy response")
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("failed to stop LSP server for %s", language)
 }
 
 // GoToDefinition gets the definition location for a symbol at the given position
@@ -1032,34 +1033,18 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 		ID: c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	// Log the request for debugging
-	LL.Trace("GoToDefinition request: %s", string(requestBytes))
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && !success {
-			if errMsg, ok := response.Result["error"].(string); ok {
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && !success {
+			if errMsg, ok := result["error"].(string); ok {
 				return nil, fmt.Errorf("LSP error: %s", errMsg)
 			}
 			return nil, fmt.Errorf("failed to get definition")
@@ -1067,8 +1052,8 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 
 		// Parse the LSP result
 		var locations []Location
-		if result, ok := response.Result["result"].([]interface{}); ok {
-			for _, item := range result {
+		if lspResult, ok := result["result"].([]interface{}); ok {
+			for _, item := range lspResult {
 				if locMap, ok := item.(map[string]interface{}); ok {
 					loc := Location{}
 					if uri, ok := locMap["uri"].(string); ok {
@@ -1095,7 +1080,7 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 					locations = append(locations, loc)
 				}
 			}
-		} else if locMap, ok := response.Result["result"].(map[string]interface{}); ok {
+		} else if locMap, ok := result["result"].(map[string]interface{}); ok {
 			// Single location response
 			loc := Location{}
 			if uri, ok := locMap["uri"].(string); ok {
@@ -1127,11 +1112,7 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 		return locations, nil
 	}
 
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("scanner error: %v", err)
-	}
-
-	return nil, fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("failed to get definition")
 }
 
 // FindReferences finds all references to a symbol at the given position
@@ -1148,33 +1129,18 @@ func (c *Client) FindReferences(filePath string, line int, character int, includ
 		ID: c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	// Log the request for debugging
-	LL.Trace("FindReferences request: %s", string(requestBytes))
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && !success {
-			if errMsg, ok := response.Result["error"].(string); ok {
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && !success {
+			if errMsg, ok := result["error"].(string); ok {
 				return nil, fmt.Errorf("LSP error: %s", errMsg)
 			}
 			return nil, fmt.Errorf("failed to find references")
@@ -1182,8 +1148,8 @@ func (c *Client) FindReferences(filePath string, line int, character int, includ
 
 		// Parse the LSP result
 		var locations []Location
-		if result, ok := response.Result["result"].([]interface{}); ok {
-			for _, item := range result {
+		if lspResult, ok := result["result"].([]interface{}); ok {
+			for _, item := range lspResult {
 				if locMap, ok := item.(map[string]interface{}); ok {
 					loc := Location{}
 					if uri, ok := locMap["uri"].(string); ok {
@@ -1215,11 +1181,7 @@ func (c *Client) FindReferences(filePath string, line int, character int, includ
 		return locations, nil
 	}
 
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("scanner error: %v", err)
-	}
-
-	return nil, fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("failed to find references")
 }
 
 // GetLSPMessages gets all LSP messages for a specific language
@@ -1231,39 +1193,24 @@ func (c *Client) GetLSPMessages(language string) ([]interface{}, error) {
 		ID:     c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if messages, ok := response.Result["messages"].([]interface{}); ok {
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if messages, ok := result["messages"].([]interface{}); ok {
 				return messages, nil
 			}
 		}
-
-		return nil, fmt.Errorf("failed to get LSP messages")
 	}
 
-	return nil, fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("failed to get LSP messages")
 }
 
 // GetLSPNotifications gets pending showMessage notifications for a language
@@ -1275,45 +1222,30 @@ func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{},
 		ID:     c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if notifications, ok := response.Result["notifications"].([]interface{}); ok {
-				var result []map[string]interface{}
-				for _, n := range notifications {
-					if notif, ok := n.(map[string]interface{}); ok {
-						result = append(result, notif)
-					}
-				}
-				return result, nil
-			}
-		}
-
-		return nil, fmt.Errorf("failed to get LSP notifications")
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
 
-	return nil, fmt.Errorf("failed to read proxy response")
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if notifications, ok := result["notifications"].([]interface{}); ok {
+				var notifResult []map[string]interface{}
+				for _, n := range notifications {
+					if notif, ok := n.(map[string]interface{}); ok {
+						notifResult = append(notifResult, notif)
+					}
+				}
+				return notifResult, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to get LSP notifications")
 }
 
 // GetDocumentSymbols gets document symbols (functions, classes, etc.) for a file
@@ -1327,43 +1259,21 @@ func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 		ID: c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	// Log the request for debugging
-	LL.Trace("GetDocumentSymbols request: %s", string(requestBytes))
-
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	if err := c.stdin.Flush(); err != nil {
-		return nil, fmt.Errorf("failed to flush request: %w", err)
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
 
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-
-		responseText := c.stdout.Text()
-		LL.Trace("GetDocumentSymbols response: %s", responseText)
-
-		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
-			return nil, err
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if result, ok := response.Result["result"].([]interface{}); ok {
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if lspResult, ok := result["result"].([]interface{}); ok {
 				// Convert the result to DocumentSymbol objects
-				symbols := make([]DocumentSymbol, 0, len(result))
-				for _, item := range result {
+				symbols := make([]DocumentSymbol, 0, len(lspResult))
+				for _, item := range lspResult {
 					symbolData, err := json.Marshal(item)
 					if err != nil {
 						continue
@@ -1384,18 +1294,12 @@ func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 			}
 		}
 
-		if errorMsg, ok := response.Result["error"].(string); ok {
+		if errorMsg, ok := result["error"].(string); ok {
 			return nil, fmt.Errorf("LSP error: %s", errorMsg)
 		}
-
-		return nil, fmt.Errorf("failed to get document symbols")
 	}
 
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("scanner error: %w", err)
-	}
-
-	return nil, fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("failed to get document symbols")
 }
 
 // GetFoldingRanges gets folding ranges for a file
@@ -1409,43 +1313,21 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 		ID: c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	// Log the request for debugging
-	LL.Trace("GetFoldingRanges request: %s", string(requestBytes))
-
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	if err := c.stdin.Flush(); err != nil {
-		return nil, fmt.Errorf("failed to flush request: %w", err)
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
 
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-
-		responseText := c.stdout.Text()
-		LL.Trace("GetFoldingRanges response: %s", responseText)
-
-		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
-			return nil, err
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if result, ok := response.Result["result"].([]interface{}); ok {
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if lspResult, ok := result["result"].([]interface{}); ok {
 				// Convert the result to FoldingRange objects
-				ranges := make([]FoldingRange, 0, len(result))
-				for _, item := range result {
+				ranges := make([]FoldingRange, 0, len(lspResult))
+				for _, item := range lspResult {
 					rangeData, err := json.Marshal(item)
 					if err != nil {
 						continue
@@ -1460,18 +1342,12 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 			}
 		}
 
-		if errorMsg, ok := response.Result["error"].(string); ok {
+		if errorMsg, ok := result["error"].(string); ok {
 			return nil, fmt.Errorf("LSP error: %s", errorMsg)
 		}
-
-		return nil, fmt.Errorf("failed to get folding ranges")
 	}
 
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("scanner error: %w", err)
-	}
-
-	return nil, fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("failed to get folding ranges")
 }
 
 // NotifyFileChange notifies the LSP server about file content changes
@@ -1486,52 +1362,31 @@ func (c *Client) NotifyFileChange(filePath string, content string) error {
 		ID: c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return err
 	}
 
-	// Log the request for debugging (but not the full content)
-	LL.Trace("NotifyFileChange request for file: %s", filePath)
-
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-	if c.stdout.Scan() {
-		responseText := c.stdout.Text()
-		
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
-			return fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response["error"] != nil {
-			return fmt.Errorf("proxy error: %v", response["error"])
-		}
-
-		if result, ok := response["result"].(map[string]interface{}); ok {
-			if status, ok := result["status"].(string); ok {
-				if status == "success" {
-					LL.Trace("Successfully sent didChange notification for %s", filePath)
-					return nil
-				} else if status == "skipped" {
-					// Not an error, just no LSP for this file
-					return nil
-				}
-			}
-			if errorMsg, ok := result["error"].(string); ok {
-				return fmt.Errorf("%s", errorMsg)
-			}
-		}
-		
-		return nil
+	if errorMsg, ok := response["error"]; ok && errorMsg != nil {
+		return fmt.Errorf("proxy error: %v", errorMsg)
 	}
 
-	if err := c.stdout.Err(); err != nil {
-		return fmt.Errorf("scanner error: %w", err)
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if status, ok := result["status"].(string); ok {
+			if status == "success" {
+				LL.Trace("Successfully sent didChange notification for %s", filePath)
+				return nil
+			} else if status == "skipped" {
+				// Not an error, just no LSP for this file
+				return nil
+			}
+		}
+		if errorMsg, ok := result["error"].(string); ok {
+			return fmt.Errorf("%s", errorMsg)
+		}
 	}
-
-	return fmt.Errorf("failed to notify file change")
+	
+	return nil
 }
 
 // GetSignatureHelp gets signature help for a function at the given position
@@ -1547,38 +1402,21 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 		ID: c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	// Log the request for debugging
-	LL.Trace("GetSignatureHelp request: %s", string(requestBytes))
+	if errorMsg, ok := response["error"]; ok && errorMsg != nil {
+		return nil, fmt.Errorf("proxy error: %v", errorMsg)
+	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-
-	if c.stdout.Scan() {
-		responseText := c.stdout.Text()
-		LL.Trace("GetSignatureHelp response: %s", responseText)
-
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if result["success"] == true && result["result"] != nil {
+			return result["result"], nil
 		}
-
-		if response["error"] != nil {
-			return nil, fmt.Errorf("proxy error: %v", response["error"])
-		}
-
-		if result, ok := response["result"].(map[string]interface{}); ok {
-			if result["success"] == true && result["result"] != nil {
-				return result["result"], nil
-			}
-			if errorMsg, ok := result["error"].(string); ok {
-				return nil, fmt.Errorf("%s", errorMsg)
-			}
+		if errorMsg, ok := result["error"].(string); ok {
+			return nil, fmt.Errorf("%s", errorMsg)
 		}
 	}
 
@@ -1596,38 +1434,18 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 		ID: c.requestID,
 	}
 
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 
-	// Log the request for debugging
-	LL.Trace("ListProjectSymbols request: %s", string(requestBytes))
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-
-
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		
-		responseText := c.stdout.Text()
-		LL.Trace("ListProjectSymbols response: %s", responseText)
-		
-		if err := json.Unmarshal([]byte(responseText), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if symbolsData, ok := response.Result["symbols"].([]interface{}); ok {
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if symbolsData, ok := result["symbols"].([]interface{}); ok {
 				// Convert the result to ProjectSymbol objects
 				symbols := make([]ProjectSymbol, 0, len(symbolsData))
 				for _, item := range symbolsData {
@@ -1645,23 +1463,17 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 			}
 		}
 
-		if errorMsg, ok := response.Result["error"].(string); ok {
+		if errorMsg, ok := result["error"].(string); ok {
 			return nil, fmt.Errorf("LSP error: %s", errorMsg)
 		}
-
-		return nil, fmt.Errorf("no symbols found in project")
 	}
 
-	if err := c.stdout.Err(); err != nil {
-		return nil, fmt.Errorf("scanner error: %w", err)
-	}
-
-	return nil, fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("no symbols found in project")
 }
 
-// Close terminates the proxy process
 // WriteFile writes content to a file
 func (c *Client) WriteFile(path string, content string) error {
+	c.requestID++
 	request := JSONRPCRequest{
 		Method: "write_file",
 		Params: map[string]interface{}{
@@ -1670,38 +1482,23 @@ func (c *Client) WriteFile(path string, content string) error {
 		},
 		ID: c.requestID,
 	}
-	c.requestID++
 	
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return err
 	}
 	
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-	
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return err
-		}
-		
-		if response.Error != "" {
-			return fmt.Errorf("proxy error: %s", response.Error)
-		}
-		
-		if result, ok := response.Result["success"].(bool); ok && result {
-			return nil
-		}
-		
-		return fmt.Errorf("failed to write file")
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return fmt.Errorf("proxy error: %s", errorMsg)
 	}
 	
-	return fmt.Errorf("failed to read proxy response")
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("failed to write file")
 }
 
 // GetCompletions gets completion suggestions at the given position
@@ -1717,41 +1514,24 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 		ID: c.requestID,
 	}
 	
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 	
-	// Log the request for debugging
-	LL.Trace("GetCompletions request: %s", string(requestBytes))
-	
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-	
-	if c.stdout.Scan() {
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal(c.stdout.Bytes(), &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal response: %v", err)
-		}
-		
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-		
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if result, ok := response.Result["result"]; ok {
-				return result, nil
-			}
-		}
-		
-		return nil, fmt.Errorf("no completions found")
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
 	
-	return nil, fmt.Errorf("failed to read proxy response")
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if lspResult, ok := result["result"]; ok {
+				return lspResult, nil
+			}
+		}
+	}
+	
+	return nil, fmt.Errorf("no completions found")
 }
 
 // GetDiagnostics retrieves all diagnostics from all open files
@@ -1763,52 +1543,31 @@ func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
 		ID:     c.requestID,
 	}
 	
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 	
-	// Log the request for debugging
-	LL.Trace("GetDiagnostics request: %s", string(requestBytes))
-	
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-	
-	// Read response
-	if c.stdout.Scan() {
-		line := c.stdout.Text()
-		LL.Trace("GetDiagnostics response: %s", line)
-		
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal([]byte(line), &response); err != nil {
-			return nil, err
-		}
-		
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-		
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if diagnostics, ok := response.Result["diagnostics"].(map[string]interface{}); ok {
-				// Convert map[string]interface{} to map[string][]interface{}
-				result := make(map[string][]interface{})
-				for uri, diags := range diagnostics {
-					if diagList, ok := diags.([]interface{}); ok {
-						result[uri] = diagList
-					}
-				}
-				return result, nil
-			}
-		}
-		
-		return nil, fmt.Errorf("no diagnostics found")
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
 	
-	return nil, fmt.Errorf("failed to read proxy response")
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if diagnostics, ok := result["diagnostics"].(map[string]interface{}); ok {
+				// Convert map[string]interface{} to map[string][]interface{}
+				diagResult := make(map[string][]interface{})
+				for uri, diags := range diagnostics {
+					if diagList, ok := diags.([]interface{}); ok {
+						diagResult[uri] = diagList
+					}
+				}
+				return diagResult, nil
+			}
+		}
+	}
+	
+	return nil, fmt.Errorf("no diagnostics found")
 }
 
 // GetProjectChanges retrieves all changes in the project
@@ -1822,37 +1581,18 @@ func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
 		ID:     c.requestID,
 	}
 	
-	requestBytes, err := json.Marshal(request)
+	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
 	
-	// Log the request for debugging
-	LL.Trace("GetProjectChanges request: %s", string(requestBytes))
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
 	
-	c.stdin.WriteString(string(requestBytes) + "\n")
-	c.stdin.Flush()
-	
-	// Read response
-	if c.stdout.Scan() {
-		line := c.stdout.Text()
-		LL.Trace("GetProjectChanges response: %s", line)
-		
-		var response struct {
-			ID     int                    `json:"id"`
-			Result map[string]interface{} `json:"result,omitempty"`
-			Error  string                 `json:"error,omitempty"`
-		}
-		if err := json.Unmarshal([]byte(line), &response); err != nil {
-			return nil, err
-		}
-		
-		if response.Error != "" {
-			return nil, fmt.Errorf("proxy error: %s", response.Error)
-		}
-		
-		if success, ok := response.Result["success"].(bool); ok && success {
-			if changes, ok := response.Result["changes"].([]interface{}); ok {
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if changes, ok := result["changes"].([]interface{}); ok {
 				var projectChanges []ProjectChange
 				for _, change := range changes {
 					if changeMap, ok := change.(map[string]interface{}); ok {
@@ -1882,11 +1622,9 @@ func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
 				return projectChanges, nil
 			}
 		}
-		
-		return nil, fmt.Errorf("no changes found")
 	}
 	
-	return nil, fmt.Errorf("failed to read proxy response")
+	return nil, fmt.Errorf("no changes found")
 }
 
 func (c *Client) Close() error {
