@@ -55,7 +55,7 @@ func (e *Editor) openLineBelow(args []string) error {
 	}
 
 	// Enter insert mode
-	e.mode = commands.InsertMode
+	e.switchToInsertMode()
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		e.buffer.History.StartInsertSession("o")
@@ -148,7 +148,7 @@ func (e *Editor) openLineAbove(args []string) error {
 	}
 
 	// Enter insert mode
-	e.mode = commands.InsertMode
+	e.switchToInsertMode()
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		e.buffer.History.StartInsertSession("O")
@@ -352,6 +352,16 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Update completion menu filter if visible
 	e.updateCompletionFilter()
+
+	// If we just typed an opening parenthesis in insert mode, trigger signature help
+	if !e.inPasteMode && ch == '(' && e.mode == commands.InsertMode {
+		// Check if we're now in a function call context
+		if e.isLikelyInsideCallOnCurrentLine() {
+			// Increment generation and request signature help
+			e.buffer.SignatureGeneration++
+			e.requestSignatureHelpAsync()
+		}
+	}
 
 	return nil
 }

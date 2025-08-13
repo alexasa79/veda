@@ -202,7 +202,7 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 				editor.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(editor.buffer, viewLine)
 				
 				// Enter insert mode
-				editor.mode = commands.InsertMode
+				editor.switchToInsertMode()
 				
 				// Start tracking insert mode changes
 				if editor.buffer.History != nil {
@@ -221,7 +221,7 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	}
 	
 	// Then enter insert mode
-	editor.mode = commands.InsertMode
+	editor.switchToInsertMode()
 	
 	// Start tracking insert mode changes
 	if editor.buffer != nil && editor.buffer.History != nil {

@@ -342,7 +342,7 @@ func (e *Editor) clearSearchCmd(args []string) error {
 	// If we're in temporary normal mode, return to insert mode
 	if e.temporaryNormal {
 		e.temporaryNormal = false
-		e.mode = commands.InsertMode
+		e.switchToInsertMode()
 	}
 	
 	// Also reset any pending key sequences

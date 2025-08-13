@@ -645,7 +645,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 					// return to insert mode
 					if e.temporaryNormal && !e.keyMapper.HasPending() {
 						e.temporaryNormal = false
-						e.mode = commands.InsertMode
+						e.switchToInsertMode()
 					}
 				}
 			}
@@ -740,7 +740,7 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 		if wasTemporaryNormal && e.mode == commands.NormalMode {
 			LL.Debug("executeWithRepeatCount: Returning to insert mode after temporary normal command")
 			e.temporaryNormal = false
-			e.mode = commands.InsertMode
+			e.switchToInsertMode()
 		}
 
 		// Store the count for repeat command only for text-modifying commands
@@ -1293,7 +1293,7 @@ func (e *Editor) appendAfterCursor(args []string) error {
 	}
 
 	// Enter insert mode
-	e.mode = commands.InsertMode
+	e.switchToInsertMode()
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		e.buffer.History.StartInsertSession("a")
@@ -1310,7 +1310,7 @@ func (e *Editor) appendAtEndOfLine(args []string) error {
 	}
 
 	// Enter insert mode
-	e.mode = commands.InsertMode
+	e.switchToInsertMode()
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		e.buffer.History.StartInsertSession("A")
