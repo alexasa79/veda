@@ -1212,10 +1212,10 @@ func (e *Editor) drawStatusBar() {
 // drawErrorLine renders the error message above the status bar
 func (e *Editor) drawErrorLine() {
     width, _ := e.screen.Size()
-    bannerY := e.getStatusBarY() - 1
 
     // Show temporary errors on top (override diagnostics)
     if currentError := e.errorManager.GetCurrentError(); currentError != "" {
+        bannerY := e.getStatusBarY() - 1
         style := e.config.Theme.GetStyle(e.config.Theme.Normal)
         style.Bg = ui.ColorRed
         style.Fg = ui.ColorWhite
@@ -1242,10 +1242,48 @@ func (e *Editor) drawErrorLine() {
         default:
             return
         }
-        for i := 0; i < width; i++ {
-            e.screen.SetContent(i, bannerY, ' ', nil, style)
+        
+        // Split diagnostic message by newlines and render each line
+        message := strings.ReplaceAll(diag.Message, "\r", "") // Remove carriage returns
+        allLines := strings.Split(message, "\n")
+        
+        // Filter out empty lines
+        var lines []string
+        for _, line := range allLines {
+            cleanLine := strings.TrimSpace(line)
+            if cleanLine != "" {
+                lines = append(lines, cleanLine)
+            }
         }
-        e.drawText(0, bannerY, style, " "+diag.Message+" ", 0, nil, -1, 0, -1)
+        
+        // Limit to reasonable number of lines to avoid taking up too much screen space
+        maxLines := 3
+        if len(lines) > maxLines {
+            lines = lines[:maxLines]
+            // Add truncation indicator to last line
+            if len(lines) > 0 {
+                lines[len(lines)-1] = lines[len(lines)-1] + "..."
+            }
+        }
+        
+        // Render each line, starting from the bottom and working up
+        statusBarY := e.getStatusBarY()
+        for i, line := range lines {
+            bannerY := statusBarY - len(lines) + i
+            
+            // Fill the entire line with background
+            for j := 0; j < width; j++ {
+                e.screen.SetContent(j, bannerY, ' ', nil, style)
+            }
+            
+            // Clean the line by collapsing multiple spaces
+            cleanLine := line
+            for strings.Contains(cleanLine, "  ") {
+                cleanLine = strings.ReplaceAll(cleanLine, "  ", " ")
+            }
+            
+            e.drawText(0, bannerY, style, " "+cleanLine+" ", 0, nil, -1, 0, -1)
+        }
     }
 }
 
