@@ -23,7 +23,7 @@ func (e *Editor) showCompletions() error {
 	
 	// Track as async operation to show spinner
 	operationID := "completions"
-	e.startAsyncOperation(operationID)
+	e.startAsyncOperation(operationID, "fetching code completions for: "+prefix)
 	
 	// Launch goroutine to fetch completions
 	go func() {

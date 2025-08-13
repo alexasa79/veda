@@ -1954,7 +1954,7 @@ func (e *Editor) handlePendingPath() {
 
 	// Start async operation
 	operationID := "path-resolution"
-	e.startAsyncOperation(operationID)
+	e.startAsyncOperation(operationID, "resolving file path: "+path)
 	defer e.endAsyncOperation(operationID)
 
 	// Update connection status
