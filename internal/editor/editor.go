@@ -381,14 +381,17 @@ func (e *Editor) Run() {
                     // We need to identify if the active overlay is the file list. If so, trigger refresh.
                     // Here we simply re-issue the directory listing request with useCache=false.
                     if overlay := e.renderingState.GetOverlay(); overlay != nil {
-                        // Create a new update channel and swap it in by creating a new overlay
-                        contentUpdateChan := make(chan []string, 1)
-                        // Kick off fresh request
-                        _ = e.startFuzzyFileListRefresh(contentUpdateChan)
-                        // Replace overlay with a new one that uses the same widget and new channel
-                        // Keep same widget instance so selection and text persist
-                        newOverlay := NewFuzzyListOverlay(overlay.widget, overlay.onTextChanged, contentUpdateChan)
-                        e.renderingState.SetOverlay(newOverlay)
+                        // Only handle refresh for FuzzyListOverlay
+                        if fuzzyOverlay, ok := overlay.(*FuzzyListOverlay); ok {
+                            // Create a new update channel and swap it in by creating a new overlay
+                            contentUpdateChan := make(chan []string, 1)
+                            // Kick off fresh request
+                            _ = e.startFuzzyFileListRefresh(contentUpdateChan)
+                            // Replace overlay with a new one that uses the same widget and new channel
+                            // Keep same widget instance so selection and text persist
+                            newOverlay := NewFuzzyListOverlay(fuzzyOverlay.widget, fuzzyOverlay.onTextChanged, contentUpdateChan)
+                            e.renderingState.SetOverlay(newOverlay)
+                        }
                     }
                 }
                 if done {
