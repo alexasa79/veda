@@ -3,6 +3,7 @@ package editor
 import (
 	"testing"
 	"veda/internal/buffer"
+	"veda/internal/commands"
 	"veda/internal/proxyworker"
 )
 
@@ -291,4 +292,155 @@ func TestUpdateCursorStateCallsCheckSignature(t *testing.T) {
 	if te.buffer.SignatureGeneration != initialGen+1 {
 		t.Errorf("Expected generation to increment after updateCursorState, but it didn't")
 	}
+}
+
+func TestAutomaticSignatureHelp(t *testing.T) {
+	t.Run("automatic signature help on entering insert mode between parentheses", func(t *testing.T) {
+		// Create test editor with function call syntax
+		content := "fmt.Printf()"
+		te := NewTestEditorWithContent(80, 24, content)
+		
+		// Position cursor between parentheses (after the opening paren)
+		// The content is "fmt.Printf()" - we want cursor at position 11 (after the opening paren)
+		// Move to that position
+		for i := 0; i < len("fmt.Printf("); i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Verify we're in the right position (between parens)
+		cursorX, _ := te.GetCursorPosition()
+		expectedX := len("fmt.Printf(")
+		if cursorX != expectedX {
+			t.Errorf("Cursor not in expected position. Expected X=%d, got X=%d", expectedX, cursorX)
+		}
+		
+		// Record initial generation
+		initialGen := te.buffer.SignatureGeneration
+		
+		// Enter insert mode - should automatically trigger signature help
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Verify we're in insert mode
+		if te.mode != commands.InsertMode {
+			t.Errorf("Expected to be in insert mode, got %v", te.mode)
+		}
+		
+		// Verify generation was incremented (automatic signature help triggered)
+		if te.buffer.SignatureGeneration != initialGen+1 {
+			t.Errorf("Expected signature generation to increment when entering insert mode between parentheses, but it remained %d", te.buffer.SignatureGeneration)
+		}
+	})
+
+	t.Run("no automatic signature help when not between parentheses", func(t *testing.T) {
+		// Create test editor with regular text
+		content := "hello world"
+		te := NewTestEditorWithContent(80, 24, content)
+		
+		// Position cursor somewhere in the middle
+		te.ExecuteCommand("right")
+		te.ExecuteCommand("right")
+		
+		// Record initial generation
+		initialGen := te.buffer.SignatureGeneration
+		
+		// Enter insert mode - should NOT trigger signature help
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Verify we're in insert mode
+		if te.mode != commands.InsertMode {
+			t.Errorf("Expected to be in insert mode, got %v", te.mode)
+		}
+		
+		// Verify generation was NOT incremented (no signature help)
+		if te.buffer.SignatureGeneration != initialGen {
+			t.Errorf("Expected signature generation to remain %d when not between parentheses, but it became %d", initialGen, te.buffer.SignatureGeneration)
+		}
+	})
+
+	t.Run("signature help hidden when exiting insert mode", func(t *testing.T) {
+		// Create test editor with function call syntax
+		content := "fmt.Printf()"
+		te := NewTestEditorWithContent(80, 24, content)
+		
+		// Position cursor between parentheses (after the opening paren)
+		for i := 0; i < len("fmt.Printf("); i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Enter insert mode to trigger signature help
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Simulate having signature help (normally would come from LSP)
+		te.buffer.CurrentSignature = &buffer.SignatureHelp{
+			Label: "Printf(format string, a ...interface{}) (n int, err error)",
+		}
+		
+		// Verify signature help is present
+		if te.buffer.CurrentSignature == nil {
+			t.Fatal("Expected signature help to be present for this test")
+		}
+		
+		// Exit insert mode - should hide signature help
+		te.ExecuteCommand("exit-insert-mode")
+		
+		// Verify we're back in normal mode
+		if te.mode != commands.NormalMode {
+			t.Errorf("Expected to be in normal mode after exiting insert mode, got %v", te.mode)
+		}
+		
+		// Verify signature help was cleared
+		if te.buffer.CurrentSignature != nil {
+			t.Errorf("Expected signature help to be cleared when exiting insert mode, but it's still present")
+		}
+	})
+
+	t.Run("signature help triggered when typing opening parenthesis", func(t *testing.T) {
+		// Create test editor with function name (no parentheses yet)
+		content := "fmt.Printf"
+		te := NewTestEditorWithContent(80, 24, content)
+		
+		// Position cursor at end of line and enter insert mode
+		te.ExecuteCommand("end-of-line")
+		// Use 'a' command to position cursor after current character and enter insert mode
+		te.ExecuteCommand("append-after-cursor")
+		
+		// Record initial generation
+		initialGen := te.buffer.SignatureGeneration
+		
+		// Type opening parenthesis - should trigger signature help
+		te.InsertChar('(')
+		
+		// Verify signature generation was incremented (signature help requested)
+		if te.buffer.SignatureGeneration != initialGen+1 {
+			t.Errorf("Expected signature generation to increment when typing '(' in insert mode, initial=%d, current=%d", initialGen, te.buffer.SignatureGeneration)
+		}
+		
+		// Verify the content now includes the parenthesis
+		expectedContent := "fmt.Printf("
+		actualContent := te.buffer.Rope.String()
+		if actualContent != expectedContent {
+			t.Errorf("Expected content '%s', got '%s'", expectedContent, actualContent)
+		}
+	})
+
+	t.Run("no signature help when typing other characters", func(t *testing.T) {
+		// Create test editor with function name
+		content := "fmt.Printf"
+		te := NewTestEditorWithContent(80, 24, content)
+		
+		// Position cursor at end of line and enter insert mode
+		te.ExecuteCommand("end-of-line")
+		te.ExecuteCommand("enter-insert-mode")
+		
+		// Record initial generation
+		initialGen := te.buffer.SignatureGeneration
+		
+		// Type a regular character - should NOT trigger signature help
+		te.InsertChar('x')
+		
+		// Verify signature generation was NOT incremented
+		if te.buffer.SignatureGeneration != initialGen {
+			t.Errorf("Expected signature generation to remain %d when typing regular characters, but it became %d", initialGen, te.buffer.SignatureGeneration)
+		}
+	})
 }

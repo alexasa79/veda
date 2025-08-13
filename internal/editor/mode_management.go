@@ -288,13 +288,26 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 	}
 }
 
+// switchToInsertMode is a helper function to handle the common logic for entering insert mode
+func (e *Editor) switchToInsertMode() {
+	e.mode = commands.InsertMode
+	
+	// Check if we're between parentheses and automatically show signature help
+	if e.buffer != nil && e.isLikelyInsideCallOnCurrentLine() {
+		// Increment generation and request signature help
+		e.buffer.SignatureGeneration++
+		e.requestSignatureHelpAsync()
+	}
+}
+
 // enterInsertMode switches the editor to insert mode
 func (e *Editor) enterInsertMode(args []string) error {
-	e.mode = commands.InsertMode
+	e.switchToInsertMode()
 	// Start tracking insert mode changes
 	if e.buffer != nil && e.buffer.History != nil {
 		e.buffer.History.StartInsertSession("i")
 	}
+	
 	// Visual selection is handled in the editor struct, not buffer
 	return nil
 }
@@ -323,6 +336,11 @@ func (e *Editor) exitInsertMode(args []string) error {
 	
 	// Clear temporary normal flag if set
 	e.temporaryNormal = false
+	
+	// Hide signature help when exiting insert mode
+	if e.buffer != nil {
+		e.buffer.CurrentSignature = nil
+	}
 	
 	// End the insert session
 	if e.buffer != nil && e.buffer.History != nil {

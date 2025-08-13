@@ -1,5 +1,7 @@
 package editor
 
+import "veda/internal/commands"
+
 
 // getSignatureY returns the Y position where signature should be drawn
 func (e *Editor) getSignatureY() int {
@@ -71,7 +73,39 @@ func (e *Editor) checkSignatureUpdate() {
     if e.inPasteMode {
         return
     }
-	// Only check if we have an active signature
+	
+	// In insert mode, check if we should show signature help automatically
+	if e.mode == commands.InsertMode {
+		if e.isLikelyInsideCallOnCurrentLine() {
+			// We're in insert mode and between parentheses
+			if e.buffer.CurrentSignature == nil {
+				// We don't have signature help but should - request it
+				e.buffer.SignatureGeneration++
+				e.requestSignatureHelpAsync()
+				return
+			}
+			// We already have signature help - check if we should update it
+			if !e.buffer.CursorIterator.IsEOF() {
+				line := e.buffer.CursorIterator.Line()
+				if e.buffer.CursorX < len(line) {
+					ch := line[e.buffer.CursorX]
+					if ch == ',' || ch == ')' {
+						// Increment generation and re-request
+						e.buffer.SignatureGeneration++
+						e.requestSignatureHelpAsync()
+					}
+				}
+			}
+		} else {
+			// We're in insert mode but not between parentheses - hide signature
+			if e.buffer.CurrentSignature != nil {
+				e.buffer.CurrentSignature = nil
+			}
+		}
+		return
+	}
+	
+	// In non-insert modes, only check if we have an active signature
 	if e.buffer.CurrentSignature == nil {
 		return
 	}
