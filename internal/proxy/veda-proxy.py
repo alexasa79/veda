@@ -19,7 +19,7 @@ import queue
 import re
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.0"
+PROXY_VERSION = "1.0.1"
 
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
@@ -1208,16 +1208,16 @@ class VedaProxy:
         except PermissionError:
             raise PermissionError(f"Permission denied: {path}")
 
-    def write_file(self, path: str, content: str) -> Dict[str, bool]:
+    def write_file(self, path: str, content: str) -> Dict[str, Any]:
         """
-        Write content to a file.
+        Write content to a file and return diagnostics.
         
         Args:
             path: Absolute file path to write
             content: Content to write to the file
             
         Returns:
-            Dictionary with 'success' key indicating if the write was successful
+            Dictionary with 'success' key and 'diagnostics' list
         """
         file_path = Path(path).expanduser().resolve()
         logger.info(f"Writing file: {path} (resolved to {file_path})")
@@ -1235,7 +1235,41 @@ class VedaProxy:
                 # TODO: Send didSave notification to LSP server
                 logger.info(f"File saved, should notify LSP server for {language}")
             
-            return {'success': True}
+            # Collect diagnostics for this file from LSP cache
+            diagnostics_list = []
+            try:
+                uri = f"file://{str(file_path)}"
+                raw_diags = self.lsp.diagnostics.get(uri, []) or []
+                for d in raw_diags:
+                    rng = d.get('range', {})
+                    start = rng.get('start', {})
+                    end = rng.get('end', {})
+                    # LSP lines are 0-based; convert to 1-based
+                    line_1_based = int(start.get('line', 0)) + 1
+                    start_char = int(start.get('character', 0) or 0)
+                    end_char = int(end.get('character', start_char) or start_char)
+                    severity_num = int(d.get('severity', 0) or 0)
+                    if severity_num == 1:
+                        sev = 'error'
+                    elif severity_num == 2:
+                        sev = 'warning'
+                    elif severity_num == 3:
+                        sev = 'info'
+                    elif severity_num == 4:
+                        sev = 'hint'
+                    else:
+                        sev = 'info'
+                    diagnostics_list.append({
+                        'line': line_1_based,
+                        'severity': sev,
+                        'message': d.get('message', ''),
+                        'start_char': start_char,
+                        'end_char': end_char,
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to translate diagnostics for {path}: {e}")
+            
+            return {'success': True, 'diagnostics': diagnostics_list}
         except PermissionError:
             raise PermissionError(f"Permission denied: {path}")
         except Exception as e:
