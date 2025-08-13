@@ -1,5 +1,7 @@
 package editor
 
+import "strings"
+
 // Layout calculation methods
 // These methods centralize the calculation of screen areas, making it easy to change
 // the layout of the editor without modifying multiple places in the code
@@ -13,9 +15,15 @@ func (e *Editor) getVisibleHeight() int {
 	if e.buffer.CurrentSignature != nil {
 		reserved += e.getSignatureLines()
 	}
-	// Reserve space for error line if shown
+	// Reserve space for error/diagnostic lines if shown
 	if e.errorManager.GetCurrentError() != "" {
 		reserved += 1
+	} else {
+		// Reserve space for diagnostic lines if we have a diagnostic for current line
+		cursorLine := e.buffer.CursorIterator.LineNumber() + 1
+		if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+			reserved += e.getDiagnosticLineCount(diag.Message)
+		}
 	}
 	return height - reserved
 }
@@ -108,6 +116,29 @@ func (e *Editor) updateSyntaxHighlighting() {
 		// Force a full reparse by not reusing the old tree
 		e.highlighter.ParseFull([]byte(content))
 	}
+}
+
+// getDiagnosticLineCount returns the number of lines needed to display a diagnostic message
+func (e *Editor) getDiagnosticLineCount(message string) int {
+	// Remove carriage returns and split by newlines
+	cleanMessage := strings.ReplaceAll(message, "\r", "")
+	allLines := strings.Split(cleanMessage, "\n")
+	
+	// Filter out empty lines
+	var lines []string
+	for _, line := range allLines {
+		cleanLine := strings.TrimSpace(line)
+		if cleanLine != "" {
+			lines = append(lines, cleanLine)
+		}
+	}
+	
+	// Limit to reasonable number of lines to avoid taking up too much screen space
+	maxLines := 3
+	if len(lines) > maxLines {
+		return maxLines
+	}
+	return len(lines)
 }
 
 // handleResize processes screen resize events
