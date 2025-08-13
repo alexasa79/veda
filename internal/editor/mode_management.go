@@ -363,6 +363,9 @@ func (e *Editor) exitInsertMode(args []string) error {
 		e.buffer.CursorX--
 	}
 
+	// Update syntax highlighting after all insert mode changes are complete
+	e.updateSyntaxHighlighting()
+
 	// The setLastChange will be handled by the history system
 
 	return nil
