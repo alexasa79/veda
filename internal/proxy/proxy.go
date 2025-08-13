@@ -25,7 +25,7 @@ const ProxyRequestTimeout = 3 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.0"
+const ProxyVersion = "1.0.1"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -277,8 +277,8 @@ func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
 	return fileContent, err
 }
 
-// WriteFile writes content to a file (local or remote)
-func (pm *ProxyManager) WriteFile(path string, content string) error {
+// WriteFile writes content to a file (local or remote) and returns diagnostics
+func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	
@@ -286,18 +286,18 @@ func (pm *ProxyManager) WriteFile(path string, content string) error {
 	
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	
 	LL.Debug("ProxyManager.WriteFile: path=%s, actualPath=%s", path, actualPath)
 	
 	// Call the client's WriteFile with the actual path (without HOST: prefix)
-	err = client.WriteFile(actualPath, content)
+	diagnostics, err := client.WriteFile(actualPath, content)
 	if err == nil {
 		duration := time.Since(startTime)
 		LL.Info("Wrote file %s in %v", path, duration)
 	}
-	return err
+	return diagnostics, err
 }
 
 // ListDirectory lists directory contents (supports HOST:PATH format)
@@ -1471,8 +1471,8 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 	return nil, fmt.Errorf("no symbols found in project")
 }
 
-// WriteFile writes content to a file
-func (c *Client) WriteFile(path string, content string) error {
+// WriteFile writes content to a file and returns diagnostics
+func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
 	c.requestID++
 	request := JSONRPCRequest{
 		Method: "write_file",
@@ -1485,20 +1485,38 @@ func (c *Client) WriteFile(path string, content string) error {
 	
 	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	
 	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
-		return fmt.Errorf("proxy error: %s", errorMsg)
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
+	
+	var diagnostics []Diagnostic
 	
 	if result, ok := response["result"].(map[string]interface{}); ok {
 		if success, ok := result["success"].(bool); ok && success {
-			return nil
+			// Parse diagnostics if present
+			if diags, ok := result["diagnostics"].([]interface{}); ok {
+				for _, item := range diags {
+					if dm, ok := item.(map[string]interface{}); ok {
+						d := Diagnostic{}
+						if ln, ok := dm["line"].(float64); ok { d.Line = int(ln) }
+						if sev, ok := dm["severity"].(string); ok { d.Severity = sev }
+						if msg, ok := dm["message"].(string); ok { d.Message = msg }
+						if sc, ok := dm["start_char"].(float64); ok { d.StartChar = int(sc) }
+						if ec, ok := dm["end_char"].(float64); ok { d.EndChar = int(ec) }
+						if d.Line > 0 && d.Severity != "" {
+							diagnostics = append(diagnostics, d)
+						}
+					}
+				}
+			}
+			return diagnostics, nil
 		}
 	}
 	
-	return fmt.Errorf("failed to write file")
+	return nil, fmt.Errorf("failed to write file")
 }
 
 // GetCompletions gets completion suggestions at the given position

@@ -860,11 +860,14 @@ func (e *Editor) writeFile(args []string) error {
 		}
 	}
 
-	// Write the file
-	err := e.proxyManager.WriteFile(filePath, content)
+	// Write the file and get updated diagnostics
+	diagnostics, err := e.proxyManager.WriteFile(filePath, content)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
+	
+	// Update buffer diagnostics with the returned diagnostics
+	e.buffer.Diagnostics = diagnostics
 
 	// If this is a "save as" operation, update the buffer's file path
 	if saveAs {
