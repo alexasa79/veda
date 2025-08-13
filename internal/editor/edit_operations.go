@@ -363,6 +363,30 @@ func (e *Editor) insertChar(ch rune) error {
 		}
 	}
 
+	// Auto-trigger completion menu for member access operators in insert mode with LSP
+	if !e.inPasteMode && e.mode == commands.InsertMode && e.buffer != nil && e.buffer.HasLSP {
+		shouldTriggerCompletion := false
+		
+		if ch == '.' {
+			// Triggered by typing '.'
+			shouldTriggerCompletion = true
+		} else if ch == '>' {
+			// Check if we just typed '->' (arrow operator)
+			line := e.buffer.CursorIterator.Line()
+			if e.buffer.CursorX >= 2 && len(line) >= 2 {
+				// Check if the previous character is '-' to form '->'
+				if line[e.buffer.CursorX-2] == '-' {
+					shouldTriggerCompletion = true
+				}
+			}
+		}
+		
+		if shouldTriggerCompletion {
+			// Trigger completion menu automatically
+			e.showCompletions()
+		}
+	}
+
 	return nil
 }
 
