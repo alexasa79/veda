@@ -185,14 +185,16 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			}
 		}
 
-		// Check if this column is a ruler position
+		// Check if this column is a ruler position (only in content area, not status bar)
 		// Calculate text column position (screenX minus line number width)
 		textColumn := screenX - e.buffer.LineNumberWidth
 		isRulerColumn := false
-		for _, rulerPos := range e.config.VerticalRulers {
-			if textColumn == rulerPos {
-				isRulerColumn = true
-				break
+		if y != e.getStatusBarY() { // Don't apply ruler styling on status bar
+			for _, rulerPos := range e.config.VerticalRulers {
+				if textColumn == rulerPos {
+					isRulerColumn = true
+					break
+				}
 			}
 		}
 
