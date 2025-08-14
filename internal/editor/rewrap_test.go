@@ -341,7 +341,6 @@ understand what is NAT router and router overall.`,
 }
 
 func TestRewrapCommandUndoRedo(t *testing.T) {
-	t.Skip("Skipping undo/redo test due to iterator invalidation issues")
 	// Create test editor with a long line
 	input := "This is a very long line that needs to be wrapped because it exceeds the width limit."
 	te := NewTestEditorWithContent(100, 24, input)
