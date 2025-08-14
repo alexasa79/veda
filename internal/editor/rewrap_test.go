@@ -414,9 +414,10 @@ func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 		t.Errorf("First line length %d not near 40 characters", firstLineLen)
 	}
 	
-	// Save cursor position
-	savedLine := te.Editor.buffer.CursorIterator.LineNumber()
-	savedChar := te.Editor.buffer.CursorX
+    // Save cursor position after first rewrap; subsequent rewraps at "same place"
+    // should cycle to the next ruler even if CursorX shifts. We'll reuse these to return later.
+    savedLine := te.Editor.buffer.CursorIterator.LineNumber()
+    savedChar := te.Editor.buffer.CursorX
 	
 	// Second rewrap at same position - should cycle to second ruler (60)
 	err = te.Editor.rewrapParagraph()
@@ -452,8 +453,8 @@ func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 	// Move cursor back to original position
 	te.SetCursorPosition(savedChar, savedLine)
 	
-	// Fourth rewrap at original position - should start over at first ruler (40)
-	// because we've been to a different position
+    // Fourth rewrap at original position - should start over at first ruler (40)
+    // because we've been to a different position
 	err = te.Editor.rewrapParagraph()
 	if err != nil {
 		t.Fatalf("Fourth rewrapParagraph() failed: %v", err)
