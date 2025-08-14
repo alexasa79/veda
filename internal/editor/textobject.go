@@ -602,3 +602,396 @@ func (s SearchResultTextObject) findMatchesInBuffer(buf *buffer.Buffer, pattern 
 	return matches
 }
 
+// ArgumentTextObject represents function arguments using simple parsing (no LSP required)
+type ArgumentTextObject struct {
+	modifier TextObjectModifier
+}
+
+func NewArgumentTextObject(modifier TextObjectModifier) *ArgumentTextObject {
+	return &ArgumentTextObject{
+		modifier: modifier,
+	}
+}
+
+func (a ArgumentTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	// Find the enclosing parentheses
+	openLine, openChar := a.findOpeningParen(buf, cursorLine, cursorChar)
+	if openLine == -1 {
+		return 0, 0, 0, 0, false
+	}
+	
+	closeLine, closeChar := a.findClosingParen(buf, openLine, openChar)
+	if closeLine == -1 {
+		return 0, 0, 0, 0, false
+	}
+	
+	// Parse arguments within the parentheses and find the one containing the cursor
+	argStart, argEnd := a.findCurrentArgument(buf, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar)
+	if argStart.line == -1 {
+		return 0, 0, 0, 0, false
+	}
+	
+	// Apply modifier (inside vs around)
+	if a.modifier == ModifierAround {
+		// Include surrounding commas and spaces
+		argStart, argEnd = a.expandAroundArgument(buf, openLine, openChar, closeLine, closeChar, argStart, argEnd)
+	}
+	
+	return argStart.line, argStart.char, argEnd.line, argEnd.char, true
+}
+
+func (a ArgumentTextObject) GetType() string {
+	if a.modifier == ModifierInside {
+		return "argument-inside"
+	}
+	return "argument-around"
+}
+
+type position struct {
+	line int
+	char int
+}
+
+func (a ArgumentTextObject) findOpeningParen(buf *buffer.Buffer, startLine, startChar int) (int, int) {
+	// Search backwards for opening parenthesis, handling nesting
+	depth := 0
+	line := startLine
+	char := startChar
+	
+	for line >= 0 {
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
+		
+		lineStr := iter.Line()
+		if line == startLine {
+			char = min(char, len(lineStr)-1)
+		} else {
+			char = len(lineStr) - 1
+		}
+		
+		for char >= 0 {
+			if char < len(lineStr) {
+				ch := rune(lineStr[char])
+				if ch == ')' {
+					depth++
+				} else if ch == '(' {
+					if depth == 0 {
+						return line, char
+					}
+					depth--
+				}
+			}
+			char--
+		}
+		
+		line--
+	}
+	
+	return -1, -1
+}
+
+func (a ArgumentTextObject) findClosingParen(buf *buffer.Buffer, startLine, startChar int) (int, int) {
+	// Search forwards for closing parenthesis, handling nesting
+	depth := 1 // Start inside the parentheses
+	line := startLine
+	char := startChar + 1
+	
+	for {
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
+		
+		lineStr := iter.Line()
+		for char < len(lineStr) {
+			ch := rune(lineStr[char])
+			if ch == '(' {
+				depth++
+			} else if ch == ')' {
+				depth--
+				if depth == 0 {
+					return line, char
+				}
+			}
+			char++
+		}
+		
+		line++
+		char = 0
+	}
+	
+	return -1, -1
+}
+
+func (a ArgumentTextObject) findCurrentArgument(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar int) (position, position) {
+	// Parse arguments between parentheses and find the one containing the cursor
+	args := a.parseArguments(buf, openLine, openChar, closeLine, closeChar)
+	
+	// Debug: log all arguments found
+	for i, arg := range args {
+		LL.Debug("Argument %d: start=(%d,%d) end=(%d,%d)", i, arg.start.line, arg.start.char, arg.end.line, arg.end.char)
+	}
+	
+	// Find which argument contains the cursor
+	for i, arg := range args {
+		if a.positionInRange(cursorLine, cursorChar, arg.start, arg.end) {
+			LL.Debug("Cursor at (%d,%d) is in argument %d", cursorLine, cursorChar, i)
+			return arg.start, arg.end
+		}
+	}
+	
+	LL.Debug("Cursor at (%d,%d) not in any argument", cursorLine, cursorChar)
+	return position{-1, -1}, position{-1, -1}
+}
+
+type argument struct {
+	start position
+	end   position
+}
+
+func (a ArgumentTextObject) parseArguments(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar int) []argument {
+	// Use a simpler, more direct approach for multiline parsing
+	// Find all commas at the top level, then identify argument boundaries
+	
+	var args []argument
+	var commaPositions []position
+	
+	// Find all top-level commas
+	line := openLine
+	char := openChar + 1
+	depth := 0
+	inString := false
+	stringChar := rune(0)
+	
+	for {
+		if line == closeLine && char == closeChar {
+			break
+		}
+		
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
+		
+		lineStr := iter.Line()
+		if char >= len(lineStr) {
+			line++
+			char = 0
+			continue
+		}
+		
+		ch := rune(lineStr[char])
+		
+		// Handle string literals
+		if !inString && (ch == '"' || ch == '\'' || ch == '`') {
+			inString = true
+			stringChar = ch
+		} else if inString && ch == stringChar {
+			inString = false
+		} else if !inString {
+			// Handle nesting and commas
+			if ch == '(' || ch == '[' || ch == '{' {
+				depth++
+			} else if ch == ')' || ch == ']' || ch == '}' {
+				depth--
+			} else if ch == ',' && depth == 0 {
+				commaPositions = append(commaPositions, position{line, char})
+			}
+		}
+		
+		char++
+	}
+	
+	// Now parse arguments between commas
+	argStart := position{openLine, openChar + 1}
+	
+	for _, commaPos := range commaPositions {
+		argEnd := a.findArgumentEnd(buf, argStart, commaPos)
+		if argStart.line != -1 && argEnd.line != -1 {
+			args = append(args, argument{start: argStart, end: argEnd})
+		}
+		argStart = a.skipWhitespaceFromPosition(buf, position{commaPos.line, commaPos.char + 1}, closeLine, closeChar)
+	}
+	
+	// Add the last argument (after the last comma to closing paren)
+	if argStart.line != -1 {
+		argEnd := a.findArgumentEnd(buf, argStart, position{closeLine, closeChar})
+		if argEnd.line != -1 {
+			args = append(args, argument{start: argStart, end: argEnd})
+		}
+	}
+	
+	return args
+}
+
+func (a ArgumentTextObject) findArgumentEnd(buf *buffer.Buffer, start, limit position) position {
+	// Find the end of argument content (excluding trailing whitespace)
+	line := start.line
+	char := start.char
+	lastNonWhitespace := position{-1, -1}
+	
+	for {
+		if (line == limit.line && char >= limit.char) || line > limit.line {
+			break
+		}
+		
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
+		
+		lineStr := iter.Line()
+		if char >= len(lineStr) {
+			line++
+			char = 0
+			continue
+		}
+		
+		ch := rune(lineStr[char])
+		if ch != ' ' && ch != '\t' && ch != '\n' {
+			lastNonWhitespace = position{line, char + 1} // Position after the character
+		}
+		
+		char++
+	}
+	
+	return lastNonWhitespace
+}
+
+func (a ArgumentTextObject) skipWhitespaceFromPosition(buf *buffer.Buffer, start position, endLine, endChar int) position {
+	line := start.line
+	char := start.char
+	
+	for {
+		if (line == endLine && char >= endChar) || line > endLine {
+			break
+		}
+		
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
+		
+		lineStr := iter.Line()
+		if char >= len(lineStr) {
+			line++
+			char = 0
+			continue
+		}
+		
+		ch := rune(lineStr[char])
+		if ch != ' ' && ch != '\t' && ch != '\n' {
+			return position{line, char}
+		}
+		
+		char++
+	}
+	
+	return position{line, char}
+}
+
+
+
+func (a ArgumentTextObject) positionInRange(line, char int, start, end position) bool {
+	// Check if position is within the argument range
+	if line < start.line || line > end.line {
+		return false
+	}
+	
+	if line == start.line && char < start.char {
+		return false
+	}
+	
+	if line == end.line && char > end.char {
+		return false
+	}
+	
+	return true
+}
+
+func (a ArgumentTextObject) expandAroundArgument(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar int, argStart, argEnd position) (position, position) {
+	// For "around" modifier, include surrounding commas and spaces
+	// Strategy: prefer to include comma after argument, but if none exists, include comma before
+	
+	// First, try to include comma and whitespace after the argument
+	expandedEnd := argEnd
+	line := argEnd.line
+	char := argEnd.char
+	foundTrailingComma := false
+	
+	for line <= closeLine {
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
+		
+		lineStr := iter.Line()
+		for char < len(lineStr) {
+			if line == closeLine && char >= closeChar {
+				break
+			}
+			
+			ch := rune(lineStr[char])
+			if ch == ',' {
+				foundTrailingComma = true
+				// Include the comma and any whitespace after it
+				char++
+				for char < len(lineStr) && (lineStr[char] == ' ' || lineStr[char] == '\t') {
+					char++
+				}
+				expandedEnd = position{line, char}
+				return argStart, expandedEnd
+			} else if ch != ' ' && ch != '\t' && ch != '\n' {
+				// Hit non-whitespace, non-comma - stop expanding
+				break
+			}
+			char++
+		}
+		
+		line++
+		char = 0
+	}
+	
+	// If no trailing comma found, try to include comma and whitespace before the argument
+	if !foundTrailingComma {
+		expandedStart := argStart
+		line = argStart.line
+		char = argStart.char - 1
+		
+		for line >= openLine {
+			iter := buffer.NewBufferIteratorAtLine(buf, line)
+			if iter.IsEOF() {
+				break
+			}
+			
+			lineStr := iter.Line()
+			if line != argStart.line {
+				char = len(lineStr) - 1
+			}
+			
+			for char >= 0 {
+				if line == openLine && char <= openChar {
+					break
+				}
+				
+				ch := rune(lineStr[char])
+				if ch == ',' {
+					// Include the comma and move start position to after it
+					expandedStart = position{line, char}
+					return expandedStart, argEnd
+				} else if ch != ' ' && ch != '\t' && ch != '\n' {
+					// Hit non-whitespace, non-comma - stop expanding
+					break
+				}
+				char--
+			}
+			
+			line--
+		}
+	}
+	
+	return argStart, argEnd
+}
+

@@ -1,8 +1,8 @@
 package editor
 
 import (
-	"veda/internal/buffer"
-	"veda/internal/proxy"
+    "veda/internal/buffer"
+    "veda/internal/proxy"
 )
 
 // BlockTextObject represents a code block (as defined by LSP folding ranges)
@@ -22,70 +22,77 @@ func (b BlockTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int
 		return 0, 0, 0, 0, false
 	}
 	
-	// Find the innermost folding range that contains the cursor
-	var bestRange *proxy.FoldingRange
-	
-	for i := range buf.FoldingRanges {
-		r := &buf.FoldingRanges[i]
-		
-		// Check if cursor is within this range
-		if cursorLine >= r.StartLine && cursorLine <= r.EndLine {
-			// If we haven't found a range yet, or this range is smaller (more specific)
-			if bestRange == nil || (r.EndLine - r.StartLine) < (bestRange.EndLine - bestRange.StartLine) {
-				bestRange = r
-			}
-		}
-	}
+    // Find the best folding range that contains the cursor
+    // Heuristics:
+    // - Prefer multi-line structural blocks over single-line ranges
+    // - When both are multi-line or both single-line, prefer smaller (more specific)
+    var bestRange *proxy.FoldingRange
+    for i := range buf.FoldingRanges {
+        r := &buf.FoldingRanges[i]
+        if cursorLine < r.StartLine || cursorLine > r.EndLine {
+            continue
+        }
+
+        isMultiLine := r.EndLine > r.StartLine
+        if bestRange == nil {
+            bestRange = r
+            continue
+        }
+
+        bestIsMultiLine := bestRange.EndLine > bestRange.StartLine
+        currentSize := r.EndLine - r.StartLine
+        bestSize := bestRange.EndLine - bestRange.StartLine
+
+        if isMultiLine && !bestIsMultiLine {
+            bestRange = r
+            continue
+        }
+        if isMultiLine == bestIsMultiLine {
+            if currentSize < bestSize {
+                bestRange = r
+            }
+        }
+    }
 	
 	if bestRange == nil {
 		return 0, 0, 0, 0, false
 	}
 	
-	// For 'inside' modifier, we want to exclude the first and last lines
-	// For 'around' modifier, we want the entire range
-	if b.modifier == ModifierInside {
-		// Adjust to exclude the opening and closing lines
-		startLine := bestRange.StartLine + 1
-		endLine := bestRange.EndLine - 1
-		
-		// Make sure we have at least one line
-		if startLine > endLine {
-			return 0, 0, 0, 0, false
-		}
-		
-		// Start at beginning of first inner line
-		startChar := 0
-		
-		// Find the end character of the last inner line
-		iter := buffer.NewBufferIteratorAtLine(buf, endLine)
-		if iter.IsEOF() {
-			return 0, 0, 0, 0, false
-		}
-		line := iter.Line()
-		endChar := len(line)
-		
-		return startLine, startChar, endLine, endChar, true
-	}
-	
-	// For 'around', return the entire range
-	startChar := 0
-	if bestRange.StartCharacter != nil {
-		startChar = *bestRange.StartCharacter
-	}
-	
-	endChar := 0
-	if bestRange.EndCharacter != nil {
-		endChar = *bestRange.EndCharacter
-	} else {
-		// If no end character specified, use end of line
-		iter := buffer.NewBufferIteratorAtLine(buf, bestRange.EndLine)
-		if !iter.IsEOF() {
-			line := iter.Line()
-			endChar = len(line)
-		}
-	}
-	
-	return bestRange.StartLine, startChar, bestRange.EndLine, endChar, true
+    // Determine whether boundary lines contain braces
+    braceAtStart := lineContainsRune(buf, bestRange.StartLine, '{')
+    braceAtEnd := lineContainsRune(buf, bestRange.EndLine, '}')
+
+    if b.modifier == ModifierInside {
+        // Use folding range as the body. If folding range already includes braces
+        // on boundary lines, exclude them by trimming one line from each side.
+        startLine := bestRange.StartLine
+        endLine := bestRange.EndLine
+        if braceAtStart {
+            startLine++
+        }
+        if braceAtEnd {
+            endLine--
+        }
+        if startLine > endLine {
+            return 0, 0, 0, 0, false
+        }
+        // Inside selects full lines
+        endChar := lineLen(buf, endLine)
+        return startLine, 0, endLine, endChar, true
+    }
+
+    // Around: expand to include header (opening brace line) and closing brace line
+    startLine := bestRange.StartLine
+    endLine := bestRange.EndLine
+
+    if !braceAtStart && startLine-1 >= 0 && lineContainsRune(buf, startLine-1, '{') {
+        startLine--
+    }
+    if !braceAtEnd && endLine+1 < buf.LineCount && lineContainsRune(buf, endLine+1, '}') {
+        endLine++
+    }
+
+    return startLine, 0, endLine, lineLen(buf, endLine), true
 }
 
 func (b BlockTextObject) GetType() string {
@@ -95,75 +102,6 @@ func (b BlockTextObject) GetType() string {
 	return "block-around"
 }
 
-// ArgumentTextObject represents a function argument
-type ArgumentTextObject struct {
-	modifier TextObjectModifier
-	proxyManager *proxy.ProxyManager
-}
-
-func NewArgumentTextObject(modifier TextObjectModifier, proxyManager *proxy.ProxyManager) *ArgumentTextObject {
-	return &ArgumentTextObject{
-		modifier: modifier,
-		proxyManager: proxyManager,
-	}
-}
-
-func (a ArgumentTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	if a.proxyManager == nil || buf.FilePath == "" {
-		return 0, 0, 0, 0, false
-	}
-	
-	// Get document symbols to find the enclosing function
-	symbols, err := a.proxyManager.GetDocumentSymbols(buf.FilePath)
-	if err != nil {
-		return 0, 0, 0, 0, false
-	}
-	
-	// Find the function containing the cursor
-	functionSymbol := findEnclosingFunction(symbols, cursorLine, cursorChar)
-	if functionSymbol == nil {
-		return 0, 0, 0, 0, false
-	}
-	
-	// Get the function's parameter list from the buffer
-	// This is a simplified implementation - a full implementation would
-	// parse the argument list properly
-	startLine := functionSymbol.Range.Start.Line
-	startChar := functionSymbol.Range.Start.Character
-	
-	// Find the opening parenthesis
-	iter := buffer.NewBufferIteratorAtLine(buf, startLine)
-	if iter.IsEOF() {
-		return 0, 0, 0, 0, false
-	}
-	
-	line := iter.Line()
-	parenStart := -1
-	for i := startChar; i < len(line); i++ {
-		if line[i] == '(' {
-			parenStart = i
-			break
-		}
-	}
-	
-	if parenStart == -1 {
-		return 0, 0, 0, 0, false
-	}
-	
-	// For now, return a simple range - a full implementation would
-	// parse arguments and find the specific argument at cursor position
-	if a.modifier == ModifierInside {
-		return startLine, parenStart + 1, startLine, parenStart + 5, true
-	}
-	return startLine, parenStart, startLine, parenStart + 6, true
-}
-
-func (a ArgumentTextObject) GetType() string {
-	if a.modifier == ModifierInside {
-		return "argument-inside"
-	}
-	return "argument-around"
-}
 
 // FunctionTextObject represents an entire function
 type FunctionTextObject struct {
@@ -308,4 +246,34 @@ func positionInRange(line, character int, r proxy.Range) bool {
 	}
 	
 	return true
+}
+
+// lineContainsRune reports whether the given line contains the target rune.
+func lineContainsRune(buf *buffer.Buffer, lineNumber int, target rune) bool {
+    if lineNumber < 0 || lineNumber >= buf.LineCount {
+        return false
+    }
+    iter := buffer.NewBufferIteratorAtLine(buf, lineNumber)
+    if iter.IsEOF() {
+        return false
+    }
+    line := iter.Line()
+    for i := 0; i < len(line); i++ {
+        if rune(line[i]) == target {
+            return true
+        }
+    }
+    return false
+}
+
+// lineLen returns the length of the given line or 0 if out of bounds.
+func lineLen(buf *buffer.Buffer, lineNumber int) int {
+    if lineNumber < 0 || lineNumber >= buf.LineCount {
+        return 0
+    }
+    iter := buffer.NewBufferIteratorAtLine(buf, lineNumber)
+    if iter.IsEOF() {
+        return 0
+    }
+    return len(iter.Line())
 }
