@@ -1,9 +1,10 @@
 package editor
 
 import (
-	"veda/internal/buffer"
-	"veda/internal/clipboard"
-	"veda/internal/commands"
+    "strings"
+    "veda/internal/buffer"
+    "veda/internal/clipboard"
+    "veda/internal/commands"
 )
 
 // RepeatableCommand stores an operator and text object combination that can be repeated
@@ -142,9 +143,13 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 		}
 	}
 	
-	// Adjust scroll to ensure cursor is visible
-	editor.scroll()
-	
+    // Adjust scroll to ensure cursor is visible
+    editor.scroll()
+
+    // Normalize empty-block newline: if we ended up with a blank line between
+    // a line ending with '{' and a following line starting with '}', remove the blank line.
+    editor.normalizeEmptyBlockNewlineAround(cursorLine)
+
 	// TODO: Save deleted text to register for paste operations
 	
 	return nil
@@ -331,4 +336,65 @@ func (e *Editor) getTextInRange(startLine, startChar, endLine, endChar int) stri
 	}
 	
 	return result
+}
+
+// normalizeEmptyBlockNewlineAround removes a whitespace-only line between a line ending with
+// an opening brace '{' and the following line that starts with a closing brace '}'.
+// It operates around the provided line index (typically the cursor line after a delete).
+func (e *Editor) normalizeEmptyBlockNewlineAround(lineIndex int) {
+    if e.buffer == nil || e.buffer.LineCount < 3 {
+        return
+    }
+    curr := lineIndex
+    if curr <= 0 || curr >= e.buffer.LineCount-1 {
+        return
+    }
+
+    // Read previous, current, and next lines
+    prevIter := buffer.NewBufferIteratorAtLine(e.buffer, curr-1)
+    currIter := buffer.NewBufferIteratorAtLine(e.buffer, curr)
+    nextIter := buffer.NewBufferIteratorAtLine(e.buffer, curr+1)
+    if prevIter.IsEOF() || currIter.IsEOF() || nextIter.IsEOF() {
+        return
+    }
+
+    prevLine := prevIter.Line()
+    currLine := currIter.Line()
+    nextLine := nextIter.Line()
+
+    // Check pattern: prev ends with '{', current is empty/whitespace, next begins with '}'
+    prevTrimRight := strings.TrimRight(prevLine, " \t")
+    if !strings.HasSuffix(prevTrimRight, "{") {
+        return
+    }
+
+    if len(strings.TrimSpace(currLine)) != 0 {
+        return
+    }
+
+    nextTrim := strings.TrimSpace(nextLine)
+    if !(len(nextTrim) > 0 && nextTrim[0] == '}') {
+        return
+    }
+
+    // Delete the current blank line including its newline
+    // Compose the text to delete (line content + newline)
+    textToDelete := currLine + "\n"
+    entry := buffer.NewDeleteTextEntry(curr, 0, textToDelete)
+    if e.buffer.History != nil {
+        if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+            return
+        }
+    } else {
+        if err := entry.Execute(e.buffer); err != nil {
+            return
+        }
+    }
+
+    // Keep cursor at the same visual place (line stays the same index but now points to the next line)
+    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, curr)
+    if e.buffer.CursorIterator.IsEOF() && curr > 0 {
+        e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, curr-1)
+    }
+    e.buffer.CursorX = min(e.buffer.CursorX, len(e.buffer.CursorIterator.Line()))
 }

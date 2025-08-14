@@ -103,6 +103,16 @@ Currently the buffer package and editor package have tests. When adding new func
 - Run tests with `go test ./internal/package_name` or use `make test` to run all tests
 - Use the testing framework for editor behavior tests (cursor movement, editing operations, etc.)
 
+#### LSP-Dependent Tests
+Some tests require LSP servers to be installed and available on the test machine:
+- **Go LSP**: Tests assume `gopls` is installed (`go install golang.org/x/tools/gopls@latest`)
+- **C/C++ LSP**: Tests assume `clangd` is installed (from package manager or https://clangd.llvm.org/)
+- **LSP Text Object Tests**: Tests in `lsp_textobject_test.go` require LSP servers for proper functionality testing of:
+  - `dab`/`dib` - delete around/inside block (requires folding ranges from LSP)
+  - `daf`/`dif` - delete around/inside function (requires document symbols from LSP)
+  - `daa`/`dia` - delete around/inside argument (requires document symbols from LSP)
+- These tests will fail or behave unexpectedly if LSP servers are not available
+
 ## Memory Notes
 - When working with the Editor's buffer, assert that the buffer field is always initialized and populated. No need to add extra null checks.
 - When using Buffer and Iterator objects, any change to the buffer invalidates all current iterators pointing to the buffer. To work with these primitives, remember the line number of the iterator before making the change and then call NewBufferIteratorAtLine to restore the iterator.
