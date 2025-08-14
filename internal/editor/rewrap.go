@@ -268,15 +268,22 @@ func (e *Editor) rewrapParagraph() error {
 		rulerIndex = 0
 	}
 	
-	// Update tracking
-	e.lastRewrapLine = currentLine
-	e.lastRewrapChar = currentChar
-	e.lastRewrapIndex = rulerIndex
-	
-	// Get the width from the ruler at this index
-	width := e.config.VerticalRulers[rulerIndex]
-	
-	return e.rewrapParagraphWithWidth(width)
+    // Get the width from the ruler at this index
+    width := e.config.VerticalRulers[rulerIndex]
+
+    // Perform the rewrap
+    if err := e.rewrapParagraphWithWidth(width); err != nil {
+        return err
+    }
+
+    // Update tracking AFTER rewrap to the new cursor position so a repeated
+    // Alt+Q at the same physical location cycles correctly even if cursorX shifts
+    // due to reflow.
+    e.lastRewrapLine = e.buffer.CursorIterator.LineNumber()
+    e.lastRewrapChar = e.buffer.CursorX
+    e.lastRewrapIndex = rulerIndex
+    
+    return nil
 }
 
 // rewrapParagraphCmd is the command wrapper for rewrapParagraph
