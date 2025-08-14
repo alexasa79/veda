@@ -219,6 +219,28 @@ func TestFindParagraphBounds(t *testing.T) {
 			wantStart:  0,
 			wantEnd:    1,
 		},
+		{
+			name: "markdown list items as separate paragraphs",
+			lines: []string{
+				"- first item",
+				"- second item",
+				"- third item",
+			},
+			cursorLine: 1,
+			wantStart:  1,
+			wantEnd:    1,
+		},
+		{
+			name: "numbered list items as separate paragraphs",
+			lines: []string{
+				"1. first item",
+				"2. second item", 
+				"3. third item",
+			},
+			cursorLine: 0,
+			wantStart:  0,
+			wantEnd:    0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -307,6 +329,44 @@ He went the load balancer route. He implemented something that intercepts packet
 He went the load balancer route. He implemented something that intercepts
 packets as they come out of, something, not sure where. He does not seem to
 understand what is NAT router and router overall.`,
+		},
+		{
+			name: "markdown list items should not be merged",
+			input: `- one
+- two`,
+			cursorY:   0,
+			wrapWidth: 80,
+			want: `- one
+- two`,
+		},
+		{
+			name: "numbered markdown list items should not be merged",
+			input: `1. first item
+2. second item`,
+			cursorY:   0,
+			wrapWidth: 80,
+			want: `1. first item
+2. second item`,
+		},
+		{
+			name: "mixed markdown list types should not be merged",
+			input: `- bullet item
+1. numbered item`,
+			cursorY:   0,
+			wrapWidth: 80,
+			want: `- bullet item
+1. numbered item`,
+		},
+		{
+			name: "long markdown list items should wrap independently",
+			input: `- This is a very long bullet point that should wrap within itself but should not be merged with the next list item
+- This is another bullet point`,
+			cursorY:   0,
+			wrapWidth: 40,
+			want: `- This is a very long bullet point that
+  should wrap within itself but should
+  not be merged with the next list item
+- This is another bullet point`,
 		},
 	}
 
