@@ -190,6 +190,12 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 			break
 		}
 		
+		// Stop at markdown list item (if current line is also a list item)
+		currentLine := strings.TrimSpace(lines[startLine])
+		if isMarkdownListItem(prevLine) && isMarkdownListItem(currentLine) {
+			break
+		}
+		
 		startLine--
 	}
 
@@ -205,6 +211,12 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 		
 		// Stop at markdown heading (line starting with #)
 		if strings.HasPrefix(nextLine, "#") {
+			break
+		}
+		
+		// Stop at markdown list item (if current line is also a list item)
+		currentLine := strings.TrimSpace(lines[endLine])
+		if isMarkdownListItem(nextLine) && isMarkdownListItem(currentLine) {
 			break
 		}
 		
