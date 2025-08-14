@@ -73,6 +73,12 @@ func (s *ScreenAdapter) Clear() {
 
 	// Clear cell buffer and cache
 	width, height := s.term.Size()
+	
+	// Check if terminal size has changed and resize cell buffer if needed
+	if len(s.cells) != height || (len(s.cells) > 0 && len(s.cells[0]) != width) {
+		s.resizeCells(width, height)
+	}
+	
 	for y := 0; y < height && y < len(s.cells); y++ {
 		for x := 0; x < width && x < len(s.cells[y]); x++ {
 			s.cells[y][x] = cell{ch: ' ', style: ui.StyleDefault}
@@ -89,6 +95,12 @@ func (s *ScreenAdapter) Clear() {
 func (s *ScreenAdapter) Show() {
 	// Convert cell buffer to lines with ANSI escape sequences
 	width, height := s.term.Size()
+	
+	// Check if terminal size has changed and resize cell buffer if needed
+	if len(s.cells) != height || (len(s.cells) > 0 && len(s.cells[0]) != width) {
+		LL.Debug("ScreenAdapter.Show: Terminal size changed to %dx%d, resizing cell buffer", width, height)
+		s.resizeCells(width, height)
+	}
 
 	// Count non-empty lines
 	nonEmptyCount := 0
@@ -150,6 +162,11 @@ func (s *ScreenAdapter) SetContent(x, y int, mainc rune, combc []rune, style ui.
 	width, height := s.term.Size()
 	if x < 0 || y < 0 || x >= width || y >= height {
 		return
+	}
+
+	// Check if terminal size has changed and resize cell buffer if needed
+	if len(s.cells) != height || (len(s.cells) > 0 && len(s.cells[0]) != width) {
+		s.resizeCells(width, height)
 	}
 
 	// Ensure cells array is properly sized
