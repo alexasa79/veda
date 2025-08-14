@@ -24,9 +24,9 @@ func TestWordNavigation(t *testing.T) {
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 16, 0)
 		
-		// At last word, should stay at current position
+		// At last word, should go to end of "bar"
 		te.ExecuteCommand("word-forward")
-		AssertCursorAt(t, te, 16, 0)
+		AssertCursorAt(t, te, 18, 0)
 	})
 	
 	t.Run("word forward with punctuation", func(t *testing.T) {
@@ -118,6 +118,39 @@ func TestWordNavigation(t *testing.T) {
 		// Jump from "hello" should skip empty line and go to "world"
 		te.ExecuteCommand("word-forward")
 		AssertCursorAt(t, te, 0, 2)
+	})
+	
+	t.Run("word forward on single line with two words", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello world")
+		
+		// Start at beginning of line (position 0)
+		te.SetCursorPosition(0, 0)
+		AssertCursorAt(t, te, 0, 0)
+		
+		// First 'w' should jump to beginning of "world" 
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 6, 0)
+		
+		// Second 'w' should go to end of "world" since it's the last word
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 10, 0)
+	})
+	
+	t.Run("word forward on single word line", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello")
+		
+		// Start at beginning of line (position 0)
+		te.SetCursorPosition(0, 0)
+		AssertCursorAt(t, te, 0, 0)
+		
+		// 'w' on single word should move to end of word (last character)
+		// This is the vim behavior when there's nowhere else to go
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 4, 0) // Should be at 'o' (last character)
+		
+		// Another 'w' should stay at the same position
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 4, 0)
 	})
 	
 	t.Run("word forward with code", func(t *testing.T) {

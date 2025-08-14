@@ -290,8 +290,8 @@ func shouldStopAtEndOfLine(buf *buffer.Buffer, startLine, startChar int) bool {
 	// Check if there's a next line and what it contains
 	nextIter := iter.Next()
 	if nextIter.IsEOF() {
-		// End of file - apply the logic if we're not on the first line (multi-line file)
-		return startLine > 0
+		// End of file - always apply end-of-line logic when word extends to end
+		return true
 	}
 	
 	// Check if the next line has actual content (not just whitespace)
@@ -308,24 +308,6 @@ func shouldStopAtEndOfLine(buf *buffer.Buffer, startLine, startChar int) bool {
 	// (skip over empty lines with original vim behavior)
 	if !nextLineHasContent {
 		return false
-	}
-	
-	// Find the actual start of the current word to check if we're at the beginning
-	wordStartPos := startChar
-	if startChar < len(line) && !unicode.IsSpace(rune(line[startChar])) {
-		// Find the actual start of the current word
-		for wordStartPos > 0 {
-			prevChar := rune(line[wordStartPos-1])
-			if !isWordChar(prevChar) || unicode.IsSpace(prevChar) {
-				break
-			}
-			wordStartPos--
-		}
-		
-		// Don't stop at end if we're at the start of the last word in a single-line file
-		if startLine == 0 && wordStartPos == startChar && nextIter.IsEOF() {
-			return false
-		}
 	}
 	
 	return true
