@@ -153,6 +153,9 @@ var keyCodes = []keyCode{
 	{[]byte{'\x1b', '[', '3', ';', '3', '~'}, events.KeyDelete, events.ModAlt}, // Alt+Delete (alternative)
 	{[]byte{'\x1b', '\x7f'}, events.KeyBackspace, events.ModAlt},               // Alt+Backspace
 	{[]byte{'\x1b', '\x08'}, events.KeyBackspace, events.ModAlt},               // Alt+Backspace (alternative)
+	// CSI format Alt+Backspace sequences
+	{[]byte{'\x1b', '[', '1', '2', '7', ';', '3', '~'}, events.KeyBackspace, events.ModAlt}, // Alt+Backspace CSI format
+	{[]byte{'\x1b', '[', '8', ';', '3', '~'}, events.KeyBackspace, events.ModAlt},           // Alt+Backspace CSI format (alternative)
 
 	// ESC key - must be last so escape sequences are checked first
 	{[]byte{'\x1b'}, events.KeyEscape, events.ModNone},
@@ -223,7 +226,7 @@ func (t *Terminal) parseInput(buf *[]byte) {
 			   nextChar == ' ' || nextChar == '-' || nextChar == '=' ||
 			   nextChar == ',' || nextChar == '.' || nextChar == '/' ||
 			   nextChar == ';' || nextChar == '\'' || nextChar == '\\' ||
-			   nextChar == '`' || nextChar == '\x7f') { // backspace
+			   nextChar == '`') {
 				// It's ESC followed by a regular character - treat as Alt+char
 				r, size := decodeRune((*buf)[1:])
 				if r != 0 && size > 0 {
