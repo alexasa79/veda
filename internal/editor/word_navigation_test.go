@@ -251,3 +251,133 @@ func TestWordNavigation(t *testing.T) {
 		AssertCursorAt(t, te, 6, 1) // Position of last "2"
 	})
 }
+
+func TestWordNavigationWithoutUnderscore(t *testing.T) {
+	t.Run("W command treats underscores as word boundaries", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello_world foo_bar")
+		
+		// Start at beginning
+		AssertCursorAt(t, te, 0, 0)
+		
+		// W should jump to underscore (treating it as boundary)
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 5, 0) // At '_'
+		
+		// Next W should jump to "world"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 6, 0) // At 'w' in "world"
+		
+		// Next W should jump to "foo" (skipping whitespace like normal word navigation)
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 12, 0) // At 'f' in "foo"
+		
+		// Next W should jump to underscore in "foo_bar"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 15, 0) // At '_' in "foo_bar"
+	})
+	
+	t.Run("w command includes underscores in words", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello_world foo_bar")
+		
+		// Start at beginning
+		AssertCursorAt(t, te, 0, 0)
+		
+		// w should jump over entire "hello_world" to "foo_bar"
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 12, 0) // At 'f' in "foo_bar"
+		
+		// Next w should stay at same position (last word)
+		te.ExecuteCommand("word-forward")
+		AssertCursorAt(t, te, 18, 0) // At end of "foo_bar"
+	})
+	
+	t.Run("B command treats underscores as word boundaries", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello_world foo_bar")
+		
+		// Start at end of line  
+		te.SetCursorPosition(18, 0) // End of "foo_bar"
+		AssertCursorAt(t, te, 18, 0)
+		
+		// B should jump to "bar" (start of current word)
+		te.ExecuteCommand("word-backward-no-underscore")
+		AssertCursorAt(t, te, 16, 0) // At 'b' in "bar"
+		
+		// Next B should jump to underscore before "bar"
+		te.ExecuteCommand("word-backward-no-underscore")
+		AssertCursorAt(t, te, 15, 0) // At '_' in "foo_bar"
+		
+		// Next B should jump to "foo"
+		te.ExecuteCommand("word-backward-no-underscore")
+		AssertCursorAt(t, te, 12, 0) // At 'f' in "foo"
+		
+		// Next B should jump to "world"
+		te.ExecuteCommand("word-backward-no-underscore")
+		AssertCursorAt(t, te, 6, 0) // At 'w' in "world"
+		
+		// Next B should jump to underscore in "hello_world"
+		te.ExecuteCommand("word-backward-no-underscore")
+		AssertCursorAt(t, te, 5, 0) // At '_' in "hello_world"
+		
+		// Next B should jump to "hello"
+		te.ExecuteCommand("word-backward-no-underscore")
+		AssertCursorAt(t, te, 0, 0) // At 'h' in "hello"
+	})
+	
+	t.Run("W and B with mixed punctuation and underscores", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "func_name(arg_value)")
+		
+		// Start at beginning
+		AssertCursorAt(t, te, 0, 0)
+		
+		// W should jump to underscore
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 4, 0) // At '_'
+		
+		// W should jump to "name"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 5, 0) // At 'n' in "name"
+		
+		// W should jump to "("
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 9, 0) // At '('
+		
+		// W should jump to "arg"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 10, 0) // At 'a' in "arg"
+		
+		// W should jump to underscore in "arg_value"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 13, 0) // At '_'
+		
+		// W should jump to "value"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 14, 0) // At 'v' in "value"
+	})
+	
+	t.Run("W command on single word with underscores", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello_world_test")
+		
+		// Start at beginning
+		AssertCursorAt(t, te, 0, 0)
+		
+		// W should jump to first underscore
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 5, 0) // At first '_'
+		
+		// W should jump to "world"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 6, 0) // At 'w' in "world"
+		
+		// W should jump to second underscore
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 11, 0) // At second '_'
+		
+		// W should jump to "test"
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 12, 0) // At 't' in "test"
+		
+		// W should jump to end of line
+		te.ExecuteCommand("word-forward-no-underscore")
+		AssertCursorAt(t, te, 15, 0) // At end of "test"
+	})
+}

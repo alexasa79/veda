@@ -152,6 +152,55 @@ func (e *Editor) wordBackward(args []string) error {
 	return nil
 }
 
+// wordForwardNoUnderscore moves the cursor to the beginning of the next word (W command)
+// Treats underscores as word boundaries, not as part of words
+func (e *Editor) wordForwardNoUnderscore(args []string) error {
+	currentLine := e.buffer.CursorIterator.LineNumber()
+	startX := e.buffer.CursorX
+	line := e.buffer.CursorIterator.Line()
+	
+	// Check if we should stop at end of line first (using underscore-aware logic)
+	if shouldStopAtEndOfLineWithOptions(e.buffer, currentLine, startX, false) {
+		// Move to end of current line
+		e.buffer.CursorX = len(line) - 1
+		e.desiredColumn = -1
+		e.updateCursorState()
+		return nil
+	}
+	
+	// Use word boundary logic with underscores as boundaries
+	nextWord := FindNextWordBoundaryWithOptions(e.buffer, currentLine, startX, false)
+
+	if nextWord != nil {
+		// Move cursor to the next word
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, nextWord.StartLine)
+		e.buffer.CursorX = nextWord.StartChar
+	}
+
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	e.updateCursorState()
+	return nil
+}
+
+// wordBackwardNoUnderscore moves the cursor to the beginning of the previous word (B command)
+// Treats underscores as word boundaries, not as part of words
+func (e *Editor) wordBackwardNoUnderscore(args []string) error {
+	currentLine := e.buffer.CursorIterator.LineNumber()
+	prevWord := FindPreviousWordBoundaryWithOptions(e.buffer, currentLine, e.buffer.CursorX, false)
+
+	if prevWord != nil {
+		// Move cursor to the previous word
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, prevWord.StartLine)
+		e.buffer.CursorX = prevWord.StartChar
+	}
+
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	e.updateCursorState()
+	return nil
+}
+
 // beginningOfLine moves cursor to the beginning of the current line
 func (e *Editor) beginningOfLine(args []string) error {
 	e.buffer.CursorX = 0

@@ -13,6 +13,8 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("right", e.moveRight, true)
 	e.commandRegistry.Register("word-forward", e.wordForward, true)
 	e.commandRegistry.Register("word-backward", e.wordBackward, true)
+	e.commandRegistry.Register("word-forward-no-underscore", e.wordForwardNoUnderscore, true)   // W command
+	e.commandRegistry.Register("word-backward-no-underscore", e.wordBackwardNoUnderscore, true) // B command
 	e.commandRegistry.Register("find-character", e.findCharacter, true)
 	e.commandRegistry.Register("till-character", e.tillCharacter, true)
 	e.commandRegistry.Register("start-find-character", e.startFindCharacterOperation, true)
