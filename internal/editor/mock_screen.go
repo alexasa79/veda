@@ -187,7 +187,7 @@ func (s *MockScreen) SetSize(width, height int) {
 	s.width = width
 	s.height = height
 	// Send a resize event through the event channel
-	resizeEvent := &events.ResizeEvent{}
+	resizeEvent := events.NewResizeEvent(width, height)
 	select {
 	case s.eventChan <- resizeEvent:
 	default:
