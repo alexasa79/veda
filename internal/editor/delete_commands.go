@@ -138,7 +138,7 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 	case "a":
 		// 'a' for argument
 		if e.pendingModifier != ModifierNone {
-			return NewArgumentTextObject(e.pendingModifier, e.proxyManager)
+			return NewArgumentTextObject(e.pendingModifier)
 		}
 	case "f":
 		// 'f' for function
