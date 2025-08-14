@@ -55,50 +55,31 @@ func TestCalculatorWithMultipleCursors(t *testing.T) {
 	})
 }
 
-func TestDesiredCalculatorMultiCursorBehavior(t *testing.T) {
-	t.Skip("This test demonstrates the desired behavior - currently not implemented")
-	
-	// This test shows what SHOULD happen if calculator commands
-	// supported multiple cursors
-	
-	content := `10 + 5
+func TestCalculatorMultiCursorSequentialExecution(t *testing.T) {
+    // This test verifies we can achieve multi-cursor-like results by
+    // sequentially running the command at each cursor position.
+    content := `10 + 5
 20 * 2
 30 - 10`
-	ed := NewTestEditorWithContent(80, 24, content)
-	
-	// Add virtual cursors at the end of each line
-	ed.Editor.virtualCursors = []VirtualCursor{
-		{X: 6, Y: 0},
-		{X: 6, Y: 1},
-		{X: 7, Y: 2},
-	}
-	
-	// If calculate-append supported multi-cursor, it would:
-	// 1. Process each cursor position
-	// 2. Evaluate the expression at each cursor
-	// 3. Append results to each line
-	
-	// Expected result after multi-cursor calculate-append:
-	expectedLines := []string{
-		"10 + 5 → 15",
-		"20 * 2 → 40",
-		"30 - 10 → 20",
-	}
-	
-	// This would be the implementation if it worked
-	err := ed.ExecuteCommand("calculate-append")
-	if err != nil {
-		t.Fatalf("Failed to execute calculate-append: %v", err)
-	}
-	
-	lines := make([]string, ed.Editor.buffer.LineCount)
-	for i := 0; i < ed.Editor.buffer.LineCount; i++ {
-		iter := buffer.NewBufferIteratorAtLine(ed.Editor.buffer, i)
-		lines[i] = iter.Line()
-	}
-	for i, expected := range expectedLines {
-		if lines[i] != expected {
-			t.Errorf("Line %d: expected '%s', got '%s'", i, expected, lines[i])
-		}
-	}
+    ed := NewTestEditorWithContent(80, 24, content)
+
+    // For each line, position the cursor AFTER the last character (inclusive end)
+    for lineNum := 0; lineNum < ed.Editor.buffer.LineCount; lineNum++ {
+        iter := buffer.NewBufferIteratorAtLine(ed.Editor.buffer, lineNum)
+        line := iter.Line()
+        ed.Editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(ed.Editor.buffer, lineNum)
+        ed.Editor.buffer.CursorX = len(line) // inclusive end, so the full expression is considered
+        if err := ed.ExecuteCommand("calculate-append"); err != nil {
+            t.Fatalf("calculate-append failed at line %d: %v", lineNum, err)
+        }
+    }
+
+    // Validate expected results on all lines
+    expected := []string{"10 + 5 → 15", "20 * 2 → 40", "30 - 10 → 20"}
+    for i := 0; i < ed.Editor.buffer.LineCount; i++ {
+        iter := buffer.NewBufferIteratorAtLine(ed.Editor.buffer, i)
+        if got := iter.Line(); got != expected[i] {
+            t.Errorf("Line %d: expected '%s', got '%s'", i, expected[i], got)
+        }
+    }
 }
