@@ -40,6 +40,11 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	te.buffer.ViewIterator = buffer.NewBufferIterator(te.buffer)
 	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
 	
+	// Set up content change callback for search match updates
+	te.buffer.OnContentChange = func() {
+		te.updateSearchMatchesOnContentChange()
+	}
+	
 	// Add the buffer to the buffers map so buffer management functions work
 	te.buffers[te.buffer.FilePath] = te.buffer
 	// Update buffer order if the file path isn't already there

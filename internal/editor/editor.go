@@ -300,6 +300,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// Set up LSP notification callback for the initial buffer
 	initialBuffer.OnContentChange = func() {
 		editor.notifyLSPFileChange()
+		editor.updateSearchMatchesOnContentChange()
 	}
 
 	// Set up proxy status callback to update connection status

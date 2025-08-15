@@ -51,6 +51,7 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	// Set up LSP notification callback
 	e.buffer.OnContentChange = func() {
 		e.notifyLSPFileChange()
+		e.updateSearchMatchesOnContentChange()
 	}
 
 	// Set up syntax highlighting
