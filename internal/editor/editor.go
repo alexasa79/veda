@@ -168,6 +168,9 @@ type Editor struct {
 	// Completion menu
 	completionMenu *widgets.CompletionMenu // Completion menu widget
 
+	// Key hints popup
+	keyHintsPopup *widgets.KeyHintsPopup // Key hints popup widget
+
 	// Whitespace rendering
 	whitespaceStyle whitespaceStyle // Style and settings for whitespace visualization
 
@@ -264,6 +267,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		connectionStatus: "",
 		errorManager:     NewErrorManager(),
 		completionMenu:   widgets.NewCompletionMenu(config.Theme),
+		keyHintsPopup:    widgets.NewKeyHintsPopup(config.Theme),
 		lastRewrapLine:   -1, // -1 means no previous rewrap
 		lastRewrapChar:   -1,
         lastRewrapIndex:  0,
@@ -451,6 +455,13 @@ func (e *Editor) render() {
 		}
 	}
 
+	// Render key hints popup if visible
+	if e.keyHintsPopup.IsVisible() {
+		if widgetScreen, ok := e.screen.(widgets.Screen); ok {
+			e.keyHintsPopup.Draw(widgetScreen)
+		}
+	}
+
 	// Update cursor position
 	if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
 		// Get cursor from overlay
@@ -550,6 +561,12 @@ func (e *Editor) handleEvent(ev events.Event) {
 
 			// Normal and Insert modes
 			if e.mode == commands.NormalMode && ev.Key == events.KeyEscape {
+				// Always hide key hints popup when escape is pressed
+				e.keyHintsPopup.Hide()
+				
+				// Clear any pending keys in the key mapper
+				e.keyMapper.ResetPending()
+				
 				if e.hasPendingOperation() {
 					e.cancelPendingOperation()
 					e.countPrefix = "" // Clear count prefix on escape
@@ -607,6 +624,9 @@ func (e *Editor) handleEvent(ev events.Event) {
 				LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
 				LL.Debug("Found command: %s", command)
 
+				// Hide key hints popup since a command was found
+				e.keyHintsPopup.Hide()
+
 				// Parse the count prefix if we have one
 				if e.countPrefix != "" {
 					if count, err := strconv.Atoi(e.countPrefix); err == nil && count > 0 {
@@ -627,6 +647,19 @@ func (e *Editor) handleEvent(ev events.Event) {
 				// Clear repeat count after execution
 				e.repeatCount = 0
 			} else {
+				// Handle key hints for normal mode only
+				if e.mode == commands.NormalMode {
+					// Check if we have pending keys and should show key hints
+					if e.keyMapper.HasPending() {
+						e.showKeyHints()
+					} else {
+						// Hide key hints if no pending keys (invalid sequence or no sequence)
+						e.keyHintsPopup.Hide()
+					}
+				} else {
+					// Hide key hints in non-normal modes
+					e.keyHintsPopup.Hide()
+				}
 				LL.Debug("No command found for key %+v", ev)
 				if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
 					// Handle insert char for multiple cursors

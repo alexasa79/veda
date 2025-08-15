@@ -37,6 +37,8 @@ func (e *Editor) handleCommandMode(ev *events.KeyEvent) {
 func (e *Editor) enterCommandMode() {
 	// Clear virtual cursors when entering command mode
 	e.clearVirtualCursors()
+	// Hide key hints when switching modes
+	e.keyHintsPopup.Hide()
 	e.mode = commands.CommandMode
 	e.commandLine.SetText(":")
 	// Position cursor after the colon
@@ -50,6 +52,8 @@ func (e *Editor) enterCommandMode() {
 func (e *Editor) exitCommandMode() {
 	e.mode = commands.NormalMode
 	e.commandLine.SetText("")
+	// Hide key hints when exiting command mode
+	e.keyHintsPopup.Hide()
 }
 
 // handleCursorMode handles key events in cursor mode
@@ -290,6 +294,8 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 
 // switchToInsertMode is a helper function to handle the common logic for entering insert mode
 func (e *Editor) switchToInsertMode() {
+	// Hide key hints when switching to insert mode
+	e.keyHintsPopup.Hide()
 	e.mode = commands.InsertMode
 	
 	// Check if we're between parentheses and automatically show signature help
