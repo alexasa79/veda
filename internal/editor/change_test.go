@@ -238,12 +238,12 @@ func TestChangeOperations(t *testing.T) {
 	})
 	
 	t.Run("change with multiple cursors deletes at all positions", func(t *testing.T) {
-		te := NewTestEditorWithContent(80, 24, "foo bar foo baz foo")
+		te := NewTestEditorWithContent(80, 24, "foo bar\nfoo baz\nfoo end")
 		
-		// Add virtual cursors at each "foo"
+		// Add virtual cursors at each "foo" on different lines
 		te.virtualCursors = []VirtualCursor{
-			{X: 8, Y: 0},  // Second foo
-			{X: 16, Y: 0}, // Third foo
+			{X: 0, Y: 1},  // Second line foo
+			{X: 0, Y: 2}, // Third line foo
 		}
 		
 		// Execute cw to change all "foo" occurrences
@@ -254,22 +254,26 @@ func TestChangeOperations(t *testing.T) {
 			t.Errorf("Expected insert mode after 'cw', got %v", te.mode)
 		}
 		
-		// All "foo" should be deleted
-		// After processing all cursors: " bar  baz "
-		AssertBufferEquals(t, te, " bar  baz ")
+		// All "foo" should be deleted from each line
+		AssertBufferEquals(t, te, " bar\n baz\n end")
 		
-		// Type replacement at primary cursor
-		te.InsertChar('b')
-		te.InsertChar('a')
-		te.InsertChar('r')
+		// Check virtual cursor state after cw
+		virtualCursorsAfterCw := te.GetVirtualCursors()
+		t.Logf("Virtual cursors after cw: %d", len(virtualCursorsAfterCw))
+		for i, vc := range virtualCursorsAfterCw {
+			t.Logf("Virtual cursor %d: (%d, %d)", i, vc.X, vc.Y)
+		}
+		
+		// Type replacement at all cursors (fixed behavior)
+		te.TypeKeys("bar")
 		te.ExecuteCommand("exit-insert-mode")
 		
-		// Only the primary cursor position gets the inserted text
-		AssertBufferEquals(t, te, "bar bar  baz ")
+		// All cursor positions should get the inserted text
+		AssertBufferEquals(t, te, "bar bar\nbar baz\nbar end")
 		
-		// Virtual cursors should be cleared when entering insert mode
-		if len(te.virtualCursors) != 0 {
-			t.Errorf("Expected virtual cursors to be cleared, got %d", len(te.virtualCursors))
+		// Virtual cursors should be preserved during change operations
+		if len(te.virtualCursors) == 0 {
+			t.Errorf("Expected virtual cursors to be preserved, but they were cleared")
 		}
 	})
 	

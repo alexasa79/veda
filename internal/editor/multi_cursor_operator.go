@@ -47,23 +47,110 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 	// Store the view position
 	viewLine := e.buffer.ViewIterator.LineNumber()
 	
-	// Execute operator at each cursor position
-	for _, cursor := range cursors {
-		// Get the range from the text object at this cursor position
-		startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursor.y, cursor.x)
-		if !found {
-			continue
-		}
-		
-		// Execute the operator
-		if err := op.Execute(e, startLine, startChar, endLine, endChar); err != nil {
-			return err
-		}
+	// For change and delete operations, we need special handling to preserve cursors
+	isChangeOp := false
+	isDeleteOp := false
+	if _, isChange := op.(ChangeOperator); isChange {
+		isChangeOp = true
+	}
+	if _, isDelete := op.(DeleteOperator); isDelete {
+		isDeleteOp = true
 	}
 	
-	// For change operator, clear virtual cursors since we're entering insert mode
-	if _, isChange := op.(ChangeOperator); isChange {
-		e.virtualCursors = nil
+	if isChangeOp || isDeleteOp {
+		// For change operations, we need to carefully track cursor positions
+		// because deletions can affect the positions of subsequent cursors
+		
+		// First, collect all the deletion ranges
+		type deleteRange struct {
+			startLine, startChar, endLine, endChar int
+			originalCursorIndex int
+		}
+		var deleteRanges []deleteRange
+		
+		for i, cursor := range cursors {
+			// Get the range from the text object at this cursor position
+			startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursor.y, cursor.x)
+			if !found {
+				continue
+			}
+			
+			deleteRanges = append(deleteRanges, deleteRange{
+				startLine: startLine,
+				startChar: startChar,
+				endLine: endLine,
+				endChar: endChar,
+				originalCursorIndex: i,
+			})
+		}
+		
+		// Execute all deletions and track final cursor positions
+		deleteOp := DeleteOperator{}
+		newVirtualCursors := make([]VirtualCursor, 0)
+		
+		// Keep track of cumulative deletions to adjust cursor positions
+		cumulativeDeletedChars := 0
+		
+		for i, dr := range deleteRanges {
+			// Execute the deletion
+			if err := deleteOp.Execute(e, dr.startLine, dr.startChar, dr.endLine, dr.endChar); err != nil {
+				return err
+			}
+			
+			// Calculate how many characters were deleted
+			deletedChars := dr.endChar - dr.startChar
+			
+			// For virtual cursors (not the primary cursor), track their final position
+			if dr.originalCursorIndex < len(cursors)-1 {
+				// The cursor should be positioned at the start of where the deletion occurred
+				// But we need to account for previous deletions that happened later in the text
+				finalX := dr.startChar
+				
+				// Adjust for deletions that happened to the right of this cursor
+				// (which we processed first due to reverse order)
+				for j := 0; j < i; j++ {
+					otherDr := deleteRanges[j]
+					if otherDr.startLine == dr.startLine && otherDr.startChar > dr.startChar {
+						finalX -= (otherDr.endChar - otherDr.startChar)
+					}
+				}
+				
+				newVirtualCursors = append(newVirtualCursors, VirtualCursor{
+					X: finalX,
+					Y: dr.startLine,
+				})
+			}
+			
+			cumulativeDeletedChars += deletedChars
+		}
+		
+		// Update virtual cursors to their new positions
+		e.virtualCursors = newVirtualCursors
+		
+		// Only enter insert mode for change operations, not delete operations
+		if isChangeOp {
+			// Now enter insert mode once
+			e.switchToInsertMode()
+			
+			// Start tracking insert mode changes
+			if e.buffer != nil && e.buffer.History != nil {
+				e.buffer.History.StartInsertSession("c")
+			}
+		}
+	} else {
+		// For non-change operations, execute normally
+		for _, cursor := range cursors {
+			// Get the range from the text object at this cursor position
+			startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursor.y, cursor.x)
+			if !found {
+				continue
+			}
+			
+			// Execute the operator
+			if err := op.Execute(e, startLine, startChar, endLine, endChar); err != nil {
+				return err
+			}
+		}
 	}
 	
 	// Restore view position
