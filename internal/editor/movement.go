@@ -291,42 +291,32 @@ func (e *Editor) goToBeginning(args []string) error {
 
 // goToEnd moves the cursor to the end of the file
 func (e *Editor) goToEnd(args []string) error {
-	// Create iterator at EOF
-	endIter := buffer.NewBufferIteratorAtEnd(e.buffer)
-
-	// Go back one line to the last actual line
-    prevIter := endIter.Previous()
-
-    // If the file ends with a trailing newline, prevIter may point to the final empty line.
-    // For go-to-end we want the end of the last non-empty line.
-    if e.buffer.Rope.Length() > 0 {
-        lastByte := e.buffer.Rope.ByteAt(e.buffer.Rope.Length() - 1)
-        if lastByte == '\n' && !prevIter.Equals(endIter) {
-            if prevIter.Line() == "" {
-                // Move to previous non-empty line if possible
-                candidate := prevIter.Previous()
-                if !candidate.Equals(prevIter) {
-                    prevIter = candidate
-                }
+    // Robust, iterator-independent logic under newline-as-boundary semantics
+    // Determine target logical line index
+    lineCount := e.buffer.LineCount
+    if lineCount <= 0 {
+        // Defensive: fall back to origin
+        e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
+        e.buffer.CursorX = 0
+    } else {
+        lastIndex := lineCount - 1
+        targetLine := lastIndex
+        // If buffer ends with a newline, the last line is empty; pick previous line when possible
+        if e.buffer.Rope.Length() > 0 {
+            if e.buffer.Rope.ByteAt(e.buffer.Rope.Length()-1) == '\n' && lastIndex > 0 {
+                targetLine = lastIndex - 1
             }
         }
+
+        // Move cursor to target line
+        e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
+        // Move to end of line (normal mode: last character)
+        lastLine := e.buffer.CursorIterator.Line()
+        e.buffer.CursorX = len(lastLine)
+        if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+            e.buffer.CursorX--
+        }
     }
-
-	// Check if we actually moved (not empty buffer)
-    if !prevIter.Equals(endIter) {
-		e.buffer.CursorIterator = prevIter
-
-		// Move to end of last line (but stay on last character in normal mode)
-		lastLine := e.buffer.CursorIterator.Line()
-		e.buffer.CursorX = len(lastLine)
-		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-			e.buffer.CursorX--
-		}
-	} else {
-		// Empty buffer
-		e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
-		e.buffer.CursorX = 0
-	}
 
 	// Scroll to show the cursor
 	e.ScrollToShowAtBottom()
