@@ -58,7 +58,8 @@ type Editor struct {
 	proxyManager    *proxy.ProxyManager
 	commandRegistry *commands.CommandRegistry
 	keyMapper       *commands.KeyMapper
-	highlighter     *syntax.Highlighter
+    highlighter     *syntax.Highlighter
+    bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
 	perfTracker     *perf.TimeTracker
 
 	// Buffer management
@@ -200,6 +201,15 @@ type Editor struct {
 
     // Remote directory cache: maps normalized working directory to file list
     dirCache map[string][]proxy.FileInfo
+
+    // Windows management
+    windows      []*Window // When empty, single-window mode using e.buffer
+    activeWindow int       // Index of active window in windows slice
+    lastWindow   int       // Index of previously active window (-1 if none)
+
+    // Window sizing preferences
+    minActiveWindowWidth int // Minimum width (columns) for the active window
+
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -241,7 +251,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		proxyManager:      proxyManager,
 		commandRegistry:   commands.NewCommandRegistry(),
 		keyMapper:         commands.NewKeyMapper(),
-		highlighter:       syntax.NewHighlighter(),
+        highlighter:       syntax.NewHighlighter(),
+        bufferHighlighters: make(map[*buffer.Buffer]*syntax.Highlighter),
 		perfTracker:       perf.New(true, 60*time.Second), // Report every 60 seconds
 		buffers:           make(map[string]*buffer.Buffer),
 		bufferOrder:       []string{},
@@ -273,9 +284,18 @@ func NewWithScreen(screen Screen) (*Editor, error) {
         lastRewrapIndex:  0,
         inPasteMode:      false,
         dirCache:         make(map[string][]proxy.FileInfo),
+        windows:          nil,
+        activeWindow:     0,
+        lastWindow:       0,
+        minActiveWindowWidth: 110,
 	}
 
-	// Initialize local history
+    // Initialize windows with a single window for the initial buffer (always have a window)
+    editor.windows = []*Window{{Buffer: initialBuffer, ViewLine: 0, CursorLine: 0, CursorX: 0}}
+    editor.activeWindow = 0
+    editor.recomputeWindowsLayout()
+
+    // Initialize local history
 	localHistory, err := NewLocalHistory()
 	if err != nil {
 		LL.Error("Failed to initialize local history: %v", err)
@@ -429,17 +449,116 @@ func (e *Editor) render() {
 	// Clear expired flash highlight
 	e.clearFlashHighlight()
 
-	// Render base editor
-	e.drawEditor()
-	t0 = e.perfTracker.ReportSince("drawEditor", t0)
+    // If only one window, render like legacy single-pane to preserve expected test behavior
+    if len(e.windows) == 1 {
+        e.drawEditor()
+        t0 = e.perfTracker.ReportSince("drawEditor", t0)
+        e.drawContext()
+        t0 = e.perfTracker.ReportSince("drawContext", t0)
+        e.drawErrorLine()
+        e.drawStatusBar()
+        t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
+        goto afterWindows
+    }
 
-	e.drawContext()
-	t0 = e.perfTracker.ReportSince("drawContext", t0)
+    // Persist active window's state from the live buffer before drawing windows,
+    // so any cursor/scroll changes made by event handlers are not lost.
+    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+        if w := e.windows[e.activeWindow]; w != nil && e.buffer != nil && w.Buffer == e.buffer {
+            w.ViewLine = e.buffer.ViewIterator.LineNumber()
+            w.CursorLine = e.buffer.CursorIterator.LineNumber()
+            w.CursorX = e.buffer.CursorX
+        }
+    }
 
-	e.drawSignature()
-	e.drawErrorLine()
-	e.drawStatusBar()
+    // Draw each window using a windowScreen. Inactive windows are dimmed.
+    for i, win := range e.windows {
+        if win == nil || win.Buffer == nil {
+            continue
+        }
+        // Prepare sub-screen
+        dim := i != e.activeWindow
+        sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
+
+        // Temporarily swap screen, buffer, and highlighter per window
+        realScreen := e.screen
+        realBuffer := e.buffer
+        realHighlighter := e.highlighter
+        if h, ok := e.bufferHighlighters[win.Buffer]; ok {
+            e.highlighter = h
+        } else {
+            h := syntax.NewHighlighter()
+            if win.Buffer.HasFile() {
+                h.SetLanguageFromFile(win.Buffer.FilePath)
+                h.ParseFull([]byte(win.Buffer.Rope.String()))
+            }
+            e.bufferHighlighters[win.Buffer] = h
+            e.highlighter = h
+        }
+        e.screen = sub
+        // Temporarily map editor-wide iterators/state from window's own view/cursor
+        // Save buffer iterators/X
+        savedView := win.Buffer.ViewIterator
+        savedCursor := win.Buffer.CursorIterator
+        savedX := win.Buffer.CursorX
+        // Apply window state
+        win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
+        win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
+        if win.Buffer.CursorIterator.IsEOF() {
+            win.Buffer.CursorIterator = buffer.NewBufferIterator(win.Buffer)
+        }
+        win.Buffer.CursorX = win.CursorX
+        e.buffer = win.Buffer
+        // Draw editor content area for this window
+        e.drawEditor()
+
+        // Restore
+        // Persist any scroll/cursor changes back into the window state
+        win.ViewLine = win.Buffer.ViewIterator.LineNumber()
+        win.CursorLine = win.Buffer.CursorIterator.LineNumber()
+        win.CursorX = win.Buffer.CursorX
+        // Restore buffer iterators/X
+        win.Buffer.ViewIterator = savedView
+        win.Buffer.CursorIterator = savedCursor
+        win.Buffer.CursorX = savedX
+        e.highlighter = realHighlighter
+        e.screen = realScreen
+        e.buffer = realBuffer
+    }
+    t0 = e.perfTracker.ReportSince("drawWindows", t0)
+
+    // Draw global UI once (status bar and any global banners) for the active window/buffer.
+    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+        activeBuf := e.windows[e.activeWindow].Buffer
+        if activeBuf != nil {
+            realBuf := e.buffer
+            // Temporarily sync active window's state to buffer to display correct line/col
+            w := e.windows[e.activeWindow]
+            savedView := activeBuf.ViewIterator
+            savedCursor := activeBuf.CursorIterator
+            savedX := activeBuf.CursorX
+            activeBuf.ViewIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.ViewLine))
+            activeBuf.CursorIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.CursorLine))
+            activeBuf.CursorX = w.CursorX
+            e.buffer = activeBuf
+            e.drawErrorLine()
+            e.drawStatusBar()
+            // restore
+            activeBuf.ViewIterator = savedView
+            activeBuf.CursorIterator = savedCursor
+            activeBuf.CursorX = savedX
+            e.buffer = realBuf
+        } else {
+            e.drawErrorLine()
+            e.drawStatusBar()
+        }
+    } else {
+        e.drawErrorLine()
+        e.drawStatusBar()
+    }
 	t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
+
+afterWindows:
 
     // Render overlay if active
     if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
@@ -468,10 +587,45 @@ func (e *Editor) render() {
 		// Get cursor from overlay
 		x, y := e.renderingState.GetOverlay().GetCursorPosition()
 		e.screen.ShowCursor(x, y)
-	} else {
-		// Normal cursor update
-		e.updateCursor()
-	}
+    } else {
+        // Normal cursor update
+        // Command/Search modes are global; always place cursor on the real screen
+        if e.mode == commands.CommandMode || e.mode == commands.SearchMode {
+            e.updateCursor()
+        } else if len(e.windows) > 1 {
+            // Compute and show cursor relative to the active window region
+            if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+                win := e.windows[e.activeWindow]
+                if win != nil {
+                    sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+                    realScreen := e.screen
+                    realBuffer := e.buffer
+                    e.screen = sub
+                    // Temporarily sync buffer to window state for correct cursor draw
+                    savedView := win.Buffer.ViewIterator
+                    savedCursor := win.Buffer.CursorIterator
+                    savedX := win.Buffer.CursorX
+                    win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
+                    win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
+                    win.Buffer.CursorX = win.CursorX
+                    e.buffer = win.Buffer
+                    e.updateCursor()
+                    // Restore
+                    win.Buffer.ViewIterator = savedView
+                    win.Buffer.CursorIterator = savedCursor
+                    win.Buffer.CursorX = savedX
+                    e.screen = realScreen
+                    e.buffer = realBuffer
+                } else {
+                    e.updateCursor()
+                }
+            } else {
+                e.updateCursor()
+            }
+        } else {
+            e.updateCursor()
+        }
+    }
 	t0 = e.perfTracker.ReportSince("updateCursor", t0)
 
 	e.screen.Show()
@@ -549,7 +703,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 			e.handleCursorMode(ev)
 		} else {
             // Normal and Visual modes: Handle numeric prefix for count operations
-            if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' {
+            // Do not consume digits if a key sequence is pending (enables bindings like "space 1")
+            if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' && !e.keyMapper.HasPending() {
 				// Special case: '0' is a command if no prefix is being built
 				if ev.Rune == '0' && e.countPrefix == "" {
 					// Let it be processed as a normal command (beginning-of-line)
@@ -1973,6 +2128,54 @@ func (e *Editor) goToDefinition(args []string) error {
 	e.scrollToCenter()
 
 	return nil
+}
+
+// goToDefinitionNewWindow opens the definition in a new right-hand window
+func (e *Editor) goToDefinitionNewWindow(args []string) error {
+    // Use the same lookup as goToDefinition, but open in a new window if target differs
+    if !e.buffer.HasFile() {
+        e.errorManager.ShowError("No file open")
+        return fmt.Errorf("no file open")
+    }
+    line := e.buffer.CursorIterator.LineNumber()
+    character := e.buffer.CursorX
+    locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
+    if err != nil || len(locations) == 0 {
+        if err == nil {
+            e.errorManager.ShowError("No definition found")
+        } else {
+            e.errorManager.ShowError("LSP error: %v", err)
+        }
+        return err
+    }
+    loc := locations[0]
+    if !strings.HasPrefix(loc.URI, "file://") {
+        return fmt.Errorf("unsupported URI scheme: %s", loc.URI)
+    }
+    targetPath := strings.TrimPrefix(loc.URI, "file://")
+    if strings.Contains(e.buffer.FilePath, ":") {
+        parts := strings.SplitN(e.buffer.FilePath, ":", 2)
+        if len(parts) == 2 {
+            targetPath = parts[0] + ":" + targetPath
+        }
+    }
+
+    // Create a new window to the right and open the file there
+    insertAt := e.activeWindow + 1
+    if insertAt >= len(e.windows) {
+        e.windows = append(e.windows, &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0})
+    } else {
+        e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+        e.windows[insertAt] = &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0}
+    }
+    e.activateWindow(insertAt)
+
+    // Open file and jump to location
+    e.openFile(targetPath)
+    e.buffer.CursorX = loc.Range.Start.Character
+    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, loc.Range.Start.Line)
+    e.scrollToCenter()
+    return nil
 }
 
 // getCommandCompletions returns possible completions for the given command prefix

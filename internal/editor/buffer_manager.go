@@ -73,6 +73,18 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 			// Reset syntax highlighting for unnamed buffer
 			e.highlighter = syntax.NewHighlighter()
 		}
+
+    // If windowing is enabled, ensure the active window shows this buffer
+    if len(e.windows) > 0 {
+        if e.activeWindow < 0 {
+            e.activeWindow = 0
+        }
+        if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+            if e.windows[e.activeWindow] != nil {
+                e.windows[e.activeWindow].Buffer = buf
+            }
+        }
+    }
 	}
 }
 
@@ -119,10 +131,15 @@ func (e *Editor) showBuffers(args []string) error {
 
 	// Wait for result in a goroutine
 	go func() {
-		selection := <-resultChan
+        selection := <-resultChan
 
 		// If a buffer was selected, switch to it
-		if selection != "" {
+        if selection != "" {
+            openInNewWin := false
+            if strings.HasPrefix(selection, "__SHIFT__\n") {
+                openInNewWin = true
+                selection = strings.TrimPrefix(selection, "__SHIFT__\n")
+            }
 			// Remove the " [current]" suffix if present
 			selection = strings.TrimSuffix(selection, " [current]")
 
@@ -131,10 +148,24 @@ func (e *Editor) showBuffers(args []string) error {
 
 			// Look up the actual path from the display name
 			if path, ok := pathToDisplay[selection]; ok {
-				// Switch to selected buffer
-				if buf, exists := e.buffers[path]; exists {
-					e.switchToBuffer(buf)
-				}
+                // Switch to selected buffer
+                if buf, exists := e.buffers[path]; exists {
+                    if openInNewWin {
+                        // Create a new window to the right and assign buffer
+                        insertAt := e.activeWindow + 1
+                        newWin := &Window{Buffer: buf, ViewLine: 0, CursorLine: 0, CursorX: 0}
+                        if insertAt >= len(e.windows) {
+                            e.windows = append(e.windows, newWin)
+                        } else {
+                            e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+                            e.windows[insertAt] = newWin
+                        }
+                        e.activateWindow(insertAt)
+                        e.switchToBuffer(buf)
+                    } else {
+                        e.switchToBuffer(buf)
+                    }
+                }
 			}
 		}
 	}()

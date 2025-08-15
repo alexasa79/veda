@@ -75,15 +75,20 @@ func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
 			flo.widget.MoveSelectionPageUp()
 		case events.KeyPgDn:
 			flo.widget.MoveSelectionPageDown()
-		case events.KeyEnter:
-			// Return the selected item
+        case events.KeyEnter:
+            // Return the selected item
 			selectedIndex := flo.widget.GetSelectedIndex()
 			if selectedIndex >= 0 {
 				// Get the raw (undecorated) selected item
 				content := flo.widget.GetContent()
 				if selectedIndex < len(content) {
-					// The widget tracks the raw line internally
-					return true, flo.widget.GetSelectedRawLine()
+                    // The widget tracks the raw line internally
+                    raw := flo.widget.GetSelectedRawLine()
+                    if keyEv.Modifiers & events.ModShift != 0 {
+                        // Signal to editor that Shift+Enter was used
+                        return true, "__SHIFT__\n" + raw
+                    }
+                    return true, raw
 				}
 			}
 			return true, ""

@@ -1,10 +1,11 @@
 package editor
 
 import (
-	"testing"
-	"veda/internal/buffer"
-	"veda/internal/commands"
-	"veda/internal/events"
+    "strings"
+    "testing"
+    "veda/internal/buffer"
+    "veda/internal/commands"
+    "veda/internal/events"
 )
 
 // Constants for common keys
@@ -76,49 +77,51 @@ func (te *TestEditor) InsertChar(ch rune) error {
 
 // TypeKeys simulates typing a sequence of keys in normal mode
 func (te *TestEditor) TypeKeys(keys string) {
-	// Check if this is a special key name
-	switch keys {
-	case "left":
-		te.PressKey(events.KeyLeft, 0)
-		return
-	case "right":
-		te.PressKey(events.KeyRight, 0)
-		return
-	case "up":
-		te.PressKey(events.KeyUp, 0)
-		return
-	case "down":
-		te.PressKey(events.KeyDown, 0)
-		return
-	}
-	
-	// Otherwise, process each character
-	for _, ch := range keys {
-		ev := &events.KeyEvent{
-			Key:  events.KeyRune,
-			Rune: ch,
-		}
-		// Handle cursor mode specially
-		if te.mode == commands.CursorMode {
-			te.handleCursorMode(ev)
-		} else if te.mode == commands.NormalMode && te.hasPendingOperation() {
-			te.handlePendingOperation(string(ch))
-		} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
-			// Use executeWithRepeatCount to properly handle multiple cursors
-			te.repeatCount = 1
-			te.executeWithRepeatCount(command)
-		} else {
-			// Handle insert mode character insertion
-			if te.mode == commands.InsertMode && ev.Key == events.KeyRune {
-				// Handle insert char for multiple cursors
-				if len(te.virtualCursors) > 0 {
-					te.insertCharForAllCursors(ev.Rune)
-				} else {
-					te.insertChar(ev.Rune)
-				}
-			}
-		}
-	}
+    // Quick handling for named arrow keys passed as full strings
+    switch keys {
+    case "left":
+        te.PressKey(events.KeyLeft, 0)
+        return
+    case "right":
+        te.PressKey(events.KeyRight, 0)
+        return
+    case "up":
+        te.PressKey(events.KeyUp, 0)
+        return
+    case "down":
+        te.PressKey(events.KeyDown, 0)
+        return
+    }
+
+    // If the input looks like a key sequence (e.g., "space v", "g d"),
+    // parse it using the same parser the keybindings use so multi-key
+    // sequences are recognized correctly.
+    if fields := strings.Fields(keys); len(fields) > 1 {
+        if seq, err := commands.ParseKeySequence(keys); err == nil {
+            for _, k := range seq {
+                ev := &events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod}
+                // Delegate to the main event handler logic
+                te.handleEvent(ev)
+            }
+            return
+        }
+        // If parsing fails, fall through to raw typing below
+    }
+
+    // Raw typing: send each rune as a key event, mapping common control chars
+    for _, ch := range keys {
+        var ev *events.KeyEvent
+        switch ch {
+        case '\n':
+            ev = &events.KeyEvent{Key: events.KeyEnter}
+        case '\t':
+            ev = &events.KeyEvent{Key: events.KeyTab}
+        default:
+            ev = &events.KeyEvent{Key: events.KeyRune, Rune: ch}
+        }
+        // Delegate to the main event handler logic
+        te.handleEvent(ev)
+    }
 }
 
 // PressKey simulates pressing a special key

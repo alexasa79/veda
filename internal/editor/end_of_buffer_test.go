@@ -81,10 +81,11 @@ func TestLineNumbersAtEndOfBuffer(t *testing.T) {
 	})
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+// testMax avoids clashing with the package-level max in render.go
+func testMax(a, b int) int {
+    if a > b {
+        return a
+    }
+    return b
 }
 

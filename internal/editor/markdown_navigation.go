@@ -27,12 +27,36 @@ func (e *Editor) jumpToReference(args []string) error {
 	}
 
 	// Check if we're on a markdown link (works in any buffer including references)
-	if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
-		return e.openMarkdownLink(link, lineNum)
+    if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
+        return e.openMarkdownLink(link, lineNum)
 	}
 
 	// Not on a reference or link, do nothing
 	return nil
+}
+
+// openMarkdownLinkInNewWindow opens the markdown link target in a new window
+func (e *Editor) openMarkdownLinkInNewWindow(args []string) error {
+    if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
+        // Create a new window to the right and open the link
+        insertAt := e.activeWindow + 1
+        oldActive := e.activeWindow
+        if insertAt >= len(e.windows) {
+            e.windows = append(e.windows, &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0})
+        } else {
+            e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+            e.windows[insertAt] = &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0}
+        }
+        e.recomputeWindowsLayout()
+        e.lastWindow = oldActive
+        e.activeWindow = insertAt
+        // Open in new window
+        if err := e.openMarkdownLink(link, lineNum); err != nil {
+            return err
+        }
+        return nil
+    }
+    return nil
 }
 
 // getMarkdownLinkAtCursor returns the link URL and line number (if any) at the current cursor position

@@ -53,8 +53,10 @@ var keyCodes = []keyCode{
 	{[]byte{'\x7f'}, events.KeyBackspace, events.ModNone},
 	{[]byte{'\x08'}, events.KeyBackspace2, events.ModNone},
 	{[]byte{'\t'}, events.KeyTab, events.ModNone},
-	{[]byte{'\r'}, events.KeyEnter, events.ModNone},
-	{[]byte{'\n'}, events.KeyEnter, events.ModNone},
+    {[]byte{'\r'}, events.KeyEnter, events.ModNone},
+    {[]byte{'\n'}, events.KeyEnter, events.ModNone},
+    // CSI-u/kitty keyboard: Shift+Enter often arrives as ESC [ 13 ; 2 u
+    {[]byte{'\x1b','[','1','3',';','2','u'}, events.KeyEnter, events.ModShift},
 
 	// Arrow keys - both normal and application mode
 	{[]byte{'\x1b', '[', 'A'}, events.KeyUp, events.ModNone},

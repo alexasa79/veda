@@ -312,15 +312,34 @@ func (e *Editor) ShowFuzzyListWidget() {
 
     // Create overlay and get result channel
     overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
-	overlayResultChan := e.renderingState.SetOverlay(overlay)
+    overlayResultChan := e.renderingState.SetOverlay(overlay)
 
 	// Wait for result in a goroutine
 	go func() {
-		selectedPath := <-overlayResultChan
-		if selectedPath != "" {
-			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
+        selectedPath := <-overlayResultChan
+        if selectedPath != "" {
+            openInNewWin := false
+            if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
+                openInNewWin = true
+                selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
+            }
+            fullPath := e.resolveSelectedPath(selectedPath, filePaths)
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
-			e.openFile(fullPath)
+            if openInNewWin {
+                // Create a new window and open file into it
+                insertAt := e.activeWindow + 1
+                // Temporarily switch active window to new one for openFile side effects
+                if insertAt >= len(e.windows) {
+                    e.windows = append(e.windows, &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0})
+                } else {
+                    e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+                    e.windows[insertAt] = &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0}
+                }
+                e.activateWindow(insertAt)
+                e.openFile(fullPath)
+            } else {
+                e.openFile(fullPath)
+            }
 		}
 		// Don't close contentUpdateChan - the sending goroutine might still be running
 		// The channel will be garbage collected when no longer referenced

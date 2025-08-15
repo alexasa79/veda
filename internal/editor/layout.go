@@ -8,29 +8,37 @@ import "strings"
 
 // getVisibleHeight returns the number of lines available for content display
 func (e *Editor) getVisibleHeight() int {
-	_, height := e.screen.Size()
-	reserved := 1 // Status bar
-	reserved += len(e.contextCache) // Context lines
-	// Reserve space for signature if shown
-	if e.buffer.CurrentSignature != nil {
-		reserved += e.getSignatureLines()
-	}
-	// Reserve space for error/diagnostic lines if shown
-	if e.errorManager.GetCurrentError() != "" {
-		reserved += 1
-	} else {
-		// Reserve space for diagnostic lines if we have a diagnostic for current line
-		cursorLine := e.buffer.CursorIterator.LineNumber() + 1
-		if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
-			reserved += e.getDiagnosticLineCount(diag.Message)
-		}
-	}
-	return height - reserved
+    _, height := e.screen.Size()
+    // For sub-window screens, the region already excludes the global status bar
+    if _, ok := e.screen.(*windowScreen); ok {
+        // Do not reserve global lines; just return region height
+        return height
+    }
+    reserved := 1 // Status bar
+    reserved += len(e.contextCache) // Context lines
+    // Reserve space for signature if shown
+    if e.buffer.CurrentSignature != nil {
+        reserved += e.getSignatureLines()
+    }
+    // Reserve space for error/diagnostic lines if shown
+    if e.errorManager.GetCurrentError() != "" {
+        reserved += 1
+    } else {
+        // Reserve space for diagnostic lines if we have a diagnostic for current line
+        cursorLine := e.buffer.CursorIterator.LineNumber() + 1
+        if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+            reserved += e.getDiagnosticLineCount(diag.Message)
+        }
+    }
+    return height - reserved
 }
 
 // getContentStartY returns the Y position where content starts
 func (e *Editor) getContentStartY() int {
-	return len(e.contextCache) // Start after context lines
+    if _, ok := e.screen.(*windowScreen); ok {
+        return 0
+    }
+    return len(e.contextCache) // Start after context lines
 }
 
 // shouldShowContext determines if context should be shown
@@ -62,9 +70,9 @@ func (e *Editor) updateContext() {
 		return
 	}
 
-	// Calculate visible range
-	viewStartLine := e.buffer.ViewIterator.LineNumber()
-	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
+    // Calculate visible range (per-window; entire region height)
+    viewStartLine := e.buffer.ViewIterator.LineNumber()
+    viewEndLine := viewStartLine + e.getVisibleHeight() - 1
 
 	// Try to use tree-sitter for context if available
 	if e.highlighter != nil && e.highlighter.GetTree() != nil {
@@ -154,7 +162,11 @@ func (e *Editor) handleResize() {
 	e.searchLine.SetPosition(0, e.getStatusBarY())
 
 	// Clear and redraw the screen to handle the new dimensions
-	e.screen.Clear()
+    // Recompute window layout if using windows
+    if len(e.windows) > 0 {
+        e.recomputeWindowsLayout()
+    }
+    e.screen.Clear()
 	e.render()
 	e.screen.Show()
 }
