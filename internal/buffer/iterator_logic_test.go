@@ -144,8 +144,8 @@ func TestIteratorLogic(t *testing.T) {
 				t.Error("Expected iterator to be at EOF")
 			}
 
-			// For "Line 1\nLine 2\nLine 3\n" there are 3 newlines
-			expectedLineNum := 3
+            // For "Line 1\nLine 2\nLine 3\n" there are 3 newlines; with newline-as-boundary semantics EOF line number is 4
+            expectedLineNum := 4
 			if iterEnd.LineNum != expectedLineNum {
 				t.Errorf("Expected EOF line number %d, got %d", expectedLineNum, iterEnd.LineNum)
 			}
