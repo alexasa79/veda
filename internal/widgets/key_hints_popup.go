@@ -205,7 +205,7 @@ func (khp *KeyHintsPopup) drawHints(screen Screen, x, y int) {
 }
 
 // GetAvailableKeyHints returns available key hints for the given partial key sequence
-func GetAvailableKeyHints(keyMapper *commands.KeyMapper, partialSequence commands.KeySequence, currentMode commands.Mode, commandDescriptions map[string]string) []KeyHint {
+func GetAvailableKeyHints(keyMapper *commands.KeyMapper, partialSequence commands.KeySequence, currentMode commands.Mode, commandDescriptions map[string]string, categoryDescriptions map[string]string) []KeyHint {
 	var hints []KeyHint
 	seen := make(map[string]bool)
 
@@ -268,6 +268,22 @@ func GetAvailableKeyHints(keyMapper *commands.KeyMapper, partialSequence command
 		}
 	}
 
+	// Apply category descriptions where available
+	for i, hint := range hints {
+		partialWithNext := make(commands.KeySequence, len(partialSequence)+1)
+		copy(partialWithNext, partialSequence)
+		
+		// Parse the hint key back to a Key object
+		hintKey, err := parseKeyFromString(hint.Key)
+		if err == nil {
+			partialWithNext[len(partialSequence)] = hintKey
+			categoryKey := formatKeySequence(partialWithNext)
+			if categoryDesc, exists := categoryDescriptions[categoryKey]; exists {
+				hints[i].Description = categoryDesc
+			}
+		}
+	}
+
 	// Sort hints by key for consistent display
 	sort.Slice(hints, func(i, j int) bool {
 		return hints[i].Key < hints[j].Key
@@ -293,7 +309,11 @@ func formatKey(key commands.Key) string {
 	
 	// Add key name
 	if key.Key == events.KeyRune {
-		parts = append(parts, string(key.Rune))
+		if key.Rune == ' ' {
+			parts = append(parts, "space")
+		} else {
+			parts = append(parts, string(key.Rune))
+		}
 	} else {
 		parts = append(parts, formatSpecialKey(key.Key))
 	}
@@ -335,6 +355,59 @@ func formatSpecialKey(key events.Key) string {
 	default:
 		return "unknown"
 	}
+}
+
+// parseKeyFromString parses a formatted key string back to a Key object
+// This is a reverse of formatKey function  
+func parseKeyFromString(keyStr string) (commands.Key, error) {
+	// Handle simple rune keys
+	if len(keyStr) == 1 {
+		return commands.Key{Key: events.KeyRune, Rune: rune(keyStr[0])}, nil
+	}
+	
+	// Handle special keys
+	switch keyStr {
+	case "space":
+		return commands.Key{Key: events.KeyRune, Rune: ' '}, nil
+	case "left":
+		return commands.Key{Key: events.KeyLeft}, nil
+	case "right":
+		return commands.Key{Key: events.KeyRight}, nil
+	case "up":
+		return commands.Key{Key: events.KeyUp}, nil
+	case "down":
+		return commands.Key{Key: events.KeyDown}, nil
+	case "enter":
+		return commands.Key{Key: events.KeyEnter}, nil
+	case "escape":
+		return commands.Key{Key: events.KeyEscape}, nil
+	case "tab":
+		return commands.Key{Key: events.KeyTab}, nil
+	case "backspace":
+		return commands.Key{Key: events.KeyBackspace}, nil
+	case "delete":
+		return commands.Key{Key: events.KeyDelete}, nil
+	case "home":
+		return commands.Key{Key: events.KeyHome}, nil
+	case "end":
+		return commands.Key{Key: events.KeyEnd}, nil
+	case "pageup":
+		return commands.Key{Key: events.KeyPgUp}, nil
+	case "pagedown":
+		return commands.Key{Key: events.KeyPgDn}, nil
+	default:
+		// For unsupported keys, return an error
+		return commands.Key{}, fmt.Errorf("unsupported key string: %s", keyStr)
+	}
+}
+
+// formatKeySequence formats a key sequence for use as a map key
+func formatKeySequence(seq commands.KeySequence) string {
+	var parts []string
+	for _, key := range seq {
+		parts = append(parts, formatKey(key))
+	}
+	return strings.Join(parts, " ")
 }
 
 // keyEquals checks if two keys are equal (copied from commands package)

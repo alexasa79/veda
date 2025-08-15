@@ -54,6 +54,7 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		
 		// LSP commands
 		"go-to-definition":           "go to definition",
+		"go-to-definition-new-window": "go to definition",
 		"find-references":            "find references",
 		"show-signature":             "show signature",
 		"diagnostics":                "show diagnostics",
@@ -97,6 +98,20 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		
 		// Rewrap
 		"rewrap-paragraph":           "rewrap paragraph",
+		
+		// Window management commands
+		"move-buffer-left":           "move buffer left",
+		"move-buffer-right":          "move buffer right", 
+		"move-buffer-center":         "move buffer center",
+	}
+}
+
+// getCategoryDescriptions returns a map of partial key sequences to category descriptions
+func (e *Editor) getCategoryDescriptions() map[string]string {
+	return map[string]string{
+		"space m":   "window management",
+		"g space":   "go with new window", 
+		"g space d": "go to definition",
 	}
 }
 
@@ -117,7 +132,8 @@ func (e *Editor) showKeyHints() {
 	
 	// Get available key hints
 	commandDescs := e.getCommandDescriptions()
-	hints := widgets.GetAvailableKeyHints(e.keyMapper, pendingKeys, e.mode, commandDescs)
+	categoryDescs := e.getCategoryDescriptions()
+	hints := widgets.GetAvailableKeyHints(e.keyMapper, pendingKeys, e.mode, commandDescs, categoryDescs)
 	
 	if len(hints) == 0 {
 		e.keyHintsPopup.Hide()
