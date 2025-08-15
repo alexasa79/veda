@@ -117,7 +117,7 @@ func TestGetAvailableKeyHints(t *testing.T) {
 	})
 	
 	t.Run("no hints for empty sequence", func(t *testing.T) {
-		hints := widgets.GetAvailableKeyHints(keyMapper, []commands.Key{}, commands.NormalMode, map[string]string{})
+		hints := widgets.GetAvailableKeyHints(keyMapper, []commands.Key{}, commands.NormalMode, map[string]string{}, map[string]string{})
 		if len(hints) != 0 {
 			t.Errorf("Expected no hints for empty sequence, got %d", len(hints))
 		}
@@ -131,7 +131,7 @@ func TestGetAvailableKeyHints(t *testing.T) {
 			"next-reference":   "next reference",
 		}
 		
-		hints := widgets.GetAvailableKeyHints(keyMapper, partialSeq, commands.NormalMode, commandDescs)
+		hints := widgets.GetAvailableKeyHints(keyMapper, partialSeq, commands.NormalMode, commandDescs, map[string]string{})
 		
 		if len(hints) != 3 {
 			t.Errorf("Expected 3 hints for 'g' sequence, got %d", len(hints))
@@ -157,7 +157,7 @@ func TestGetAvailableKeyHints(t *testing.T) {
 			{Key: events.KeyRune, Rune: 'd'},
 		}
 		
-		hints := widgets.GetAvailableKeyHints(keyMapper, completeSeq, commands.NormalMode, map[string]string{})
+		hints := widgets.GetAvailableKeyHints(keyMapper, completeSeq, commands.NormalMode, map[string]string{}, map[string]string{})
 		if len(hints) != 0 {
 			t.Errorf("Expected no hints for complete sequence, got %d", len(hints))
 		}
@@ -166,9 +166,81 @@ func TestGetAvailableKeyHints(t *testing.T) {
 	t.Run("no hints for wrong mode", func(t *testing.T) {
 		partialSeq := []commands.Key{{Key: events.KeyRune, Rune: 'g'}}
 		
-		hints := widgets.GetAvailableKeyHints(keyMapper, partialSeq, commands.InsertMode, map[string]string{})
+		hints := widgets.GetAvailableKeyHints(keyMapper, partialSeq, commands.InsertMode, map[string]string{}, map[string]string{})
 		if len(hints) != 0 {
 			t.Errorf("Expected no hints for wrong mode, got %d", len(hints))
+		}
+	})
+	
+	t.Run("key hint behavior for space and space m", func(t *testing.T) {
+		te := NewTestEditor(80, 24)
+		commandDescs := te.getCommandDescriptions()
+		categoryDescs := te.getCategoryDescriptions()
+		
+		// Test what happens when you press just "space"
+		spaceSeq := []commands.Key{{Key: events.KeyRune, Rune: ' '}}
+		spaceHints := widgets.GetAvailableKeyHints(te.keyMapper, spaceSeq, commands.NormalMode, commandDescs, categoryDescs)
+		
+		t.Logf("After pressing 'space', found %d hints:", len(spaceHints))
+		for i, hint := range spaceHints {
+			t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
+			if hint.Key == "m" && hint.Description != "window management" {
+				t.Errorf("Expected 'm' key to have 'window management' description, got '%s'", hint.Description)
+			}
+		}
+		
+		// Test what happens when you press "space m"
+		spaceMSeq := []commands.Key{
+			{Key: events.KeyRune, Rune: ' '},
+			{Key: events.KeyRune, Rune: 'm'},
+		}
+		spaceMHints := widgets.GetAvailableKeyHints(te.keyMapper, spaceMSeq, commands.NormalMode, commandDescs, categoryDescs)
+		
+		t.Logf("After pressing 'space m', found %d hints:", len(spaceMHints))
+		for i, hint := range spaceMHints {
+			t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
+		}
+		
+		// The individual commands should have specific descriptions (not "window management")
+		if len(spaceMHints) > 0 {
+			for _, hint := range spaceMHints {
+				if hint.Description == "window management" {
+					t.Errorf("Individual command '%s' should not have generic 'window management' description", hint.Key)
+				}
+			}
+		}
+	})
+	
+	t.Run("key hint behavior for g and g space", func(t *testing.T) {
+		te := NewTestEditor(80, 24)
+		commandDescs := te.getCommandDescriptions()
+		categoryDescs := te.getCategoryDescriptions()
+		
+		// Test what happens when you press just "g"
+		gSeq := []commands.Key{{Key: events.KeyRune, Rune: 'g'}}
+		gHints := widgets.GetAvailableKeyHints(te.keyMapper, gSeq, commands.NormalMode, commandDescs, categoryDescs)
+		
+		t.Logf("After pressing 'g', found %d hints:", len(gHints))
+		for i, hint := range gHints {
+			t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
+			if hint.Key == "space" && hint.Description != "go with new window" {
+				t.Errorf("Expected 'space' key to have 'go with new window' description, got '%s'", hint.Description)
+			}
+		}
+		
+		// Test what happens when you press "g space"
+		gSpaceSeq := []commands.Key{
+			{Key: events.KeyRune, Rune: 'g'},
+			{Key: events.KeyRune, Rune: ' '},
+		}
+		gSpaceHints := widgets.GetAvailableKeyHints(te.keyMapper, gSpaceSeq, commands.NormalMode, commandDescs, categoryDescs)
+		
+		t.Logf("After pressing 'g space', found %d hints:", len(gSpaceHints))
+		for i, hint := range gSpaceHints {
+			t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
+			if hint.Key == "d" && hint.Description != "go to definition" {
+				t.Errorf("Expected 'd' key to have 'go to definition' description, got '%s'", hint.Description)
+			}
 		}
 	})
 }
