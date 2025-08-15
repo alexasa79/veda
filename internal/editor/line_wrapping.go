@@ -157,9 +157,12 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 	iter := buffer.NewBufferIteratorAtLine(e.buffer, e.buffer.ViewIterator.LineNumber())
 	visualLineCount := 0
 	
-	// Process lines until we fill the visible area
-	for !iter.IsEOF() && visualLineCount < visibleHeight {
+    startViewLine := e.buffer.ViewIterator.LineNumber()
+    lastLogical := startViewLine - 1
+    // Process lines until we fill the visible area
+    for !iter.IsEOF() && visualLineCount < visibleHeight {
 		logicalLineNum := iter.LineNumber()
+        lastLogical = logicalLineNum
 		line := iter.Line()
 		
 		// Wrap this line
@@ -174,10 +177,10 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 			visualLineCount++
 		}
 		
-		iter = iter.Next()
+        iter = iter.Next()
 	}
 	
-	// Handle empty buffer case
+    // Handle empty buffer case
 	if len(wrappedLines) == 0 && e.buffer.Rope.Length() == 0 {
 		wrappedLines = append(wrappedLines, WrappedLine{
 			LogicalLineNum: 0,
@@ -188,6 +191,28 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 			Text:           "",
 		})
 	}
+
+    // Render final empty line when buffer ends with a newline
+    // Using newline-as-boundary semantics: "hello\n" has two lines, second is empty
+    if visualLineCount < visibleHeight && e.buffer.Rope.Length() > 0 {
+        lastByte := e.buffer.Rope.ByteAt(e.buffer.Rope.Length() - 1)
+        if lastByte == '\n' {
+            // The empty line immediately after the last logical line
+            // Its logical line number is lastLogical+1, but if we didn't render any lines
+            // and view starts at 0, then lastLogical may be -1; handle that.
+            emptyLineNum := lastLogical + 1
+            if emptyLineNum >= startViewLine && visualLineCount < visibleHeight {
+                wrappedLines = append(wrappedLines, WrappedLine{
+                    LogicalLineNum: emptyLineNum,
+                    VisualLineNum:  visualLineCount,
+                    StartChar:      0,
+                    EndChar:        0,
+                    IsFirstLine:    true,
+                    Text:           "",
+                })
+            }
+        }
+    }
 	
 	return wrappedLines
 }

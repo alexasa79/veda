@@ -109,23 +109,10 @@ func NewBufferIteratorAtEnd(buffer *Buffer) *BufferIterator {
 	if buffer.Rope.root != nil {
 		it.Node = getRightmostLeaf(buffer.Rope.root)
 
-		// Calculate the line number at EOF using newlineCount
-		// We set the line number to be one more than the total line count
-		// This way Previous() can always just do lineNum - 1
-		totalNewlines := buffer.Rope.root.newlineCount
-		it.LineNum = totalNewlines + 1
-
-		// If the last character in the buffer is \n, do not count it as
-		// a line.
-		lastChar, ok := it.previousChar()
-		if !ok {
-			// Empty buffe r
-			it.LineNum = 0
-		} else {
-			if lastChar.getCharAt() == '\n' {
-				it.LineNum--
-			}
-		}
+    // Calculate the line number at EOF using newline-as-boundary semantics:
+    // lineNum at EOF is total newlines + 1 (empty buffer -> 1 line)
+    totalNewlines := buffer.Rope.root.newlineCount
+    it.LineNum = totalNewlines + 1
 	} else {
 		// Empty buffer
 		it.LineNum = 0

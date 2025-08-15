@@ -16,18 +16,7 @@ func calculateLineCount(rope *Rope) int {
 	}
 	
 	// Number of lines is newline count + 1
-	lineCount := rope.root.newlineCount + 1
-	
-	// If buffer ends with newline, don't count it as creating a new line
-	if rope.Length() > 0 {
-		// Get the last character
-		lastChar := rope.ByteAt(rope.Length() - 1)
-		if lastChar == '\n' && lineCount > 1 {
-			lineCount--
-		}
-	}
-	
-	return lineCount
+    return rope.root.newlineCount + 1
 }
 
 // SignatureHelp represents function signature information from LSP
