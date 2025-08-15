@@ -16,7 +16,7 @@ func getWindowWidths(e *Editor) []int {
 }
 
 func TestActiveWindowMinWidthOnSwitch(t *testing.T) {
-    te := NewTestEditor(180, 40) // total width 180; min active width is 110 by default
+    te := NewTestEditor(180, 40) // total width 180; min active width is 100 by default
     // Start with a split
     te.TypeKeys("space v")
     te.render()
@@ -91,8 +91,9 @@ func TestActiveWindowDoesNotWrapLongLine(t *testing.T) {
         t.Fatalf("expected 2 windows, got %d", len(te.windows))
     }
 
-    // Prepare a long line that fits in the active wide window but likely wraps in the narrow one.
-    long := strings.Repeat("X", 100)
+    // Prepare a long line that fits in the active window (min width 100, ~96 text cols after gutter)
+    // but will wrap in the narrower inactive window.
+    long := strings.Repeat("X", 96)
 
     // Put content into both windows' buffers
     for _, w := range te.windows {

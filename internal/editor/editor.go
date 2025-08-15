@@ -287,7 +287,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
         windows:          nil,
         activeWindow:     0,
         lastWindow:       0,
-        minActiveWindowWidth: 110,
+        minActiveWindowWidth: 100,
 	}
 
     // Initialize windows with a single window for the initial buffer (always have a window)
