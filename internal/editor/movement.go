@@ -295,10 +295,25 @@ func (e *Editor) goToEnd(args []string) error {
 	endIter := buffer.NewBufferIteratorAtEnd(e.buffer)
 
 	// Go back one line to the last actual line
-	prevIter := endIter.Previous()
+    prevIter := endIter.Previous()
+
+    // If the file ends with a trailing newline, prevIter may point to the final empty line.
+    // For go-to-end we want the end of the last non-empty line.
+    if e.buffer.Rope.Length() > 0 {
+        lastByte := e.buffer.Rope.ByteAt(e.buffer.Rope.Length() - 1)
+        if lastByte == '\n' && !prevIter.Equals(endIter) {
+            if prevIter.Line() == "" {
+                // Move to previous non-empty line if possible
+                candidate := prevIter.Previous()
+                if !candidate.Equals(prevIter) {
+                    prevIter = candidate
+                }
+            }
+        }
+    }
 
 	// Check if we actually moved (not empty buffer)
-	if !prevIter.Equals(endIter) {
+    if !prevIter.Equals(endIter) {
 		e.buffer.CursorIterator = prevIter
 
 		// Move to end of last line (but stay on last character in normal mode)
