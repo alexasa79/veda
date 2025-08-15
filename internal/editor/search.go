@@ -350,3 +350,34 @@ func (e *Editor) clearSearchCmd(args []string) error {
 	
 	return nil
 }
+
+// updateSearchMatchesOnContentChange updates search matches when buffer content changes
+func (e *Editor) updateSearchMatchesOnContentChange() {
+	// Only update if we have an active search
+	if e.searchPattern == "" || len(e.searchMatches) == 0 {
+		return
+	}
+	
+	// Note: We can't safely get cursor position here because iterators are invalid during buffer changes
+	// Instead, we'll just recalculate matches and reset the current match to a safe value
+	
+	// Recalculate all search matches
+	e.updateSearchMatches()
+	
+	// Reset current match to a safe value
+	if len(e.searchMatches) > 0 {
+		// Set to first match as a fallback - not ideal UX but safe
+		e.currentMatch = 0
+	} else {
+		// No matches found after update
+		e.currentMatch = -1
+	}
+}
+
+// abs returns the absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
