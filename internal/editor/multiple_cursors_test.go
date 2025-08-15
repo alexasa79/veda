@@ -2,6 +2,7 @@ package editor
 
 import (
 	"testing"
+	"veda/internal/commands"
 	"veda/internal/events"
 )
 
@@ -162,6 +163,124 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 				t.Errorf("Expected second virtual cursor on line 2, got line %d", 
 					virtualCursors[1].Y)
 			}
+		}
+	})
+	
+	t.Run("cw should work with multiple cursors", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello world\nhello world\nhello world")
+		
+		// First, move to the 'w' in "world" on first line (position 6)
+		for i := 0; i < 6; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Enter cursor mode
+		te.TypeKeys("m")
+		
+		// Add virtual cursor at current position (6,0)
+		te.PressKey(events.KeyEnter, 0)
+		
+		// Move down and add another virtual cursor at (6,1)
+		te.PressKey(events.KeyEnter, 0)
+		
+		// Exit cursor mode - now we have 3 cursors all pointing to 'w' in "world"
+		te.TypeKeys("m")
+		
+		// Execute cw to change "world" to something else
+		te.TypeKeys("cw")
+		
+		// Should be in insert mode
+		if te.mode != commands.InsertMode {
+			t.Errorf("Expected insert mode after 'cw', got %v", te.mode)
+		}
+		
+		// Verify that words were deleted and we're in insert mode with virtual cursors preserved
+		afterCw := te.GetBufferContent()
+		expectedAfterCw := "hello \nhello \nhello "
+		if afterCw != expectedAfterCw {
+			t.Errorf("Expected buffer after cw:\n%q\nBut got:\n%q", expectedAfterCw, afterCw)
+		}
+		
+		// Check that virtual cursors are preserved
+		virtualCursorsAfterCw := te.GetVirtualCursors()
+		if len(virtualCursorsAfterCw) != 2 {
+			t.Errorf("Expected 2 virtual cursors after cw, got %d", len(virtualCursorsAfterCw))
+		}
+		
+		// Type "hello" to replace "world" at all cursor positions
+		te.TypeKeys("hello")
+		
+		// Exit insert mode
+		te.PressKey(events.KeyEscape, 0)
+		
+		// Expected result: all three lines should say "hello hello"
+		expected := "hello hello\nhello hello\nhello hello"
+		actual := te.GetBufferContent()
+		if actual != expected {
+			t.Errorf("Expected buffer:\n%q\nBut got:\n%q", expected, actual)
+		}
+	})
+	
+	t.Run("dw followed by insert should work with multiple cursors", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello world\nhello world\nhello world")
+		
+		// First, move to the 'w' in "world" on first line (position 6)
+		for i := 0; i < 6; i++ {
+			te.ExecuteCommand("right")
+		}
+		
+		// Enter cursor mode
+		te.TypeKeys("m")
+		
+		// Add virtual cursor at current position (6,0)
+		te.PressKey(events.KeyEnter, 0)
+		
+		// Move down and add another virtual cursor at (6,1)
+		te.PressKey(events.KeyEnter, 0)
+		
+		// Exit cursor mode - now we have 3 cursors all pointing to 'w' in "world"
+		te.TypeKeys("m")
+		
+		// Execute dw to delete "world" from all positions
+		te.TypeKeys("dw")
+		
+		// Should be in normal mode after dw
+		if te.mode != commands.NormalMode {
+			t.Errorf("Expected normal mode after 'dw', got %v", te.mode)
+		}
+		
+		// Verify that "world" was deleted from all lines
+		afterDw := te.GetBufferContent()
+		expectedAfterDw := "hello \nhello \nhello "
+		if afterDw != expectedAfterDw {
+			t.Errorf("Expected buffer after dw:\n%q\nBut got:\n%q", expectedAfterDw, afterDw)
+		}
+		
+		// Check virtual cursor state after dw  
+		virtualCursorsAfterDw := te.GetVirtualCursors()
+		if len(virtualCursorsAfterDw) == 0 {
+			t.Errorf("Expected virtual cursors to be preserved after dw, but they were cleared")
+		}
+		
+		// Now enter insert mode
+		te.TypeKeys("i")
+		
+		// Should be in insert mode
+		if te.mode != commands.InsertMode {
+			t.Errorf("Expected insert mode after 'i', got %v", te.mode)
+		}
+		
+		// Type "hello" - this should work at all cursor positions
+		te.TypeKeys("hello")
+		
+		// Exit insert mode
+		te.PressKey(events.KeyEscape, 0)
+		
+		// Expected result: all three lines should say "hello hello"
+		expected := "hello hello\nhello hello\nhello hello"
+		actual := te.GetBufferContent()
+		if actual != expected {
+			t.Errorf("Expected buffer:\n%q\nBut got:\n%q", expected, actual)
 		}
 	})
 }
