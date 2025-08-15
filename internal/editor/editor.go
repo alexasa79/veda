@@ -1073,6 +1073,8 @@ func (e *Editor) updateCursor() {
 		// Get visual position with line wrapping
 		visualLine, visualCol := e.GetCursorVisualPosition()
 		cursorY := visualLine + e.getContentStartY()
+		LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
+			e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
 		e.screen.ShowCursor(visualCol, cursorY)
 	}
 }
