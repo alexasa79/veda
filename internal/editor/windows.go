@@ -87,7 +87,9 @@ func (e *Editor) activateWindow(idx int) {
     }
 }
 
-// recomputeWindowsLayout recalculates all window rectangles with equal widths.
+    // recomputeWindowsLayout recalculates all window rectangles.
+    // It aims for equal widths, but guarantees the active window has at least
+    // minActiveWindowWidth columns without reducing it if it would naturally be wider.
 func (e *Editor) recomputeWindowsLayout() {
     if len(e.windows) == 0 {
         return
@@ -127,21 +129,44 @@ func (e *Editor) recomputeWindowsLayout() {
         activeIdx = 0
     }
 
-    remaining := screenW - minW
-    each := remaining / (n - 1)
-    extra := remaining % (n - 1)
-
+    // Start with equal distribution across all windows
     widths := make([]int, n)
+    base := screenW / n
+    extra := screenW % n
     for i := 0; i < n; i++ {
-        if i == activeIdx {
-            widths[i] = minW
-        } else {
-            w := each
-            if extra > 0 {
-                w++
-                extra--
+        w := base
+        if i < extra {
+            w++
+        }
+        widths[i] = w
+    }
+
+    // If the active window is narrower than the minimum, enlarge it by
+    // borrowing columns from other windows (preferentially from widest ones).
+    if widths[activeIdx] < minW {
+        need := minW - widths[activeIdx]
+        widths[activeIdx] = minW
+
+        // Borrow one column at a time from other windows in rounds to keep balance
+        for need > 0 {
+            // Find a donor window with the largest current width (excluding active)
+            donor := -1
+            donorWidth := -1
+            for i := 0; i < n; i++ {
+                if i == activeIdx {
+                    continue
+                }
+                if widths[i] > donorWidth && widths[i] > 1 { // keep at least 1 col
+                    donor = i
+                    donorWidth = widths[i]
+                }
             }
-            widths[i] = w
+            if donor == -1 {
+                // No donor available (should not happen due to minW clamp), stop
+                break
+            }
+            widths[donor]--
+            need--
         }
     }
 
