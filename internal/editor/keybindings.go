@@ -97,17 +97,37 @@ func (e *Editor) setupDefaultBindings() {
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
 
-	// Buffer operations
+    // Buffer operations
 	e.registerKeyBinding(commands.NormalMode, "s b", "show-buffers")
 	e.registerKeyBinding(commands.NormalMode, "space space", "switch-to-previous-buffer")
 	e.registerKeyBinding(commands.NormalMode, "space n", "new-buffer")
+
+    // Window operations
+    e.registerKeyBinding(commands.NormalMode, "space v", "vsplit")
+    // Window selection: space 1..9 -> window 1..9
+    e.registerKeyBinding(commands.NormalMode, "space 1", "window-1")
+    e.registerKeyBinding(commands.NormalMode, "space 2", "window-2")
+    e.registerKeyBinding(commands.NormalMode, "space 3", "window-3")
+    e.registerKeyBinding(commands.NormalMode, "space 4", "window-4")
+    e.registerKeyBinding(commands.NormalMode, "space 5", "window-5")
+    e.registerKeyBinding(commands.NormalMode, "space 6", "window-6")
+    e.registerKeyBinding(commands.NormalMode, "space 7", "window-7")
+    e.registerKeyBinding(commands.NormalMode, "space 8", "window-8")
+    e.registerKeyBinding(commands.NormalMode, "space 9", "window-9")
+    e.registerKeyBinding(commands.NormalMode, "space o", "window-last")
+
+    // Move buffer between windows
+    e.registerKeyBinding(commands.NormalMode, "space m left", "move-buffer-left")
+    e.registerKeyBinding(commands.NormalMode, "space m right", "move-buffer-right")
+    e.registerKeyBinding(commands.NormalMode, "space m c", "move-buffer-center")
 
 	// Symbol operations
 	e.registerKeyBinding(commands.NormalMode, "s w", "list-project-symbols")
 	e.registerKeyBinding(commands.NormalMode, "s d", "list-document-symbols")
 
 	// LSP operations
-	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
+    e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
+    e.registerKeyBinding(commands.NormalMode, "g space d", "go-to-definition-new-window")
 	e.registerKeyBinding(commands.NormalMode, "s s", "show-signature")
 	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 	e.registerKeyBinding(commands.NormalMode, "g e", "diagnostics")

@@ -240,9 +240,12 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 		}
 	}
 	
-	// Default case - cursor is beyond visible area
-	// Return the count of wrapped lines to indicate we're off-screen
-	return len(wrappedLines), e.buffer.LineNumberWidth
+    // Default case - cursor is beyond visible area
+    // Clamp to the last visible wrapped line to avoid placing cursor past window height
+    if len(wrappedLines) == 0 {
+        return 0, e.buffer.LineNumberWidth
+    }
+    return len(wrappedLines)-1, e.buffer.LineNumberWidth
 }
 
 // MapVisualToLogical maps a visual line position to logical line and character position

@@ -91,6 +91,7 @@ func (e *Editor) registerCommands() {
 
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition, false)
+	e.commandRegistry.Register("go-to-definition-new-window", e.goToDefinitionNewWindow, false)
 	e.commandRegistry.Register("find-references", e.findReferences, false)
 	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo, false)
 	e.commandRegistry.Register("show-signature", e.showSignature, false)
@@ -148,6 +149,9 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("help", e.showHelp, false)
 	e.commandRegistry.Register("help-keys", e.showHelpKeys, false)
 
+	// Markdown commands
+	e.commandRegistry.Register("open-markdown-link-new-window", e.openMarkdownLinkInNewWindow, false)
+
 	// Diagnostics commands
 	e.commandRegistry.Register("diagnostics", e.showDiagnostics, false)
 
@@ -166,6 +170,25 @@ func (e *Editor) registerCommands() {
 
 	// Temporary normal mode
 	e.commandRegistry.Register("enter-temporary-normal-mode", e.enterTemporaryNormalMode, false)
+
+    // Window commands
+    e.commandRegistry.Register("vsplit", e.vsplit, false)
+    // Numeric window switches (1-based)
+    e.commandRegistry.Register("window-1", func([]string) error { return e.switchToWindow(1) }, false)
+    e.commandRegistry.Register("window-2", func([]string) error { return e.switchToWindow(2) }, false)
+    e.commandRegistry.Register("window-3", func([]string) error { return e.switchToWindow(3) }, false)
+    e.commandRegistry.Register("window-4", func([]string) error { return e.switchToWindow(4) }, false)
+    e.commandRegistry.Register("window-5", func([]string) error { return e.switchToWindow(5) }, false)
+    e.commandRegistry.Register("window-6", func([]string) error { return e.switchToWindow(6) }, false)
+    e.commandRegistry.Register("window-7", func([]string) error { return e.switchToWindow(7) }, false)
+    e.commandRegistry.Register("window-8", func([]string) error { return e.switchToWindow(8) }, false)
+    e.commandRegistry.Register("window-9", func([]string) error { return e.switchToWindow(9) }, false)
+    e.commandRegistry.Register("window-last", e.switchToLastWindow, false)
+
+    // Window buffer move commands
+    e.commandRegistry.Register("move-buffer-left", e.moveBufferLeft, false)
+    e.commandRegistry.Register("move-buffer-right", e.moveBufferRight, false)
+    e.commandRegistry.Register("move-buffer-center", e.moveBufferCenter, false)
 }
 
 // changeToEndOfLine changes from the cursor to the end of the current line
