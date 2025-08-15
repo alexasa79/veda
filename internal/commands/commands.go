@@ -229,3 +229,10 @@ func (km *KeyMapper) HasPending() bool {
 func (km *KeyMapper) GetAllBindings() []Binding {
 	return km.bindings
 }
+
+// GetPendingKeys returns the current pending key sequence
+func (km *KeyMapper) GetPendingKeys() KeySequence {
+	result := make(KeySequence, len(km.pending))
+	copy(result, km.pending)
+	return result
+}

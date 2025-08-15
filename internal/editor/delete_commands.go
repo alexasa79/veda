@@ -207,6 +207,8 @@ func (e *Editor) clearPendingOperation() {
 	e.pendingModifier = ModifierNone
 	e.pendingKeys = nil
 	e.pendingCount = 0
+	// Hide key hints when clearing pending operations
+	e.keyHintsPopup.Hide()
 }
 
 // cancelPendingOperation cancels any pending operation (called on Escape)
