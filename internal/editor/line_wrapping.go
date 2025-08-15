@@ -197,6 +197,8 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 	// Calculate all visible wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
+    LL.Trace("GetCursorVisualPosition: viewTop=%d visibleWrapped=%d cursor(line=%d,x=%d)",
+        e.buffer.ViewIterator.LineNumber(), len(wrappedLines), e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX)
 	
 	cursorLogicalLine := e.buffer.CursorIterator.LineNumber()
 	cursorX := e.buffer.CursorX
@@ -213,7 +215,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 				return
 			}
 			// Special case for cursor exactly at the end of a wrapped segment
-			if cursorX == wl.EndChar {
+            if cursorX == wl.EndChar {
 				// Check if this is the last segment of this logical line
 				isLastSegment := i == len(wrappedLines)-1 || wrappedLines[i+1].LogicalLineNum != cursorLogicalLine
 				if isLastSegment {
@@ -227,8 +229,23 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 		}
 	}
 	
-	// If cursor wasn't found in wrapped lines, it might be beyond the visible area
-	// or at the end of a line
+    // If cursor wasn't found in wrapped lines, it might be beyond the visible area
+    // or at the end of a line
+    // Special handling: cursor sitting on the empty logical line after a trailing newline.
+    // In that case, place the cursor on the next visual row after the last visible segment
+    // of the previous logical line, at the start of content.
+    for i := len(wrappedLines) - 1; i >= 0; i-- {
+        wl := wrappedLines[i]
+        if wl.LogicalLineNum+1 == cursorLogicalLine && cursorX == 0 {
+            // Cursor is on the empty line following wl.LogicalLineNum
+            visualLine = i + 1
+            visualCol = e.buffer.LineNumberWidth
+            LL.Trace("GetCursorVisualPosition: placing cursor on synthetic empty line after logical %d -> visualLine=%d, visualCol=%d", wl.LogicalLineNum, visualLine, visualCol)
+            return
+        }
+    }
+
+    // Fallbacks
 	for i := len(wrappedLines) - 1; i >= 0; i-- {
 		wl := wrappedLines[i]
 		if wl.LogicalLineNum == cursorLogicalLine {
@@ -236,6 +253,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			visualLine = i
 			// Calculate visual column accounting for tabs
 			visualCol = e.visualWidth(wl.Text) + e.buffer.LineNumberWidth
+            LL.Trace("GetCursorVisualPosition: found logical line at i=%d, placing at EOL visualCol=%d", i, visualCol)
 			return
 		}
 	}
@@ -243,8 +261,10 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
     // Default case - cursor is beyond visible area
     // Clamp to the last visible wrapped line to avoid placing cursor past window height
     if len(wrappedLines) == 0 {
+        LL.Trace("GetCursorVisualPosition: no wrapped lines; default to top start-of-content")
         return 0, e.buffer.LineNumberWidth
     }
+    LL.Trace("GetCursorVisualPosition: cursor line not visible; default to last visible line start-of-content (i=%d)", len(wrappedLines)-1)
     return len(wrappedLines)-1, e.buffer.LineNumberWidth
 }
 

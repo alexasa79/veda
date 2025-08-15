@@ -393,8 +393,12 @@ func (e *Editor) insertChar(ch rune) error {
 // Auto-pairing functions removed - feature has been disabled
 
 func (e *Editor) insertNewline(args []string) error {
+    // Debug: entering insertNewline
+    LL.Debug("insertNewline: start at line=%d, x=%d, viewTop=%d, pasteMode=%v",
+        e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), e.inPasteMode)
     // During paste mode, insert a raw newline without auto-indentation
     if e.inPasteMode {
+        LL.Trace("insertNewline: paste mode path")
         lineNum := e.buffer.CursorIterator.LineNumber()
         viewLineNum := e.buffer.ViewIterator.LineNumber()
         cursorX := e.buffer.CursorX
@@ -419,6 +423,8 @@ func (e *Editor) insertNewline(args []string) error {
         e.buffer.CursorX = 0
 
         // Skip highlighting during paste; it will be refreshed once at paste end
+        LL.Debug("insertNewline: (paste) after insert -> line=%d, x=%d, viewTop=%d",
+            e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber())
         return nil
     }
 	// Remember current position
@@ -456,7 +462,7 @@ func (e *Editor) insertNewline(args []string) error {
 		finalCursorX = len(autoIndent.IndentStr)
 	}
 
-	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
+    entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
 
 	// Execute through history
 	if e.buffer.History != nil {
@@ -472,7 +478,7 @@ func (e *Editor) insertNewline(args []string) error {
 		}
 	}
 
-	// Recreate iterators after buffer modification
+    // Recreate iterators after buffer modification
 	// Cursor moves to next line (the indented line)
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
 	// View iterator stays at its current line
@@ -486,10 +492,16 @@ func (e *Editor) insertNewline(args []string) error {
 		e.trackAutoIndent(lineNum + 1, len(autoIndent.IndentStr))
 	}
 
-            // Update syntax highlighting (skip during paste mode)
+	            // Update syntax highlighting (skip during paste mode)
             if !e.inPasteMode {
                 e.updateSyntaxHighlighting()
             }
+
+	// Ensure the cursor's new line is visible immediately to avoid one-frame misplacement
+	e.scroll()
+
+    LL.Debug("insertNewline: end -> line=%d, x=%d, viewTop=%d (finalX=%d, betweenBraces=%v, indent=%q)",
+        e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), finalCursorX, isBetweenBraces, autoIndent.IndentStr)
 
 	return nil
 }

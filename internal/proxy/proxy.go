@@ -4,10 +4,10 @@ import (
 	"bufio"
 	_ "embed"
 	"encoding/json"
-	"fmt"
+    "fmt"
 	"os"
 	"os/exec"
-	"strings"
+    "strings"
 	"sync"
 	"syscall"
 	"time"
@@ -101,12 +101,13 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	// Helper to start a remote proxy instance and perform version handshake
 	startRemote := func() (*Client, *exec.Cmd, error) {
 		pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
-		sshArgs := []string{
-			host,
-			"-o", "ControlMaster=no",
-			"-o", "ControlPath=none",
-			"python3", "/tmp/veda-proxy.py",
-		}
+        sshArgs := []string{
+            "-T",
+            "-o", "ControlMaster=no",
+            "-o", "ControlPath=none",
+            host,
+            "python3", "/tmp/veda-proxy.py",
+        }
 		cmd := exec.Command("ssh", sshArgs...)
 
 		stdinPipe, err := cmd.StdinPipe()
@@ -139,7 +140,7 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		stdin := bufio.NewWriter(stdinPipe)
 		stdout := bufio.NewScanner(stdoutPipe)
 
-		// Increase scanner buffer size to handle large responses
+        // Increase scanner buffer size to handle large responses
 		buf := make([]byte, 0, maxScanTokenSize)
 		stdout.Buffer(buf, maxScanTokenSize)
 
@@ -154,13 +155,16 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 			return nil, cmd, fmt.Errorf("version mismatch: got=%s, want=%s", version, ProxyVersion)
 		}
 
-		client := &Client{
-			cmd:       cmd,
-			stdin:     stdin,
-			stdout:    stdout,
-			requestID: 0,
-		}
-		return client, cmd, nil
+        client := &Client{
+            cmd:       cmd,
+            stdin:     stdin,
+            stdout:    stdout,
+            requestID: 0,
+            pending:   make(map[int]chan map[string]interface{}),
+            readerErr: make(chan error, 1),
+        }
+        client.readerOnce.Do(func() { go client.readerLoop() })
+        return client, cmd, nil
 	}
 
 	// First try without copying (assume proxy exists on remote). If it fails or
@@ -631,76 +635,150 @@ type Client struct {
 	stdin     *bufio.Writer
 	stdout    *bufio.Scanner
 	requestID int
+    // concurrent routing
+    pendingMu  sync.Mutex
+    pending    map[int]chan map[string]interface{}
+    readerErr  chan error
+    readerOnce sync.Once
 }
 
 // sendRequestWithTimeout sends a JSON RPC request and waits for response with timeout
 func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]interface{}, error) {
-	requestBytes, err := json.Marshal(request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
+    // Ensure reader is running exactly once
+    c.readerOnce.Do(func() {
+        if c.pending == nil {
+            c.pending = make(map[int]chan map[string]interface{})
+        }
+        if c.readerErr == nil {
+            c.readerErr = make(chan error, 1)
+        }
+        go c.readerLoop()
+    })
 
-	// Send the request
-	if _, err := c.stdin.WriteString(string(requestBytes) + "\n"); err != nil {
-		return nil, fmt.Errorf("failed to write request: %w", err)
-	}
-	if err := c.stdin.Flush(); err != nil {
-		return nil, fmt.Errorf("failed to flush request: %w", err)
-	}
+    requestBytes, err := json.Marshal(request)
+    if err != nil {
+        return nil, fmt.Errorf("failed to marshal request: %w", err)
+    }
 
-	// Create channels for receiving response or timeout
-	responseChan := make(chan map[string]interface{}, 1)
-	errorChan := make(chan error, 1)
+    // Register waiter
+    respCh := make(chan map[string]interface{}, 1)
+    c.pendingMu.Lock()
+    c.pending[request.ID] = respCh
+    c.pendingMu.Unlock()
 
-	// Start goroutine to read response
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				errorChan <- fmt.Errorf("panic in response reading: %v", r)
-			}
-		}()
-		
-		if c.stdout.Scan() {
-			responseText := c.stdout.Text()
-			
-			// Only log first 500 chars to avoid spamming logs with large responses
-			logText := responseText
-			if len(logText) > 500 {
-				logText = logText[:500] + "... (truncated)"
-			}
-			LL.Trace("Proxy response: %s", logText)
-			
-			var response map[string]interface{}
-			if err := json.Unmarshal([]byte(responseText), &response); err != nil {
-				LL.Debug("Failed to unmarshal proxy response: %v, response length: %d", err, len(responseText))
-				// Only log first 200 chars of raw response to avoid log spam
-				if len(responseText) > 200 {
-					LL.Debug("Raw response (first 200 chars): %q", responseText[:200])
-				} else {
-					LL.Debug("Raw response: %q", responseText)
-				}
-				errorChan <- fmt.Errorf("failed to unmarshal response: %w", err)
-				return
-			}
-			responseChan <- response
-		} else {
-			if err := c.stdout.Err(); err != nil {
-				errorChan <- fmt.Errorf("scanner error: %w", err)
-			} else {
-				errorChan <- fmt.Errorf("no data received from proxy")
-			}
-		}
-	}()
+    // Send the request
+    if _, err := c.stdin.WriteString(string(requestBytes) + "\n"); err != nil {
+        c.pendingMu.Lock()
+        delete(c.pending, request.ID)
+        c.pendingMu.Unlock()
+        return nil, fmt.Errorf("failed to write request: %w", err)
+    }
+    if err := c.stdin.Flush(); err != nil {
+        c.pendingMu.Lock()
+        delete(c.pending, request.ID)
+        c.pendingMu.Unlock()
+        return nil, fmt.Errorf("failed to flush request: %w", err)
+    }
 
-	// Wait for response or timeout using time.After instead of context
-	select {
-	case response := <-responseChan:
-		return response, nil
-	case err := <-errorChan:
-		return nil, err
-	case <-time.After(ProxyRequestTimeout):
-		return nil, fmt.Errorf("proxy request timeout after %v", ProxyRequestTimeout)
-	}
+    timer := time.NewTimer(ProxyRequestTimeout)
+    defer timer.Stop()
+
+    select {
+    case resp := <-respCh:
+        c.pendingMu.Lock()
+        delete(c.pending, request.ID)
+        c.pendingMu.Unlock()
+        return resp, nil
+    case err := <-c.readerErr:
+        c.pendingMu.Lock()
+        delete(c.pending, request.ID)
+        c.pendingMu.Unlock()
+        return nil, fmt.Errorf("proxy reader error: %v", err)
+    case <-timer.C:
+        c.pendingMu.Lock()
+        delete(c.pending, request.ID)
+        c.pendingMu.Unlock()
+        return nil, fmt.Errorf("proxy request timeout after %v", ProxyRequestTimeout)
+    }
+}
+
+func (c *Client) readerLoop() {
+    for {
+        if !c.stdout.Scan() {
+            if err := c.stdout.Err(); err != nil {
+                LL.Debug("Proxy reader scanner error: %v", err)
+                select { case c.readerErr <- err: default: }
+            } else {
+                LL.Debug("Proxy reader: no data received (EOF)")
+                select { case c.readerErr <- fmt.Errorf("proxy EOF"): default: }
+            }
+            return
+        }
+
+        raw := c.stdout.Text()
+        trimmed := strings.TrimLeft(raw, "\x00\r\n \t")
+        if idx := strings.IndexByte(trimmed, '{'); idx > 0 {
+            trimmed = trimmed[idx:]
+        }
+        if trimmed == "" {
+            continue
+        }
+
+        logText := trimmed
+        if len(logText) > 500 {
+            logText = logText[:500] + "... (truncated)"
+        }
+        LL.Trace("Proxy response: %s", logText)
+
+        var msg map[string]interface{}
+        if err := json.Unmarshal([]byte(trimmed), &msg); err != nil {
+            LL.Debug("Failed to unmarshal proxy response: %v, response length: %d", err, len(trimmed))
+            if len(trimmed) > 200 {
+                LL.Debug("Raw response (first 200 chars): %q", trimmed[:200])
+            } else {
+                LL.Debug("Raw response: %q", trimmed)
+            }
+            continue
+        }
+
+        idVal, ok := msg["id"]
+        if !ok {
+            LL.Debug("Dropping proxy message without id")
+            continue
+        }
+
+        var id int
+        switch v := idVal.(type) {
+        case float64:
+            id = int(v)
+        case int:
+            id = v
+        case string:
+            var x int
+            if _, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &x); err != nil {
+                LL.Debug("Dropping proxy message with non-integer id: %q", v)
+                continue
+            }
+            id = x
+        default:
+            LL.Debug("Dropping proxy message with unsupported id type %T", v)
+            continue
+        }
+
+        c.pendingMu.Lock()
+        ch, exists := c.pending[id]
+        c.pendingMu.Unlock()
+        if !exists {
+            LL.Debug("Dropping out-of-band proxy response for id=%d (no waiter)", id)
+            continue
+        }
+
+        select {
+        case ch <- msg:
+        default:
+            LL.Debug("Response channel full for id=%d; dropping", id)
+        }
+    }
 }
 
 // NewClient creates a new proxy client and starts the proxy process
@@ -745,19 +823,23 @@ func NewClient() (*Client, error) {
 	buf := make([]byte, 0, maxScanTokenSize)
 	stdout.Buffer(buf, maxScanTokenSize)
 
-	// Perform version handshake
-	if version, err := readProxyHello(stdout, 2*time.Second); err != nil {
+    // Perform version handshake
+    if version, err := readProxyHello(stdout, 2*time.Second); err != nil {
 		LL.Debug("Failed to read local proxy hello: %v", err)
 	} else if version != ProxyVersion {
 		LL.Error("Local proxy version mismatch: got %s, want %s", version, ProxyVersion)
 	}
 
-	return &Client{
-		cmd:       cmd,
-		stdin:     stdin,
-		stdout:    stdout,
-		requestID: 0,
-	}, nil
+    client := &Client{
+        cmd:       cmd,
+        stdin:     stdin,
+        stdout:    stdout,
+        requestID: 0,
+        pending:   make(map[int]chan map[string]interface{}),
+        readerErr: make(chan error, 1),
+    }
+    client.readerOnce.Do(func() { go client.readerLoop() })
+    return client, nil
 }
 
 // ListDirectory sends a JSON RPC request to get directory listing
@@ -1709,9 +1791,14 @@ func readProxyHello(scanner *bufio.Scanner, timeout time.Duration) (string, erro
 	}()
 
 	select {
-	case line := <-lineCh:
-		var h helloMsg
-		if err := json.Unmarshal([]byte(line), &h); err != nil {
+    case line := <-lineCh:
+        // sanitize leading NULs/whitespace and start from first '{'
+        line = strings.TrimLeft(line, "\x00\r\n \t")
+        if idx := strings.IndexByte(line, '{'); idx > 0 {
+            line = line[idx:]
+        }
+        var h helloMsg
+        if err := json.Unmarshal([]byte(line), &h); err != nil {
 			return "", fmt.Errorf("invalid hello: %w", err)
 		}
 		if h.Version == "" {
