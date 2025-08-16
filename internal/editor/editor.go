@@ -1588,16 +1588,16 @@ func (e *Editor) undo(args []string) error {
 		return nil
 	}
 
-	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+    // Remember current position; also attempt to restore multi-cursor snapshot
+    lineNum := e.buffer.CursorIterator.LineNumber()
+    viewLineNum := e.buffer.ViewIterator.LineNumber()
 
 	// Perform undo
 	if err := e.buffer.History.Undo(e.buffer); err != nil {
 		return err
 	}
 
-	// Ensure iterators are valid after undo
+    // Ensure iterators are valid after undo
 	// If cursor line is beyond buffer, move to last line
 	maxLine := e.buffer.LineCount - 1
 	if lineNum > maxLine {
@@ -1607,9 +1607,33 @@ func (e *Editor) undo(args []string) error {
 		viewLineNum = maxLine
 	}
 
-	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+    // Recreate iterators
+    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+    e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+    // If the redo stack top is a composite with a cursor snapshot, restore it
+    if e.buffer.History != nil {
+        if primary, virtual, ok := e.buffer.History.GetTopRedoCompositeCursors(); ok {
+            // Restore primary cursor
+            if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
+                e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
+                e.buffer.CursorX = primary.Char
+            }
+            // Restore virtual cursors
+            restored := make([]VirtualCursor, 0, len(virtual))
+            for _, c := range virtual {
+                if c.Line >= 0 && c.Line < e.buffer.LineCount {
+                    iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
+                    line := iter.Line()
+                    x := c.Char
+                    if x < 0 { x = 0 }
+                    if x > len(line) { x = len(line) }
+                    restored = append(restored, VirtualCursor{X: x, Y: c.Line})
+                }
+            }
+            e.virtualCursors = restored
+        }
+    }
 
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()

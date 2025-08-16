@@ -283,4 +283,56 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 			t.Errorf("Expected buffer:\n%q\nBut got:\n%q", expected, actual)
 		}
 	})
+
+	// New test: undo after multi-cursor cw restores content and cursor positions
+	t.Run("undo after multi-cursor cw restores cursors", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello world\nhello world\nhello world")
+
+		// Move to the 'w' in "world"
+		for i := 0; i < 6; i++ {
+			te.ExecuteCommand("right")
+		}
+
+		// Enter cursor mode and add cursors on first two lines
+		te.TypeKeys("m")
+		te.PressKey(events.KeyEnter, 0) // add at (6,0), auto-move to line 1
+		te.PressKey(events.KeyEnter, 0) // add at (6,1), auto-move to line 2
+		te.TypeKeys("m")               // exit cursor mode; primary at (6,2)
+
+		// Snapshot pre-change cursor positions
+		preX, preY := te.GetCursorPosition()
+		preVirtual := te.GetVirtualCursors()
+		if len(preVirtual) != 2 {
+			t.Fatalf("expected 2 virtual cursors before change, got %d", len(preVirtual))
+		}
+
+		// Perform cw and type replacement
+		te.TypeKeys("cw")
+		te.TypeKeys("hello")
+		te.PressKey(events.KeyEscape, 0)
+
+		// Single undo should revert entire multi-cursor change and restore cursors
+		te.ExecuteCommand("undo")
+
+		// Content restored
+		expected := "hello world\nhello world\nhello world"
+		actual := te.GetBufferContent()
+		if actual != expected {
+			t.Errorf("Expected buffer after undo:\n%q\nBut got:\n%q", expected, actual)
+		}
+
+		// Primary cursor restored
+		AssertCursorAt(t, te, preX, preY)
+
+		// Virtual cursors restored
+		postVirtual := te.GetVirtualCursors()
+		if len(postVirtual) != len(preVirtual) {
+			t.Fatalf("expected %d virtual cursors after undo, got %d", len(preVirtual), len(postVirtual))
+		}
+		for i := range preVirtual {
+			if preVirtual[i].X != postVirtual[i].X || preVirtual[i].Y != postVirtual[i].Y {
+				t.Errorf("virtual cursor %d mismatch: expected (%d,%d), got (%d,%d)", i, preVirtual[i].X, preVirtual[i].Y, postVirtual[i].X, postVirtual[i].Y)
+			}
+		}
+	})
 }
