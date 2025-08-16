@@ -348,15 +348,17 @@ func (e *Editor) exitInsertMode(args []string) error {
 		e.buffer.CurrentSignature = nil
 	}
 	
-	// End the insert session
-	if e.buffer != nil && e.buffer.History != nil {
-		entry := e.buffer.History.EndInsertSession()
-		if entry != nil {
-			e.setLastChange(entry)
-			// Clear simple command when we have a new insert session
-			e.lastSimpleCommand = ""
-		}
-	}
+    // End the insert session
+    if e.buffer != nil && e.buffer.History != nil {
+        entry := e.buffer.History.EndInsertSession()
+        if entry != nil {
+            e.setLastChange(entry)
+            // Clear simple command when we have a new insert session
+            e.lastSimpleCommand = ""
+        }
+        // If a generic composite was open (e.g., multi-cursor change), close it now
+        e.buffer.History.EndComposite()
+    }
 
 	e.mode = commands.NormalMode
 

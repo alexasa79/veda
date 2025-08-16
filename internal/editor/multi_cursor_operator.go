@@ -57,7 +57,22 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 		isDeleteOp = true
 	}
 	
-	if isChangeOp || isDeleteOp {
+    if isChangeOp || isDeleteOp {
+        // Group all per-cursor history entries into a single undo unit
+        if e.buffer != nil && e.buffer.History != nil {
+            if isChangeOp {
+                e.buffer.History.StartComposite("Change with multiple cursors")
+            } else {
+                e.buffer.History.StartComposite("Delete with multiple cursors")
+            }
+            // Snapshot cursor positions prior to modifications so undo can restore them
+            primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+            v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+            for _, vc := range e.virtualCursors {
+                v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+            }
+            e.buffer.History.SetActiveCompositeCursors(primary, v)
+        }
 		// For change operations, we need to carefully track cursor positions
 		// because deletions can affect the positions of subsequent cursors
 		
@@ -124,11 +139,11 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 			cumulativeDeletedChars += deletedChars
 		}
 		
-		// Update virtual cursors to their new positions
+        // Update virtual cursors to their new positions
 		e.virtualCursors = newVirtualCursors
 		
 		// Only enter insert mode for change operations, not delete operations
-		if isChangeOp {
+        if isChangeOp {
 			// Now enter insert mode once
 			e.switchToInsertMode()
 			
@@ -137,6 +152,16 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 				e.buffer.History.StartInsertSession("c")
 			}
 		}
+        // Do NOT end the composite yet for change operations. The subsequent
+        // insert session should be part of the same composite so a single 'u'
+        // undoes both the deletions and the inserted text. We'll end the
+        // composite here for delete, but keep it open for change until the
+        // insert session ends elsewhere.
+        if e.buffer != nil && e.buffer.History != nil {
+            if !isChangeOp { // pure delete
+                e.buffer.History.EndComposite()
+            }
+        }
 	} else {
 		// For non-change operations, execute normally
 		for _, cursor := range cursors {
