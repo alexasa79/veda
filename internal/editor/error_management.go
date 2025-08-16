@@ -2,6 +2,7 @@ package editor
 
 import (
     "fmt"
+    "path/filepath"
     "strings"
     "sync"
     "time"
@@ -21,7 +22,7 @@ type ErrorManager struct {
 // NewErrorManager creates a new error manager
 func NewErrorManager() *ErrorManager {
 	return &ErrorManager{
-		errorDuration: 2 * time.Second,
+        errorDuration: 2 * time.Second,
 	}
 }
 
@@ -146,10 +147,11 @@ func (e *Editor) errorCommand(args []string) error {
 	return nil
 }
 
-// ShowInfo displays a temporary informational banner above the status bar.
-// Unlike ShowError, this does not log to the *Messages* buffer.
-func (e *Editor) ShowInfo(format string, args ...interface{}) {
-    e.errorManager.ShowInfo(format, args...)
+// ShowTransientInfo displays a temporary informational banner that persists
+// until the next key press (separate from ErrorManager time-based banners).
+func (e *Editor) ShowTransientInfo(format string, args ...interface{}) {
+    e.transientInfoMessage = fmt.Sprintf(format, args...)
+    e.transientInfoActive = true
 }
 
 // showFileInfoCommand shows information about the current file/buffer
@@ -163,6 +165,20 @@ func (e *Editor) showFileInfoCommand(args []string) error {
     if path == "" {
         path = display
     }
+    // Normalize to full path for local files; keep HOST:PATH for remotes
+    if host, remotePath, isRemote := parsePathComponents(path); isRemote {
+        // Ensure we display HOST:REMOTE_PATH
+        if host != "" && remotePath != "" {
+            path = host + ":" + remotePath
+        }
+    } else {
+        // Local: make absolute if not already
+        if !strings.HasPrefix(path, "/") {
+            if absPath, err := filepath.Abs(path); err == nil {
+                path = absPath
+            }
+        }
+    }
     lines := e.buffer.LineCount
     bytes := 0
     if e.buffer.Rope != nil {
@@ -174,6 +190,6 @@ func (e *Editor) showFileInfoCommand(args []string) error {
     } else {
         indent = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
     }
-    e.ShowInfo("%s — %d lines, %d bytes, %s", path, lines, bytes, indent)
+    e.ShowTransientInfo("%s — %d lines, %d bytes, %s", path, lines, bytes, indent)
     return nil
 }

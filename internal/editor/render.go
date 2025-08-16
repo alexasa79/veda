@@ -1276,19 +1276,26 @@ func (e *Editor) drawStatusBar() {
 func (e *Editor) drawErrorLine() {
     width, _ := e.screen.Size()
 
+    // Transient info banner has highest priority and persists until next key press
+    if e.transientInfoActive && e.transientInfoMessage != "" {
+        bannerY := e.getStatusBarY() - 1
+        style := e.config.Theme.GetStyle(e.config.Theme.NotificationInfo)
+        for i := 0; i < width; i++ {
+            e.screen.SetContent(i, bannerY, ' ', nil, style)
+        }
+        e.drawText(0, bannerY, style, " "+e.transientInfoMessage+" ", 0, nil, -1, 0, -1)
+        return
+    }
+
     // Show temporary banners on top (override diagnostics)
     if currentMsg, severity := e.errorManager.GetCurrentBanner(); currentMsg != "" {
         bannerY := e.getStatusBarY() - 1
-        style := e.config.Theme.GetStyle(e.config.Theme.Normal)
+        var style ui.Style
         switch severity {
         case "info":
-            // Lower severity: subtle blue banner
-            style.Bg = ui.NewRGBColor(50, 75, 160)
-            style.Fg = ui.ColorWhite
+            style = e.config.Theme.GetStyle(e.config.Theme.NotificationInfo)
         default:
-            // error
-            style.Bg = ui.ColorRed
-            style.Fg = ui.ColorWhite
+            style = e.config.Theme.GetStyle(e.config.Theme.NotificationError)
         }
         for i := 0; i < width; i++ {
             e.screen.SetContent(i, bannerY, ' ', nil, style)

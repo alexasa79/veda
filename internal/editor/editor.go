@@ -142,6 +142,10 @@ type Editor struct {
 	// Multiple cursors
 	virtualCursors []VirtualCursor // Additional cursors for multi-cursor editing
 
+    // Transient info banner (persists until next key press)
+    transientInfoMessage string
+    transientInfoActive  bool
+
 	// Desired column for vertical cursor movement
 	desiredColumn int // Desired column position when moving up/down (-1 means unset)
 
@@ -269,6 +273,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		currentMatch:      -1, // -1 means no current match
 		flashEndChar:      -1,
 		flashEndTime:      0,
+		transientInfoMessage: "",
+		transientInfoActive:  false,
 		referencesBuffers: make(map[string]*ReferencesBuffer),
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
 		whitespaceStyle:  newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
@@ -673,6 +679,11 @@ func (e *Editor) handleEvent(ev events.Event) {
         }
         return
 	case *events.KeyEvent:
+		// Any key press hides transient info banner if active
+		if e.transientInfoActive {
+			e.transientInfoActive = false
+			// Fall through to normal handling after clearing; render will hide it next frame
+		}
 		// Fast-path for paste mode: route runes/enter to the active input target
 		if e.inPasteMode {
 			if ev.Key == events.KeyRune {

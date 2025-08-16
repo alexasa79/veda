@@ -46,18 +46,18 @@ func ParseKey(s string) (Key, error) {
 	keyName := parts[len(parts)-1]
 
 	// Check special key names (convert to lowercase for comparison)
-	switch strings.ToLower(keyName) {
-	case "o":
-		// Check if this is Ctrl+O
-		if result.Mod&events.ModCtrl != 0 {
-			result.Key = events.KeyCtrlO
-			// Clear Ctrl since it's part of the key
-			result.Mod = result.Mod &^ events.ModCtrl
-		} else {
-			result.Key = events.KeyRune
-			result.Rune = rune(keyName[0])
-		}
-	case "space":
+    switch strings.ToLower(keyName) {
+    case "o":
+        // Check if this is Ctrl+O
+        if result.Mod&events.ModCtrl != 0 {
+            result.Key = events.KeyCtrlO
+            // Clear Ctrl since it's part of the key
+            result.Mod = result.Mod &^ events.ModCtrl
+        } else {
+            result.Key = events.KeyRune
+            result.Rune = rune(keyName[0])
+        }
+    case "space":
 		// Check if this is Ctrl+Space (with or without Shift)
 		if result.Mod&events.ModCtrl != 0 {
 			result.Key = events.KeyCtrlSpace
@@ -119,17 +119,29 @@ func ParseKey(s string) (Key, error) {
 		result.Key = events.KeyF11
 	case "f12":
 		result.Key = events.KeyF12
-	default:
-		// Single character - preserve case
-		if len(keyName) == 1 {
-			result.Key = events.KeyRune
-			result.Rune = rune(keyName[0])
-		} else {
-			// Unknown key
-			result.Key = events.KeyRune
-			result.Rune = '?'
-		}
-	}
+    default:
+        // Single character - preserve case
+        if len(keyName) == 1 {
+            // If Ctrl modifier is present with a letter, map to KeyCtrl[A-Z]
+            if result.Mod&events.ModCtrl != 0 {
+                lower := strings.ToLower(keyName)
+                ch := rune(lower[0])
+                if ch >= 'a' && ch <= 'z' {
+                    offset := int(ch - 'a')
+                    result.Key = events.Key(int(events.KeyCtrlA) + offset)
+                    // Clear Ctrl since it is encoded in the KeyCtrl* value
+                    result.Mod = result.Mod &^ events.ModCtrl
+                    return result, nil
+                }
+            }
+            result.Key = events.KeyRune
+            result.Rune = rune(keyName[0])
+        } else {
+            // Unknown key
+            result.Key = events.KeyRune
+            result.Rune = '?'
+        }
+    }
 
 	return result, nil
 }
