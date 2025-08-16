@@ -145,7 +145,8 @@ func (wc *WrapCalculator) findWrapPoint(line string, start int) int {
 
 // CalculateWrappedLines calculates all wrapped lines for the visible portion of the buffer
 func (e *Editor) CalculateWrappedLines() []WrappedLine {
-	width, _ := e.screen.Size()
+    t0 := e.perfTracker.Start()
+    width, _ := e.screen.Size()
 	gutterWidth := e.buffer.LineNumberWidth
 	
 	wc := NewWrapCalculator(width, gutterWidth)
@@ -214,12 +215,15 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
         }
     }
 	
-	return wrappedLines
+    	res := wrappedLines
+    e.perfTracker.ReportSince("wrapping.CalculateWrappedLines", t0)
+    return res
 }
 
 // GetCursorVisualPosition calculates the visual position of the cursor with line wrapping
 // Returns the visual line and column position relative to the current view
 func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
+    t0 := e.perfTracker.Start()
 	// Calculate all visible wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
     LL.Trace("GetCursorVisualPosition: viewTop=%d visibleWrapped=%d cursor(line=%d,x=%d)",
@@ -290,11 +294,15 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
         return 0, e.buffer.LineNumberWidth
     }
     LL.Trace("GetCursorVisualPosition: cursor line not visible; default to last visible line start-of-content (i=%d)", len(wrappedLines)-1)
-    return len(wrappedLines)-1, e.buffer.LineNumberWidth
+    v := len(wrappedLines)-1
+    c := e.buffer.LineNumberWidth
+    e.perfTracker.ReportSince("wrapping.GetCursorVisualPosition", t0)
+    return v, c
 }
 
 // MapVisualToLogical maps a visual line position to logical line and character position
 func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, charPos int) {
+    t0 := e.perfTracker.Start()
 	// Calculate wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
 	
@@ -328,5 +336,6 @@ func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, cha
 		charPos = wl.EndChar
 	}
 	
+    e.perfTracker.ReportSince("wrapping.MapVisualToLogical", t0)
 	return
 }

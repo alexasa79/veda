@@ -7,6 +7,8 @@ import (
 
 // Movement commands
 func (e *Editor) moveUp(args []string) error {
+    t0 := e.perfTracker.Start()
+    defer e.perfTracker.ReportSince("moveUp", t0)
 	// Check for auto-indent cleanup before moving
 	e.checkAndCleanupAutoIndent()
 	
@@ -41,6 +43,8 @@ func (e *Editor) moveUp(args []string) error {
 }
 
 func (e *Editor) moveDown(args []string) error {
+    t0 := e.perfTracker.Start()
+    defer e.perfTracker.ReportSince("moveDown", t0)
 	// Check for auto-indent cleanup before moving
 	e.checkAndCleanupAutoIndent()
 	
@@ -242,6 +246,8 @@ func (e *Editor) endOfLine(args []string) error {
 }
 
 func (e *Editor) pageUp(args []string) error {
+    t0 := e.perfTracker.Start()
+    defer e.perfTracker.ReportSince("pageUp", t0)
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor up by visible lines
@@ -261,6 +267,8 @@ func (e *Editor) pageUp(args []string) error {
 }
 
 func (e *Editor) pageDown(args []string) error {
+    t0 := e.perfTracker.Start()
+    defer e.perfTracker.ReportSince("pageDown", t0)
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor down by visible lines
