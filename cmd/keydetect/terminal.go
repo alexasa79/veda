@@ -38,8 +38,9 @@ func setRawMode() error {
 	// Make a copy for modification
 	raw := originalTermios
 	
-	// Turn off canonical mode, echo, and signal processing
-	raw.Lflag &^= (ICANON | ECHO | ISIG)
+    // Turn off canonical mode and echo. Keep ISIG enabled so Ctrl+C (VINTR)
+    // still generates SIGINT, allowing graceful exit.
+    raw.Lflag &^= (ICANON | ECHO)
 	
 	// Set minimum characters to read and timeout
 	raw.Cc[6] = 1 // VMIN
