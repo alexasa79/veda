@@ -175,6 +175,9 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "- -", "calculate-append")
 	e.registerKeyBinding(commands.NormalMode, "- =", "calculate-replace")
 
+	// Info
+	e.registerKeyBinding(commands.NormalMode, "ctrl+g", "show-file-info")
+
 	// Temporary normal mode from insert mode (like vim's Ctrl+O)
 	e.registerKeyBinding(commands.InsertMode, "ctrl+o", "enter-temporary-normal-mode")
 
