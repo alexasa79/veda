@@ -45,6 +45,10 @@ type Theme struct {
     DiagnosticError   StyleDef // Foreground for error indicator
     DiagnosticWarning StyleDef // Foreground for warning indicator
 
+    // Notifications / banners
+    NotificationInfo  StyleDef // Style for low-severity info banner
+    NotificationError StyleDef // Style for error banner
+
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
 	SyntaxKeyword     StyleDef
@@ -230,6 +234,16 @@ func NewTheme() *Theme {
         DiagnosticWarning: StyleDef{
             Foreground: "#ffd866",
             Background: "#1b1d1e",
+        },
+
+        // Notifications / banners
+        NotificationInfo: StyleDef{
+            Foreground: "#ffffff",
+            Background: "#324ba0", // subtle blue
+        },
+        NotificationError: StyleDef{
+            Foreground: "#ffffff",
+            Background: "#ff0000",
         },
 
 		CompletionMenu: StyleDef{
