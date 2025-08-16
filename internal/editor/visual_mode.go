@@ -314,3 +314,39 @@ func (e *Editor) unindentSelectionWithCount(count int) error {
     if !e.inPasteMode { e.updateSyntaxHighlighting() }
     return nil
 }
+
+// startVisualLeft enters visual mode if not already active and moves left
+func (e *Editor) startVisualLeft(args []string) error {
+    if e.buffer == nil { return nil }
+    if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
+        if err := e.enterVisualMode(nil); err != nil { return err }
+    }
+    return e.moveLeft(nil)
+}
+
+// startVisualRight enters visual mode if not already active and moves right
+func (e *Editor) startVisualRight(args []string) error {
+    if e.buffer == nil { return nil }
+    if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
+        if err := e.enterVisualMode(nil); err != nil { return err }
+    }
+    return e.moveRight(nil)
+}
+
+// startVisualUp enters visual mode if not already active and moves up
+func (e *Editor) startVisualUp(args []string) error {
+    if e.buffer == nil { return nil }
+    if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
+        if err := e.enterVisualMode(nil); err != nil { return err }
+    }
+    return e.moveUp(nil)
+}
+
+// startVisualDown enters visual mode if not already active and moves down
+func (e *Editor) startVisualDown(args []string) error {
+    if e.buffer == nil { return nil }
+    if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
+        if err := e.enterVisualMode(nil); err != nil { return err }
+    }
+    return e.moveDown(nil)
+}
