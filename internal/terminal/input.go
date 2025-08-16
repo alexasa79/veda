@@ -188,15 +188,15 @@ func (t *Terminal) inputHandler() {
 				continue
 			}
 
-			if n > 0 {
+            if n > 0 {
 				pending = append(pending, buf[:n]...)
 				lastReadTime = time.Now()
-				t.parseInput(&pending)
+                t.parseInput(&pending)
 			} else if len(pending) > 0 {
 				// No new data, but we have pending bytes
 				// If it's been more than 50ms since last read, process what we have
 				if time.Since(lastReadTime) > 50*time.Millisecond {
-					t.parseInput(&pending)
+                    t.parseInput(&pending)
 				}
 			}
 		}

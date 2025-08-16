@@ -380,7 +380,7 @@ func (e *Editor) Run() {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	// Event loop
+    // Event loop
 	for !e.shouldExit {
 		var ev events.Event
 
@@ -425,14 +425,37 @@ func (e *Editor) Run() {
             }
 		} else {
 			// Handle normal editor events
-			if ev != nil {
-				e.handleEvent(ev)
-			}
+            if ev != nil {
+                // Measure end-to-end latency from event creation to handling start
+                if e.perfTracker != nil {
+                    age := time.Since(ev.When())
+                    // Bucket event age to a histogram-like series
+                    // Keep metric names simple to avoid unbounded labels
+                    start := time.Now().Add(-age)
+                    if age < 2*time.Millisecond {
+                        e.perfTracker.ReportSince("event.age.<2ms", start)
+                    } else if age < 5*time.Millisecond {
+                        e.perfTracker.ReportSince("event.age.<5ms", start)
+                    } else if age < 10*time.Millisecond {
+                        e.perfTracker.ReportSince("event.age.<10ms", start)
+                    } else if age < 20*time.Millisecond {
+                        e.perfTracker.ReportSince("event.age.<20ms", start)
+                    } else {
+                        e.perfTracker.ReportSince("event.age.>=20ms", start)
+                    }
+                }
+
+                tHandle := e.perfTracker.Start()
+                e.handleEvent(ev)
+                e.perfTracker.ReportSince("handleEvent", tHandle)
+            }
 		}
 
         // Check if scrolling occurred
         if !e.inPasteMode {
+            tScroll := e.perfTracker.Start()
             e.scroll()
+            e.perfTracker.ReportSince("scroll", tScroll)
         }
 
         // Render the entire screen unless in paste mode
@@ -690,7 +713,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 		// Handle completion menu navigation if visible
 		if e.mode == commands.InsertMode && e.completionMenu.IsVisible() {
 			handled := e.handleCompletionMenuKey(ev)
-			if handled {
+            if handled {
 				return
 			}
 		}
@@ -749,7 +772,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 						keyStr = "down"
 					default:
 						// For other special keys, let them be processed normally
-						if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+                tMap := e.perfTracker.Start()
+                command, found := e.keyMapper.ProcessKey(ev, e.mode)
+                e.perfTracker.ReportSince("keymap.ProcessKey", tMap)
+                if found {
 							LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
 							LL.Debug("Found command: %s", command)
 							// Execute the command (this might cancel the pending operation)
@@ -763,9 +789,11 @@ func (e *Editor) handleEvent(ev events.Event) {
 							} else {
 								e.repeatCount = 1
 							}
-							if err := e.executeWithRepeatCount(command); err != nil {
+                            tExec := e.perfTracker.Start()
+                            if err := e.executeWithRepeatCount(command); err != nil {
 								LL.Debug("Command execution error: %v", err)
-							}
+                            }
+                            e.perfTracker.ReportSince("executeWithRepeatCount", tExec)
 						}
 						return
 					}
@@ -776,7 +804,11 @@ func (e *Editor) handleEvent(ev events.Event) {
 						LL.Debug("Pending operation error: %v", err)
 					}
 				}
-			} else if command, found := e.keyMapper.ProcessKey(ev, e.mode); found {
+            } else {
+                tMap := e.perfTracker.Start()
+                command, found := e.keyMapper.ProcessKey(ev, e.mode)
+                e.perfTracker.ReportSince("keymap.ProcessKey", tMap)
+                if found {
 				LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
 				LL.Debug("Found command: %s", command)
 
@@ -796,13 +828,15 @@ func (e *Editor) handleEvent(ev events.Event) {
 				}
 
 				// Execute the command with repetition
-				if err := e.executeWithRepeatCount(command); err != nil {
+                tExec := e.perfTracker.Start()
+                if err := e.executeWithRepeatCount(command); err != nil {
 					LL.Debug("Command execution error: %v", err)
 				}
+                e.perfTracker.ReportSince("executeWithRepeatCount", tExec)
 
 				// Clear repeat count after execution
 				e.repeatCount = 0
-			} else {
+            } else {
 				// Handle key hints for normal mode only
 				if e.mode == commands.NormalMode {
 					// Check if we have pending keys and should show key hints
@@ -839,6 +873,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 				}
 			}
 		}
+	}
 	case *events.ResizeEvent:
 		e.handleResize()
 	case *events.CustomEvent:
@@ -865,6 +900,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 
 // executeWithRepeatCount executes a command with the current repeat count
 func (e *Editor) executeWithRepeatCount(command string) error {
+    t0 := e.perfTracker.Start()
 	count := e.repeatCount
 	if count <= 0 {
 		count = 1
@@ -938,7 +974,8 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 			e.lastCommandCount = count
 		}
 
-		return nil
+        e.perfTracker.ReportSince("command.executeWithRepeatCount", t0)
+        return nil
 	}
 }
 

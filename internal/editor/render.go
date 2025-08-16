@@ -926,41 +926,49 @@ func (e *Editor) drawEditor() {
 	// Use cached line number width from buffer
 	lineNumberWidth := e.buffer.LineNumberWidth
 
-	// Clear the entire screen once
-	e.screen.Clear()
+    // Clear the entire screen once
+    e.screen.Clear()
 
-	// Update context if needed
-	e.updateContext()
+    // Update context if needed
+    e.updateContext()
 
 	// Get screen dimensions
 	width, _ := e.screen.Size()
 	contentStartY := e.getContentStartY()
 
-	// Calculate wrapped lines
-	wrappedLines := e.CalculateWrappedLines()
+    // Calculate wrapped lines
+    wrappedLines := e.CalculateWrappedLines()
 
-	// Draw each wrapped line
-	for i, wl := range wrappedLines {
+    // Prepare iterator reuse across the entire visible region
+    var cachedIter *buffer.BufferIterator
+    cachedIterLine := -1
+    if len(wrappedLines) > 0 {
+        firstLogical := wrappedLines[0].LogicalLineNum
+        cachedIter = buffer.NewBufferIteratorAtLine(e.buffer, firstLogical)
+        cachedIterLine = cachedIter.LineNumber()
+    }
+
+    // Draw each wrapped line
+    for i, wl := range wrappedLines {
 		screenY := contentStartY + i
 
-		// First, fill the entire line with the normal background
-		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
-		for x := 0; x < width; x++ {
-			fillStyle := normalStyle
-			textColumn := x - e.buffer.LineNumberWidth
-			for _, rulerPos := range e.config.VerticalRulers {
-				if textColumn == rulerPos {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-					break
-				}
-			}
-			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
-		}
+        // First, fill the entire line with the normal background
+        rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+        for x := 0; x < width; x++ {
+            fillStyle := normalStyle
+            textColumn := x - e.buffer.LineNumberWidth
+            for _, rulerPos := range e.config.VerticalRulers {
+                if textColumn == rulerPos {
+                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+                    break
+                }
+            }
+            e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
+        }
 
         // Draw line number only for first visual line
-		if wl.IsFirstLine {
+        if wl.IsFirstLine {
 			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1
-			
             // Draw line number with standard line number style
 			// Compute digit area width (exclude 2 indicator columns and 1 space padding)
 			digitsWidth := lineNumberWidth - 3
@@ -991,22 +999,35 @@ func (e *Editor) drawEditor() {
 			}
 		}
 
-		// Get iterator for this logical line
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, wl.LogicalLineNum)
+        // Get iterator for this logical line (reuse, advance with Next when needed)
+        var iter *buffer.BufferIterator
+        if cachedIter == nil {
+            // No wrapped lines or initialization failed; fall back to direct creation
+            iter = buffer.NewBufferIteratorAtLine(e.buffer, wl.LogicalLineNum)
+            cachedIter = iter
+            cachedIterLine = wl.LogicalLineNum
+        } else {
+            // Advance cached iterator to requested logical line
+            for cachedIterLine < wl.LogicalLineNum {
+                cachedIter = cachedIter.Next()
+                cachedIterLine = cachedIter.LineNumber()
+            }
+            iter = cachedIter
+        }
 		if !iter.IsEOF() {
             // Draw the wrapped line segment
             e.drawWrappedLine(iter, wl, lineNumberWidth, screenY)
 		}
 	}
 
-	// Fill remaining screen with tildes
-	visibleHeight := e.getVisibleHeight()
-	for i := len(wrappedLines); i < visibleHeight; i++ {
-		screenY := contentStartY + i
-		for x := 0; x < lineNumberWidth; x++ {
-			e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
-		}
-	}
+    // Fill remaining screen with tildes
+    visibleHeight := e.getVisibleHeight()
+    for i := len(wrappedLines); i < visibleHeight; i++ {
+        screenY := contentStartY + i
+        for x := 0; x < lineNumberWidth; x++ {
+            e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
+        }
+    }
 }
 
 func (e *Editor) drawStatusBar() {
