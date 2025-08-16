@@ -187,7 +187,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "escape", "clear-search")
 	e.registerKeyBinding(commands.NormalMode, "*", "search-word-under-cursor")
 
-	// Visual modes (both character and line) - shared keybindings
+    // Visual modes (both character and line) - shared keybindings
 	visualModes := []commands.Mode{commands.VisualMode, commands.VisualLineMode}
 
 	// Exit visual mode
@@ -219,4 +219,11 @@ func (e *Editor) setupDefaultBindings() {
 	// Visual mode indentation
 	e.registerKeyBindingForModes(visualModes, "> >", "indent-selection")
 	e.registerKeyBindingForModes(visualModes, "< <", "unindent-selection")
+
+    // Shift+Arrow: enter visual mode and extend selection
+    shiftArrowModes := []commands.Mode{commands.NormalMode, commands.InsertMode, commands.VisualMode, commands.VisualLineMode}
+    e.registerKeyBindingForModes(shiftArrowModes, "shift+left", "start-visual-left")
+    e.registerKeyBindingForModes(shiftArrowModes, "shift+right", "start-visual-right")
+    e.registerKeyBindingForModes(shiftArrowModes, "shift+up", "start-visual-up")
+    e.registerKeyBindingForModes(shiftArrowModes, "shift+down", "start-visual-down")
 }

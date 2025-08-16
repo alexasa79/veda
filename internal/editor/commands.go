@@ -75,6 +75,12 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("indent-selection", e.indentSelection, false)
 	e.commandRegistry.Register("unindent-selection", e.unindentSelection, false)
 
+	 // Shift+Arrow helpers: start visual selection and move
+	 e.commandRegistry.Register("start-visual-left", e.startVisualLeft, false)
+	 e.commandRegistry.Register("start-visual-right", e.startVisualRight, false)
+	 e.commandRegistry.Register("start-visual-up", e.startVisualUp, false)
+	 e.commandRegistry.Register("start-visual-down", e.startVisualDown, false)
+
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd, false)
 	e.commandRegistry.Register("q", e.closeBuffer, false)     // Close current buffer
