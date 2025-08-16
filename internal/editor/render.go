@@ -1276,16 +1276,24 @@ func (e *Editor) drawStatusBar() {
 func (e *Editor) drawErrorLine() {
     width, _ := e.screen.Size()
 
-    // Show temporary errors on top (override diagnostics)
-    if currentError := e.errorManager.GetCurrentError(); currentError != "" {
+    // Show temporary banners on top (override diagnostics)
+    if currentMsg, severity := e.errorManager.GetCurrentBanner(); currentMsg != "" {
         bannerY := e.getStatusBarY() - 1
         style := e.config.Theme.GetStyle(e.config.Theme.Normal)
-        style.Bg = ui.ColorRed
-        style.Fg = ui.ColorWhite
+        switch severity {
+        case "info":
+            // Lower severity: subtle blue banner
+            style.Bg = ui.NewRGBColor(50, 75, 160)
+            style.Fg = ui.ColorWhite
+        default:
+            // error
+            style.Bg = ui.ColorRed
+            style.Fg = ui.ColorWhite
+        }
         for i := 0; i < width; i++ {
             e.screen.SetContent(i, bannerY, ' ', nil, style)
         }
-        e.drawText(0, bannerY, style, " "+currentError+" ", 0, nil, -1, 0, -1)
+        e.drawText(0, bannerY, style, " "+currentMsg+" ", 0, nil, -1, 0, -1)
         return
     }
 

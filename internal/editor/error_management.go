@@ -1,17 +1,19 @@
 package editor
 
 import (
-	"fmt"
-	"strings"
-	"sync"
-	"time"
-	"veda/internal/buffer"
+    "fmt"
+    "strings"
+    "sync"
+    "time"
+    "veda/internal/buffer"
+    "veda/internal/config"
 )
 
 // ErrorManager handles error display and tracking
 type ErrorManager struct {
 	mu              sync.Mutex
 	currentError    string      // Current error to display
+    currentSeverity string      // "error" or "info" (affects banner style)
 	errorShowTime   time.Time   // When the current error was shown
 	errorDuration   time.Duration // How long to show errors (default 2 seconds)
 }
@@ -29,25 +31,38 @@ func (em *ErrorManager) ShowError(format string, args ...interface{}) {
 	defer em.mu.Unlock()
 	
 	em.currentError = fmt.Sprintf(format, args...)
+    em.currentSeverity = "error"
 	em.errorShowTime = time.Now()
 }
 
-// GetCurrentError returns the current error if it should still be displayed
-func (em *ErrorManager) GetCurrentError() string {
+// ShowInfo displays a low-severity informational message
+func (em *ErrorManager) ShowInfo(format string, args ...interface{}) {
+    em.mu.Lock()
+    defer em.mu.Unlock()
+
+    em.currentError = fmt.Sprintf(format, args...)
+    em.currentSeverity = "info"
+    em.errorShowTime = time.Now()
+}
+
+// GetCurrentBanner returns the current banner message and its severity
+// if it should still be displayed. Returns ("", "") when none.
+func (em *ErrorManager) GetCurrentBanner() (string, string) {
 	em.mu.Lock()
 	defer em.mu.Unlock()
 	
 	if em.currentError == "" {
-		return ""
+        return "", ""
 	}
 	
 	// Check if error has expired
 	if time.Since(em.errorShowTime) > em.errorDuration {
 		em.currentError = ""
-		return ""
+        em.currentSeverity = ""
+        return "", ""
 	}
 	
-	return em.currentError
+    return em.currentError, em.currentSeverity
 }
 
 // ClearError immediately clears the current error
@@ -56,6 +71,14 @@ func (em *ErrorManager) ClearError() {
 	defer em.mu.Unlock()
 	
 	em.currentError = ""
+    em.currentSeverity = ""
+}
+
+// GetCurrentError retains the legacy API used by existing code/tests.
+// It returns the current banner message (error or info) if visible, otherwise an empty string.
+func (em *ErrorManager) GetCurrentError() string {
+    msg, _ := em.GetCurrentBanner()
+    return msg
 }
 
 // createMessagesBuffer creates the internal "Messages" buffer
@@ -121,4 +144,36 @@ func (e *Editor) errorCommand(args []string) error {
 	
 	e.ShowError("%s", strings.Join(args, " "))
 	return nil
+}
+
+// ShowInfo displays a temporary informational banner above the status bar.
+// Unlike ShowError, this does not log to the *Messages* buffer.
+func (e *Editor) ShowInfo(format string, args ...interface{}) {
+    e.errorManager.ShowInfo(format, args...)
+}
+
+// showFileInfoCommand shows information about the current file/buffer
+func (e *Editor) showFileInfoCommand(args []string) error {
+    if e.buffer == nil {
+        return nil
+    }
+    // Gather basic info
+    display := e.buffer.DisplayName()
+    path := e.buffer.FilePath
+    if path == "" {
+        path = display
+    }
+    lines := e.buffer.LineCount
+    bytes := 0
+    if e.buffer.Rope != nil {
+        bytes = e.buffer.Rope.Length()
+    }
+    indent := "Spaces"
+    if e.buffer.Indentation.Type == config.IndentTabs {
+        indent = "Tabs"
+    } else {
+        indent = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
+    }
+    e.ShowInfo("%s — %d lines, %d bytes, %s", path, lines, bytes, indent)
+    return nil
 }

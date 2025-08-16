@@ -189,6 +189,9 @@ func (e *Editor) registerCommands() {
     e.commandRegistry.Register("move-buffer-left", e.moveBufferLeft, false)
     e.commandRegistry.Register("move-buffer-right", e.moveBufferRight, false)
     e.commandRegistry.Register("move-buffer-center", e.moveBufferCenter, false)
+
+    // Info commands
+    e.commandRegistry.Register("show-file-info", e.showFileInfoCommand, false)
 }
 
 // changeToEndOfLine changes from the cursor to the end of the current line

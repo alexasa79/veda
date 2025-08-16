@@ -82,6 +82,9 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space Space  - Show buffers (cursor on previous)\n")
 	helpText.WriteString("  (Enter switches in current window; Shift+Enter opens buffer in a new split)\n\n")
 
+	helpText.WriteString("= Info =\n")
+	helpText.WriteString("Ctrl+G       - Show current file info (temporary banner)\n\n")
+
 	helpText.WriteString("= Windows =\n")
 	helpText.WriteString("Space v      - Vertical split (new empty buffer on right)\n")
 	helpText.WriteString("Space 1..9   - Switch to window N (1-based)\n")
