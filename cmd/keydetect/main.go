@@ -15,9 +15,10 @@ func main() {
 	fmt.Println("Press Ctrl+C to exit.")
 	fmt.Println()
 
-	// Set up signal handling for graceful exit
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+    // Set up signal handling for graceful exit
+    sigChan := make(chan os.Signal, 1)
+    // Use Notify with SIGINT while leaving terminal ISIG enabled so Ctrl+C works
+    signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Put terminal in raw mode
 	if err := setRawMode(); err != nil {
@@ -38,7 +39,7 @@ func main() {
 			return
 		default:
 			// Set read timeout to avoid blocking forever
-			if err := syscall.SetNonblock(int(os.Stdin.Fd()), true); err == nil {
+            if err := syscall.SetNonblock(int(os.Stdin.Fd()), true); err == nil {
 				n, err := os.Stdin.Read(buf)
 				if err == nil && n > 0 {
 					pending = append(pending, buf[:n]...)
