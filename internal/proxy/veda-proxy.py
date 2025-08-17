@@ -17,9 +17,18 @@ import subprocess
 import threading
 import queue
 import re
+import pty
+import selectors
+import os
+import fcntl
+import termios
+import base64
+import uuid
+import struct
+import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.1"
+PROXY_VERSION = "1.0.4"
 
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
@@ -949,6 +958,7 @@ class VedaProxy:
 
     def __init__(self):
         self.lsp = LSPManager()
+        self.term = VedaProxy.TerminalManager()
         self.methods = {
             'list_directory': self.list_directory,
             'list_directory_recursive': self.list_directory_recursive,
@@ -968,7 +978,176 @@ class VedaProxy:
             'get_diagnostics': self.get_diagnostics,
             'get_project_changes': self.get_project_changes,
             'notify_file_change': self.notify_file_change,
+            # Terminal methods
+            'start_terminal': self.start_terminal,
+            'write_terminal': self.write_terminal,
+            'read_terminal': self.read_terminal,
+            'resize_terminal': self.resize_terminal,
+            'close_terminal': self.close_terminal,
         }
+
+    # ---- Terminal (PTY) support ----
+    class _TerminalSession:
+        def __init__(self, master_fd: int, pid: int):
+            self.master_fd = master_fd
+            self.pid = pid
+            self.buffer = bytearray()
+            self.closed = False
+            self.exit_code = None
+
+    class TerminalManager:
+        def __init__(self_outer):
+            self_outer.sessions = {}
+            self_outer.lock = threading.Lock()
+            self_outer.sel = selectors.DefaultSelector()
+
+        def start(self_outer, working_dir: str, command: Optional[List[str]], env: Optional[Dict[str,str]], cols: int, rows: int) -> Tuple[str, int]:
+            if not command or len(command) == 0:
+                shell = os.environ.get('SHELL', '/bin/sh')
+                command = [shell]
+            # Create PTY
+            master_fd, slave_fd = pty.openpty()
+            # Set window size
+            # Set window size via TIOCSWINSZ
+            winsize = struct.pack('HHHH', rows, cols, 0, 0)
+            fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
+            # Prepare env
+            env_vars = os.environ.copy()
+            env_vars['TERM'] = 'xterm-256color'
+            if env:
+                env_vars.update(env)
+            # Spawn
+            pid = os.fork()
+            if pid == 0:
+                # Child
+                os.setsid()
+                # Make the slave the controlling terminal for this session
+                try:
+                    fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+                except Exception:
+                    pass
+                os.close(master_fd)
+                os.dup2(slave_fd, 0)
+                os.dup2(slave_fd, 1)
+                os.dup2(slave_fd, 2)
+                if slave_fd > 2:
+                    os.close(slave_fd)
+                try:
+                    if working_dir:
+                        os.chdir(os.path.expanduser(working_dir))
+                except Exception:
+                    pass
+                try:
+                    os.execvpe(command[0], command, env_vars)
+                except Exception as e:
+                    os.write(1, str(e).encode())
+                    os._exit(1)
+            # Parent
+            os.close(slave_fd)
+            # Non-blocking master
+            fl = fcntl.fcntl(master_fd, fcntl.F_GETFL)
+            fcntl.fcntl(master_fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            sid = str(uuid.uuid4())
+            sess = VedaProxy._TerminalSession(master_fd, pid)
+            with self_outer.lock:
+                self_outer.sessions[sid] = sess
+            # Start reader thread
+            def reader():
+                while True:
+                    try:
+                        data = os.read(master_fd, 65536)
+                        if not data:
+                            break
+                        with self_outer.lock:
+                            sess.buffer.extend(data)
+                    except BlockingIOError:
+                        time.sleep(0.01)
+                    except OSError:
+                        break
+                # Wait for child
+                _, status = os.waitpid(pid, 0)
+                code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else None
+                with self_outer.lock:
+                    sess.closed = True
+                    sess.exit_code = code
+            t = threading.Thread(target=reader, daemon=True)
+            t.start()
+            return sid, pid
+
+        def write(self_outer, session_id: str, data: bytes):
+            with self_outer.lock:
+                sess = self_outer.sessions.get(session_id)
+                if not sess:
+                    raise ValueError('invalid session')
+                os.write(sess.master_fd, data)
+
+        def read(self_outer, session_id: str, max_bytes: int) -> Tuple[bytes, bool, Optional[int]]:
+            with self_outer.lock:
+                sess = self_outer.sessions.get(session_id)
+                if not sess:
+                    raise ValueError('invalid session')
+                if max_bytes <= 0:
+                    max_bytes = 65536
+                n = min(len(sess.buffer), max_bytes)
+                if n == 0:
+                    return b"", sess.closed, sess.exit_code
+                data = bytes(sess.buffer[:n])
+                del sess.buffer[:n]
+                return data, sess.closed, sess.exit_code
+
+        def resize(self_outer, session_id: str, cols: int, rows: int):
+            with self_outer.lock:
+                sess = self_outer.sessions.get(session_id)
+                if not sess:
+                    raise ValueError('invalid session')
+                winsize = struct.pack('HHHH', rows, cols, 0, 0)
+                fcntl.ioctl(sess.master_fd, termios.TIOCSWINSZ, winsize)
+
+        def close(self_outer, session_id: str):
+            with self_outer.lock:
+                sess = self_outer.sessions.pop(session_id, None)
+                if not sess:
+                    return
+                try:
+                    os.close(sess.master_fd)
+                except Exception:
+                    pass
+
+    def start_terminal(self, working_dir: str = '', command: Optional[List[str]] = None, env: Optional[Dict[str,str]] = None, cols: int = 80, rows: int = 24) -> Dict[str, Any]:
+        try:
+            sid, pid = self.term.start(working_dir, command, env, cols, rows)
+            return { 'session_id': sid, 'pid': pid }
+        except Exception as e:
+            return { 'error': str(e) }
+
+    def write_terminal(self, session_id: str, data_b64: str) -> Dict[str, Any]:
+        try:
+            data = base64.b64decode(data_b64)
+            self.term.write(session_id, data)
+            return { 'success': True }
+        except Exception as e:
+            return { 'error': str(e) }
+
+    def read_terminal(self, session_id: str, max_bytes: int = 65536) -> Dict[str, Any]:
+        try:
+            data, closed, exit_code = self.term.read(session_id, max_bytes)
+            return { 'data_b64': base64.b64encode(data).decode(), 'closed': closed, 'exit_code': exit_code }
+        except Exception as e:
+            return { 'error': str(e) }
+
+    def resize_terminal(self, session_id: str, cols: int, rows: int) -> Dict[str, Any]:
+        try:
+            self.term.resize(session_id, cols, rows)
+            return { 'success': True }
+        except Exception as e:
+            return { 'error': str(e) }
+
+    def close_terminal(self, session_id: str) -> Dict[str, Any]:
+        try:
+            self.term.close(session_id)
+            return { 'success': True }
+        except Exception as e:
+            return { 'error': str(e) }
 
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
         """

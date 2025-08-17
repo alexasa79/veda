@@ -17,6 +17,7 @@ import (
 	"veda/internal/syntax"
 	"veda/internal/ui"
 	"veda/internal/widgets"
+    "unicode/utf8"
 )
 
 var LL *log.Logger = log.NewLogger("EDITOR")
@@ -223,6 +224,22 @@ type Editor struct {
     // Window sizing preferences
     minActiveWindowWidth int // Minimum width (columns) for the active window
 
+    // Terminal sessions per buffer (PTY via proxy)
+    terminalSessions map[string]*TerminalSessionState
+}
+
+// TerminalSessionState tracks a PTY-backed terminal attached to a buffer
+type TerminalSessionState struct {
+    SessionID  string
+    WorkingDir string
+    Cols       int
+    Rows       int
+    Closed     bool
+    ExitCode   *int
+    // Minimal emulator state for this session
+    term *TerminalEmulator
+    // Optional banner displayed above emulator content, not sent to PTY
+    Banner string
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -299,11 +316,11 @@ func NewWithScreen(screen Screen) (*Editor, error) {
         lastRewrapIndex:  0,
         inPasteMode:      false,
         dirCache:         make(map[string][]proxy.FileInfo),
-        windows:          nil,
-        activeWindow:     0,
-        lastWindow:       0,
+        windows:              nil,
+        activeWindow:         0,
+        lastWindow:           0,
         minActiveWindowWidth: 100,
-        registers:            make(map[rune]string),
+        terminalSessions:     make(map[string]*TerminalSessionState),
 	}
 
     // Initialize windows with a single window for the initial buffer (always have a window)
@@ -688,12 +705,25 @@ func (e *Editor) handleEvent(ev events.Event) {
             e.render()
         }
         return
-	case *events.KeyEvent:
-		// Any key press hides transient info banner if active
-		if e.transientInfoActive {
-			e.transientInfoActive = false
-			// Fall through to normal handling after clearing; render will hide it next frame
-		}
+    case *events.KeyEvent:
+        // Terminal mode: forward all keys to terminal session; Esc returns to normal
+        if e.mode == commands.TerminalMode {
+            if ev.Key == events.KeyEscape {
+                // Leave terminal input mode to normal browsing
+                e.mode = commands.NormalMode
+                return
+            }
+            // Forward key to active terminal session
+            if e.buffer != nil {
+                if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
+                    data := e.translateKeyToTerminal(ev)
+                    if len(data) > 0 {
+                        _ = e.proxyManager.WriteTerminal(ts.WorkingDir, ts.SessionID, data)
+                    }
+                }
+            }
+            return
+        }
 		// Fast-path for paste mode: route runes/enter to the active input target
 		if e.inPasteMode {
 			if ev.Key == events.KeyRune {
@@ -952,6 +982,62 @@ func (e *Editor) handleEvent(ev events.Event) {
 	case *events.CustomEvent:
 		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
 		switch ev.Type {
+        case "terminal-output":
+            // Data is map[string]interface{}{ "buffer": string, "data": string }
+            if m, ok := ev.Data.(map[string]interface{}); ok {
+                bufPath, _ := m["buffer"].(string)
+                text, _ := m["data"].(string)
+                if bufPath != "" {
+                    if b, ok := e.buffers[bufPath]; ok {
+                        // For terminal buffers with an emulator, replace screen content instead of appending
+                        wasRO := b.IsReadOnly
+                        if b.IsInternal && b.IsReadOnly { b.IsReadOnly = false }
+                        // Compose banner + emulator render if banner present
+                        textToShow := text
+                        if ts := e.terminalSessions[bufPath]; ts != nil && ts.Banner != "" {
+                            if textToShow == "" {
+                                textToShow = ts.Banner
+                            } else {
+                                textToShow = ts.Banner + "\n" + textToShow
+                            }
+                        }
+                        // Debug: log any occurrences of U+23CE (RETURN SYMBOL)
+                        if strings.ContainsRune(textToShow, '\u23CE') {
+                            LL.Debug("terminal.rx contains RETURN SYMBOL U+23CE")
+                        }
+                        // Replace entire buffer content with the composed snapshot
+                        if b.Length() > 0 { b.Delete(0, b.Length()) }
+                        if textToShow != "" { b.Insert(0, textToShow) }
+                        if wasRO { b.IsReadOnly = true }
+                        // For terminal snapshots, align view to show the prompt row
+                        if e.buffer == b {
+                            if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
+                                curX, curY := ts.term.Cursor()
+                                // Account for banner occupying the first buffer line
+                                bannerOffset := 0
+                                if ts.Banner != "" { bannerOffset = 1 }
+                                bufRow := curY + bannerOffset
+                                if bufRow < 0 { bufRow = 0 }
+                                if bufRow >= b.LineCount { bufRow = b.LineCount - 1 }
+                                // Ensure iterators are valid after content replacement
+                                top := 0
+                                b.ViewIterator = buffer.NewBufferIteratorAtLine(b, top)
+                                b.CursorIterator = buffer.NewBufferIteratorAtLine(b, bufRow)
+                                // Map terminal column to byte offset within the buffer line (UTF-8 aware)
+                                line := b.CursorIterator.Line()
+                                bytePos := e.bytePositionFromVisualColumn(line, curX)
+                                if bytePos < 0 { bytePos = 0 }
+                                if bytePos > len(line) { bytePos = len(line) }
+                                b.CursorX = bytePos
+                            } else {
+                                b.ViewIterator = buffer.NewBufferIteratorAtLine(b, 0)
+                                b.CursorIterator = buffer.NewBufferIteratorAtLine(b, 0)
+                            }
+                        }
+                        e.render()
+                    }
+                }
+            }
 		case "show-fuzzy-list":
 			e.ShowFuzzyListWidget()
 		case "open-file":
@@ -969,6 +1055,139 @@ func (e *Editor) handleEvent(ev events.Event) {
 	default:
 		LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
 	}
+}
+
+// sanitizeTerminalText converts common terminal control sequences into a text-only form
+// suitable for our MVP terminal buffer rendering. It:
+// - Converts CRLF to LF
+// - Converts lone CR to LF
+// - Strips simple ANSI escape sequences (CSI ... letter)
+// - Leaves printable characters, tabs, and newlines intact
+func sanitizeTerminalText(input string) string {
+    // Fast path: if no ESC or CR or BEL, return as-is
+    if !strings.ContainsAny(input, "\x1b\r\a") {
+        return input
+    }
+    // Normalize newlines
+    s := strings.ReplaceAll(input, "\r\n", "\n")
+    s = strings.ReplaceAll(s, "\r", "\n")
+
+    var b strings.Builder
+    b.Grow(len(s))
+
+    i := 0
+    for i < len(s) {
+        c := s[i]
+        // Drop all control chars except tab/newline
+        if c < 0x20 || c == 0x7f {
+            if c == '\n' || c == '\t' {
+                b.WriteByte(c)
+            }
+            i++
+            continue
+        }
+
+        if c == 0x1b { // ESC
+            // Look ahead to classify sequence
+            if i+1 >= len(s) {
+                // Trailing ESC, drop
+                i++
+                continue
+            }
+            next := s[i+1]
+
+            switch next {
+            case '[': // CSI: ESC [ ... final 0x40..0x7E
+                i += 2
+                for i < len(s) {
+                    fc := s[i]
+                    i++
+                    if fc >= 0x40 && fc <= 0x7e {
+                        break
+                    }
+                }
+                continue
+            case ']': // OSC: ESC ] ... BEL (0x07) or ST (ESC \\)
+                i += 2
+                for i < len(s) {
+                    if s[i] == 0x07 { // BEL terminator
+                        i++
+                        break
+                    }
+                    if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' { // ST terminator
+                        i += 2
+                        break
+                    }
+                    i++
+                }
+                continue
+            case 'P', 'X', '^', '_': // DCS/SOS/PM/APC: ESC <type> ... ST (ESC \\)
+                i += 2
+                for i < len(s) {
+                    if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' {
+                        i += 2
+                        break
+                    }
+                    i++
+                }
+                continue
+            case '(', ')', '*', '+', '-', '.', '/':
+                // Character set designation: ESC ( X or ESC ) X etc -> skip selector and one byte
+                i += 3
+                if i > len(s) { i = len(s) }
+                continue
+            default:
+                // Other single-char escapes (e.g., ESC c, ESC 7/8, etc.). Skip ESC and the next byte.
+                i += 2
+                continue
+            }
+        }
+
+        // Printable
+        b.WriteByte(c)
+        i++
+    }
+    return b.String()
+}
+
+// translateKeyToTerminal converts a key event to terminal bytes (UTF-8 / ANSI)
+func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
+    // Basic mapping: runes, Enter, Backspace, Tab, arrows
+    switch ev.Key {
+    case events.KeyRune:
+        if ev.Rune == 0 { return nil }
+        buf := make([]byte, 4)
+        n := utf8.EncodeRune(buf, ev.Rune)
+        return buf[:n]
+    case events.KeyEnter:
+        LL.Trace("terminal.tx key=Enter -> CR (0x0d)")
+        return []byte{'\r'}
+    case events.KeyBackspace, events.KeyBackspace2:
+        return []byte{'\x7f'}
+    case events.KeyTab:
+        return []byte{'\t'}
+    // Common control keys to forward raw to the shell
+    case events.KeyCtrlD:
+        return []byte{0x04} // EOT
+    case events.KeyCtrlL:
+        return []byte{0x0c} // FF (clear-screen in many shells)
+    case events.KeyCtrlN:
+        return []byte{0x0e} // SO (next-history/forward in readline/fish bindings)
+    case events.KeyHome:
+        return []byte{0x1b,'[','H'}
+    case events.KeyEnd:
+        return []byte{0x1b,'[','F'}
+    case events.KeyUp:
+        return []byte{'\x1b','[','A'}
+    case events.KeyDown:
+        return []byte{'\x1b','[','B'}
+    case events.KeyRight:
+        return []byte{'\x1b','[','C'}
+    case events.KeyLeft:
+        return []byte{'\x1b','[','D'}
+    default:
+        return nil
+    }
 }
 
 // executeWithRepeatCount executes a command with the current repeat count
@@ -1160,14 +1379,14 @@ func (e *Editor) insertCharForAllCursors(ch rune) error {
 
 // updateCursor updates the cursor position and style
 func (e *Editor) updateCursor() {
-	// Set cursor style based on mode
-	if e.mode == commands.InsertMode {
-		// Use a bar cursor in insert mode
-		e.screen.SetCursorStyle(ui.CursorStyleSteadyBar)
-	} else {
-		// Use a block cursor in normal and command modes
-		e.screen.SetCursorStyle(ui.CursorStyleSteadyBlock)
-	}
+    // Set cursor style based on mode
+    if e.mode == commands.InsertMode || e.mode == commands.TerminalMode {
+        // Use a bar cursor in insert and terminal modes
+        e.screen.SetCursorStyle(ui.CursorStyleSteadyBar)
+    } else {
+        // Use a block cursor in other modes
+        e.screen.SetCursorStyle(ui.CursorStyleSteadyBlock)
+    }
 
 	// Show cursor at appropriate position
 	if e.mode == commands.CommandMode {
@@ -1178,15 +1397,26 @@ func (e *Editor) updateCursor() {
 		// Show cursor in search line
 		cursorX, cursorY := e.searchLine.GetCursorPosition()
 		e.screen.ShowCursor(cursorX, cursorY)
-	} else {
-		// Show cursor in editor
-		// Get visual position with line wrapping
-		visualLine, visualCol := e.GetCursorVisualPosition()
-		cursorY := visualLine + e.getContentStartY()
-		LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
-			e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
-		e.screen.ShowCursor(visualCol, cursorY)
-	}
+    } else {
+        // Terminal/internal buffers: position cursor directly from emulator state
+        if e.buffer != nil && e.buffer.IsInternal {
+            if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+                curX, curY := ts.term.Cursor()
+                bannerOffset := 0
+                if ts.Banner != "" { bannerOffset = 1 }
+                screenY := e.getContentStartY() + bannerOffset + curY
+                screenX := e.buffer.LineNumberWidth + curX
+                e.screen.ShowCursor(screenX, screenY)
+                return
+            }
+        }
+        // Show cursor in editor (non-terminal)
+        visualLine, visualCol := e.GetCursorVisualPosition()
+        cursorY := visualLine + e.getContentStartY()
+        LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
+            e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
+        e.screen.ShowCursor(visualCol, cursorY)
+    }
 }
 
 // enterCommandMode switches to command mode and initializes the command line

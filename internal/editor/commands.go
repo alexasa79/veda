@@ -1,7 +1,12 @@
 package editor
 
 import (
+    "fmt"
+    "time"
+    "veda/internal/buffer"
     "veda/internal/clipboard"
+    "veda/internal/commands"
+    "veda/internal/events"
 )
 
 // registerCommands registers all command handlers
@@ -167,6 +172,10 @@ func (e *Editor) registerCommands() {
 	// Completion commands
 	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() }, false)
 
+    // Terminal commands
+	e.commandRegistry.Register("term", e.openTerminalCmd, false)
+    e.commandRegistry.Register("term-new-window", e.openTerminalInNewWindowCmd, false)
+
 	// Error testing command
 	e.commandRegistry.Register("error", e.errorCommand, false)
 
@@ -202,6 +211,127 @@ func (e *Editor) registerCommands() {
     // Registers commands
     e.commandRegistry.Register("regcopy", e.regcopyCmd, false)
     e.commandRegistry.Register("reg", e.showRegistersCmd, false)
+}
+
+// openTerminalCmd opens a terminal buffer and switches to terminal mode.
+// For now this is a minimal scaffold that creates a read-only internal buffer
+// and switches mode to TERMINAL. Subsequent edits will wire PTY I/O.
+func (e *Editor) openTerminalCmd(args []string) error {
+    // Create an internal buffer for the terminal session
+    bufName := "*Terminal*"
+    // Ensure unique name if multiple sessions
+    idx := 1
+    name := bufName
+    for {
+        if _, exists := e.buffers[name]; !exists {
+            break
+        }
+        idx++
+        name = bufName + " " + fmt.Sprint(idx)
+    }
+    newBuf := buffer.NewBuffer("", name, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+    newBuf.IsInternal = true
+    newBuf.IsReadOnly = true
+    // Register and switch
+    e.buffers[name] = newBuf
+    e.bufferOrder = append(e.bufferOrder, name)
+    e.switchToBuffer(newBuf)
+    // Start a PTY on the proxy host
+    cols, rows := e.getVisibleWidth(), e.getVisibleHeight()
+    if cols <= 0 { cols = 80 }
+    if rows <= 0 { rows = 24 }
+    sessionID, pid, err := e.proxyManager.StartTerminal(e.workingDirectory, nil, nil, cols, rows)
+    if err != nil {
+        // Gracefully degrade in test or constrained environments: show error line, keep buffer
+        newBuf.AppendLine("[terminal unavailable] " + err.Error())
+        // Refresh iterators after programmatic modification
+        if newBuf.ViewIterator != nil {
+            newBuf.ViewIterator = buffer.NewBufferIteratorAtLine(newBuf, newBuf.ViewIterator.LineNum)
+        } else {
+            newBuf.ViewIterator = buffer.NewBufferIterator(newBuf)
+        }
+        if newBuf.CursorIterator != nil {
+            newBuf.CursorIterator = buffer.NewBufferIteratorAtLine(newBuf, newBuf.CursorIterator.LineNum)
+        } else {
+            newBuf.CursorIterator = buffer.NewBufferIterator(newBuf)
+        }
+    } else {
+        // Track session by buffer path
+        e.terminalSessions[newBuf.FilePath] = &TerminalSessionState{SessionID: sessionID, WorkingDir: e.workingDirectory, Cols: cols, Rows: rows, term: NewTerminalEmulator(cols, rows)}
+        // Store banner as metadata rather than writing to PTY or emulator grid
+        if ts := e.terminalSessions[newBuf.FilePath]; ts != nil {
+            ts.Banner = fmt.Sprintf("[terminal started] pid=%d (%dx%d)", pid, cols, rows)
+        }
+        // Kick an initial render so the user sees the buffer immediately (banner will be prepended in handler)
+        e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+            "buffer": newBuf.FilePath,
+            "data":   e.terminalSessions[newBuf.FilePath].term.Render(),
+        })
+        // Begin polling for output
+        e.startTerminalPolling(newBuf.FilePath)
+        // Force an early ReadTerminal to populate emulator promptly (no synthetic input)
+        go func(bufPath, wd, sid string) {
+            data, _, _, err := e.proxyManager.ReadTerminal(wd, sid, 65536)
+            if err == nil && len(data) > 0 {
+                if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
+                    ts.term.Write(data)
+                    e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+                        "buffer": bufPath,
+                        "data":   ts.term.Render(),
+                    })
+                }
+            }
+        }(newBuf.FilePath, e.workingDirectory, sessionID)
+        // Avoid sending ANSI DSR queries which can echo visibly in some shells
+    }
+    // Enter terminal mode (keys will be forwarded in editor key loop)
+    e.mode = commands.TerminalMode
+    return nil
+}
+
+// openTerminalInNewWindowCmd opens a terminal in a new right-hand window and focuses it.
+func (e *Editor) openTerminalInNewWindowCmd(args []string) error {
+    // Use existing vsplit logic to create a new right-side window
+    if err := e.vsplit(nil); err != nil { return err }
+    // Now open terminal in the new active window
+    return e.openTerminalCmd(nil)
+}
+
+// startTerminalPolling starts a goroutine to poll terminal output via proxy and append to buffer
+func (e *Editor) startTerminalPolling(bufferPath string) {
+    ts := e.terminalSessions[bufferPath]
+    if ts == nil { return }
+    go func() {
+        for {
+            data, closed, exitCode, err := e.proxyManager.ReadTerminal(ts.WorkingDir, ts.SessionID, 65536)
+            if err != nil {
+                return
+            }
+            if len(data) > 0 {
+                // Feed emulator, then render the grid as text
+                if ts.term != nil {
+                    ts.term.Write(data)
+                    rendered := ts.term.Render()
+                    e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+                        "buffer": bufferPath,
+                        "data":   rendered,
+                    })
+                } else {
+                    e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+                        "buffer": bufferPath,
+                        "data":   string(data),
+                    })
+                }
+            }
+            if closed {
+                ts.Closed = true
+                ts.ExitCode = exitCode
+                return
+            }
+            // Poll interval
+            time.Sleep(25 * time.Millisecond)
+        }
+    }()
 }
 
 // changeToEndOfLine changes from the cursor to the end of the current line

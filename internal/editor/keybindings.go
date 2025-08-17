@@ -94,8 +94,12 @@ func (e *Editor) setupDefaultBindings() {
 	// Paragraph rewrapping in insert mode
 	e.registerKeyBinding(commands.InsertMode, "alt+q", "rewrap-paragraph")
 
-	// File operations
-	e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
+    // File operations
+    e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
+    // Open terminal
+    e.registerKeyBinding(commands.NormalMode, "space t", "term")
+    // Open terminal in a new window (right split)
+    e.registerKeyBinding(commands.NormalMode, "space T", "term-new-window")
 
     // Buffer operations
 	e.registerKeyBinding(commands.NormalMode, "s b", "show-buffers")

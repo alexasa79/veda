@@ -4,6 +4,7 @@ import (
 	"bufio"
 	_ "embed"
 	"encoding/json"
+	"encoding/base64"
     "fmt"
 	"os"
 	"os/exec"
@@ -25,7 +26,7 @@ const ProxyRequestTimeout = 3 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.1"
+const ProxyVersion = "1.0.4"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -641,6 +642,124 @@ type Client struct {
     readerErr  chan error
     readerOnce sync.Once
 }
+
+// ---- Terminal (PTY) session RPCs ----
+
+// StartTerminal starts a PTY-backed terminal session on the proxy host.
+// workingDir decides locality via existing client selection.
+func (pm *ProxyManager) StartTerminal(workingDir string, command []string, env map[string]string, cols, rows int) (string, int, error) {
+    pm.mu.Lock()
+    client, actualPath, err := pm.getClient(workingDir)
+    pm.mu.Unlock()
+    if err != nil {
+        return "", 0, err
+    }
+    return client.startTerminal(actualPath, command, env, cols, rows)
+}
+
+func (pm *ProxyManager) WriteTerminal(workingDir, sessionID string, data []byte) error {
+    pm.mu.Lock()
+    client, _, err := pm.getClient(workingDir)
+    pm.mu.Unlock()
+    if err != nil { return err }
+    return client.writeTerminal(sessionID, data)
+}
+
+func (pm *ProxyManager) ReadTerminal(workingDir, sessionID string, maxBytes int) ([]byte, bool, *int, error) {
+    pm.mu.Lock()
+    client, _, err := pm.getClient(workingDir)
+    pm.mu.Unlock()
+    if err != nil { return nil, false, nil, err }
+    return client.readTerminal(sessionID, maxBytes)
+}
+
+func (pm *ProxyManager) ResizeTerminal(workingDir, sessionID string, cols, rows int) error {
+    pm.mu.Lock()
+    client, _, err := pm.getClient(workingDir)
+    pm.mu.Unlock()
+    if err != nil { return err }
+    return client.resizeTerminal(sessionID, cols, rows)
+}
+
+func (pm *ProxyManager) CloseTerminal(workingDir, sessionID string) error {
+    pm.mu.Lock()
+    client, _, err := pm.getClient(workingDir)
+    pm.mu.Unlock()
+    if err != nil { return err }
+    return client.closeTerminal(sessionID)
+}
+
+// Client-side request helpers
+func (c *Client) startTerminal(workingDir string, command []string, env map[string]string, cols, rows int) (string, int, error) {
+    c.requestID++
+    params := map[string]interface{}{ "working_dir": workingDir, "cols": cols, "rows": rows }
+    if len(command) > 0 { params["command"] = command }
+    if len(env) > 0 { params["env"] = env }
+    req := JSONRPCRequest{ Method: "start_terminal", Params: params, ID: c.requestID }
+    resp, err := c.sendRequestWithTimeout(req)
+    if err != nil { return "", 0, err }
+    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return "", 0, fmt.Errorf("proxy error: %s", errMsg) }
+    if result, ok := resp["result"].(map[string]interface{}); ok {
+        sid, _ := result["session_id"].(string)
+        pid := 0
+        if p, ok := result["pid"].(float64); ok { pid = int(p) }
+        if sid != "" { return sid, pid, nil }
+    }
+    return "", 0, fmt.Errorf("invalid start_terminal response")
+}
+
+func (c *Client) writeTerminal(sessionID string, data []byte) error {
+    c.requestID++
+    b64 := base64StdEncode(data)
+    req := JSONRPCRequest{ Method: "write_terminal", Params: map[string]interface{}{ "session_id": sessionID, "data_b64": b64 }, ID: c.requestID }
+    resp, err := c.sendRequestWithTimeout(req)
+    if err != nil { return err }
+    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return fmt.Errorf("proxy error: %s", errMsg) }
+    return nil
+}
+
+func (c *Client) readTerminal(sessionID string, maxBytes int) ([]byte, bool, *int, error) {
+    c.requestID++
+    if maxBytes <= 0 { maxBytes = 65536 }
+    req := JSONRPCRequest{ Method: "read_terminal", Params: map[string]interface{}{ "session_id": sessionID, "max_bytes": maxBytes }, ID: c.requestID }
+    resp, err := c.sendRequestWithTimeout(req)
+    if err != nil { return nil, false, nil, err }
+    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return nil, false, nil, fmt.Errorf("proxy error: %s", errMsg) }
+    result, ok := resp["result"].(map[string]interface{})
+    if !ok { return nil, false, nil, fmt.Errorf("invalid read_terminal response") }
+    dataB64, _ := result["data_b64"].(string)
+    data, decErr := base64StdDecode(dataB64)
+    if decErr != nil { return nil, false, nil, decErr }
+    closed, _ := result["closed"].(bool)
+    var exitCodePtr *int
+    if ec, ok := result["exit_code"].(float64); ok {
+        ecInt := int(ec)
+        exitCodePtr = &ecInt
+    }
+    return data, closed, exitCodePtr, nil
+}
+
+func (c *Client) resizeTerminal(sessionID string, cols, rows int) error {
+    c.requestID++
+    req := JSONRPCRequest{ Method: "resize_terminal", Params: map[string]interface{}{ "session_id": sessionID, "cols": cols, "rows": rows }, ID: c.requestID }
+    resp, err := c.sendRequestWithTimeout(req)
+    if err != nil { return err }
+    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return fmt.Errorf("proxy error: %s", errMsg) }
+    return nil
+}
+
+func (c *Client) closeTerminal(sessionID string) error {
+    c.requestID++
+    req := JSONRPCRequest{ Method: "close_terminal", Params: map[string]interface{}{ "session_id": sessionID }, ID: c.requestID }
+    resp, err := c.sendRequestWithTimeout(req)
+    if err != nil { return err }
+    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return fmt.Errorf("proxy error: %s", errMsg) }
+    return nil
+}
+
+// base64 helpers isolated for clarity; stdlib functions are used under the hood
+func base64StdEncode(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+func base64StdDecode(s string) ([]byte, error) { return base64.StdEncoding.DecodeString(s) }
 
 // sendRequestWithTimeout sends a JSON RPC request and waits for response with timeout
 func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]interface{}, error) {

@@ -130,6 +130,12 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 		Key:       key,
 		Modifiers: modifiers,
 	}
+    // In terminal mode, route events through the main event loop to honor
+    // terminal-specific handling (e.g., ESC exits terminal mode)
+    if te.mode == commands.TerminalMode {
+        te.handleEvent(ev)
+        return
+    }
 	// Handle cursor mode specially
 	if te.mode == commands.CursorMode {
 		te.handleCursorMode(ev)

@@ -222,8 +222,13 @@ func (e *Editor) closeBuffer(args []string) error {
 		e.autoSaveManager.CleanupAutoSave(currentPath)
 	}
 
-	// Remove the closed buffer
-	delete(e.buffers, currentPath)
+    // If terminal session is attached, close it via proxy
+    if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
+        _ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
+        delete(e.terminalSessions, currentPath)
+    }
+    // Remove the closed buffer
+    delete(e.buffers, currentPath)
 	e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
 
 	return nil

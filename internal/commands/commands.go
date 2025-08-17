@@ -16,6 +16,8 @@ const (
 	VisualMode      Mode = "VISUAL"
 	VisualLineMode  Mode = "VISUAL LINE"
 	CursorMode      Mode = "CURSOR"
+    // TerminalMode routes all keys to a PTY-backed terminal session
+    TerminalMode    Mode = "TERMINAL"
 )
 
 // Key represents a key with modifiers
