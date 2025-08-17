@@ -326,6 +326,26 @@ func (e *Editor) startTerminalPolling(bufferPath string) {
             if closed {
                 ts.Closed = true
                 ts.ExitCode = exitCode
+                // Notify user with an exit banner appended to the current snapshot
+                var exitMsg string
+                if exitCode != nil {
+                    exitMsg = fmt.Sprintf("[terminal exited] status=%d", *exitCode)
+                } else {
+                    exitMsg = "[terminal exited]"
+                }
+                var rendered string
+                if ts.term != nil {
+                    rendered = ts.term.Render()
+                }
+                if rendered == "" {
+                    rendered = exitMsg
+                } else {
+                    rendered = rendered + "\n" + exitMsg
+                }
+                e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+                    "buffer": bufferPath,
+                    "data":   rendered,
+                })
                 return
             }
             // Poll interval
