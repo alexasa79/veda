@@ -71,6 +71,29 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 			isLineDeletion = true
 		}
 	}
+
+	// Handle multi-line full line deletions (e.g., count-prefixed dd/cc)
+	// When deleting N whole lines across multiple lines, ensure we also remove
+	// the newline after the last selected line (if it exists). Otherwise a
+	// leading blank line remains.
+	if startChar == 0 && endLine > startLine {
+		iter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
+		if !iter.IsEOF() {
+			lastLine := iter.Line()
+			if endChar >= len(lastLine) {
+				// We are deleting whole lines. If there's a following line,
+				// include the newline between endLine and endLine+1 in the deletion.
+				if endLine < editor.buffer.LineCount-1 {
+					textToDelete += "\n"
+					// Advance end to the beginning of the next line so subsequent
+					// cursor adjustments treat this as full line deletion.
+					endLine++
+					endChar = 0
+					isLineDeletion = true
+				}
+			}
+		}
+	}
 	
     // Before deletion, store text in 'd' register
     if textToDelete != "" {
