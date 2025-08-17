@@ -198,6 +198,10 @@ func (e *Editor) registerCommands() {
 
     // Info commands
     e.commandRegistry.Register("show-file-info", e.showFileInfoCommand, false)
+
+    // Registers commands
+    e.commandRegistry.Register("regcopy", e.regcopyCmd, false)
+    e.commandRegistry.Register("reg", e.showRegistersCmd, false)
 }
 
 // changeToEndOfLine changes from the cursor to the end of the current line

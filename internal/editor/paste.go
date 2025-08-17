@@ -23,9 +23,26 @@ func (e *Editor) pasteAfter(args []string) error {
 		}, true)
 	}
 	
-	// Single cursor paste - original implementation
-	// Get clipboard content
-	content, err := clipboard.Paste()
+    // Single cursor paste - support registers prefix ' and general paste from register
+    var content string
+    fromRegister := false
+    regName := rune(0)
+    var err error
+    if e.registerReadyForAction && e.pendingRegister != 0 {
+        // Paste from named register
+        if text, ok := e.registers[e.pendingRegister]; ok {
+            content = text
+        }
+        fromRegister = true
+        regName = e.pendingRegister
+        // Clear prefix state after use
+        e.registerPrefixActive = false
+        e.registerReadyForAction = false
+        e.pendingRegister = 0
+    } else {
+        // Default: Get clipboard content
+        content, err = clipboard.Paste()
+    }
 	if err != nil {
 		LL.Error("Failed to paste from clipboard: %v", err)
 		return nil // Don't return error to avoid showing error to user
@@ -35,16 +52,22 @@ func (e *Editor) pasteAfter(args []string) error {
 		return nil
 	}
 	
-	// Determine if this is a line-wise paste (content ends with newline)
-	isLinewise := strings.HasSuffix(content, "\n")
-	
-	if isLinewise {
-		// Line-wise paste: insert after current line
-		return e.pasteAfterLine(content)
-	} else {
-		// Character-wise paste: insert after cursor
-		return e.pasteAfterCursor(content)
-	}
+    // Determine if this is a line-wise paste (content ends with newline)
+    isLinewise := strings.HasSuffix(content, "\n")
+    if isLinewise {
+        // Special case: when pasting from delete register with 'p', restore deleted
+        // lines before the current line to preserve original ordering.
+        if fromRegister && regName == 'd' {
+            return e.pasteBeforeLine(content)
+        }
+        return e.pasteAfterLine(content)
+    }
+    // Character-wise paste
+    if fromRegister && regName == 'd' {
+        // For delete register, paste before to restore original order at deletion start
+        return e.pasteBeforeCursor(content)
+    }
+    return e.pasteAfterCursor(content)
 }
 
 // pasteBefore pastes clipboard content before the cursor (P command)
@@ -63,9 +86,19 @@ func (e *Editor) pasteBefore(args []string) error {
 		}, false)
 	}
 	
-	// Single cursor paste - original implementation
-	// Get clipboard content
-	content, err := clipboard.Paste()
+    // Single cursor paste with registers
+    var content string
+    var err error
+    if e.registerReadyForAction && e.pendingRegister != 0 {
+        if text, ok := e.registers[e.pendingRegister]; ok {
+            content = text
+        }
+        e.registerPrefixActive = false
+        e.registerReadyForAction = false
+        e.pendingRegister = 0
+    } else {
+        content, err = clipboard.Paste()
+    }
 	if err != nil {
 		LL.Error("Failed to paste from clipboard: %v", err)
 		return nil // Don't return error to avoid showing error to user
@@ -202,7 +235,12 @@ func (e *Editor) pasteAfterLine(content string) error {
 	}
 	
     // Optionally auto-adjust indentation for code blocks when conditions are clear
-    content = e.autoIndentPasteIfApplicable(content, lineNum, true)
+    if e.skipAutoIndentForNextPaste {
+        // Consume the flag and skip adjustment
+        e.skipAutoIndentForNextPaste = false
+    } else {
+        content = e.autoIndentPasteIfApplicable(content, lineNum, true)
+    }
 
     // Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
@@ -255,7 +293,12 @@ func (e *Editor) pasteBeforeLine(content string) error {
 	pos := iter.Position()
 	
     // Optionally auto-adjust indentation for code blocks when conditions are clear
-    content = e.autoIndentPasteIfApplicable(content, lineNum, false)
+    if e.skipAutoIndentForNextPaste {
+        // Consume the flag and skip adjustment
+        e.skipAutoIndentForNextPaste = false
+    } else {
+        content = e.autoIndentPasteIfApplicable(content, lineNum, false)
+    }
 
     // Create paste command for undo/redo
 	pasteCmd := &PasteCommand{

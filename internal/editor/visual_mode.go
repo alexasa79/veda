@@ -43,8 +43,15 @@ func (e *Editor) deleteSelection(args []string) error {
 	// Extract text that will be deleted
 	deletedText := e.buffer.Rope.Extract(start, end)
 	
-	// Create delete history entry
-	deleteEntry := buffer.NewDeleteTextEntry(lineNum, charPos, deletedText)
+    // Store deleted text into 'd' register for later paste
+    if e.registers == nil { e.registers = make(map[rune]string) }
+    e.registers['d'] = deletedText
+    // We are about to paste deleted lines back frequently; ensure next line-wise paste
+    // does not auto-rebase indentation when coming right after a visual delete
+    e.skipAutoIndentForNextPaste = true
+
+    // Create delete history entry
+    deleteEntry := buffer.NewDeleteTextEntry(lineNum, charPos, deletedText)
 	
 	// Execute the delete through history
 	if _, err := e.buffer.History.Execute(e.buffer, deleteEntry); err != nil {
