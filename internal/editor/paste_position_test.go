@@ -3,12 +3,15 @@ package editor
 import (
 	"testing"
 	"veda/internal/clipboard"
+    "veda/internal/syntax"
 )
 
 func TestPasteAfterCursorPosition(t *testing.T) {
 	t.Run("paste after equals sign", func(t *testing.T) {
-		// Create editor with initial content
-		te := NewTestEditorWithContent(80, 24, "A=12345\nB=")
+        // Create editor with initial content
+        te := NewTestEditorWithContent(80, 24, "A=12345\nB=")
+        // Ensure no language to avoid auto-indent interfering
+        te.highlighter = syntax.NewHighlighter()
 		
 		// Simply copy "12345" to clipboard directly for this test
 		clipboard.Copy("12345")
@@ -37,8 +40,9 @@ func TestPasteAfterCursorPosition(t *testing.T) {
 	})
 	
 	t.Run("paste after cursor in middle of line", func(t *testing.T) {
-		// Create editor with initial content
-		te := NewTestEditorWithContent(80, 24, "ABC\nDEF")
+        // Create editor with initial content
+        te := NewTestEditorWithContent(80, 24, "ABC\nDEF")
+        te.highlighter = syntax.NewHighlighter()
 		
 		// Copy "BC" from first line
 		clipboard.Copy("BC")
@@ -58,8 +62,9 @@ func TestPasteAfterCursorPosition(t *testing.T) {
 	})
 	
 	t.Run("paste after cursor at end of line", func(t *testing.T) {
-		// Create editor with initial content
-		te := NewTestEditorWithContent(80, 24, "ABC\nDEF")
+        // Create editor with initial content
+        te := NewTestEditorWithContent(80, 24, "ABC\nDEF")
+        te.highlighter = syntax.NewHighlighter()
 		
 		// Copy "123" to clipboard
 		clipboard.Copy("123")
@@ -81,8 +86,9 @@ func TestPasteAfterCursorPosition(t *testing.T) {
 
 func TestPasteBeforeCursorPosition(t *testing.T) {
 	t.Run("paste before equals sign", func(t *testing.T) {
-		// Create editor with initial content
-		te := NewTestEditorWithContent(80, 24, "A=12345\nB=")
+        // Create editor with initial content
+        te := NewTestEditorWithContent(80, 24, "A=12345\nB=")
+        te.highlighter = syntax.NewHighlighter()
 		
 		// Copy "12345" to clipboard
 		clipboard.Copy("12345")
@@ -102,8 +108,9 @@ func TestPasteBeforeCursorPosition(t *testing.T) {
 	})
 	
 	t.Run("paste before cursor in middle of line", func(t *testing.T) {
-		// Create editor with initial content
-		te := NewTestEditorWithContent(80, 24, "ABC\nDEF")
+        // Create editor with initial content
+        te := NewTestEditorWithContent(80, 24, "ABC\nDEF")
+        te.highlighter = syntax.NewHighlighter()
 		
 		// Copy "123"
 		clipboard.Copy("123")
