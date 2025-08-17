@@ -153,6 +153,11 @@ func (h *History) StartComposite(description string) {
     }
 }
 
+// HasActiveComposite reports whether a generic composite is currently open
+func (h *History) HasActiveComposite() bool {
+    return h.activeComposite != nil
+}
+
 // EndComposite finalizes the generic composite and pushes it to history if non-empty.
 // Returns the composite entry if added, nil otherwise.
 func (h *History) EndComposite() HistoryEntry {
@@ -160,7 +165,9 @@ func (h *History) EndComposite() HistoryEntry {
         return nil
     }
     var result HistoryEntry
-    if len(h.activeComposite.Entries) > 0 {
+    // Push if there are entries OR if we have cursor snapshots, so editor-level
+    // state changes (like virtual cursors) can be undone/redone.
+    if len(h.activeComposite.Entries) > 0 || h.activeComposite.hasCursorSnapshot || h.activeComposite.hasPostCursorSnapshot {
         h.undoStack = append(h.undoStack, h.activeComposite)
         // Clear redo stack when a new entry is added
         h.redoStack = h.redoStack[:0]
@@ -192,10 +199,40 @@ func (h *History) GetTopRedoCompositeCursors() (CursorPos, []CursorPos, bool) {
     return CursorPos{}, nil, false
 }
 
+// GetTopUndoCompositePostCursors returns the post-operation cursor snapshot
+// from the most recent undo entry if available. Useful after Redo.
+func (h *History) GetTopUndoCompositePostCursors() (CursorPos, []CursorPos, bool) {
+    if len(h.undoStack) == 0 {
+        return CursorPos{}, nil, false
+    }
+    if ce, ok := h.undoStack[len(h.undoStack)-1].(*CompositeEntry); ok {
+        primary, virtual, okSnap := ce.GetPostCursors()
+        if !okSnap {
+            return CursorPos{}, nil, false
+        }
+        return primary, virtual, true
+    }
+    if ime, ok := h.undoStack[len(h.undoStack)-1].(*InsertModeEntry); ok && ime.CompositeEntry != nil {
+        primary, virtual, okSnap := ime.CompositeEntry.GetPostCursors()
+        if !okSnap {
+            return CursorPos{}, nil, false
+        }
+        return primary, virtual, true
+    }
+    return CursorPos{}, nil, false
+}
+
 // SetActiveCompositeCursors sets a cursor snapshot on the active composite, if any
 func (h *History) SetActiveCompositeCursors(primary CursorPos, virtual []CursorPos) {
     if h.activeComposite != nil {
         h.activeComposite.SetPreCursors(primary, virtual)
+    }
+}
+
+// SetActiveCompositePostCursors stores the post-operation cursor snapshot on the active composite, if any
+func (h *History) SetActiveCompositePostCursors(primary CursorPos, virtual []CursorPos) {
+    if h.activeComposite != nil {
+        h.activeComposite.SetPostCursors(primary, virtual)
     }
 }
 
@@ -206,6 +243,9 @@ type CompositeEntry struct {
     prePrimary  CursorPos
     preVirtual  []CursorPos
     hasCursorSnapshot bool
+    postPrimary CursorPos
+    postVirtual []CursorPos
+    hasPostCursorSnapshot bool
 }
 
 // NewCompositeEntry creates a new composite entry
@@ -246,6 +286,31 @@ func (ce *CompositeEntry) GetPreCursors() (CursorPos, []CursorPos, bool) {
     }
     // Even if virtual is nil, primary may still be meaningful
     return ce.prePrimary, nil, true
+}
+
+// SetPostCursors stores the cursor snapshot after the composite operation
+func (ce *CompositeEntry) SetPostCursors(primary CursorPos, virtual []CursorPos) {
+    ce.postPrimary = primary
+    if virtual != nil {
+        ce.postVirtual = make([]CursorPos, len(virtual))
+        copy(ce.postVirtual, virtual)
+    } else {
+        ce.postVirtual = nil
+    }
+    ce.hasPostCursorSnapshot = true
+}
+
+// GetPostCursors returns the stored post-operation cursor snapshot if present
+func (ce *CompositeEntry) GetPostCursors() (CursorPos, []CursorPos, bool) {
+    if !ce.hasPostCursorSnapshot {
+        return CursorPos{}, nil, false
+    }
+    if ce.postVirtual != nil {
+        out := make([]CursorPos, len(ce.postVirtual))
+        copy(out, ce.postVirtual)
+        return ce.postPrimary, out, true
+    }
+    return ce.postPrimary, nil, true
 }
 
 // Add adds an entry to the composite

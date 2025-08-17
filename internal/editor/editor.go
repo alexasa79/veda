@@ -1674,9 +1674,31 @@ func (e *Editor) redo(args []string) error {
 		viewLineNum = maxLine
 	}
 
-	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+    // Recreate iterators
+    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+    e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+    // If the undo stack top is a composite with a post-cursor snapshot, restore it
+    if e.buffer.History != nil {
+        if primary, virtual, ok := e.buffer.History.GetTopUndoCompositePostCursors(); ok {
+            if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
+                e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
+                e.buffer.CursorX = primary.Char
+            }
+            restored := make([]VirtualCursor, 0, len(virtual))
+            for _, c := range virtual {
+                if c.Line >= 0 && c.Line < e.buffer.LineCount {
+                    iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
+                    line := iter.Line()
+                    x := c.Char
+                    if x < 0 { x = 0 }
+                    if x > len(line) { x = len(line) }
+                    restored = append(restored, VirtualCursor{X: x, Y: c.Line})
+                }
+            }
+            e.virtualCursors = restored
+        }
+    }
 
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()

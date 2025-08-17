@@ -335,4 +335,140 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 			}
 		}
 	})
+
+	// New test: undoing multiple added cursors should clear them all in one step
+	t.Run("undo added cursors clears all virtual cursors (after exiting cursor mode)", func(t *testing.T) {
+		content := "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12"
+		te := NewTestEditorWithContent(80, 24, content)
+
+		// Enter cursor mode and add 10 cursors
+		te.TypeKeys("m")
+        for i := 0; i < 10; i++ {
+            te.PressKey(events.KeyEnter, 0)
+        }
+		// Exit cursor mode to finalize the composite
+		te.TypeKeys("m")
+
+		vc := te.GetVirtualCursors()
+		if len(vc) != 10 {
+			t.Fatalf("expected 10 virtual cursors before undo, got %d", len(vc))
+		}
+
+		// Undo once should clear all virtual cursors
+		te.TypeKeys("u")
+		vc = te.GetVirtualCursors()
+		if len(vc) != 0 {
+			t.Fatalf("expected 0 virtual cursors after undo, got %d", len(vc))
+		}
+	})
+
+	// New test: pressing 'u' while still in cursor mode should also clear all at once
+	t.Run("undo added cursors while still in cursor mode clears all", func(t *testing.T) {
+		content := "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no"
+		te := NewTestEditorWithContent(80, 24, content)
+
+		// Enter cursor mode and add 10 cursors
+		te.TypeKeys("m")
+		for i := 0; i < 10; i++ {
+			te.PressKey(events.KeyEnter, 0)
+		}
+
+		vc := te.GetVirtualCursors()
+		if len(vc) != 10 {
+			t.Fatalf("expected 10 virtual cursors before undo, got %d", len(vc))
+		}
+
+		// Press 'u' in cursor mode; handler should exit cursor mode then undo
+		te.TypeKeys("u")
+		vc = te.GetVirtualCursors()
+		if len(vc) != 0 {
+			t.Fatalf("expected 0 virtual cursors after undo, got %d", len(vc))
+		}
+	})
+
+	// End-to-end: cw -> move -> cw with 10 cursors, then layered undos
+	t.Run("multi-cursor cw/edit/undo chain restores cursors and content in order", func(t *testing.T) {
+		// Prepare 10 identical lines: "hello world hello"
+		line := "hello world hello"
+		content := line
+		for i := 1; i < 10; i++ {
+			content += "\n" + line
+		}
+		te := NewTestEditorWithContent(80, 24, content)
+
+		// Move to the 'w' in "world" on line 0
+		te.TypeKeys("w")
+
+		// Enter cursor mode and create total 10 cursors across 10 lines
+		// (9 virtual cursors + 1 primary)
+		te.TypeKeys("m")
+		for i := 0; i < 9; i++ {
+			te.PressKey(events.KeyEnter, 0)
+		}
+		if got := len(te.GetVirtualCursors()); got != 9 {
+			t.Fatalf("expected 9 virtual cursors, got %d", got)
+		}
+
+		// Change current word (world -> hello) at all cursors
+		te.TypeKeys("cw")
+		te.TypeKeys("hello")
+		// Exit insert mode
+		te.PressKey(events.KeyEscape, 0)
+		// After first change, each line should be: "hello hello hello"
+		expectedHelloHelloHello := "hello hello hello"
+		expected := expectedHelloHelloHello
+		for i := 1; i < 10; i++ {
+			expected += "\n" + expectedHelloHelloHello
+		}
+		AssertBufferEquals(t, te, expected)
+
+		// Move to the next word (the third "hello") and change it to "world"
+		te.TypeKeys("w")
+		te.TypeKeys("cw")
+		te.TypeKeys("world")
+		// Exit insert mode
+		te.PressKey(events.KeyEscape, 0)
+		// Buffer should now be: "hello hello world" x 10 lines
+		expectedHelloHelloWorld := "hello hello world"
+		expected = expectedHelloHelloWorld
+		for i := 1; i < 10; i++ {
+			expected += "\n" + expectedHelloHelloWorld
+		}
+		AssertBufferEquals(t, te, expected)
+
+		// Ensure only one cursor remains before undo by clearing virtual cursors with ESC in normal mode
+		te.PressKey(events.KeyEscape, 0)
+		if got := len(te.GetVirtualCursors()); got != 0 {
+			t.Fatalf("expected 0 virtual cursors after clearing with ESC, got %d", got)
+		}
+
+		// 1st undo: restores the cursors (content stays "hello hello world")
+		te.TypeKeys("u")
+		if got := len(te.GetVirtualCursors()); got != 9 {
+			t.Fatalf("after first undo, expected 9 virtual cursors restored, got %d", got)
+		}
+		AssertBufferEquals(t, te, expected) // still "hello hello world"
+
+		// 2nd undo: undo second cw (world -> hello), back to "hello hello hello"
+		te.TypeKeys("u")
+		expected = expectedHelloHelloHello
+		for i := 1; i < 10; i++ {
+			expected += "\n" + expectedHelloHelloHello
+		}
+		AssertBufferEquals(t, te, expected)
+
+		// 3rd undo: undo first cw (hello -> world), back to original "hello world hello"
+		te.TypeKeys("u")
+		expectedOriginal := line
+		for i := 1; i < 10; i++ {
+			expectedOriginal += "\n" + line
+		}
+		AssertBufferEquals(t, te, expectedOriginal)
+
+		// 4th undo: undo cursor additions, leaving only the primary cursor
+		te.TypeKeys("u")
+		if got := len(te.GetVirtualCursors()); got != 0 {
+			t.Fatalf("after fourth undo, expected 0 virtual cursors, got %d", got)
+		}
+	})
 }
