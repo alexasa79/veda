@@ -182,7 +182,7 @@ func (t *Terminal) inputHandler() {
 		var err error
 		
 		go func() {
-			n, err = os.Stdin.Read(buf)
+            n, err = os.Stdin.Read(buf)
 			close(readDone)
 		}()
 		

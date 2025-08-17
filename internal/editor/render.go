@@ -1,15 +1,15 @@
 package editor
 
 import (
-	"fmt"
-	"strings"
-	"veda/internal/buffer"
-	"veda/internal/commands"
-	"veda/internal/config"
-	"veda/internal/proxy"
-	"veda/internal/syntax"
-	"veda/internal/theme"
-	"veda/internal/ui"
+    "fmt"
+    "strings"
+    "veda/internal/buffer"
+    "veda/internal/commands"
+    "veda/internal/config"
+    "veda/internal/proxy"
+    "veda/internal/syntax"
+    "veda/internal/theme"
+    "veda/internal/ui"
 )
 
 // drawGutterGitIndicator renders git added/modified indicator in the gutter for a given wrapped line.
@@ -318,7 +318,7 @@ func (e *Editor) isInSearchMatchInLine(pos int, matches []int) bool {
 
 // drawLineInternal draws a single line using the iterator with an optional background color override
 func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, screenY int, bgOverride *ui.Color) {
-	originalLine := iter.Line()  // Keep the original line for whitespace detection
+    originalLine := iter.Line()  // Keep the original line for whitespace detection
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	isCurrentLine := lineIndex == e.buffer.CursorIterator.LineNumber()
@@ -351,7 +351,55 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		trailingStart = detectTrailingSpaces(originalLine)
 	}
 
-	// Try to get syntax tokens first, even with background overrides
+    // If this is a terminal/internal buffer, render using terminal emulator styles (regardless of mode)
+    if e.buffer != nil && e.buffer.IsInternal {
+        // Determine terminal row corresponding to this buffer line
+        ts := e.terminalSessions[e.buffer.FilePath]
+        if ts != nil && ts.term != nil {
+            width, _ := e.screen.Size()
+            // Draw characters with per-cell styles; iterate runes to avoid breaking UTF-8
+            col := 0
+            for _, ch := range originalLine {
+                if startX+col >= width {
+                    break
+                }
+                // Adjust for banner occupying first buffer line
+                emuRow := lineIndex
+                if ts.Banner != "" {
+                    emuRow = lineIndex - 1
+                }
+                var fg, bg ui.Color
+                var attrs ui.AttrMask
+                if emuRow >= 0 {
+                    fg, bg, attrs = ts.term.StyleAt(col, emuRow)
+                } else {
+                    fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
+                }
+                // Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
+                if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
+                    fg = ui.Color(int32(fg) + 8)
+                }
+                style := normalStyle
+                if fg != ui.ColorDefault {
+                    style = style.Foreground(fg)
+                }
+                if bg != ui.ColorDefault {
+                    style = style.Background(bg)
+                }
+                if attrs != ui.AttrNone {
+                    // Merge attributes into style
+                    fg0, bg0, _ := style.Decompose()
+                    style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
+                }
+                e.screen.SetContent(startX+col, screenY, ch, nil, style)
+                col++
+            }
+            // Fill remainder of line if needed
+            return
+        }
+    }
+
+    // Try to get syntax tokens first, even with background overrides
 	var x int
 	
 	// Get syntax tokens for this line using iterator position
@@ -370,14 +418,14 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 			
-			for i := x; i < width; i++ {
+            for i := x; i < width; i++ {
 				fillStyle := normalStyle
 				
 				// Check if this column is a ruler position
 				// Calculate text column position (i minus line number width)
-				textColumn := i - e.buffer.LineNumberWidth
+                textColumn := i - e.buffer.LineNumberWidth
 				for _, rulerPos := range e.config.VerticalRulers {
-					if textColumn == rulerPos {
+                    if textColumn+1 == rulerPos {
 						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
 						break
 					}
@@ -493,9 +541,9 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			
 			// Check if this column is a ruler position
 			// Calculate text column position (i minus line number width)
-			textColumn := i - e.buffer.LineNumberWidth
+            textColumn := i - e.buffer.LineNumberWidth
 			for _, rulerPos := range e.config.VerticalRulers {
-				if textColumn == rulerPos {
+                if textColumn+1 == rulerPos {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
 					break
 				}
@@ -551,7 +599,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 // drawWrappedLine draws a wrapped line segment with proper handling of syntax highlighting
 func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, startX int, screenY int) {
-	// Get the full line for syntax highlighting
+    // Get the full line for syntax highlighting
 	originalLine := iter.Line()
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
@@ -579,7 +627,49 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		trailingStart = detectTrailingSpaces(originalLine)
 	}
 
-	// If no highlighter, draw without syntax highlighting
+    // Terminal/internal buffers: draw using terminal emulator per-cell styles (regardless of mode)
+    if e.buffer != nil && e.buffer.IsInternal {
+        if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+            // Draw only the wrapped segment using terminal styles; iterate runes to preserve UTF-8
+            x := startX
+            col := 0
+            for _, ch := range wl.Text {
+                emuRow := lineIndex
+                if ts.Banner != "" { emuRow = lineIndex - 1 }
+                var fg, bg ui.Color
+                var attrs ui.AttrMask
+                if emuRow >= 0 {
+                    fg, bg, attrs = ts.term.StyleAt(col, emuRow)
+                } else {
+                    fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
+                }
+                // Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
+                if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
+                    fg = ui.Color(int32(fg) + 8)
+                }
+                style := normalStyle
+                if fg != ui.ColorDefault { style = style.Foreground(fg) }
+                if bg != ui.ColorDefault { style = style.Background(bg) }
+                if attrs != ui.AttrNone {
+                    fg0, bg0, _ := style.Decompose()
+                    style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
+                }
+                // Determine display width to keep emulator columns aligned (e.g., emoji)
+                w := runeDisplayWidth(ch)
+                if w < 1 { w = 1 }
+                e.screen.SetContent(x, screenY, ch, nil, style)
+                if w == 2 {
+                    // Paint the trailing cell for double-width glyphs with same style
+                    e.screen.SetContent(x+1, screenY, ' ', nil, style)
+                }
+                x += w
+                col += w
+            }
+            return
+        }
+    }
+
+    // If no highlighter, draw without syntax highlighting
 	if e.highlighter == nil || !e.buffer.HasFile() {
 		x := startX
 		// Draw the wrapped segment
@@ -885,8 +975,8 @@ func (e *Editor) drawContext() {
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
 
-	// Use cached line number width from buffer
-	lineNumberWidth := e.buffer.LineNumberWidth
+    // Use cached line number width from buffer
+    lineNumberWidth := e.buffer.LineNumberWidth
 
 	// Get screen width
 	width, _ := e.screen.Size()
@@ -992,7 +1082,7 @@ func (e *Editor) drawEditor() {
             e.drawGutterGitIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
             // Draw diagnostics in the second gutter column
             e.drawGutterDiagnosticsIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
-		} else {
+        } else {
 			// Fill line number area with spaces for wrapped lines
 			for x := 0; x < lineNumberWidth; x++ {
 				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
@@ -1062,7 +1152,7 @@ func (e *Editor) drawStatusBar() {
 		modeStyle := statusBarStyle
 		modeStyle.Fg, modeStyle.Bg = modeStyle.Bg, modeStyle.Fg // Invert colors
 
-		modeText := " NORMAL "
+        modeText := " NORMAL "
 		if e.mode == commands.InsertMode {
 			modeText = " INSERT "
 		} else if e.mode == commands.VisualMode {
@@ -1071,6 +1161,8 @@ func (e *Editor) drawStatusBar() {
 			modeText = " VISUAL LINE "
 		} else if e.mode == commands.CursorMode {
 			modeText = " CURSOR "
+        } else if e.mode == commands.TerminalMode {
+            modeText = " TERMINAL "
 		} else if e.mode == commands.NormalMode && e.temporaryNormal {
 			modeText = " NORMAL (i) "
 		}

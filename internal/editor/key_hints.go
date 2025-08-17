@@ -103,6 +103,10 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"move-buffer-left":           "move buffer left",
 		"move-buffer-right":          "move buffer right", 
 		"move-buffer-center":         "move buffer center",
+
+        // Terminal
+        "term":                       "open terminal",
+        "term-new-window":            "open terminal (new window)",
 	}
 }
 
@@ -130,8 +134,15 @@ func (e *Editor) showKeyHints() {
 		return
 	}
 	
-	// Get available key hints
-	commandDescs := e.getCommandDescriptions()
+    // Get available key hints
+    commandDescs := e.getCommandDescriptions()
+    // Ensure terminal commands have descriptions
+    if _, ok := commandDescs["term"]; !ok {
+        commandDescs["term"] = "open terminal"
+    }
+    if _, ok := commandDescs["term-new-window"]; !ok {
+        commandDescs["term-new-window"] = "open terminal (new window)"
+    }
 	categoryDescs := e.getCategoryDescriptions()
 	hints := widgets.GetAvailableKeyHints(e.keyMapper, pendingKeys, e.mode, commandDescs, categoryDescs)
 	

@@ -18,8 +18,9 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Normal Mode  - Default mode for navigation and commands (ESC to enter)\n")
 	helpText.WriteString("Insert Mode  - Mode for inserting text (i to enter)\n")
 	helpText.WriteString("Visual Mode  - Mode for selecting text (v to enter)\n")
-	helpText.WriteString("Command Mode - Mode for executing commands (: to enter)\n")
+    helpText.WriteString("Command Mode - Mode for executing commands (: to enter)\n")
 	helpText.WriteString("Cursor Mode  - Mode for adding multiple cursors (m to enter)\n\n")
+    helpText.WriteString("Terminal Mode - Terminal input mode for PTY buffers (ESC to return to Normal)\n\n")
 	
 	// Key bindings by category
 	helpText.WriteString("== Key Bindings ==\n\n")
@@ -81,7 +82,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("ESC          - Clear current search\n\n")
 	
 	helpText.WriteString("= File Operations =\n")
-	helpText.WriteString("Space s f    - Open file browser\n")
+    helpText.WriteString("Space s f    - Open file browser\n")
+    helpText.WriteString("Space t      - Open terminal buffer (:term)\n")
 	helpText.WriteString("  (Enter opens in current window; Shift+Enter opens in a new split)\n")
 	helpText.WriteString("Space s b    - Show open buffers\n")
 	helpText.WriteString("  (Enter switches in current window; Shift+Enter opens buffer in a new split)\n")
@@ -162,6 +164,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":e <path>    - Edit file or directory\n")
 	helpText.WriteString(":cd <path>   - Change working directory\n")
     helpText.WriteString(":help        - Show this help\n")
+    helpText.WriteString(":term [cmd]  - Open a terminal (local or remote based on working dir)\n")
 	helpText.WriteString(":help-keys   - Show all key bindings\n")
 	helpText.WriteString(":diagnostics - Show project diagnostics/errors\n")
 	helpText.WriteString(":show-project-changes - Show all git changes in project\n\n")

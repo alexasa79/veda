@@ -1,6 +1,9 @@
 package editor
 
-import "strings"
+import (
+    "strings"
+    "veda/internal/commands"
+)
 
 // Layout calculation methods
 // These methods centralize the calculation of screen areas, making it easy to change
@@ -11,11 +14,17 @@ func (e *Editor) getVisibleHeight() int {
     _, height := e.screen.Size()
     // For sub-window screens, the region already excludes the global status bar
     if _, ok := e.screen.(*windowScreen); ok {
-        // Do not reserve global lines; just return region height
         return height
     }
+    // Terminal/internal buffers should not reserve extra lines for context/diagnostics/signature
+    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+        // Reserve only the status bar line
+        return height - 1
+    }
     reserved := 1 // Status bar
-    reserved += len(e.contextCache) // Context lines
+    if e.shouldShowContext() {
+        reserved += len(e.contextCache) // Context lines
+    }
     // Reserve space for signature if shown
     if e.buffer.CurrentSignature != nil {
         reserved += e.getSignatureLines()
@@ -33,23 +42,39 @@ func (e *Editor) getVisibleHeight() int {
     return height - reserved
 }
 
+// getVisibleWidth returns the number of columns available for content display
+func (e *Editor) getVisibleWidth() int {
+    width, _ := e.screen.Size()
+    // Width is unaffected by status bar/overlays; subtract nothing
+    return width
+}
+
 // getContentStartY returns the Y position where content starts
 func (e *Editor) getContentStartY() int {
+    // Window sub-screens always start at 0 within their region
     if _, ok := e.screen.(*windowScreen); ok {
         return 0
     }
-    return len(e.contextCache) // Start after context lines
+    // Terminal/internal buffers do not reserve context lines
+    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+        return 0
+    }
+    if e.shouldShowContext() {
+        return len(e.contextCache)
+    }
+    return 0
 }
 
 // shouldShowContext determines if context should be shown
 func (e *Editor) shouldShowContext() bool {
-	if !e.showContext {
-		return false
-	}
-
-	// Always show context if we have it
-	// The scroll offset will handle limiting the number of lines
-	return true
+    if !e.showContext {
+        return false
+    }
+    // Never show context for terminal/internal buffers
+    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+        return false
+    }
+    return true
 }
 
 // updateContext updates the cached context for the current cursor position
@@ -63,12 +88,18 @@ func (e *Editor) updateContext() {
 		return
 	}
 
-	// Get file path
-	filePath := e.buffer.FilePath
-	if filePath == "" {
-		e.contextCache = nil
-		return
-	}
+    // Suppress context for internal/terminal buffers
+    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+        e.contextCache = nil
+        e.contextLine = currentLine
+        return
+    }
+    // Get file path
+    filePath := e.buffer.FilePath
+    if filePath == "" {
+        e.contextCache = nil
+        return
+    }
 
     // Calculate visible range (per-window; entire region height)
     viewStartLine := e.buffer.ViewIterator.LineNumber()
@@ -151,7 +182,7 @@ func (e *Editor) getDiagnosticLineCount(message string) int {
 
 // handleResize processes screen resize events
 func (e *Editor) handleResize() {
-	width, _ := e.screen.Size()
+    width, _ := e.screen.Size()
 
 	// Update the command line widget's dimensions and position
 	e.commandLine.SetWidth(width)
@@ -165,6 +196,18 @@ func (e *Editor) handleResize() {
     // Recompute window layout if using windows
     if len(e.windows) > 0 {
         e.recomputeWindowsLayout()
+    }
+    // When a terminal buffer is active, propagate resize to PTY via proxy
+    if e.mode == commands.TerminalMode && e.buffer != nil {
+        if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
+            cols := e.getVisibleWidth()
+            rows := e.getVisibleHeight()
+            _ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)
+            ts.Cols, ts.Rows = cols, rows
+            if ts.term != nil {
+                ts.term.Resize(cols, rows)
+            }
+        }
     }
     e.screen.Clear()
 	e.render()

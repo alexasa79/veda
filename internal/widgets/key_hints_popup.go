@@ -74,11 +74,12 @@ func (khp *KeyHintsPopup) calculateSize() {
 		khp.width = 50 // Cap maximum width
 	}
 	
-	// Height: number of hints + borders
-	khp.height = len(khp.hints) + 2 // +2 for top and bottom borders
-	if khp.height > 15 {
-		khp.height = 15 // Cap maximum height
-	}
+    // Height: number of hints + borders
+    khp.height = len(khp.hints) + 2 // +2 for top and bottom borders
+    // Increase cap to allow more entries before truncation
+    if khp.height > 30 {
+        khp.height = 30 // Cap maximum height
+    }
 }
 
 // Show makes the popup visible

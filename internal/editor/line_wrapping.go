@@ -1,6 +1,7 @@
 package editor
 
 import (
+    "veda/internal/commands"
 	"veda/internal/buffer"
 )
 
@@ -166,8 +167,21 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
         lastLogical = logicalLineNum
 		line := iter.Line()
 		
-		// Wrap this line
-		wrapped := wc.WrapLine(line, logicalLineNum)
+        // For terminal/internal buffers, avoid editor-side wrapping to preserve UTF-8
+        var wrapped []WrappedLine
+        if e.mode == commands.TerminalMode && e.buffer != nil && e.buffer.IsInternal {
+            wrapped = []WrappedLine{{
+                LogicalLineNum: logicalLineNum,
+                VisualLineNum:  visualLineCount,
+                StartChar:      0,
+                EndChar:        len(line),
+                IsFirstLine:    true,
+                Text:           line,
+            }}
+        } else {
+            // Wrap this line normally
+            wrapped = wc.WrapLine(line, logicalLineNum)
+        }
 		
 		// Add wrapped lines up to visible height
 		for _, wl := range wrapped {
