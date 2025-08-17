@@ -716,6 +716,19 @@ func (e *Editor) handleEvent(ev events.Event) {
                 if e.buffer != nil {
                     if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
                         ts.SavedCurX, ts.SavedCurY = ts.term.Cursor()
+                        // Align buffer cursor to emulator cursor location for browsing
+                        bannerOffset := 0
+                        if ts.Banner != "" { bannerOffset = 1 }
+                        bufRow := ts.SavedCurY + bannerOffset
+                        if bufRow < 0 { bufRow = 0 }
+                        if bufRow >= e.buffer.LineCount { bufRow = e.buffer.LineCount - 1 }
+                        it := buffer.NewBufferIteratorAtLine(e.buffer, bufRow)
+                        line := it.Line()
+                        bytePos := e.bytePositionFromVisualColumn(line, ts.SavedCurX)
+                        if bytePos < 0 { bytePos = 0 }
+                        if bytePos > len(line) { bytePos = len(line) }
+                        e.buffer.CursorIterator = it
+                        e.buffer.CursorX = bytePos
                     }
                 }
                 e.mode = commands.NormalMode
