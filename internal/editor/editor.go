@@ -1017,9 +1017,15 @@ func (e *Editor) handleEvent(ev events.Event) {
                                 bannerOffset := 0
                                 if ts.Banner != "" { bannerOffset = 1 }
                                 bufRow := curY + bannerOffset
-                // If session was closed, move cursor to last line to reveal the exit banner
+                // If session was closed, move cursor to last non-empty line (exit banner line)
                 if ts.Closed {
                     bufRow = b.LineCount - 1
+                    // Walk back over any trailing empty lines to land on the banner/content
+                    for bufRow > 0 {
+                        line := b.GetLine(bufRow)
+                        if len(line) > 0 { break }
+                        bufRow--
+                    }
                     curX = 0
                 }
                                 if bufRow < 0 { bufRow = 0 }
@@ -1410,9 +1416,15 @@ func (e *Editor) updateCursor() {
                 bannerOffset := 0
                 if ts.Banner != "" { bannerOffset = 1 }
                 screenY := e.getContentStartY() + bannerOffset + curY
-                // If closed, show cursor at exit banner line start
+                // If closed, show cursor at exit banner line start (last non-empty line)
                 if ts.Closed {
-                    screenY = e.getContentStartY() + (e.buffer.LineCount - 1)
+                    row := e.buffer.LineCount - 1
+                    for row > 0 {
+                        line := e.buffer.GetLine(row)
+                        if len(line) > 0 { break }
+                        row--
+                    }
+                    screenY = e.getContentStartY() + row
                     curX = 0
                 }
                 screenX := e.buffer.LineNumberWidth + curX

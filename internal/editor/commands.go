@@ -2,6 +2,7 @@ package editor
 
 import (
     "fmt"
+    "strings"
     "time"
     "veda/internal/buffer"
     "veda/internal/clipboard"
@@ -337,10 +338,23 @@ func (e *Editor) startTerminalPolling(bufferPath string) {
                 if ts.term != nil {
                     rendered = ts.term.Render()
                 }
-                if rendered == "" {
-                    rendered = exitMsg
+                // Place the exit banner just below the last non-empty line,
+                // not after the full terminal height worth of blank lines.
+                if rendered != "" {
+                    lines := strings.Split(rendered, "\n")
+                    // Trim trailing empty lines
+                    i := len(lines) - 1
+                    for i >= 0 && lines[i] == "" {
+                        i--
+                    }
+                    trimmed := strings.Join(lines[:i+1], "\n")
+                    if trimmed == "" {
+                        rendered = exitMsg
+                    } else {
+                        rendered = trimmed + "\n" + exitMsg
+                    }
                 } else {
-                    rendered = rendered + "\n" + exitMsg
+                    rendered = exitMsg
                 }
                 e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
                     "buffer": bufferPath,
