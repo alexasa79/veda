@@ -8,6 +8,7 @@ import (
     "time"
     "veda/internal/buffer"
     "veda/internal/config"
+    "veda/internal/clipboard"
 )
 
 // ErrorManager handles error display and tracking
@@ -191,5 +192,109 @@ func (e *Editor) showFileInfoCommand(args []string) error {
         indent = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
     }
     e.ShowTransientInfo("%s — %d lines, %d bytes, %s", path, lines, bytes, indent)
+    return nil
+}
+
+// regcopy: copy contents between registers. Treat '0' as system clipboard.
+// Usage: :regcopy <src> <dst>
+func (e *Editor) regcopyCmd(args []string) error {
+    if len(args) < 2 {
+        e.ShowTransientInfo("Usage: :regcopy <src> <dst>")
+        return nil
+    }
+    srcName := []rune(args[0])
+    dstName := []rune(args[1])
+    if len(srcName) != 1 || len(dstName) != 1 {
+        e.ShowTransientInfo("Registers are single characters")
+        return nil
+    }
+    if e.registers == nil {
+        e.registers = make(map[rune]string)
+    }
+    // Resolve source content
+    var content string
+    if srcName[0] == '0' {
+        // System clipboard as source
+        if c, err := clipboard.Paste(); err == nil {
+            content = c
+        } else {
+            e.ShowTransientInfo("Clipboard read failed")
+            return nil
+        }
+    } else {
+        content = e.registers[srcName[0]]
+    }
+    // Write to destination
+    if dstName[0] == '0' {
+        // System clipboard as destination
+        if err := clipboard.Copy(content); err != nil {
+            e.ShowTransientInfo("Clipboard write failed")
+            return nil
+        }
+    } else {
+        e.registers[dstName[0]] = content
+    }
+    e.ShowTransientInfo("Registers copied")
+    return nil
+}
+
+// reg: show non-empty registers in an internal read-only buffer
+func (e *Editor) showRegistersCmd(args []string) error {
+    if e.registers == nil {
+        e.registers = make(map[rune]string)
+    }
+    var b strings.Builder
+    b.WriteString("# Registers\n\n")
+    // Include system clipboard as '0'
+    if clip, err := clipboard.Paste(); err == nil && clip != "" {
+        b.WriteString("['0'] System Clipboard\n\n")
+        // Show a preview with escaped newlines for readability
+        preview := clip
+        if len(preview) > 500 { preview = preview[:500] + "…" }
+        preview = strings.ReplaceAll(preview, "\n", "\\n")
+        b.WriteString("    ")
+        b.WriteString(preview)
+        b.WriteString("\n\n")
+    }
+    // Show named registers
+    count := 0
+    for r, v := range e.registers {
+        if v == "" {
+            continue
+        }
+        count++
+        b.WriteString(fmt.Sprintf("['%c']\n\n", r))
+        preview := v
+        if len(preview) > 500 { preview = preview[:500] + "…" }
+        preview = strings.ReplaceAll(preview, "\n", "\\n")
+        b.WriteString("    ")
+        b.WriteString(preview)
+        b.WriteString("\n\n")
+    }
+    if count == 0 && !strings.Contains(b.String(), "System Clipboard") {
+        b.WriteString("(no non-empty registers)\n")
+    }
+
+    // Save current buffer state and open internal buffer
+    e.saveCurrentBufferState()
+    bufferName := "*Registers*"
+    content := b.String()
+    if buf, exists := e.buffers[bufferName]; exists {
+        buf.Rope = buffer.NewRopeFromString(content)
+        buf.CursorX = 0
+        buf.ViewIterator = buffer.NewBufferIterator(buf)
+        buf.CursorIterator = buffer.NewBufferIterator(buf)
+        buf.IsReadOnly = true
+        buf.IsInternal = true
+        e.switchToBuffer(buf)
+    } else {
+        newBuffer := buffer.NewBuffer(content, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+        newBuffer.IsReadOnly = true
+        newBuffer.IsInternal = true
+        e.buffers[bufferName] = newBuffer
+        e.bufferOrder = append(e.bufferOrder, bufferName)
+        e.switchToBuffer(newBuffer)
+    }
+    e.clearSearch()
     return nil
 }

@@ -165,6 +165,13 @@ type Editor struct {
 	// Rendering state
 	renderingState *RenderingState // Manages overlay/modal state
 
+	// Registers support
+	registers              map[rune]string // Named registers by single character
+	registerPrefixActive   bool            // true after receiving '\'' awaiting register name/command
+	pendingRegister        rune            // register name captured after '\''
+	registerReadyForAction bool            // true when a register has been selected and awaiting an action key (y/p/P)
+	registerTargetForYank  rune            // if non-zero, next yank stores into this register instead of clipboard
+
 	// Async operation tracking
 	asyncOperations map[string]bool // Track active async operations by ID
 	spinnerIndex    int             // Current spinner animation frame
@@ -202,6 +209,8 @@ type Editor struct {
 
     // Bracketed paste state
     inPasteMode bool // True while receiving bracketed paste content
+    // When true, the next line-wise paste should not auto-rebase indentation
+    skipAutoIndentForNextPaste bool
 
     // Remote directory cache: maps normalized working directory to file list
     dirCache map[string][]proxy.FileInfo
@@ -244,7 +253,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 
 	// LSP channels will be removed - using goroutines on demand instead
 
-	editor := &Editor{
+    editor := &Editor{
 		screen:            screen,
 		buffer:            initialBuffer,
 		config:            config,
@@ -294,6 +303,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
         activeWindow:     0,
         lastWindow:       0,
         minActiveWindowWidth: 100,
+        registers:            make(map[rune]string),
 	}
 
     // Initialize windows with a single window for the initial buffer (always have a window)
@@ -738,7 +748,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 		} else {
             // Normal and Visual modes: Handle numeric prefix for count operations
             // Do not consume digits if a key sequence is pending (enables bindings like "space 1")
-            if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' && !e.keyMapper.HasPending() {
+            if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' && !e.keyMapper.HasPending() && !e.registerPrefixActive {
 				// Special case: '0' is a command if no prefix is being built
 				if ev.Rune == '0' && e.countPrefix == "" {
 					// Let it be processed as a normal command (beginning-of-line)
@@ -765,11 +775,20 @@ func (e *Editor) handleEvent(ev events.Event) {
 					// Clear virtual cursors on escape in normal mode
 					e.clearVirtualCursors()
 				}
-			} else if e.mode == commands.NormalMode && e.hasPendingOperation() {
+            } else if e.mode == commands.NormalMode && e.hasPendingOperation() {
 				// Handle pending operations for both regular keys and special keys
 				keyStr := ""
 				if ev.Key == events.KeyRune {
-					keyStr = string(ev.Rune)
+                    // When register prefix is active, handle register selection/yank target
+                    if e.registerPrefixActive {
+                        r := ev.Rune
+                        // First rune after '\'' is the register name
+                        e.pendingRegister = r
+                        e.registerReadyForAction = true
+                        // Do not forward this key to pending operator
+                        return
+                    }
+                    keyStr = string(ev.Rune)
 				} else {
 					// Convert special keys to their string names
 					switch ev.Key {
@@ -810,13 +829,40 @@ func (e *Editor) handleEvent(ev events.Event) {
 					}
 				}
 
-				if keyStr != "" {
+                if keyStr != "" {
 					if err := e.handlePendingOperation(keyStr); err != nil {
 						LL.Debug("Pending operation error: %v", err)
 					}
 				}
             } else {
                 tMap := e.perfTracker.Start()
+                // If register prefix just typed a name, capture it BEFORE key mapping to avoid conflicts with bindings
+                if e.mode == commands.NormalMode && ev.Key == events.KeyRune && e.registerPrefixActive && !e.registerReadyForAction {
+                    e.pendingRegister = ev.Rune
+                    e.registerReadyForAction = true
+                    return
+                }
+
+                // If a register has been selected ("'<reg>") and user presses an action key,
+                // handle it before key mapping: 'y' -> target register for yank; 'p'/'P' -> paste from register
+                if e.mode == commands.NormalMode && ev.Key == events.KeyRune && e.registerReadyForAction && e.pendingRegister != 0 {
+                    switch ev.Rune {
+                    case 'y':
+                        e.registerTargetForYank = e.pendingRegister
+                        e.registerPrefixActive = false
+                        e.registerReadyForAction = false
+                        e.pendingRegister = 0
+                    case 'p':
+                        // Paste-after from the specified register
+                        _ = e.commandRegistry.Execute("paste-after", nil)
+                        return
+                    case 'P':
+                        // Paste-before from the specified register
+                        _ = e.commandRegistry.Execute("paste-before", nil)
+                        return
+                    }
+                }
+
                 command, found := e.keyMapper.ProcessKey(ev, e.mode)
                 e.perfTracker.ReportSince("keymap.ProcessKey", tMap)
                 if found {
@@ -857,12 +903,12 @@ func (e *Editor) handleEvent(ev events.Event) {
 						// Hide key hints if no pending keys (invalid sequence or no sequence)
 						e.keyHintsPopup.Hide()
 					}
-				} else {
+                } else {
 					// Hide key hints in non-normal modes
 					e.keyHintsPopup.Hide()
 				}
-				LL.Debug("No command found for key %+v", ev)
-				if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
+                LL.Debug("No command found for key %+v", ev)
+                if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
 					// Handle insert char for multiple cursors
 					if len(e.virtualCursors) > 0 {
 						e.insertCharForAllCursors(ev.Rune)
@@ -870,6 +916,22 @@ func (e *Editor) handleEvent(ev events.Event) {
 						e.insertChar(ev.Rune)
 					}
 				}
+                // In normal mode, handle register prefix ''
+                if e.mode == commands.NormalMode && ev.Key == events.KeyRune {
+                    if ev.Rune == '\'' {
+                        e.registerPrefixActive = true
+                        e.pendingRegister = 0
+                        e.registerReadyForAction = false
+                        return
+                    }
+                    // If register name was just typed without an operator, capture it
+                    // and wait for the next action key (y/p/P).
+                    if e.registerPrefixActive && !e.registerReadyForAction {
+                        e.pendingRegister = ev.Rune
+                        e.registerReadyForAction = true
+                        return
+                    }
+                }
 				// Clear count prefix if no command was found
 				if e.mode == commands.NormalMode {
 					e.countPrefix = ""

@@ -72,7 +72,13 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 		}
 	}
 	
-	// Create delete entry for history
+    // Before deletion, store text in 'd' register
+    if textToDelete != "" {
+        if editor.registers == nil { editor.registers = make(map[rune]string) }
+        editor.registers['d'] = textToDelete
+    }
+
+    // Create delete entry for history
 	entry := buffer.NewDeleteTextEntry(startLine, startChar, textToDelete)
 	
 	// Execute through history
@@ -283,11 +289,17 @@ func (y YankOperator) Execute(editor *Editor, startLine, startChar, endLine, end
 		}
 	}
 	
-	// Copy to system clipboard
-	if err := clipboard.Copy(textToYank); err != nil {
-		LL.Error("Failed to copy to clipboard: %v", err)
-		return err
-	}
+    // If a target register for yank is set, store there; otherwise copy to system clipboard
+    if editor.registerTargetForYank != 0 {
+        if editor.registers == nil { editor.registers = make(map[rune]string) }
+        editor.registers[editor.registerTargetForYank] = textToYank
+        editor.registerTargetForYank = 0 // reset
+    } else {
+        if err := clipboard.Copy(textToYank); err != nil {
+            LL.Error("Failed to copy to clipboard: %v", err)
+            return err
+        }
+    }
 	
 	LL.Debug("Yanked %d characters to clipboard", len(textToYank))
 	

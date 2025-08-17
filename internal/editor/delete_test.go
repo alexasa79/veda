@@ -1,7 +1,8 @@
 package editor
 
 import (
-	"testing"
+    "testing"
+    "veda/internal/buffer"
 )
 
 func TestDeleteOperations(t *testing.T) {
@@ -331,4 +332,74 @@ func TestDeleteOperations(t *testing.T) {
 		AssertBufferEquals(t, te, `debugFlag := flag.Bool("d", "Enable debug logging")`)
 		AssertCursorAt(t, te, 28, 0) // Cursor at space
 	})
+
+	// New tests: deletion stores into 'd' register and 'dp pastes it back
+	t.Run("visual line delete then paste from d register", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Line 1\nLine 2\nLine 3\nLine 4")
+		// Select lines 2 and 3
+		_ = te.ExecuteCommand("down")
+		_ = te.ExecuteCommand("enter-visual-line-mode")
+		_ = te.ExecuteCommand("down")
+		// Delete selection (stores into 'd' register)
+		_ = te.ExecuteCommand("delete-selection")
+		// Now paste from delete register after cursor using "'dp"
+		te.TypeKeys("'")
+		te.TypeKeys("d")
+		te.TypeKeys("p")
+		AssertBufferEquals(t, te, "Line 1\nLine 2\nLine 3\nLine 4")
+	})
+
+	t.Run("dd then paste from d register", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "a\nb\nc")
+		// dd delete first line
+		te.TypeKeys("dd")
+		// paste from delete register
+		te.TypeKeys("'")
+		te.TypeKeys("d")
+		te.TypeKeys("p")
+		AssertBufferEquals(t, te, "a\nb\nc")
+	})
+
+	t.Run("daa then paste from d register", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "func(a, b, c)")
+		// Move cursor to middle of b
+		for i := 0; i < 8; i++ { _ = te.ExecuteCommand("right") }
+		// daa delete around argument
+		te.TypeKeys("daa")
+		// paste the deleted text back
+		te.TypeKeys("'")
+		te.TypeKeys("d")
+		te.TypeKeys("p")
+		// Result should restore original
+		AssertBufferEquals(t, te, "func(a, b, c)")
+	})
+
+	 t.Run("go tabs: delete function body and paste back from d register keeps tab indent", func(t *testing.T) {
+		 // Go code with tab-indented body (L1)
+		 content := "package main\n\nfunc main() {\n\tprintln(\"hello\")\n\tprintln(\"world\")\n}\n"
+		 te := NewTestEditorWithContent(80, 24, content)
+		 // Set filename to .go so highlighter selects Go (enables auto-indent code path)
+		 te.buffer.FilePath = "test.go"
+		 if te.highlighter != nil { _ = te.highlighter.SetLanguage("go") }
+
+		 // Move cursor to first line inside function body (line 3)
+		 // Lines: 0:package,1:blank,2:func...,3:\tprintln("hello"),4:\tprintln("world"),5:}
+		 te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 3)
+		 te.buffer.CursorX = 0
+
+		 // Enter visual line mode and select both body lines
+		 _ = te.ExecuteCommand("enter-visual-line-mode")
+		 _ = te.ExecuteCommand("down")
+
+		 // Delete selection (stores into 'd' register)
+		 _ = te.ExecuteCommand("delete-selection")
+
+		 // Paste back from delete register using "'dp"
+		 te.TypeKeys("'")
+		 te.TypeKeys("d")
+		 te.TypeKeys("p")
+
+		 // Expect original content restored with tabs preserved
+		 AssertBufferEquals(t, te, content)
+	 })
 }
