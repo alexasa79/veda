@@ -594,12 +594,104 @@ func (e *Editor) backspace(args []string) error {
             }
 		}
 	} else {
-		// Delete character before cursor
+		// Optimize backspace in leading whitespace: delete one indent chunk
 		if pos > 0 {
-			// Get the character being deleted
+			line := e.buffer.CursorIterator.Line()
+			// Only apply when all characters before cursor are spaces/tabs
+			onlyWhitespace := true
+			if cursorX > len(line) {
+				cursorX = len(line)
+			}
+			for i := 0; i < cursorX; i++ {
+				if line[i] != ' ' && line[i] != '\t' {
+					onlyWhitespace = false
+					break
+				}
+			}
+
+			// Try chunk deletion if in leading whitespace
+			if onlyWhitespace && cursorX > 0 {
+				var startX int
+				var deletedText string
+
+				if e.buffer.Indentation.Type == config.IndentTabs {
+					// Prefer removing a single tab if immediately before cursor
+					if line[cursorX-1] == '\t' {
+						startX = cursorX - 1
+						deletedText = "\t"
+					} else {
+						// Remove up to 4 spaces (common tab width) if present
+						spaceCount := 0
+						for i := cursorX - 1; i >= 0 && line[i] == ' '; i-- {
+							spaceCount++
+							if spaceCount >= 4 {
+								break
+							}
+						}
+						if spaceCount > 0 {
+							startX = cursorX - spaceCount
+							deletedText = line[startX:cursorX]
+						}
+					}
+				} else {
+					// Spaces mode: delete one indent width of spaces if present before cursor
+					indentWidth := e.buffer.Indentation.Width
+					if indentWidth <= 0 {
+						indentWidth = 4
+					}
+					if cursorX >= indentWidth {
+						okChunk := true
+						for i := cursorX - indentWidth; i < cursorX; i++ {
+							if line[i] != ' ' {
+								okChunk = false
+								break
+							}
+						}
+						if okChunk {
+							startX = cursorX - indentWidth
+							deletedText = line[startX:cursorX]
+						}
+					}
+				}
+
+				if deletedText != "" {
+					entry := buffer.NewDeleteTextEntry(lineNum, startX, deletedText)
+					// Execute through history
+					if e.buffer.History != nil {
+						if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+							return err
+						} else if executed != nil {
+							e.setLastChange(executed)
+						}
+					} else {
+						// Fallback if history is not initialized
+						if err := entry.Execute(e.buffer); err != nil {
+							return err
+						}
+					}
+
+					// Recreate iterators at the same line
+					e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+					e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+
+					// Move cursor back by chunk size
+					e.buffer.CursorX = startX
+
+					// Update syntax highlighting (skip during paste mode)
+					if !e.inPasteMode {
+						e.updateSyntaxHighlighting()
+					}
+
+					// Update completion menu filter if visible
+					e.updateCompletionFilter()
+
+					return nil
+				}
+			}
+
+			// Default: delete a single character before cursor
 			deletedChar := e.buffer.Rope.ByteAt(pos - 1)
 			deletedText := string(deletedChar)
-
 			entry := buffer.NewDeleteTextEntry(lineNum, cursorX-1, deletedText)
 
 			// Execute through history
@@ -623,10 +715,10 @@ func (e *Editor) backspace(args []string) error {
 			// Move cursor back one position
 			e.buffer.CursorX = cursorX - 1
 
-            // Update syntax highlighting (skip during paste mode)
-            if !e.inPasteMode {
-                e.updateSyntaxHighlighting()
-            }
+			// Update syntax highlighting (skip during paste mode)
+			if !e.inPasteMode {
+				e.updateSyntaxHighlighting()
+			}
 
 			// Update completion menu filter if visible
 			e.updateCompletionFilter()
