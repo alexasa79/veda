@@ -361,18 +361,19 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 func (e *Editor) switchToInsertMode() {
 	// Hide key hints when switching to insert mode
 	e.keyHintsPopup.Hide()
-    // Special case: if current buffer is a terminal buffer, restore terminal cursor
+    // Special case: terminal buffers use TerminalMode instead of InsertMode
     if e.buffer != nil && e.buffer.IsInternal {
         if ts, ok := e.terminalSessions[e.buffer.FilePath]; ok && ts != nil && ts.term != nil {
             // Restore saved terminal cursor if any
             if ts.SavedCurX >= 0 || ts.SavedCurY >= 0 {
-                // Clamp within bounds
                 cx, cy := ts.SavedCurX, ts.SavedCurY
                 if cx < 0 { cx = 0 }
                 if cy < 0 { cy = 0 }
                 ts.term.curX, ts.term.curY = cx, cy
             }
         }
+        e.mode = commands.TerminalMode
+        return
     }
     e.mode = commands.InsertMode
 	
@@ -386,11 +387,15 @@ func (e *Editor) switchToInsertMode() {
 
 // enterInsertMode switches the editor to insert mode
 func (e *Editor) enterInsertMode(args []string) error {
-	e.switchToInsertMode()
-	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("i")
-	}
+    e.switchToInsertMode()
+    // If we switched to TerminalMode for terminal buffers, do not start an insert session
+    if e.mode == commands.TerminalMode {
+        return nil
+    }
+    // Start tracking insert mode changes
+    if e.buffer != nil && e.buffer.History != nil {
+        e.buffer.History.StartInsertSession("i")
+    }
 	
 	// Visual selection is handled in the editor struct, not buffer
 	return nil
