@@ -7,6 +7,7 @@ import (
 	"veda/internal/config"
 	"veda/internal/events"
 	"veda/internal/log"
+    "veda/internal/buffer"
 )
 
 // Mode management functions handle switching between different editor modes
@@ -96,7 +97,18 @@ func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
 
 // enterCursorMode switches to cursor mode
 func (e *Editor) enterCursorMode() {
-	e.mode = commands.CursorMode
+    // Start a composite history unit to group all virtual-cursor additions
+    if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
+        e.buffer.History.StartComposite("Add virtual cursors")
+        // Record pre-cursor snapshot so undo restores to this state
+        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+        for _, vc := range e.virtualCursors {
+            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+        }
+        e.buffer.History.SetActiveCompositeCursors(primary, v)
+    }
+    e.mode = commands.CursorMode
 }
 
 // enterCursorModeCmd is the command handler for entering cursor mode
@@ -107,12 +119,42 @@ func (e *Editor) enterCursorModeCmd(args []string) error {
 
 // exitCursorMode switches back to normal mode
 func (e *Editor) exitCursorMode() {
-	e.mode = commands.NormalMode
+    // If a composite for cursor mode is active, finalize it by storing the
+    // post-operation cursor snapshot and pushing to history.
+    if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
+        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+        for _, vc := range e.virtualCursors {
+            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+        }
+        e.buffer.History.SetActiveCompositePostCursors(primary, v)
+        e.buffer.History.EndComposite()
+    }
+    e.mode = commands.NormalMode
 }
 
 // clearVirtualCursors removes all virtual cursors
 func (e *Editor) clearVirtualCursors() {
-	e.virtualCursors = []VirtualCursor{}
+    // Clearing cursors should be undoable as a single unit. Start a composite
+    // that transitions from current cursor set to none.
+    if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
+        e.buffer.History.StartComposite("Clear virtual cursors")
+        // Pre-state: current cursors
+        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+        for _, vc := range e.virtualCursors {
+            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+        }
+        e.buffer.History.SetActiveCompositeCursors(primary, v)
+    }
+    // Apply the state change
+    e.virtualCursors = []VirtualCursor{}
+    // Post-state: no virtual cursors
+    if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
+        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+        e.buffer.History.SetActiveCompositePostCursors(primary, nil)
+        e.buffer.History.EndComposite()
+    }
 }
 
 // addVirtualCursor adds a virtual cursor at the current position and moves primary cursor down
@@ -136,12 +178,35 @@ func (e *Editor) addVirtualCursor() {
 		X: currentX,
 		Y: currentY,
 	}
-	e.virtualCursors = append(e.virtualCursors, cursor)
+    // When adding cursors in cursor mode, treat them as one composite group.
+    // Ensure a composite is open from enterCursorMode; if not, open one now.
+    if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
+        // if no active composite, start one capturing current state
+        // (this covers programmatic calls/tests)
+        e.buffer.History.StartComposite("Add virtual cursors")
+        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+        for _, vc := range e.virtualCursors {
+            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+        }
+        e.buffer.History.SetActiveCompositeCursors(primary, v)
+    }
+    e.virtualCursors = append(e.virtualCursors, cursor)
 	
 	// Move primary cursor down one line
-	if err := e.commandRegistry.Execute("down", nil); err != nil {
+    if err := e.commandRegistry.Execute("down", nil); err != nil {
 		LL.Debug("Failed to move cursor down after adding virtual cursor: %v", err)
 	}
+    // Update post-state snapshot continuously so undo can return to initial
+    // state after the entire add sequence.
+    if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
+        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+        for _, vc := range e.virtualCursors {
+            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+        }
+        e.buffer.History.SetActiveCompositePostCursors(primary, v)
+    }
 }
 
 // addVirtualCursorCmd is the command handler for adding a virtual cursor
