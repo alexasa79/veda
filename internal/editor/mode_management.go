@@ -442,12 +442,15 @@ func (e *Editor) exitInsertMode(args []string) error {
 
 	// Visual selection is handled in the editor struct, not buffer
 
-	// Adjust cursor position if needed (vim behavior)
-	// When exiting insert mode, vim moves cursor back one position
-	// unless we're at the beginning of the line
-	if e.buffer.CursorX > 0 {
-		e.buffer.CursorX--
-	}
+    // Do not shift cursor left on exiting insert mode for terminal buffers
+    if !(e.buffer != nil && e.buffer.IsInternal) {
+        // Adjust cursor position if needed (vim behavior)
+        // When exiting insert mode, vim moves cursor back one position
+        // unless we're at the beginning of the line
+        if e.buffer.CursorX > 0 {
+            e.buffer.CursorX--
+        }
+    }
 
 	// Update syntax highlighting after all insert mode changes are complete
 	e.updateSyntaxHighlighting()
