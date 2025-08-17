@@ -1022,7 +1022,8 @@ func (e *Editor) handleEvent(ev events.Event) {
                     bufRow = b.LineCount - 1
                     // Walk back over any trailing empty lines to land on the banner/content
                     for bufRow > 0 {
-                        line := b.GetLine(bufRow)
+                        it := buffer.NewBufferIteratorAtLine(b, bufRow)
+                        line := it.Line()
                         if len(line) > 0 { break }
                         bufRow--
                     }
@@ -1420,7 +1421,8 @@ func (e *Editor) updateCursor() {
                 if ts.Closed {
                     row := e.buffer.LineCount - 1
                     for row > 0 {
-                        line := e.buffer.GetLine(row)
+                        it := buffer.NewBufferIteratorAtLine(e.buffer, row)
+                        line := it.Line()
                         if len(line) > 0 { break }
                         row--
                     }
