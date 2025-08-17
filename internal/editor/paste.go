@@ -1,10 +1,10 @@
 package editor
 
 import (
-	"fmt"
-	"strings"
-	"veda/internal/buffer"
-	"veda/internal/clipboard"
+    "fmt"
+    "strings"
+    "veda/internal/buffer"
+    "veda/internal/clipboard"
 )
 
 // pasteAfter pastes clipboard content after the cursor (p command)
@@ -201,7 +201,10 @@ func (e *Editor) pasteAfterLine(content string) error {
 		}
 	}
 	
-	// Create paste command for undo/redo
+    // Optionally auto-adjust indentation for code blocks when conditions are clear
+    content = e.autoIndentPasteIfApplicable(content, lineNum, true)
+
+    // Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
 		buffer:      e.buffer,
 		position:    pos,
@@ -251,7 +254,10 @@ func (e *Editor) pasteBeforeLine(content string) error {
 	iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	pos := iter.Position()
 	
-	// Create paste command for undo/redo
+    // Optionally auto-adjust indentation for code blocks when conditions are clear
+    content = e.autoIndentPasteIfApplicable(content, lineNum, false)
+
+    // Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
 		buffer:      e.buffer,
 		position:    pos,
@@ -387,4 +393,160 @@ func (p *PasteCommand) Description() string {
 		return fmt.Sprintf("Paste %d line(s)", lines)
 	}
 	return fmt.Sprintf("Paste %d character(s)", len(p.content))
+}
+
+// autoIndentPasteIfApplicable tries to rebase the indentation of a multi-line, line-wise
+// pasted block to match the indentation level at the insertion position.
+// It works only for code buffers (non-markdown) and only when indentation is obvious in both
+// the pasted block (common leading whitespace across non-empty lines) and the target line
+// (not a continuation indent). It returns the possibly adjusted content.
+//
+// Parameters:
+// - content: pasted text (may end with a trailing newline for line-wise pastes)
+// - currentLineNum: the cursor's current line number at the time of paste
+// - after: whether this is an after-line paste (inserts at next line when possible)
+func (e *Editor) autoIndentPasteIfApplicable(content string, currentLineNum int, after bool) string {
+    // Only attempt for multi-line content
+    if !strings.Contains(content, "\n") {
+        return content
+    }
+
+    // Only when we have a code language highlighter that's not markdown
+    if e.highlighter == nil {
+        return content
+    }
+    lang := e.highlighter.GetCurrentLanguage()
+    if lang == "" || lang == "markdown" {
+        return content
+    }
+
+    // Determine the target line for indentation reference.
+    // We align to the indentation of the current line where the user invoked paste,
+    // not to the following line which may be a closing brace with smaller indent.
+    targetLine := currentLineNum
+
+    // Get indentation info for the target line; require non-continuation
+    if targetLine < 0 || targetLine >= e.buffer.LineCount {
+        return content
+    }
+    targetIter := buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
+    // Extract actual leading whitespace of the target line without relying on file indent settings
+    lineText := targetIter.Line()
+    j := 0
+    for j < len(lineText) {
+        ch := lineText[j]
+        if ch == ' ' || ch == '\t' {
+            j++
+        } else {
+            break
+        }
+    }
+    targetIndent := lineText[:j]
+    if targetIndent != "" {
+        hasSpace := strings.Contains(targetIndent, " ")
+        hasTab := strings.Contains(targetIndent, "\t")
+        if hasSpace && hasTab {
+            return content
+        }
+    }
+
+    // Detect a common leading whitespace prefix across non-empty lines in the pasted block
+    lines := strings.Split(content, "\n")
+    // Exclude a possible trailing empty line from trailing newline
+    if len(lines) > 0 && lines[len(lines)-1] == "" {
+        lines = lines[:len(lines)-1]
+    }
+    if len(lines) == 0 {
+        return content
+    }
+
+    common, ok := detectCommonLeadingWhitespace(lines)
+    if !ok {
+        return content
+    }
+
+    // If target indent equals common, nothing to do
+    if common == targetIndent {
+        return content
+    }
+
+    // Rebase: for each non-empty line, replace the common prefix with target indent
+    rebased := make([]string, len(lines))
+    for i, line := range lines {
+        trimmed := strings.TrimSpace(line)
+        if trimmed == "" {
+            rebased[i] = line // keep whitespace-only or empty lines as-is
+            continue
+        }
+        if strings.HasPrefix(line, common) {
+            rebased[i] = targetIndent + strings.TrimPrefix(line, common)
+        } else {
+            // If a non-empty line does not have the common prefix, abort adjustment
+            return content
+        }
+    }
+
+    // Preserve trailing newline if original had it
+    adjusted := strings.Join(rebased, "\n")
+    if strings.HasSuffix(content, "\n") {
+        adjusted += "\n"
+    }
+    return adjusted
+}
+
+// detectCommonLeadingWhitespace returns the common leading whitespace prefix shared by all
+// non-empty lines. Returns ok=false if no non-empty lines, if the common prefix is empty,
+// or if it mixes tabs and spaces (not obvious).
+func detectCommonLeadingWhitespace(lines []string) (prefix string, ok bool) {
+    first := true
+    for _, line := range lines {
+        // Consider only lines that have non-whitespace content
+        if strings.TrimSpace(line) == "" {
+            continue
+        }
+        // Extract this line's leading whitespace
+        i := 0
+        for i < len(line) {
+            ch := line[i]
+            if ch == ' ' || ch == '\t' {
+                i++
+            } else {
+                break
+            }
+        }
+        lw := line[:i]
+        if first {
+            prefix = lw
+            first = false
+        } else {
+            // Reduce prefix to the common part
+            max := len(prefix)
+            if len(lw) < max {
+                max = len(lw)
+            }
+            j := 0
+            for j < max && prefix[j] == lw[j] {
+                j++
+            }
+            prefix = prefix[:j]
+            if prefix == "" {
+                break
+            }
+        }
+    }
+
+    if first {
+        // No non-empty lines
+        return "", false
+    }
+    if prefix == "" {
+        return "", false
+    }
+    // Require prefix to be all spaces or all tabs to be considered obvious
+    hasSpace := strings.Contains(prefix, " ")
+    hasTab := strings.Contains(prefix, "\t")
+    if hasSpace && hasTab {
+        return "", false
+    }
+    return prefix, true
 }
