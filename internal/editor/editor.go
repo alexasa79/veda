@@ -1050,7 +1050,14 @@ func (e *Editor) handleEvent(ev events.Event) {
                     }
                 }
             }
-		case "show-fuzzy-list":
+        case "terminal-closed":
+            // Leave terminal mode when the session closes
+            if e.mode == commands.TerminalMode {
+                e.mode = commands.NormalMode
+            }
+            e.render()
+            return
+        case "show-fuzzy-list":
 			e.ShowFuzzyListWidget()
 		case "open-file":
 			if path, ok := ev.Data.(string); ok {

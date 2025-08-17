@@ -360,6 +360,10 @@ func (e *Editor) startTerminalPolling(bufferPath string) {
                     "buffer": bufferPath,
                     "data":   rendered,
                 })
+                // Also switch the editor out of TerminalMode so user returns to Normal
+                e.asyncEvents <- events.NewCustomEvent("terminal-closed", map[string]interface{}{
+                    "buffer": bufferPath,
+                })
                 return
             }
             // Poll interval
