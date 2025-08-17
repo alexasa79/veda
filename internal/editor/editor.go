@@ -1009,7 +1009,7 @@ func (e *Editor) handleEvent(ev events.Event) {
                         if b.Length() > 0 { b.Delete(0, b.Length()) }
                         if textToShow != "" { b.Insert(0, textToShow) }
                         if wasRO { b.IsReadOnly = true }
-                        // For terminal snapshots, align view to show the prompt row
+        // For terminal snapshots, align view to show the prompt row
                         if e.buffer == b {
                             if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
                                 curX, curY := ts.term.Cursor()
@@ -1017,6 +1017,11 @@ func (e *Editor) handleEvent(ev events.Event) {
                                 bannerOffset := 0
                                 if ts.Banner != "" { bannerOffset = 1 }
                                 bufRow := curY + bannerOffset
+                // If session was closed, move cursor to last line to reveal the exit banner
+                if ts.Closed {
+                    bufRow = b.LineCount - 1
+                    curX = 0
+                }
                                 if bufRow < 0 { bufRow = 0 }
                                 if bufRow >= b.LineCount { bufRow = b.LineCount - 1 }
                                 // Ensure iterators are valid after content replacement
@@ -1405,6 +1410,11 @@ func (e *Editor) updateCursor() {
                 bannerOffset := 0
                 if ts.Banner != "" { bannerOffset = 1 }
                 screenY := e.getContentStartY() + bannerOffset + curY
+                // If closed, show cursor at exit banner line start
+                if ts.Closed {
+                    screenY = e.getContentStartY() + (e.buffer.LineCount - 1)
+                    curX = 0
+                }
                 screenX := e.buffer.LineNumberWidth + curX
                 e.screen.ShowCursor(screenX, screenY)
                 return
