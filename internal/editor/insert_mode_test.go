@@ -1,9 +1,10 @@
 package editor
 
 import (
-	"testing"
-	"veda/internal/commands"
-	"veda/internal/ui"
+    "testing"
+    "veda/internal/commands"
+    "veda/internal/ui"
+    "veda/internal/config"
 )
 
 func TestInsertMode(t *testing.T) {
@@ -26,6 +27,42 @@ func TestInsertMode(t *testing.T) {
 		if te.mode != commands.NormalMode {
 			t.Errorf("Expected to be back in normal mode, but got %v", te.mode)
 		}
+	})
+
+	// New test: backspace deletes one indent chunk in leading whitespace
+	t.Run("backspace deletes one indent chunk in leading whitespace (spaces)", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "        hello") // 8 spaces then text
+		// Set indentation to 4 spaces
+		te.buffer.SetIndentationType(config.IndentSpaces)
+		te.buffer.SetIndentationWidth(4)
+		// Place cursor after 8 spaces
+		te.SetCursorPosition(8, 0)
+		// Enter insert mode and press backspace
+		te.ExecuteCommand("enter-insert-mode")
+		te.ExecuteCommand("backspace")
+		// Expect 4 spaces removed
+		AssertBufferEquals(t, te, "    hello")
+		AssertCursorAt(t, te, 4, 0)
+	})
+
+	t.Run("backspace deletes one tab or up to 4 spaces in tabs mode", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "\thello") // leading tab then text
+		te.buffer.SetIndentationType(config.IndentTabs)
+		// Place cursor after tab
+		te.SetCursorPosition(1, 0)
+		te.ExecuteCommand("enter-insert-mode")
+		te.ExecuteCommand("backspace")
+		AssertBufferEquals(t, te, "hello")
+		AssertCursorAt(t, te, 0, 0)
+
+		// Now try with spaces before cursor in tabs mode
+		te = NewTestEditorWithContent(80, 24, "    hello") // 4 spaces
+		te.buffer.SetIndentationType(config.IndentTabs)
+		te.SetCursorPosition(4, 0)
+		te.ExecuteCommand("enter-insert-mode")
+		te.ExecuteCommand("backspace")
+		AssertBufferEquals(t, te, "hello")
+		AssertCursorAt(t, te, 0, 0)
 	})
 	
 	t.Run("insert single character", func(t *testing.T) {
