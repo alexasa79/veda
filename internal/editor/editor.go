@@ -240,6 +240,9 @@ type TerminalSessionState struct {
     term *TerminalEmulator
     // Optional banner displayed above emulator content, not sent to PTY
     Banner string
+    // Saved terminal cursor when switching to browse (Normal) mode
+    SavedCurX int
+    SavedCurY int
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -706,10 +709,15 @@ func (e *Editor) handleEvent(ev events.Event) {
         }
         return
     case *events.KeyEvent:
-        // Terminal mode: forward all keys to terminal session; Esc returns to normal
+        // Terminal mode: forward all keys to terminal session; Esc switches to normal browse
         if e.mode == commands.TerminalMode {
             if ev.Key == events.KeyEscape {
                 // Leave terminal input mode to normal browsing
+                if e.buffer != nil {
+                    if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+                        ts.SavedCurX, ts.SavedCurY = ts.term.Cursor()
+                    }
+                }
                 e.mode = commands.NormalMode
                 return
             }
@@ -1420,25 +1428,29 @@ func (e *Editor) updateCursor() {
         // Terminal/internal buffers: position cursor directly from emulator state
         if e.buffer != nil && e.buffer.IsInternal {
             if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
-                curX, curY := ts.term.Cursor()
-                bannerOffset := 0
-                if ts.Banner != "" { bannerOffset = 1 }
-                screenY := e.getContentStartY() + bannerOffset + curY
-                // If closed, show cursor at exit banner line start (last non-empty line)
-                if ts.Closed {
-                    row := e.buffer.LineCount - 1
-                    for row > 0 {
-                        it := buffer.NewBufferIteratorAtLine(e.buffer, row)
-                        line := it.Line()
-                        if len(line) > 0 { break }
-                        row--
+                if e.mode == commands.TerminalMode {
+                    // In terminal mode, show at terminal cursor
+                    curX, curY := ts.term.Cursor()
+                    bannerOffset := 0
+                    if ts.Banner != "" { bannerOffset = 1 }
+                    screenY := e.getContentStartY() + bannerOffset + curY
+                    // If closed, show cursor at exit banner line start (last non-empty line)
+                    if ts.Closed {
+                        row := e.buffer.LineCount - 1
+                        for row > 0 {
+                            it := buffer.NewBufferIteratorAtLine(e.buffer, row)
+                            line := it.Line()
+                            if len(line) > 0 { break }
+                            row--
+                        }
+                        screenY = e.getContentStartY() + row
+                        curX = 0
                     }
-                    screenY = e.getContentStartY() + row
-                    curX = 0
+                    screenX := e.buffer.LineNumberWidth + curX
+                    e.screen.ShowCursor(screenX, screenY)
+                    return
                 }
-                screenX := e.buffer.LineNumberWidth + curX
-                e.screen.ShowCursor(screenX, screenY)
-                return
+                // In normal mode on terminal buffer: position cursor using regular buffer logic
             }
         }
         // Show cursor in editor (non-terminal)
