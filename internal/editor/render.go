@@ -357,10 +357,12 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
         ts := e.terminalSessions[e.buffer.FilePath]
         if ts != nil && ts.term != nil {
             width, _ := e.screen.Size()
-            // Draw characters with per-cell styles; iterate runes to avoid breaking UTF-8
-            col := 0
+            // Draw characters with per-cell styles; iterate runes. We draw one screen cell per rune
+            // and advance the emulator column by the rune's display width to pick correct styles.
+            visCol := 0
+            x := startX
             for _, ch := range originalLine {
-                if startX+col >= width {
+                if x >= width {
                     break
                 }
                 // Adjust for banner occupying first buffer line
@@ -370,11 +372,10 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
                 var attrs ui.AttrMask
                 if emuRow >= 0 {
                     // emuRow indexes into combined scrollback + grid
-                    fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
+                    fg, bg, attrs = ts.term.StyleAtGlobal(visCol, emuRow)
                 } else {
                     fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
                 }
-                // Replace any zero-width or control rendering remnants with spaces visually
                 if ch == 0 {
                     ch = ' '
                 }
@@ -383,19 +384,18 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
                     fg = ui.Color(int32(fg) + 8)
                 }
                 style := normalStyle
-                if fg != ui.ColorDefault {
-                    style = style.Foreground(fg)
-                }
-                if bg != ui.ColorDefault {
-                    style = style.Background(bg)
-                }
+                if fg != ui.ColorDefault { style = style.Foreground(fg) }
+                if bg != ui.ColorDefault { style = style.Background(bg) }
                 if attrs != ui.AttrNone {
-                    // Merge attributes into style
                     fg0, bg0, _ := style.Decompose()
                     style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
                 }
-                e.screen.SetContent(startX+col, screenY, ch, nil, style)
-                col++
+                w := runeDisplayWidth(ch)
+                if w < 1 { w = 1 }
+                e.screen.SetContent(x, screenY, ch, nil, style)
+                // Advance emulator column by visual width, draw into a single cell on screen
+                x += 1
+                visCol += w
             }
             // Fill remainder of line if needed
             return
@@ -633,23 +633,21 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
     // Terminal/internal buffers: draw using terminal emulator per-cell styles (regardless of mode)
     if e.buffer != nil && e.buffer.IsInternal {
         if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
-            // Draw only the wrapped segment using terminal styles; iterate runes to preserve UTF-8
+            // Draw only the wrapped segment using terminal styles; iterate runes.
+            // Advance emulator column by rune display width; draw one screen cell per rune.
             x := startX
-            col := 0
+            visCol := wl.StartChar
             for _, ch := range wl.Text {
                 emuRow := lineIndex
                 if ts.Banner != "" { emuRow = lineIndex - 1 }
                 var fg, bg ui.Color
                 var attrs ui.AttrMask
                 if emuRow >= 0 {
-                    fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
+                    fg, bg, attrs = ts.term.StyleAtGlobal(visCol, emuRow)
                 } else {
                     fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
                 }
-                if ch == 0 {
-                    ch = ' '
-                }
-                // Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
+                if ch == 0 { ch = ' ' }
                 if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
                     fg = ui.Color(int32(fg) + 8)
                 }
@@ -660,16 +658,11 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
                     fg0, bg0, _ := style.Decompose()
                     style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
                 }
-                // Determine display width to keep emulator columns aligned (e.g., emoji)
                 w := runeDisplayWidth(ch)
                 if w < 1 { w = 1 }
                 e.screen.SetContent(x, screenY, ch, nil, style)
-                if w == 2 {
-                    // Paint the trailing cell for double-width glyphs with same style
-                    e.screen.SetContent(x+1, screenY, ' ', nil, style)
-                }
-                x += w
-                col += w
+                x += 1
+                visCol += w
             }
             return
         }

@@ -77,7 +77,7 @@ func (te *TestEditor) InsertChar(ch rune) error {
 
 // TypeKeys simulates typing a sequence of keys in normal mode
 func (te *TestEditor) TypeKeys(keys string) {
-    // Quick handling for named arrow keys passed as full strings
+    // Quick handling for some named special keys passed as full strings
     switch keys {
     case "left":
         te.PressKey(events.KeyLeft, 0)
@@ -90,6 +90,12 @@ func (te *TestEditor) TypeKeys(keys string) {
         return
     case "down":
         te.PressKey(events.KeyDown, 0)
+        return
+    case "Home", "home":
+        te.PressKey(events.KeyHome, 0)
+        return
+    case "End", "end":
+        te.PressKey(events.KeyEnd, 0)
         return
     }
 
@@ -180,7 +186,27 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 
 // GetCursorPosition returns the current cursor position
 func (te *TestEditor) GetCursorPosition() (x, y int) {
-	return te.buffer.CursorX, te.buffer.CursorIterator.LineNumber()
+    // In terminal mode, compute the on-screen cursor position similarly to updateCursor
+    if te.mode == commands.TerminalMode && te.buffer != nil && te.buffer.IsInternal {
+        if ts := te.terminalSessions[te.buffer.FilePath]; ts != nil && ts.term != nil {
+            curX, curY := ts.term.Cursor()
+            bannerOffset := 0
+            if ts.Banner != "" { bannerOffset = 1 }
+            globalRow := bannerOffset + len(ts.term.scrollback) + curY
+            viewTop := te.buffer.ViewIterator.LineNumber()
+            relRow := globalRow - viewTop
+            contentTop := te.getContentStartY()
+            visible := te.getVisibleHeight()
+            if relRow < 0 { relRow = 0 }
+            if relRow >= visible { relRow = visible - 1 }
+            screenY := contentTop + relRow
+            screenX := te.buffer.LineNumberWidth + curX
+            return screenX, screenY
+        }
+        // Fallback to screen-reported position
+        return te.mockScreen.GetCursorPosition()
+    }
+    return te.buffer.CursorX, te.buffer.CursorIterator.LineNumber()
 }
 
 // SetCursorPosition sets the cursor to a specific position
