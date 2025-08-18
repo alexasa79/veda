@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.4"
+PROXY_VERSION = "1.0.5"
 
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
@@ -328,6 +328,82 @@ class LSPManager:
         except Exception as e:
             logger.error(f"Failed to send message to {language} LSP server: {e}")
     
+    def _truncate(self, text: str, limit: int = 200) -> str:
+        """Utility: truncate long strings for logging."""
+        if text is None:
+            return ""
+        if len(text) <= limit:
+            return text
+        return text[:limit] + "..."
+
+    def _log_compact_response(self, what: str, response: Optional[Dict[str, Any]]):
+        """Log a compact summary for common LSP responses instead of full payloads."""
+        try:
+            if not response:
+                logger.info(f"{what}: <no response>")
+                return
+            if 'error' in response and response['error']:
+                logger.error(f"{what} error: {self._truncate(json.dumps(response['error']))}")
+                return
+            result = response.get('result')
+            if result is None:
+                logger.info(f"{what}: <no result>")
+                return
+
+            lw = what.lower()
+            if 'completion' in lw:
+                if isinstance(result, dict):
+                    items = result.get('items') or []
+                    logger.info(f"{what}: {len(items)} items")
+                elif isinstance(result, list):
+                    logger.info(f"{what}: {len(result)} items")
+                else:
+                    logger.info(f"{what}: <non-standard completion result>")
+                return
+            if 'references' in lw:
+                logger.info(f"{what}: {len(result) if isinstance(result, list) else 0} locations")
+                return
+            if 'definition' in lw:
+                if isinstance(result, list):
+                    logger.info(f"{what}: {len(result)} locations")
+                elif isinstance(result, dict):
+                    logger.info(f"{what}: 1 location")
+                else:
+                    logger.info(f"{what}: none")
+                return
+            if 'signature' in lw:
+                sigs = result.get('signatures') if isinstance(result, dict) else []
+                logger.info(f"{what}: {len(sigs or [])} signatures")
+                return
+            if 'documentsymbol' in lw:
+                names = []
+                count = 0
+                if isinstance(result, list):
+                    count = len(result)
+                    for s in result[:5]:
+                        if isinstance(s, dict) and 'name' in s:
+                            names.append(s['name'])
+                logger.info(f"{what}: {count} symbols; sample: {names}")
+                return
+            if 'workspace/symbol' in lw or 'workspace symbol' in lw or 'workspace' in lw:
+                count = 0
+                names = []
+                if isinstance(result, list):
+                    count = len(result)
+                    for s in result[:5]:
+                        if isinstance(s, dict) and 'name' in s:
+                            names.append(s['name'])
+                logger.info(f"{what}: {count} symbols; sample: {names}")
+                return
+            if 'foldingrange' in lw or 'folding' in lw:
+                logger.info(f"{what}: {len(result) if isinstance(result, list) else 0} ranges")
+                return
+
+            # Default: truncated result
+            logger.info(f"{what}: {self._truncate(json.dumps(result))}")
+        except Exception as e:
+            logger.info(f"{what}: <unable to summarize: {e}>")
+    
     def get_definition(self, file_path: str, line: int, character: int) -> Optional[List[Dict[str, Any]]]:
         """Get the definition location for a symbol at the given position."""
         # Determine language from file extension
@@ -368,7 +444,8 @@ class LSPManager:
         
         # Wait for the response with our specific request ID
         response = self._wait_for_response(language, request_id)
-        logger.info(f"Received response: {response}")
+        # Compact log
+        self._log_compact_response("textDocument/definition", response)
         if response and "result" in response:
             result = response["result"]
             # Normalize result to always be a list
@@ -432,7 +509,7 @@ class LSPManager:
         
         # Wait for the response with our specific request ID
         response = self._wait_for_response(language, request_id)
-        logger.info(f"Received completion response: {response}")
+        self._log_compact_response("textDocument/completion", response)
         if response and "result" in response:
             return response["result"]
         elif response and "error" in response:
@@ -485,7 +562,7 @@ class LSPManager:
         
         # Wait for the response with our specific request ID
         response = self._wait_for_response(language, request_id)
-        logger.info(f"Received references response: {response}")
+        self._log_compact_response("textDocument/references", response)
         if response and "result" in response:
             result = response["result"]
             # Normalize result to always be a list
@@ -544,7 +621,7 @@ class LSPManager:
         
         # Wait for the response with our specific request ID
         response = self._wait_for_response(language, request_id)
-        logger.info(f"Received signature help response: {response}")
+        self._log_compact_response("textDocument/signatureHelp", response)
         if response and "result" in response:
             return response["result"]
         elif response and "error" in response:
@@ -594,7 +671,7 @@ class LSPManager:
         
         # Wait for the response with our specific request ID
         response = self._wait_for_response(language, request_id)
-        logger.info(f"Received documentSymbol response: {response}")
+        self._log_compact_response("textDocument/documentSymbol", response)
         
         if response and "result" in response:
             result = response["result"]
@@ -634,7 +711,7 @@ class LSPManager:
             
             # Wait for the response with our specific request ID
             response = self._wait_for_response(language, request_id)
-            logger.info(f"Received workspace/symbol response from {language}: {response}")
+            self._log_compact_response(f"workspace/symbol [{language}]", response)
             
             if response and "result" in response:
                 result = response["result"]
@@ -722,7 +799,7 @@ class LSPManager:
         
         # Wait for the response with our specific request ID
         response = self._wait_for_response(language, request_id)
-        logger.info(f"Received foldingRange response: {response}")
+        self._log_compact_response("textDocument/foldingRange", response)
         
         if response and "result" in response:
             result = response["result"]
