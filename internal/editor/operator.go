@@ -248,6 +248,87 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 		}
 	}
 	
+    // Handle multi-line linewise change (e.g., c + up/down over full lines)
+    // Semantics: remove the content of the first line and delete subsequent
+    // full lines entirely, but keep a single (now-empty) first line and enter insert mode.
+    if startChar == 0 && endLine > startLine {
+        // Determine if the selection is linewise to the end of the last selected line
+        endIter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
+        if !endIter.IsEOF() {
+            lastLine := endIter.Line()
+            if endChar >= len(lastLine) {
+                // Store view position before making changes
+                viewLine := editor.buffer.ViewIterator.LineNumber()
+
+                // 1) Delete lines from endLine down to startLine+1 entirely (including their preceding newlines)
+                for lineIdx := endLine; lineIdx >= startLine+1; lineIdx-- {
+                    // Get previous line (exists because lineIdx > startLine >= 0)
+                    prevIter := buffer.NewBufferIteratorAtLine(editor.buffer, lineIdx-1)
+                    if prevIter.IsEOF() {
+                        continue
+                    }
+                    prevLine := prevIter.Line()
+
+                    currIter := buffer.NewBufferIteratorAtLine(editor.buffer, lineIdx)
+                    if currIter.IsEOF() {
+                        continue
+                    }
+                    currLine := currIter.Line()
+
+                    // Compose deletion: "\n" + current line, starting at end of previous line
+                    delText := "\n" + currLine
+                    entry := buffer.NewDeleteTextEntry(lineIdx-1, len(prevLine), delText)
+                    if editor.buffer.History != nil {
+                        if _, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
+                            return err
+                        }
+                    } else {
+                        if err := entry.Execute(editor.buffer); err != nil {
+                            return err
+                        }
+                    }
+                }
+
+                // 2) Clear content of the first line, but keep the line itself
+                firstIter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+                if !firstIter.IsEOF() {
+                    firstLine := firstIter.Line()
+                    if len(firstLine) > 0 {
+                        entry := buffer.NewDeleteTextEntry(startLine, 0, firstLine)
+                        if editor.buffer.History != nil {
+                            if _, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
+                                return err
+                            }
+                        } else {
+                            if err := entry.Execute(editor.buffer); err != nil {
+                                return err
+                            }
+                        }
+                    }
+                }
+
+                // Reposition cursor and view
+                editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+                editor.buffer.CursorX = 0
+                if viewLine >= editor.buffer.LineCount {
+                    viewLine = editor.buffer.LineCount - 1
+                    if viewLine < 0 {
+                        viewLine = 0
+                    }
+                }
+                editor.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(editor.buffer, viewLine)
+
+                // Enter insert mode
+                editor.switchToInsertMode()
+                if editor.buffer.History != nil {
+                    editor.buffer.History.StartInsertSession("c")
+                }
+
+                return nil
+            }
+        }
+    }
+
 	// For all other cases, use the normal delete operation
 	deleteOp := DeleteOperator{}
 	if err := deleteOp.Execute(editor, startLine, startChar, endLine, endChar); err != nil {
