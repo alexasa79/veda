@@ -347,12 +347,52 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		cursorLine = len(lines) - 1
 	}
 
-	// Find paragraph bounds
-	startLine, endLine := findParagraphBounds(lines, cursorLine)
-	LL.Trace("rewrapParagraphWithWidth: paragraph bounds: startLine=%d, endLine=%d", startLine, endLine)
+    // Initial naive bounds
+    startLine, endLine := findParagraphBounds(lines, cursorLine)
+    // Detect context near the cursor line (more accurate for comments)
+    context, indentation, prefix := detectWrapContext(lines, cursorLine)
 
-	// Detect context
-	context, indentation, prefix := detectWrapContext(lines, startLine)
+    // Recompute bounds strictly by comment context to avoid including adjacent code
+    if context == wrapContextCLineComment || context == wrapContextPythonComment {
+        isCommentLine := func(s string) bool {
+            trimmed := strings.TrimSpace(s)
+            if context == wrapContextCLineComment {
+                return strings.HasPrefix(trimmed, "//")
+            }
+            return strings.HasPrefix(trimmed, "#")
+        }
+        // Start from cursor line and expand only across contiguous comment lines
+        startLine, endLine = cursorLine, cursorLine
+        for startLine > 0 && isCommentLine(lines[startLine-1]) {
+            startLine--
+        }
+        for endLine < len(lines)-1 && isCommentLine(lines[endLine+1]) {
+            endLine++
+        }
+        // Re-detect indent/prefix at the new start line
+        _, indentation, prefix = detectWrapContext(lines, startLine)
+    } else if context == wrapContextCBlockComment {
+        // Find exact block boundaries: up to '/*' and down to '*/'
+        openLine := cursorLine
+        for openLine > 0 && !strings.Contains(lines[openLine], "/*") {
+            openLine--
+        }
+        // If we didn't land on an opener, scan forward until we find one
+        for openLine < len(lines) && !strings.Contains(lines[openLine], "/*") {
+            openLine++
+        }
+        if openLine >= 0 && openLine < len(lines) {
+            closeLine := openLine
+            for closeLine < len(lines) && !strings.Contains(lines[closeLine], "*/") {
+                closeLine++
+            }
+            if closeLine < len(lines) {
+                startLine, endLine = openLine, closeLine
+            }
+        }
+        // For block comments indentation is computed later from opener position
+    }
+    LL.Trace("rewrapParagraphWithWidth: paragraph bounds (adjusted): startLine=%d, endLine=%d", startLine, endLine)
 	LL.Trace("rewrapParagraphWithWidth: context=%d, indentation='%s', prefix='%s'", context, indentation, prefix)
 
 	// Handle markdown heading - don't rewrap
@@ -483,24 +523,77 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 
 	LL.Trace("rewrapParagraphWithWidth: Final paragraph text: '%s'", paragraphText.String())
 	
-	// Wrap the text
-	wrappedLines := wrapText(paragraphText.String(), width, indentation, prefix)
-	LL.Trace("rewrapParagraphWithWidth: Wrapped into %d lines", len(wrappedLines))
+    // Now prepare wrapped output and replacement region based on context
+    wrappedLines := []string{}
+    if context == wrapContextCBlockComment {
+        // Handle only multi-line block comments with isolated markers in Stage 1.
+        openIdx := strings.Index(lines[startLine], "/*")
+        closeIdx := strings.Index(lines[endLine], "*/")
+        if openIdx < 0 || closeIdx < 0 {
+            // Fallback: do nothing if malformed
+            return nil
+        }
+        openTail := strings.TrimSpace(lines[startLine][openIdx+2:])
+        closeTrim := strings.TrimSpace(lines[endLine])
+        // Only proceed if opener has nothing after /* and closer line is exactly */
+        if openTail != "" || closeTrim != "*/" {
+            // Stage 1: skip complex inline block comments to avoid breaking code
+            return nil
+        }
 
-	// Special handling for markdown lists - first line is different
-	if context == wrapContextMarkdownList && len(wrappedLines) > 0 {
-		firstLineTrimmed := strings.TrimSpace(lines[startLine])
-		listPrefix := extractListPrefix(firstLineTrimmed)
-		wrappedLines[0] = indentation + listPrefix + strings.TrimPrefix(wrappedLines[0], indentation+prefix)
-	}
+        // Extract inner text between startLine+1 and endLine-1
+        var inner strings.Builder
+        for i := startLine + 1; i <= endLine-1 && i < len(lines); i++ {
+            t := strings.TrimSpace(lines[i])
+            if t == "" {
+                continue
+            }
+            if strings.HasPrefix(t, "*") {
+                t = strings.TrimSpace(strings.TrimPrefix(t, "*"))
+            }
+            if t != "" {
+                if inner.Len() > 0 {
+                    inner.WriteString(" ")
+                }
+                inner.WriteString(t)
+            }
+        }
 
-	// Calculate the byte position of the start of the paragraph
-	startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
-	startPos := startIter.Position()
-	
-	// Calculate the byte position at the end of the paragraph  
-	endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
-	endPos := endIter.LineEnd()
+        // Determine indentation where stars should align: one space after opener indent
+        indent := lines[startLine][:openIdx]
+        starIndent := indent + " "
+        // Wrap with "* " prefix
+        wrapped := wrapText(inner.String(), width, starIndent, "* ")
+        wrappedLines = wrapped
+
+        // Compute replacement region (whole lines from startLine to endLine)
+        // Build new content lines including markers
+        newBlock := make([]string, 0, len(wrapped)+2)
+        newBlock = append(newBlock, indent+"/*")
+        newBlock = append(newBlock, wrapped...)
+        newBlock = append(newBlock, indent+"*/")
+
+        // Overwrite wrappedLines with full block for downstream insertion
+        wrappedLines = newBlock
+        // Reset indentation/prefix since wrappedLines already include them
+        indentation = ""
+        prefix = ""
+    } else {
+        // Non-block contexts use existing wrap behavior
+        wrappedLines = wrapText(paragraphText.String(), width, indentation, prefix)
+        LL.Trace("rewrapParagraphWithWidth: Wrapped into %d lines", len(wrappedLines))
+        if context == wrapContextMarkdownList && len(wrappedLines) > 0 {
+            firstLineTrimmed := strings.TrimSpace(lines[startLine])
+            listPrefix := extractListPrefix(firstLineTrimmed)
+            wrappedLines[0] = indentation + listPrefix + strings.TrimPrefix(wrappedLines[0], indentation+prefix)
+        }
+    }
+
+    // Calculate the byte positions for replacement (full lines for all Stage 1 contexts)
+    startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+    startPos := startIter.Position()
+    endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
+    endPos := endIter.LineEnd()
 	
 	// Build new content with newlines
 	var newContent strings.Builder

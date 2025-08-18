@@ -157,3 +157,61 @@ Third paragraph is also short.`
 		t.Error("Empty line before third paragraph was removed")
 	}
 }
+
+func TestRewrapCLineCommentsStopsBeforeCode(t *testing.T) {
+    content := `// This is a very long comment line that should be wrapped properly and remain within comment lines only
+// Additional comment line continues here and should also be wrapped neatly
+int x = 42;`
+
+    te := NewTestEditorWithContent(100, 24, content)
+    // Place cursor on the first comment line
+    te.SetCursorPosition(0, 0)
+
+    // Rewrap
+    if err := te.ExecuteCommand("rewrap-paragraph"); err != nil {
+        t.Fatalf("rewrap failed: %v", err)
+    }
+
+    // Verify that the code line remains intact and comments are still comments
+    lines := strings.Split(te.GetBufferContent(), "\n")
+    if len(lines) < 3 {
+        t.Fatalf("expected at least 3 lines, got %d", len(lines))
+    }
+    if lines[len(lines)-1] != "int x = 42;" {
+        t.Fatalf("code line modified: %q", lines[len(lines)-1])
+    }
+    if !strings.HasPrefix(strings.TrimSpace(lines[0]), "//") || !strings.HasPrefix(strings.TrimSpace(lines[1]), "//") {
+        t.Fatalf("rewrap broke comment prefixes: %q | %q", lines[0], lines[1])
+    }
+}
+
+func TestRewrapCBlockCommentMultiLineStopsBeforeCode(t *testing.T) {
+    content := `/*
+ * This is a block comment that should be wrapped across multiple lines without affecting code below it.
+ * It uses the conventional star prefix style.
+ */
+int y = x + 1;`
+
+    te := NewTestEditorWithContent(100, 24, content)
+    te.SetCursorPosition(0, 1) // inside the block
+
+    if err := te.ExecuteCommand("rewrap-paragraph"); err != nil {
+        t.Fatalf("rewrap failed: %v", err)
+    }
+
+    lines := strings.Split(te.GetBufferContent(), "\n")
+    // Find the closing marker line index (should still be before code)
+    var closeIdx int = -1
+    for i, ln := range lines {
+        if strings.TrimSpace(ln) == "*/" {
+            closeIdx = i
+            break
+        }
+    }
+    if closeIdx == -1 {
+        t.Fatalf("did not find closing */ after rewrap")
+    }
+    if closeIdx+1 >= len(lines) || strings.TrimSpace(lines[closeIdx+1]) != "int y = x + 1;" {
+        t.Fatalf("code line moved or modified: %q", strings.TrimSpace(lines[closeIdx+1]))
+    }
+}
