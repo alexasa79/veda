@@ -43,12 +43,11 @@ func TestCountPrefixWithOperators(t *testing.T) {
         te.handleEvent(&events.KeyEvent{Key: events.KeyRune, Rune: 'c'})
         te.handleEvent(&events.KeyEvent{Key: events.KeyRune, Rune: 'c'})
 
-        // Current implementation removes two lines and enters insert mode
-        // (If behavior changes to clear lines instead, this expectation should be updated)
+        // Semantics: leaves a single empty line replacing the two changed lines and enters insert mode
         if te.mode != commands.InsertMode {
             t.Fatalf("expected insert mode after 2cc, got %v", te.mode)
         }
-        AssertBufferEquals(t, te, "L3\nL4")
+        AssertBufferEquals(t, te, "\nL3\nL4")
     })
 
     t.Run("4yy yanks four lines (caps at buffer end)", func(t *testing.T) {
