@@ -371,6 +371,19 @@ func (e *Editor) switchToInsertMode() {
                 if cy < 0 { cy = 0 }
                 ts.term.curX, ts.term.curY = cx, cy
             }
+            // Re-align the view to follow the terminal cursor location
+            bannerOffset := 0
+            if ts.Banner != "" { bannerOffset = 1 }
+            bufRow := len(ts.term.scrollback) + ts.SavedCurY + bannerOffset
+            if bufRow < 0 { bufRow = 0 }
+            if bufRow >= e.buffer.LineCount { bufRow = e.buffer.LineCount - 1 }
+            // Auto-follow so the cursor row is visible near bottom
+            visible := e.getVisibleHeight()
+            if visible < 1 { visible = 1 }
+            top := bufRow - (visible - 1)
+            if top < 0 { top = 0 }
+            if top >= e.buffer.LineCount { top = e.buffer.LineCount - 1 }
+            e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, top)
         }
         e.mode = commands.TerminalMode
         return

@@ -365,15 +365,18 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
                 }
                 // Adjust for banner occupying first buffer line
                 emuRow := lineIndex
-                if ts.Banner != "" {
-                    emuRow = lineIndex - 1
-                }
+                if ts.Banner != "" { emuRow = lineIndex - 1 }
                 var fg, bg ui.Color
                 var attrs ui.AttrMask
                 if emuRow >= 0 {
-                    fg, bg, attrs = ts.term.StyleAt(col, emuRow)
+                    // emuRow indexes into combined scrollback + grid
+                    fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
                 } else {
                     fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
+                }
+                // Replace any zero-width or control rendering remnants with spaces visually
+                if ch == 0 {
+                    ch = ' '
                 }
                 // Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
                 if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
@@ -639,9 +642,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
                 var fg, bg ui.Color
                 var attrs ui.AttrMask
                 if emuRow >= 0 {
-                    fg, bg, attrs = ts.term.StyleAt(col, emuRow)
+                    fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
                 } else {
                     fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
+                }
+                if ch == 0 {
+                    ch = ' '
                 }
                 // Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
                 if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
