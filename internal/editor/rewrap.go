@@ -1,9 +1,10 @@
 package editor
 
 import (
-	"strings"
-	"unicode"
-	"veda/internal/buffer"
+    "strings"
+    "unicode"
+    "veda/internal/buffer"
+    "veda/internal/commands"
 )
 
 const defaultWrapWidth = 80
@@ -300,7 +301,22 @@ func (e *Editor) rewrapParagraph() error {
 
 // rewrapParagraphCmd is the command wrapper for rewrapParagraph
 func (e *Editor) rewrapParagraphCmd(args []string) error {
-	return e.rewrapParagraph()
+    // If invoked during insert mode, create an undo boundary so the rewrap
+    // is undoable separately from the ongoing insert session. We do this by
+    // ending the current insert session, executing the rewrap as its own
+    // history entry, and then immediately starting a new insert session.
+    if e.mode == commands.InsertMode && e.buffer != nil && e.buffer.History != nil {
+        // End current insert session (no-op if empty)
+        e.buffer.History.EndInsertSession()
+        // Perform the rewrap as a standalone history unit
+        if err := e.rewrapParagraph(); err != nil {
+            return err
+        }
+        // Resume a fresh insert session so subsequent typing is grouped
+        e.buffer.History.StartInsertSession("i")
+        return nil
+    }
+    return e.rewrapParagraph()
 }
 
 func (e *Editor) rewrapParagraphWithWidth(width int) error {

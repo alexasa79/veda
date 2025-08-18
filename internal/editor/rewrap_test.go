@@ -449,6 +449,42 @@ func TestRewrapCommandUndoRedo(t *testing.T) {
 	}
 }
 
+func TestRewrapCreatesUndoBoundaryInInsertMode(t *testing.T) {
+    te := NewTestEditorWithContent(100, 24, "")
+
+    // Enter insert mode and type a paragraph
+    te.ExecuteCommand("enter-insert-mode")
+    text := "This is a paragraph that will be wrapped to test undo boundaries. " +
+        "Typing should be one undo unit separate from the rewrap."
+    for _, ch := range text {
+        te.InsertChar(ch)
+    }
+
+    // Trigger rewrap while still in insert mode
+    if err := te.ExecuteCommand("rewrap-paragraph"); err != nil {
+        t.Fatalf("rewrap-paragraph failed: %v", err)
+    }
+
+    // Exit insert mode to perform undo in normal mode
+    te.ExecuteCommand("exit-insert-mode")
+
+    wrappedAfter := te.GetBufferContent()
+    if wrappedAfter == text {
+        t.Fatalf("expected rewrap to change content")
+    }
+
+    // First undo should undo only the rewrap, keeping the typed text
+    te.ExecuteCommand("undo")
+    afterFirstUndo := te.GetBufferContent()
+    if afterFirstUndo != text {
+        t.Fatalf("first undo should revert rewrap only.\nGot:\n%q\nWant:\n%q", afterFirstUndo, text)
+    }
+
+    // Second undo should undo the insert session (typed text)
+    te.ExecuteCommand("undo")
+    AssertBufferEquals(t, te, "")
+}
+
 func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 	// Create test editor with vertical rulers at 40, 60, 80
 	content := "This is a test line that is long enough to be wrapped at different widths to test the cycling behavior"
