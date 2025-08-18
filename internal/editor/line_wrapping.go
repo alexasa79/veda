@@ -1,8 +1,7 @@
 package editor
 
 import (
-    "veda/internal/commands"
-	"veda/internal/buffer"
+    "veda/internal/buffer"
 )
 
 // WrappedLine represents a single visual line that may be part of a wrapped logical line
@@ -169,7 +168,7 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		
         // For terminal/internal buffers, avoid editor-side wrapping to preserve UTF-8
         var wrapped []WrappedLine
-        if e.mode == commands.TerminalMode && e.buffer != nil && e.buffer.IsInternal {
+        if e.buffer != nil && e.buffer.IsInternal {
             wrapped = []WrappedLine{{
                 LogicalLineNum: logicalLineNum,
                 VisualLineNum:  visualLineCount,

@@ -36,6 +36,10 @@ type TerminalEmulator struct {
     curFg    ui.Color
     curBg    ui.Color
     curAttrs ui.AttrMask
+
+    // Scrollback of lines that scrolled off the top
+    scrollback    []termLine
+    maxScrollback int
 }
 
 func NewTerminalEmulator(cols, rows int) *TerminalEmulator {
@@ -49,6 +53,7 @@ func NewTerminalEmulator(cols, rows int) *TerminalEmulator {
     te.attrs = make([]ui.AttrMask, te.width*te.height)
     for i := range te.fg { te.fg[i] = ui.ColorDefault; te.bg[i] = ui.ColorDefault; te.attrs[i] = ui.AttrNone }
     te.curFg, te.curBg, te.curAttrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
+    te.maxScrollback = 2000
     return te
 }
 
@@ -126,10 +131,52 @@ func (te *TerminalEmulator) clearDisplayMode(mode int) {
 
 func (te *TerminalEmulator) newline() {
     if te.curY == te.height-1 {
+        // Push the top line into scrollback before shifting
+        te.pushTopLineToScrollback()
         copy(te.cells[0:te.width*(te.height-1)], te.cells[te.width:])
-        for x := 0; x < te.width; x++ { te.cells[te.index(x, te.height-1)] = ' ' }
+        copy(te.fg[0:te.width*(te.height-1)], te.fg[te.width:])
+        copy(te.bg[0:te.width*(te.height-1)], te.bg[te.width:])
+        copy(te.attrs[0:te.width*(te.height-1)], te.attrs[te.width:])
+        for x := 0; x < te.width; x++ {
+            idx := te.index(x, te.height-1)
+            te.cells[idx] = ' '
+            te.fg[idx] = ui.ColorDefault
+            te.bg[idx] = ui.ColorDefault
+            te.attrs[idx] = ui.AttrNone
+        }
     } else {
         te.curY++
+    }
+}
+
+type termLine struct {
+    cells []rune
+    fg    []ui.Color
+    bg    []ui.Color
+    attrs []ui.AttrMask
+}
+
+func (te *TerminalEmulator) pushTopLineToScrollback() {
+    // Capture row 0
+    start := 0
+    end := te.width
+    line := termLine{
+        cells: make([]rune, te.width),
+        fg:    make([]ui.Color, te.width),
+        bg:    make([]ui.Color, te.width),
+        attrs: make([]ui.AttrMask, te.width),
+    }
+    copy(line.cells, te.cells[start:end])
+    copy(line.fg, te.fg[start:end])
+    copy(line.bg, te.bg[start:end])
+    copy(line.attrs, te.attrs[start:end])
+    te.scrollback = append(te.scrollback, line)
+    if te.maxScrollback > 0 && len(te.scrollback) > te.maxScrollback {
+        // Drop oldest
+        drop := len(te.scrollback) - te.maxScrollback
+        if drop > 0 {
+            te.scrollback = te.scrollback[drop:]
+        }
     }
 }
 
@@ -344,8 +391,10 @@ func (te *TerminalEmulator) Write(data []byte) {
             r, size = utf8.DecodeRune(data[i:])
             if r == utf8.RuneError && size == 1 { r = '�' }
         }
+        // Filter out the RETURN SYMBOL (⏎) which some prompts echo; do not render as a glyph
         if r == '\u23CE' {
-            LL.Debug("terminal.rx: received U+23CE at x=%d y=%d", te.curX, te.curY)
+            i += size
+            continue
         }
         // Determine display width (handle common wide runes like emoji)
         w := runeDisplayWidth(r)
@@ -401,6 +450,14 @@ func runeDisplayWidth(r rune) int {
 // Trailing spaces on each line are trimmed for readability.
 func (te *TerminalEmulator) Render() string {
     var buf bytes.Buffer
+    // First render scrollback lines
+    for si := 0; si < len(te.scrollback); si++ {
+        end := te.width
+        // Trim trailing spaces with default bg
+        for end > 0 && te.scrollback[si].cells[end-1] == ' ' && te.scrollback[si].bg[end-1] == ui.ColorDefault { end-- }
+        for x := 0; x < end; x++ { buf.WriteRune(te.scrollback[si].cells[x]) }
+        buf.WriteByte('\n')
+    }
     for y := 0; y < te.height; y++ {
         end := te.width
         for end > 0 && te.cells[te.index(end-1, y)] == ' ' && te.bg[te.index(end-1, y)] == ui.ColorDefault { end-- }
@@ -419,6 +476,27 @@ func (te *TerminalEmulator) StyleAt(x, y int) (ui.Color, ui.Color, ui.AttrMask) 
 
 // Dimensions returns the current grid width and height.
 func (te *TerminalEmulator) Dimensions() (int, int) { return te.width, te.height }
+
+// TotalRows returns total rows including scrollback and current grid.
+func (te *TerminalEmulator) TotalRows() int { return len(te.scrollback) + te.height }
+
+// ScrollbackSize returns number of scrollback lines stored.
+func (te *TerminalEmulator) ScrollbackSize() int { return len(te.scrollback) }
+
+// StyleAtGlobal returns style at global row (including scrollback)
+func (te *TerminalEmulator) StyleAtGlobal(x, globalY int) (ui.Color, ui.Color, ui.AttrMask) {
+    if x < 0 || x >= te.width || globalY < 0 { return ui.ColorDefault, ui.ColorDefault, ui.AttrNone }
+    sb := len(te.scrollback)
+    if globalY < sb {
+        line := te.scrollback[globalY]
+        if x >= len(line.fg) { return ui.ColorDefault, ui.ColorDefault, ui.AttrNone }
+        return line.fg[x], line.bg[x], line.attrs[x]
+    }
+    y := globalY - sb
+    if y < 0 || y >= te.height { return ui.ColorDefault, ui.ColorDefault, ui.AttrNone }
+    idx := te.index(x, y)
+    return te.fg[idx], te.bg[idx], te.attrs[idx]
+}
 
 // mapSGRBasicColor maps SGR basic/bright codes to UI colors
 func mapSGRBasicColor(p int) ui.Color {

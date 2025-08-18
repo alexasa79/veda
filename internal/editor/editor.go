@@ -719,7 +719,8 @@ func (e *Editor) handleEvent(ev events.Event) {
                         // Align buffer cursor to emulator cursor location for browsing
                         bannerOffset := 0
                         if ts.Banner != "" { bannerOffset = 1 }
-                        bufRow := ts.SavedCurY + bannerOffset
+                        // Global row includes scrollback
+                        bufRow := len(ts.term.scrollback) + ts.SavedCurY + bannerOffset
                         if bufRow < 0 { bufRow = 0 }
                         if bufRow >= e.buffer.LineCount { bufRow = e.buffer.LineCount - 1 }
                         it := buffer.NewBufferIteratorAtLine(e.buffer, bufRow)
@@ -1037,7 +1038,9 @@ func (e *Editor) handleEvent(ev events.Event) {
                                 // Account for banner occupying the first buffer line
                                 bannerOffset := 0
                                 if ts.Banner != "" { bannerOffset = 1 }
-                                bufRow := curY + bannerOffset
+                                // Place buffer view so that emulator grid bottom aligns with buffer bottom (scrollback included)
+                                // Cursor row within full content is scrollback + curY
+                                bufRow := len(ts.term.scrollback) + curY + bannerOffset
                 // If session was closed, move cursor to last non-empty line (exit banner line)
                 if ts.Closed {
                     bufRow = b.LineCount - 1
@@ -1053,7 +1056,12 @@ func (e *Editor) handleEvent(ev events.Event) {
                                 if bufRow < 0 { bufRow = 0 }
                                 if bufRow >= b.LineCount { bufRow = b.LineCount - 1 }
                                 // Ensure iterators are valid after content replacement
-                                top := 0
+                                // Auto-follow: keep cursor visible near bottom
+                                visible := e.getVisibleHeight()
+                                if visible < 1 { visible = 1 }
+                                top := bufRow - (visible - 1)
+                                if top < 0 { top = 0 }
+                                if top >= b.LineCount { top = b.LineCount - 1 }
                                 b.ViewIterator = buffer.NewBufferIteratorAtLine(b, top)
                                 b.CursorIterator = buffer.NewBufferIteratorAtLine(b, bufRow)
                                 // Map terminal column to byte offset within the buffer line (UTF-8 aware)
@@ -1442,13 +1450,21 @@ func (e *Editor) updateCursor() {
         if e.buffer != nil && e.buffer.IsInternal {
             if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
                 if e.mode == commands.TerminalMode {
-                    // In terminal mode, show at terminal cursor
+                    // In terminal mode, show at terminal cursor, accounting for scrollback and view top
                     curX, curY := ts.term.Cursor()
                     bannerOffset := 0
                     if ts.Banner != "" { bannerOffset = 1 }
-                    screenY := e.getContentStartY() + bannerOffset + curY
-                    // If closed, show cursor at exit banner line start (last non-empty line)
+                    globalRow := bannerOffset + len(ts.term.scrollback) + curY
+                    viewTop := e.buffer.ViewIterator.LineNumber()
+                    relRow := globalRow - viewTop
+                    // Clamp to visible content area
+                    contentTop := e.getContentStartY()
+                    visible := e.getVisibleHeight()
+                    if relRow < 0 { relRow = 0 }
+                    if relRow >= visible { relRow = visible - 1 }
+                    screenY := contentTop + relRow
                     if ts.Closed {
+                        // If closed, prefer to place cursor on last non-empty visible line
                         row := e.buffer.LineCount - 1
                         for row > 0 {
                             it := buffer.NewBufferIteratorAtLine(e.buffer, row)
@@ -1456,7 +1472,10 @@ func (e *Editor) updateCursor() {
                             if len(line) > 0 { break }
                             row--
                         }
-                        screenY = e.getContentStartY() + row
+                        relRow = row - viewTop
+                        if relRow < 0 { relRow = 0 }
+                        if relRow >= visible { relRow = visible - 1 }
+                        screenY = contentTop + relRow
                         curX = 0
                     }
                     screenX := e.buffer.LineNumberWidth + curX
