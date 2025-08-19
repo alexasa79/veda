@@ -14,6 +14,7 @@ import (
 	"github.com/smacker/go-tree-sitter/golang"
 	markdown_inline "github.com/smacker/go-tree-sitter/markdown/tree-sitter-markdown-inline"
 	"github.com/smacker/go-tree-sitter/python"
+	tree_sitter_make "github.com/tree-sitter-grammars/tree-sitter-make/bindings/go"
 )
 
 // TokenType represents different syntax elements
@@ -77,16 +78,6 @@ const (
 	TokenTypePythonOperator    TokenType = "python_operator"
 	TokenTypePythonException   TokenType = "python_exception"
 	TokenTypePythonImport      TokenType = "python_import"
-	
-	// Makefile-specific token types
-	TokenTypeMakeTarget        TokenType = "make_target"
-	TokenTypeMakeVariable      TokenType = "make_variable"
-	TokenTypeMakeVariableRef   TokenType = "make_variable_ref"
-	TokenTypeMakeComment       TokenType = "make_comment"
-	TokenTypeMakeKeyword       TokenType = "make_keyword"
-	TokenTypeMakeFunction      TokenType = "make_function"
-	TokenTypeMakeString        TokenType = "make_string"
-	TokenTypeMakeOperator      TokenType = "make_operator"
 )
 
 // Token represents a syntax-highlighted token
@@ -130,10 +121,8 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 			h.currentLang = "bash"
 			return nil
 		case "Makefile", "makefile", "GNUmakefile", "gnumakefile":
-			h.currentLang = "makefile"
-			h.currentTree = nil
-			h.currentSource = nil
-			h.tokenCache = make(map[int][]Token)
+			h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
+			h.currentLang = "make"
 			return nil
 		}
 	}
@@ -158,10 +147,8 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 		h.parser.SetLanguage(python.GetLanguage())
 		h.currentLang = "python"
 	case ".mk", ".mak":
-		h.currentLang = "makefile"
-		h.currentTree = nil
-		h.currentSource = nil
-		h.tokenCache = make(map[int][]Token)
+		h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
+		h.currentLang = "make"
 	default:
 		// No language set for unknown extensions
 		h.currentLang = ""
@@ -200,8 +187,9 @@ func (h *Highlighter) SetLanguage(language string) error {
 	case "python":
 		h.parser.SetLanguage(python.GetLanguage())
 		h.currentLang = "python"
-	case "makefile":
-		h.currentLang = "makefile"
+	case "make":
+		h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
+		h.currentLang = "make"
 	default:
 		// No language set for unknown languages
 		h.currentLang = ""
@@ -225,14 +213,6 @@ func (h *Highlighter) Parse(source []byte) error {
 		return nil // No language set, nothing to parse
 	}
 
-	// Special handling for makefile - no tree-sitter parsing needed
-	if h.currentLang == "makefile" {
-		h.currentTree = nil
-		h.currentSource = source
-		h.tokenCache = make(map[int][]Token)
-		return nil
-	}
-
 	oldTree := h.currentTree
 	tree, err := h.parser.ParseCtx(context.Background(), oldTree, source)
 	if err != nil {
@@ -250,14 +230,6 @@ func (h *Highlighter) Parse(source []byte) error {
 func (h *Highlighter) ParseFull(source []byte) error {
 	if h.currentLang == "" {
 		return nil // No language set, nothing to parse
-	}
-
-	// Special handling for makefile - no tree-sitter parsing needed
-	if h.currentLang == "makefile" {
-		h.currentTree = nil
-		h.currentSource = source
-		h.tokenCache = make(map[int][]Token)
-		return nil
 	}
 
 	// Parse without old tree to force full reparse
@@ -285,7 +257,7 @@ func (h *Highlighter) GetTree() *sitter.Tree {
 
 // GetTokensForLine returns syntax tokens for a specific line
 func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
-	if h.currentLang == "" || h.currentSource == nil {
+	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
 		return nil
 	}
 
@@ -295,19 +267,6 @@ func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	}
 
 	tokens := []Token{}
-	
-	// Special handling for makefile
-	if h.currentLang == "makefile" {
-		tokens = h.parseMakefileLine(lineStart, lineEnd, h.currentSource)
-		// Cache the result
-		h.tokenCache[lineStart] = tokens
-		return tokens
-	}
-
-	if h.currentTree == nil {
-		return nil
-	}
-
 	root := h.currentTree.RootNode()
 
 	// Query the tree for nodes in this line
@@ -325,6 +284,46 @@ func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	h.tokenCache[lineStart] = tokens
 
 	return tokens
+}
+
+// PreloadTokenCache pre-loads syntax highlighting for a range of lines to improve scrolling performance
+func (h *Highlighter) PreloadTokenCache(startLine, endLine int) {
+	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
+		return
+	}
+	
+	// Convert line numbers to byte positions
+	source := h.currentSource
+	lines := 0
+	lineStarts := []int{0} // byte positions where each line starts
+	
+	for i, b := range source {
+		if b == '\n' {
+			lines++
+			if i+1 < len(source) {
+				lineStarts = append(lineStarts, i+1)
+			}
+		}
+	}
+	
+	// Process each line in the range
+	for line := startLine; line <= endLine && line < len(lineStarts); line++ {
+		lineStart := lineStarts[line]
+		var lineEnd int
+		if line+1 < len(lineStarts) {
+			lineEnd = lineStarts[line+1] - 1 // Exclude the newline
+		} else {
+			lineEnd = len(source)
+		}
+		
+		// Skip if already cached
+		if _, ok := h.tokenCache[lineStart]; ok {
+			continue
+		}
+		
+		// Pre-load this line
+		h.GetTokensForLine(lineStart, lineEnd)
+	}
 }
 
 // GetTokensForString parses and returns syntax tokens for a single string
@@ -442,8 +441,47 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		}
 	}
 
-	// Always recurse into children
-	for i := 0; i < childCount; i++ {
+	// Performance optimization: for large nodes with many children,
+	// use optimized traversal that can skip irrelevant children
+	if childCount > 20 && (nodeEnd - nodeStart) > (lineEnd - lineStart) * 10 {
+		h.walkNodeOptimized(node, lineStart, lineEnd, source, tokens)
+	} else {
+		// Always recurse into children
+		for i := 0; i < childCount; i++ {
+			child := node.Child(i)
+			h.walkNode(child, lineStart, lineEnd, source, tokens)
+		}
+	}
+}
+
+// walkNodeOptimized provides faster traversal for large nodes with many children
+func (h *Highlighter) walkNodeOptimized(node *sitter.Node, lineStart, lineEnd int, source []byte, tokens *[]Token) {
+	childCount := int(node.ChildCount())
+	
+	// Binary search to find the first child that might overlap with our line
+	firstChild := 0
+	lastChild := childCount - 1
+	
+	// Find first potentially relevant child
+	for firstChild < childCount {
+		child := node.Child(firstChild)
+		if int(child.EndByte()) > lineStart {
+			break // This child might overlap
+		}
+		firstChild++
+	}
+	
+	// Find last potentially relevant child
+	for lastChild >= firstChild {
+		child := node.Child(lastChild)
+		if int(child.StartByte()) < lineEnd {
+			break // This child might overlap
+		}
+		lastChild--
+	}
+	
+	// Process only the relevant children
+	for i := firstChild; i <= lastChild && i < childCount; i++ {
 		child := node.Child(i)
 		h.walkNode(child, lineStart, lineEnd, source, tokens)
 	}
@@ -466,9 +504,8 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapBashNodeToTokenType(node, nodeType, source)
 	case "python":
 		return h.mapPythonNodeToTokenType(node, nodeType, source)
-	case "makefile":
-		// This shouldn't be called for makefile since we use custom parsing
-		return TokenTypeText
+	case "make":
+		return h.mapMakeNodeToTokenType(node, nodeType, source)
 	default:
 		return TokenTypeText
 	}
@@ -1109,421 +1146,182 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 	}
 }
 
-// parseMakefileLine parses a single line of makefile using pattern matching
-func (h *Highlighter) parseMakefileLine(lineStart, lineEnd int, source []byte) []Token {
-	if lineStart >= lineEnd || lineStart >= len(source) {
-		return nil
-	}
-	
-	tokens := []Token{}
-	lineText := string(source[lineStart:lineEnd])
-	
-	// Skip empty lines
-	if len(strings.TrimSpace(lineText)) == 0 {
-		return nil
-	}
-	
-	// Comments (lines starting with #)
-	if strings.HasPrefix(strings.TrimSpace(lineText), "#") {
-		tokens = append(tokens, Token{
-			Start:     0,
-			End:       len(lineText),
-			TokenType: TokenTypeMakeComment,
-		})
-		return tokens
-	}
-	
-	// Check if line starts with tab (recipe line)
-	if strings.HasPrefix(lineText, "\t") {
-		// This is a command/recipe line
-		h.parseMakefileCommand(lineText, &tokens)
-		return tokens
-	}
-	
-	// Check for target definition (contains : not in a variable reference)
-	if colonPos := h.findTargetColon(lineText); colonPos != -1 {
-		// Target line
-		h.parseMakefileTarget(lineText, colonPos, &tokens)
-		return tokens
-	}
-	
-	// Check for variable assignment
-	if h.containsVariableAssignment(lineText) {
-		h.parseMakefileVariable(lineText, &tokens)
-		return tokens
-	}
-	
-	// Parse as generic makefile content
-	h.parseMakefileGeneric(lineText, &tokens)
-	return tokens
-}
 
-// findTargetColon finds the colon that indicates a target (not inside variable references or assignment operators)
-func (h *Highlighter) findTargetColon(line string) int {
-	inVar := 0
-	for i, char := range line {
-		switch char {
-		case '$':
-			if i+1 < len(line) && (line[i+1] == '(' || line[i+1] == '{') {
-				inVar++
-			}
-		case '(', '{':
-			if i > 0 && line[i-1] == '$' {
-				// Already counted above
-				continue
-			}
-		case ')', '}':
-			if inVar > 0 {
-				inVar--
-			}
-		case ':':
-			if inVar == 0 {
-				// Check if this is part of an assignment operator like :=
-				if i+1 < len(line) && line[i+1] == '=' {
-					// This is :=, not a target separator
-					continue
-				}
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-// containsVariableAssignment checks if line contains variable assignment
-func (h *Highlighter) containsVariableAssignment(line string) bool {
-	// Look for =, :=, +=, ?=, etc.
-	inVar := 0
-	for i, char := range line {
-		switch char {
-		case '$':
-			if i+1 < len(line) && (line[i+1] == '(' || line[i+1] == '{') {
-				inVar++
-			}
-		case '(', '{':
-			if i > 0 && line[i-1] == '$' {
-				continue
-			}
-		case ')', '}':
-			if inVar > 0 {
-				inVar--
-			}
-		case '=':
-			if inVar == 0 {
-				return true
-			}
-		case ':':
-			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
-				return true
-			}
-		case '+', '?':
-			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// parseMakefileTarget parses a target definition line
-func (h *Highlighter) parseMakefileTarget(line string, colonPos int, tokens *[]Token) {
-	// Target(s) before colon - find the actual start and end positions
-	targetEnd := colonPos
-	for targetEnd > 0 && line[targetEnd-1] == ' ' {
-		targetEnd-- // Remove trailing spaces
-	}
-	
-	targetStart := 0
-	for targetStart < targetEnd && line[targetStart] == ' ' {
-		targetStart++ // Remove leading spaces
-	}
-	
-	if targetStart < targetEnd {
-		*tokens = append(*tokens, Token{
-			Start:     targetStart,
-			End:       targetEnd,
-			TokenType: TokenTypeMakeTarget,
-		})
-	}
-	
-	// Colon
-	*tokens = append(*tokens, Token{
-		Start:     colonPos,
-		End:       colonPos + 1,
-		TokenType: TokenTypeOperator,
-	})
-	
-	// Dependencies after colon
-	deps := strings.TrimSpace(line[colonPos+1:])
-	if deps != "" {
-		depStart := colonPos + 1
-		for depStart < len(line) && line[depStart] == ' ' {
-			depStart++
-		}
-		h.parseMakefileGeneric(deps, tokens, depStart)
-	}
-}
-
-// parseMakefileCommand parses a command/recipe line
-func (h *Highlighter) parseMakefileCommand(line string, tokens *[]Token) {
-	// Skip leading tab
-	cmdStart := 0
-	for cmdStart < len(line) && (line[cmdStart] == '\t' || line[cmdStart] == ' ') {
-		cmdStart++
-	}
-	
-	if cmdStart >= len(line) {
-		return
-	}
-	
-	// Parse the command
-	h.parseMakefileGeneric(line[cmdStart:], tokens, cmdStart)
-}
-
-// parseMakefileVariable parses a variable assignment line
-func (h *Highlighter) parseMakefileVariable(line string, tokens *[]Token) {
-	// Find the assignment operator
-	inVar := 0
-	assignPos := -1
-	assignLen := 1
-	
-	for i, char := range line {
-		switch char {
-		case '$':
-			if i+1 < len(line) && (line[i+1] == '(' || line[i+1] == '{') {
-				inVar++
-			}
-		case '(', '{':
-			if i > 0 && line[i-1] == '$' {
-				continue
-			}
-		case ')', '}':
-			if inVar > 0 {
-				inVar--
-			}
-		case ':':
-			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
-				assignPos = i
-				assignLen = 2
-				goto found
-			}
-		case '+', '?':
-			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
-				assignPos = i
-				assignLen = 2
-				goto found
-			}
-		case '=':
-			if inVar == 0 {
-				assignPos = i
-				assignLen = 1
-				goto found
-			}
-		}
-	}
-	
-found:
-	if assignPos == -1 {
-		return
-	}
-	
-	// Variable name - find actual position
-	varEnd := assignPos
-	for varEnd > 0 && line[varEnd-1] == ' ' {
-		varEnd-- // Remove trailing spaces
-	}
-	
-	varStart := 0
-	for varStart < varEnd && line[varStart] == ' ' {
-		varStart++ // Remove leading spaces
-	}
-	
-	if varStart < varEnd {
-		*tokens = append(*tokens, Token{
-			Start:     varStart,
-			End:       varEnd,
-			TokenType: TokenTypeMakeVariable,
-		})
-	}
-	
-	// Assignment operator
-	*tokens = append(*tokens, Token{
-		Start:     assignPos,
-		End:       assignPos + assignLen,
-		TokenType: TokenTypeMakeOperator,
-	})
-	
-	// Variable value
-	if assignPos+assignLen < len(line) {
-		valueStart := assignPos + assignLen
-		for valueStart < len(line) && line[valueStart] == ' ' {
-			valueStart++
-		}
+// mapMakeNodeToTokenType maps Make-specific node types to token types
+func (h *Highlighter) mapMakeNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
+	switch nodeType {
+	// Comments
+	case "comment":
+		return TokenTypeComment
 		
-		if valueStart < len(line) {
-			value := line[valueStart:]
-			h.parseMakefileGeneric(value, tokens, valueStart)
+	// Variable assignments and references
+	case "variable_assignment":
+		// The variable_assignment node itself should not be styled - its children will be
+		return TokenTypeText
+		
+	case "variable_reference":
+		// The variable_reference node itself should not be styled - its children will be
+		return TokenTypeConstant
+		
+	// Targets
+	case "targets":
+		// Check if it's a standard target
+		if node.ChildCount() > 0 {
+			wordNode := node.Child(0)
+			if wordNode.Type() == "word" {
+				targetName := string(source[wordNode.StartByte():wordNode.EndByte()])
+				if h.isMakeStandardTarget(targetName) || h.isMakeBuiltinTarget(targetName) {
+					return TokenTypeConstant
+				}
+			}
 		}
+		return TokenTypeFunction
+		
+	// Words in different contexts
+	case "word":
+		parent := node.Parent()
+		if parent != nil {
+			parentType := parent.Type()
+			switch parentType {
+			case "variable_assignment":
+				// Variable names
+				varName := string(source[node.StartByte():node.EndByte()])
+				if h.isMakeBuiltinVariable(varName) {
+					return TokenTypeConstant
+				}
+				return TokenTypeVariable
+			case "variable_reference":
+				// Variable references
+				return TokenTypeConstant
+			case "targets":
+				// Target names
+				targetName := string(source[node.StartByte():node.EndByte()])
+				if h.isMakeStandardTarget(targetName) || h.isMakeBuiltinTarget(targetName) {
+					return TokenTypeConstant
+				}
+				return TokenTypeFunction
+			}
+		}
+		// Check if it's a Make function
+		wordText := string(source[node.StartByte():node.EndByte()])
+		if h.isMakeFunction(wordText) {
+			return TokenTypeKeyword
+		}
+		if h.isMakeKeyword(wordText) {
+			return TokenTypeKeyword
+		}
+		return TokenTypeText
+		
+	// Operators
+	case "=", ":=", "::=", "?=", "+=", "!=", "@", "-", "+":
+		return TokenTypeOperator
+	case ":", "&:", "::", "|", ";":
+		return TokenTypeOperator
+		
+	// Punctuation
+	case "(", ")", "{", "}", "\"", "'", ",":
+		return TokenTypePunctuation
+	case "$", "$$":
+		return TokenTypeOperator
+		
+	// Automatic variables
+	case "automatic_variable":
+		return TokenTypeConstant
+		
+	// Strings and text
+	case "text", "string", "raw_text":
+		return TokenTypeString
+	case "shell_text":
+		return TokenTypeText
+		
+	// Recipe lines
+	case "recipe_line":
+		return TokenTypeText
+		
+	// Control flow
+	case "ifeq", "ifneq", "ifdef", "ifndef", "else", "endif", "if":
+		return TokenTypeKeyword
+	case "foreach":
+		return TokenTypeKeyword
+		
+	// Includes
+	case "include", "sinclude", "-include":
+		return TokenTypeKeyword
+		
+	// Other keywords
+	case "define", "endef", "vpath", "undefine", "export", "unexport", "override", "private":
+		return TokenTypeKeyword
+		
+	// Functions
+	case "function_call":
+		return TokenTypeFunction
+		
+	default:
+		return TokenTypeText
 	}
 }
 
-// parseMakefileGeneric parses generic makefile content, looking for variable references, strings, etc.
-func (h *Highlighter) parseMakefileGeneric(text string, tokens *[]Token, offset ...int) {
-	baseOffset := 0
-	if len(offset) > 0 {
-		baseOffset = offset[0]
+// Helper functions for Make-specific classifications
+func (h *Highlighter) isMakeBuiltinVariable(name string) bool {
+	builtinVars := map[string]bool{
+		"AR": true, "AS": true, "CC": true, "CXX": true, "CPP": true, "FC": true,
+		"M2C": true, "PC": true, "CO": true, "GET": true, "LEX": true, "YACC": true,
+		"LINT": true, "MAKEINFO": true, "TEX": true, "TEXI2DVI": true, "WEAVE": true,
+		"CWEAVE": true, "TANGLE": true, "CTANGLE": true, "RM": true, "ARFLAGS": true,
+		"ASFLAGS": true, "CFLAGS": true, "CXXFLAGS": true, "COFLAGS": true, "CPPFLAGS": true,
+		"FFLAGS": true, "GFLAGS": true, "LDFLAGS": true, "LDLIBS": true, "LFLAGS": true,
+		"YFLAGS": true, "PFLAGS": true, "RFLAGS": true, "LINTFLAGS": true, "VPATH": true,
+		".RECIPEPREFIX": true, ".DEFAULT_GOAL": true, ".EXTRA_PREREQS": true,
+		"MAKEFILE_LIST": true, "MAKE_RESTARTS": true, "MAKE_TERMOUT": true, "MAKE_TERMERR": true,
 	}
-	
-	i := 0
-	for i < len(text) {
-		char := text[i]
-		
-		switch char {
-		case '$':
-			// Variable reference
-			if i+1 < len(text) {
-				if text[i+1] == '(' || text[i+1] == '{' {
-					// Find the matching closing bracket
-					closer := ')'
-					if text[i+1] == '{' {
-						closer = '}'
-					}
-					
-					end := i + 2
-					depth := 1
-					for end < len(text) && depth > 0 {
-						if text[end] == text[i+1] {
-							depth++
-						} else if text[end] == byte(closer) {
-							depth--
-						}
-						end++
-					}
-					
-					*tokens = append(*tokens, Token{
-						Start:     baseOffset + i,
-						End:       baseOffset + end,
-						TokenType: TokenTypeMakeVariableRef,
-					})
-					i = end
-					continue
-				} else if i+1 < len(text) && (text[i+1] >= 'A' && text[i+1] <= 'Z' || 
-					text[i+1] >= 'a' && text[i+1] <= 'z' || text[i+1] == '_' ||
-					text[i+1] == '@' || text[i+1] == '<' || text[i+1] == '^' || 
-					text[i+1] == '?' || text[i+1] == '*' || text[i+1] == '+') {
-					// Single character variable like $@, $<, etc.
-					*tokens = append(*tokens, Token{
-						Start:     baseOffset + i,
-						End:       baseOffset + i + 2,
-						TokenType: TokenTypeMakeVariableRef,
-					})
-					i += 2
-					continue
-				}
-			}
-		case '"':
-			// Double quoted string
-			end := i + 1
-			for end < len(text) && text[end] != '"' {
-				if text[end] == '\\' && end+1 < len(text) {
-					end++ // Skip escaped character
-				}
-				end++
-			}
-			if end < len(text) {
-				end++ // Include closing quote
-			}
-			*tokens = append(*tokens, Token{
-				Start:     baseOffset + i,
-				End:       baseOffset + end,
-				TokenType: TokenTypeMakeString,
-			})
-			i = end
-			continue
-		case '\'':
-			// Single quoted string
-			end := i + 1
-			for end < len(text) && text[end] != '\'' {
-				if text[end] == '\\' && end+1 < len(text) {
-					end++ // Skip escaped character
-				}
-				end++
-			}
-			if end < len(text) {
-				end++ // Include closing quote
-			}
-			*tokens = append(*tokens, Token{
-				Start:     baseOffset + i,
-				End:       baseOffset + end,
-				TokenType: TokenTypeMakeString,
-			})
-			i = end
-			continue
-		case '#':
-			// Comment (from this point to end of text)
-			*tokens = append(*tokens, Token{
-				Start:     baseOffset + i,
-				End:       baseOffset + len(text),
-				TokenType: TokenTypeMakeComment,
-			})
-			return
-		}
-		i++
+	return builtinVars[name]
+}
+
+func (h *Highlighter) isMakeStandardTarget(name string) bool {
+	standardTargets := map[string]bool{
+		"all": true, "install": true, "install-html": true, "install-dvi": true,
+		"install-pdf": true, "install-ps": true, "uninstall": true, "install-strip": true,
+		"clean": true, "distclean": true, "mostlyclean": true, "maintainer-clean": true,
+		"TAGS": true, "info": true, "dvi": true, "html": true, "pdf": true, "ps": true,
+		"dist": true, "check": true, "installcheck": true, "installdirs": true,
 	}
-	
-	// If we have untokenized text segments, add them as generic text
-	if strings.TrimSpace(text) != "" {
-		// Find gaps between tokens and fill them with text tokens
-		tokensBeforeSort := *tokens
-		if len(tokensBeforeSort) == 0 {
-			// No tokens found, make the entire text a token
-			*tokens = append(*tokens, Token{
-				Start:     baseOffset,
-				End:       baseOffset + len(text),
-				TokenType: TokenTypeText,
-			})
-		} else {
-			// Sort tokens by position to find gaps
-			for i := 1; i < len(tokensBeforeSort); i++ {
-				key := tokensBeforeSort[i]
-				j := i - 1
-				for j >= 0 && tokensBeforeSort[j].Start > key.Start {
-					tokensBeforeSort[j+1] = tokensBeforeSort[j]
-					j--
-				}
-				tokensBeforeSort[j+1] = key
-			}
-			
-			// Add text token for any gap at the beginning
-			if tokensBeforeSort[0].Start > baseOffset {
-				*tokens = append(*tokens, Token{
-					Start:     baseOffset,
-					End:       tokensBeforeSort[0].Start,
-					TokenType: TokenTypeText,
-				})
-			}
-			
-			// Add text tokens for gaps between tokens
-			for i := 0; i < len(tokensBeforeSort)-1; i++ {
-				if tokensBeforeSort[i].End < tokensBeforeSort[i+1].Start {
-					*tokens = append(*tokens, Token{
-						Start:     tokensBeforeSort[i].End,
-						End:       tokensBeforeSort[i+1].Start,
-						TokenType: TokenTypeText,
-					})
-				}
-			}
-			
-			// Add text token for any gap at the end
-			if tokensBeforeSort[len(tokensBeforeSort)-1].End < baseOffset+len(text) {
-				*tokens = append(*tokens, Token{
-					Start:     tokensBeforeSort[len(tokensBeforeSort)-1].End,
-					End:       baseOffset + len(text),
-					TokenType: TokenTypeText,
-				})
-			}
-		}
+	return standardTargets[name]
+}
+
+func (h *Highlighter) isMakeBuiltinTarget(name string) bool {
+	builtinTargets := map[string]bool{
+		".PHONY": true, ".SUFFIXES": true, ".DEFAULT": true, ".PRECIOUS": true,
+		".INTERMEDIATE": true, ".SECONDARY": true, ".SECONDEXPANSION": true,
+		".DELETE_ON_ERROR": true, ".IGNORE": true, ".LOW_RESOLUTION_TIME": true,
+		".SILENT": true, ".EXPORT_ALL_VARIABLES": true, ".NOTPARALLEL": true,
+		".ONESHELL": true, ".POSIX": true,
 	}
+	return builtinTargets[name]
+}
+
+func (h *Highlighter) isMakeFunction(name string) bool {
+	functions := map[string]bool{
+		"subst": true, "patsubst": true, "strip": true, "findstring": true,
+		"filter": true, "filter-out": true, "sort": true, "word": true,
+		"words": true, "wordlist": true, "firstword": true, "lastword": true,
+		"dir": true, "notdir": true, "suffix": true, "basename": true,
+		"addsuffix": true, "addprefix": true, "join": true, "wildcard": true,
+		"realpath": true, "abspath": true, "call": true, "eval": true,
+		"file": true, "value": true, "shell": true, "error": true,
+		"warning": true, "info": true,
+	}
+	return functions[name]
+}
+
+func (h *Highlighter) isMakeKeyword(name string) bool {
+	keywords := map[string]bool{
+		"ifeq": true, "ifneq": true, "ifdef": true, "ifndef": true,
+		"else": true, "endif": true, "if": true, "or": true, "and": true,
+		"foreach": true, "define": true, "endef": true, "vpath": true,
+		"undefine": true, "export": true, "unexport": true, "override": true,
+		"private": true, "include": true, "sinclude": true, "-include": true,
+	}
+	return keywords[name]
 }
 
 // mapPythonNodeToTokenType maps Python-specific node types to token types
@@ -1857,23 +1655,6 @@ func GetStyleForToken(tokenType TokenType, theme *theme.Theme) theme.StyleDef {
 		return theme.SyntaxType
 	case TokenTypePythonImport:
 		return theme.SyntaxKeyword
-	// Makefile token types
-	case TokenTypeMakeTarget:
-		return theme.SyntaxFunction
-	case TokenTypeMakeVariable:
-		return theme.SyntaxVariable
-	case TokenTypeMakeVariableRef:
-		return theme.SyntaxConstant
-	case TokenTypeMakeComment:
-		return theme.SyntaxComment
-	case TokenTypeMakeKeyword:
-		return theme.SyntaxKeyword
-	case TokenTypeMakeFunction:
-		return theme.SyntaxFunction
-	case TokenTypeMakeString:
-		return theme.SyntaxString
-	case TokenTypeMakeOperator:
-		return theme.SyntaxOperator
 	case TokenTypeText:
 		fallthrough
 	default:
