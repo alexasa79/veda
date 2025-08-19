@@ -110,6 +110,9 @@ func (e *Editor) getCommandDescriptions() map[string]string {
         
         // Buffer management
         "q":                          "close buffer",
+        
+        // Window switching
+        "window-next":                "next window",
 	}
 }
 

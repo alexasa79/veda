@@ -200,6 +200,7 @@ func (e *Editor) registerCommands() {
     e.commandRegistry.Register("window-8", func([]string) error { return e.switchToWindow(8) }, false)
     e.commandRegistry.Register("window-9", func([]string) error { return e.switchToWindow(9) }, false)
     e.commandRegistry.Register("window-last", e.switchToLastWindow, false)
+    e.commandRegistry.Register("window-next", e.switchToNextWindow, false)
 
     // Window buffer move commands
     e.commandRegistry.Register("move-buffer-left", e.moveBufferLeft, false)

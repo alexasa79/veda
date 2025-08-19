@@ -120,6 +120,7 @@ func (e *Editor) setupDefaultBindings() {
     e.registerKeyBinding(commands.NormalMode, "space 8", "window-8")
     e.registerKeyBinding(commands.NormalMode, "space 9", "window-9")
     e.registerKeyBinding(commands.NormalMode, "space o", "window-last")
+    e.registerKeyBinding(commands.NormalMode, "space tab", "window-next")
 
     // Move buffer between windows
     e.registerKeyBinding(commands.NormalMode, "space w left", "move-buffer-left")
