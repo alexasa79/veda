@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"veda/internal/commands"
@@ -8,6 +9,7 @@ import (
 	"veda/internal/events"
 	"veda/internal/log"
     "veda/internal/buffer"
+	"veda/internal/widgets"
 )
 
 // Mode management functions handle switching between different editor modes
@@ -276,9 +278,32 @@ func (e *Editor) executeCommand() {
 	}
 	cmd := parts[0]
 	args := parts[1:]
+	
+	// Check for force flag (! suffix)
+	force := false
+	if strings.HasSuffix(cmd, "!") {
+		force = true
+		cmd = strings.TrimSuffix(cmd, "!")
+	}
 
 	// Store command arguments for handlers that need them
 	e.lastCommandArgs = args
+
+	// Handle special commands that support warnings
+	switch cmd {
+	case "q", "quit":
+		err := e.quitWithWarning(args, force)
+		if err != nil {
+			e.ShowError("Command failed: %v", err)
+		}
+		return
+	case "qa", "qall":
+		err := e.quitAllWithWarning(args, force)
+		if err != nil {
+			e.ShowError("Command failed: %v", err)
+		}
+		return
+	}
 
 	// Try to execute from the command registry
 	if e.commandRegistry.Has(cmd) {
@@ -545,4 +570,89 @@ func (e *Editor) exitVisualMode(args []string) error {
 func (e *Editor) enterCommandModeCmd(args []string) error {
 	e.enterCommandMode()
 	return nil
+}
+
+// hasUnsavedChanges returns true if any buffer has unsaved changes
+func (e *Editor) hasUnsavedChanges() bool {
+	for _, buf := range e.buffers {
+		if buf.IsModified && buf.HasFile() {
+			return true
+		}
+	}
+	return false
+}
+
+// getUnsavedBuffers returns a list of buffer names that have unsaved changes
+func (e *Editor) getUnsavedBuffers() []string {
+	var unsaved []string
+	for _, buf := range e.buffers {
+		if buf.IsModified && buf.HasFile() {
+			unsaved = append(unsaved, buf.FileName())
+		}
+	}
+	return unsaved
+}
+
+// quitWithWarning handles :q and :quit commands with unsaved change warnings
+func (e *Editor) quitWithWarning(args []string, force bool) error {
+	// Check if current buffer has unsaved changes
+	if !force && e.buffer != nil && e.buffer.IsModified && e.buffer.HasFile() {
+		return e.showUnsavedBufferDialog(e.buffer.FileName(), "quit")
+	}
+	
+	// Proceed with normal quit
+	return e.closeBuffer(args)
+}
+
+// quitAllWithWarning handles :qa and :qall commands with unsaved change warnings
+func (e *Editor) quitAllWithWarning(args []string, force bool) error {
+	// Check for unsaved changes in any buffer
+	if !force && e.hasUnsavedChanges() {
+		unsavedBuffers := e.getUnsavedBuffers()
+		if len(unsavedBuffers) == 1 {
+			return e.showUnsavedBufferDialog(unsavedBuffers[0], "quit all")
+		} else {
+			return e.showUnsavedBuffersDialog(unsavedBuffers)
+		}
+	}
+	
+	// Proceed with normal quit all
+	return e.actuallyQuit(args)
+}
+
+// showUnsavedBufferDialog shows a dialog for a single unsaved buffer
+func (e *Editor) showUnsavedBufferDialog(fileName, action string) error {
+	width, height := e.screen.Size()
+	dialogWidth := 60
+	dialogHeight := 8
+	x := (width - dialogWidth) / 2
+	y := (height - dialogHeight) / 2
+	
+	title := "Unsaved Changes"
+	message := fmt.Sprintf("Buffer '%s' has unsaved changes. %s without saving?", fileName, action)
+	
+	dialog := widgets.NewYesNoDialog(x, y, dialogWidth, dialogHeight, title, message, e.config.Theme)
+	overlay := NewUnsavedBufferDialogOverlay(dialog, fileName, action, false, e)
+	e.renderingState.SetOverlay(overlay)
+	
+	return nil // Dialog will be handled by the overlay system
+}
+
+// showUnsavedBuffersDialog shows a dialog for multiple unsaved buffers
+func (e *Editor) showUnsavedBuffersDialog(fileNames []string) error {
+	width, height := e.screen.Size()
+	dialogWidth := 70
+	dialogHeight := 10
+	x := (width - dialogWidth) / 2
+	y := (height - dialogHeight) / 2
+	
+	title := "Multiple Unsaved Changes"
+	fileList := strings.Join(fileNames, ", ")
+	message := fmt.Sprintf("The following buffers have unsaved changes: %s. Quit without saving?", fileList)
+	
+	dialog := widgets.NewYesNoDialog(x, y, dialogWidth, dialogHeight, title, message, e.config.Theme)
+	overlay := NewUnsavedBufferDialogOverlay(dialog, "", "quit all", true, e)
+	e.renderingState.SetOverlay(overlay)
+	
+	return nil // Dialog will be handled by the overlay system
 }
