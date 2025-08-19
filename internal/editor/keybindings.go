@@ -121,9 +121,9 @@ func (e *Editor) setupDefaultBindings() {
     e.registerKeyBinding(commands.NormalMode, "space o", "window-last")
 
     // Move buffer between windows
-    e.registerKeyBinding(commands.NormalMode, "space m left", "move-buffer-left")
-    e.registerKeyBinding(commands.NormalMode, "space m right", "move-buffer-right")
-    e.registerKeyBinding(commands.NormalMode, "space m c", "move-buffer-center")
+    e.registerKeyBinding(commands.NormalMode, "space w left", "move-buffer-left")
+    e.registerKeyBinding(commands.NormalMode, "space w right", "move-buffer-right")
+    e.registerKeyBinding(commands.NormalMode, "space w c", "move-buffer-center")
 
 	// Symbol operations
 	e.registerKeyBinding(commands.NormalMode, "s w", "list-project-symbols")
