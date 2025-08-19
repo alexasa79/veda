@@ -37,8 +37,16 @@ func (l LineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 	}
 	
 	line := iter.Line()
-	// Start at beginning of line, end after the newline (or end of line if last line)
-	return cursorLine, 0, cursorLine, len(line), true
+	
+	// Check if this is the last line in the buffer
+	if cursorLine == buf.LineCount - 1 {
+		// For the last line, delete from beginning of line to end of line content
+		return cursorLine, 0, cursorLine, len(line), true
+	} else {
+		// For non-last lines, delete from beginning of this line to beginning of next line
+		// This effectively includes the newline character
+		return cursorLine, 0, cursorLine + 1, 0, true
+	}
 }
 
 func (l LineTextObject) GetType() string {
