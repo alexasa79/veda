@@ -76,7 +76,8 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	// When deleting N whole lines across multiple lines, ensure we also remove
 	// the newline after the last selected line (if it exists). Otherwise a
 	// leading blank line remains.
-	if startChar == 0 && endLine > startLine {
+	// Note: Single line deletion (3,0)-(4,0) should NOT trigger this logic
+	if startChar == 0 && endLine > startLine && endChar > 0 {
 		iter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
 		if !iter.IsEOF() {
 			lastLine := iter.Line()
@@ -198,12 +199,14 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	
 	// Check if this is a line change operation (cc command)
 	// For cc, we want to clear the line but keep it (not delete the newline)
-	isLineChange := startChar == 0 && startLine == endLine
+	// With new LineTextObject behavior: (cursorLine, 0, cursorLine + 1, 0) for single line
+	isLineChange := startChar == 0 && ((startLine == endLine) || (endLine == startLine + 1 && endChar == 0))
 	if isLineChange {
 		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
 		if !iter.IsEOF() {
 			line := iter.Line()
-			if endChar >= len(line) {
+			// For new LineTextObject behavior (startLine, 0, startLine + 1, 0), we need different logic
+			if (endLine == startLine && endChar >= len(line)) || (endLine == startLine + 1 && endChar == 0) {
 				// This is a cc operation - delete the line content but keep the line
 				// Store view position before making changes
 				viewLine := editor.buffer.ViewIterator.LineNumber()
