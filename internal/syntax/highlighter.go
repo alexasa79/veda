@@ -1195,6 +1195,17 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 			}
 		}
 		
+		// Fallback: Check if this identifier is actually a Python keyword
+		// This handles cases where Tree-sitter misclassifies keywords as identifiers due to syntax errors
+		switch text {
+		case "if", "elif", "else", "for", "while", "break", "continue",
+			"def", "class", "return", "yield", "pass", "raise",
+			"try", "except", "finally", "with", "as", "assert",
+			"import", "from", "global", "nonlocal", "lambda",
+			"and", "or", "not", "in", "is", "del", "async", "await":
+			return TokenTypePythonKeyword
+		}
+		
 		return TokenTypeVariable
 		
 	// Operators
