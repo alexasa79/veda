@@ -1213,7 +1213,8 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 		"=", "+=", "-=", "*=", "/=", "//=", "%=", "**=",
 		"==", "!=", "<", ">", "<=", ">=",
 		"&", "|", "^", "~", "<<", ">>",
-		"&=", "|=", "^=", "<<=", ">>=":
+		"&=", "|=", "^=", "<<=", ">>=",
+		"->":  // Type annotation arrow
 		return TokenTypePythonOperator
 		
 	// Import-related
