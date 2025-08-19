@@ -849,7 +849,7 @@ func (e *Editor) listDocumentSymbolsCmd(args []string) error {
 	return nil
 }
 
-// writeFile writes the current buffer to disk
+// writeFile writes the current buffer to disk asynchronously with spinner
 func (e *Editor) writeFile(args []string) error {
 	var filePath string
 	var saveAs bool
@@ -879,55 +879,75 @@ func (e *Editor) writeFile(args []string) error {
 		}
 	}
 
-	// Write the file and get updated diagnostics
-	diagnostics, err := e.proxyManager.WriteFile(filePath, content)
-	if err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-	
-	// Update buffer diagnostics with the returned diagnostics
-	e.buffer.Diagnostics = diagnostics
+	// Start async operation tracking
+	operationID := fmt.Sprintf("save-file-%s", filePath)
+	e.startAsyncOperation(operationID, "saving file: "+filePath)
 
-	// If this is a "save as" operation, update the buffer's file path
-	if saveAs {
-		// Remove old buffer from maps if it had a file
-		if e.buffer.HasFile() {
-			delete(e.buffers, e.buffer.FilePath)
-			// Update buffer order
-			for i, path := range e.bufferOrder {
-				if path == e.buffer.FilePath {
-					e.bufferOrder[i] = filePath
-					break
-				}
-			}
-		} else {
-			// This was an unnamed buffer, remove it and add the new one
-			delete(e.buffers, "")
-			for i, path := range e.bufferOrder {
-				if path == "" {
-					e.bufferOrder[i] = filePath
-					break
-				}
-			}
+	// Set connection status
+	host, _, isRemote := parsePathComponents(filePath)
+	if isRemote {
+		e.connectionStatus = fmt.Sprintf("Saving to %s", host)
+	} else {
+		e.connectionStatus = "Saving file"
+	}
+
+	// Perform the save operation asynchronously
+	go func() {
+		defer e.endAsyncOperation(operationID)
+		defer func() { e.connectionStatus = "" }() // Clear status when done
+
+		// Write the file and get updated diagnostics
+		diagnostics, err := e.proxyManager.WriteFile(filePath, content)
+		if err != nil {
+			LL.Error("Failed to write file %s: %v", filePath, err)
+			e.ShowError("Failed to save file: %v", err)
+			return
 		}
 		
-		// Update buffer's file path
-		e.buffer.FilePath = filePath
-		
-		// Add buffer with new path
-		e.buffers[filePath] = e.buffer
-	}
+		// Update buffer diagnostics with the returned diagnostics
+		e.buffer.Diagnostics = diagnostics
 
-	// Mark buffer as saved
-	e.buffer.MarkSaved()
+		// If this is a "save as" operation, update the buffer's file path
+		if saveAs {
+			// Remove old buffer from maps if it had a file
+			if e.buffer.HasFile() {
+				delete(e.buffers, e.buffer.FilePath)
+				// Update buffer order
+				for i, path := range e.bufferOrder {
+					if path == e.buffer.FilePath {
+						e.bufferOrder[i] = filePath
+						break
+					}
+				}
+			} else {
+				// This was an unnamed buffer, remove it and add the new one
+				delete(e.buffers, "")
+				for i, path := range e.bufferOrder {
+					if path == "" {
+						e.bufferOrder[i] = filePath
+						break
+					}
+				}
+			}
+			
+			// Update buffer's file path
+			e.buffer.FilePath = filePath
+			
+			// Add buffer with new path
+			e.buffers[filePath] = e.buffer
+		}
 
-	// Clean up auto-save since file was successfully saved
-	if e.autoSaveManager != nil {
-		e.autoSaveManager.CleanupAutoSave(filePath)
-	}
+		// Mark buffer as saved
+		e.buffer.MarkSaved()
 
-	// Show success message
-	LL.Info("Wrote %s", filePath)
+		// Clean up auto-save since file was successfully saved
+		if e.autoSaveManager != nil {
+			e.autoSaveManager.CleanupAutoSave(filePath)
+		}
+
+		// Show success message
+		LL.Info("Wrote %s", filePath)
+	}()
 
 	return nil
 }
