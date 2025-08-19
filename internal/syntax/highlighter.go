@@ -77,6 +77,16 @@ const (
 	TokenTypePythonOperator    TokenType = "python_operator"
 	TokenTypePythonException   TokenType = "python_exception"
 	TokenTypePythonImport      TokenType = "python_import"
+	
+	// Makefile-specific token types
+	TokenTypeMakeTarget        TokenType = "make_target"
+	TokenTypeMakeVariable      TokenType = "make_variable"
+	TokenTypeMakeVariableRef   TokenType = "make_variable_ref"
+	TokenTypeMakeComment       TokenType = "make_comment"
+	TokenTypeMakeKeyword       TokenType = "make_keyword"
+	TokenTypeMakeFunction      TokenType = "make_function"
+	TokenTypeMakeString        TokenType = "make_string"
+	TokenTypeMakeOperator      TokenType = "make_operator"
 )
 
 // Token represents a syntax-highlighted token
@@ -119,6 +129,12 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 			h.parser.SetLanguage(bash.GetLanguage())
 			h.currentLang = "bash"
 			return nil
+		case "Makefile", "makefile", "GNUmakefile", "gnumakefile":
+			h.currentLang = "makefile"
+			h.currentTree = nil
+			h.currentSource = nil
+			h.tokenCache = make(map[int][]Token)
+			return nil
 		}
 	}
 
@@ -141,6 +157,11 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".py", ".pyw":
 		h.parser.SetLanguage(python.GetLanguage())
 		h.currentLang = "python"
+	case ".mk", ".mak":
+		h.currentLang = "makefile"
+		h.currentTree = nil
+		h.currentSource = nil
+		h.tokenCache = make(map[int][]Token)
 	default:
 		// No language set for unknown extensions
 		h.currentLang = ""
@@ -179,6 +200,8 @@ func (h *Highlighter) SetLanguage(language string) error {
 	case "python":
 		h.parser.SetLanguage(python.GetLanguage())
 		h.currentLang = "python"
+	case "makefile":
+		h.currentLang = "makefile"
 	default:
 		// No language set for unknown languages
 		h.currentLang = ""
@@ -202,6 +225,14 @@ func (h *Highlighter) Parse(source []byte) error {
 		return nil // No language set, nothing to parse
 	}
 
+	// Special handling for makefile - no tree-sitter parsing needed
+	if h.currentLang == "makefile" {
+		h.currentTree = nil
+		h.currentSource = source
+		h.tokenCache = make(map[int][]Token)
+		return nil
+	}
+
 	oldTree := h.currentTree
 	tree, err := h.parser.ParseCtx(context.Background(), oldTree, source)
 	if err != nil {
@@ -219,6 +250,14 @@ func (h *Highlighter) Parse(source []byte) error {
 func (h *Highlighter) ParseFull(source []byte) error {
 	if h.currentLang == "" {
 		return nil // No language set, nothing to parse
+	}
+
+	// Special handling for makefile - no tree-sitter parsing needed
+	if h.currentLang == "makefile" {
+		h.currentTree = nil
+		h.currentSource = source
+		h.tokenCache = make(map[int][]Token)
+		return nil
 	}
 
 	// Parse without old tree to force full reparse
@@ -246,7 +285,7 @@ func (h *Highlighter) GetTree() *sitter.Tree {
 
 // GetTokensForLine returns syntax tokens for a specific line
 func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
-	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
+	if h.currentLang == "" || h.currentSource == nil {
 		return nil
 	}
 
@@ -256,6 +295,19 @@ func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	}
 
 	tokens := []Token{}
+	
+	// Special handling for makefile
+	if h.currentLang == "makefile" {
+		tokens = h.parseMakefileLine(lineStart, lineEnd, h.currentSource)
+		// Cache the result
+		h.tokenCache[lineStart] = tokens
+		return tokens
+	}
+
+	if h.currentTree == nil {
+		return nil
+	}
+
 	root := h.currentTree.RootNode()
 
 	// Query the tree for nodes in this line
@@ -414,6 +466,9 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapBashNodeToTokenType(node, nodeType, source)
 	case "python":
 		return h.mapPythonNodeToTokenType(node, nodeType, source)
+	case "makefile":
+		// This shouldn't be called for makefile since we use custom parsing
+		return TokenTypeText
 	default:
 		return TokenTypeText
 	}
@@ -1054,6 +1109,423 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 	}
 }
 
+// parseMakefileLine parses a single line of makefile using pattern matching
+func (h *Highlighter) parseMakefileLine(lineStart, lineEnd int, source []byte) []Token {
+	if lineStart >= lineEnd || lineStart >= len(source) {
+		return nil
+	}
+	
+	tokens := []Token{}
+	lineText := string(source[lineStart:lineEnd])
+	
+	// Skip empty lines
+	if len(strings.TrimSpace(lineText)) == 0 {
+		return nil
+	}
+	
+	// Comments (lines starting with #)
+	if strings.HasPrefix(strings.TrimSpace(lineText), "#") {
+		tokens = append(tokens, Token{
+			Start:     0,
+			End:       len(lineText),
+			TokenType: TokenTypeMakeComment,
+		})
+		return tokens
+	}
+	
+	// Check if line starts with tab (recipe line)
+	if strings.HasPrefix(lineText, "\t") {
+		// This is a command/recipe line
+		h.parseMakefileCommand(lineText, &tokens)
+		return tokens
+	}
+	
+	// Check for target definition (contains : not in a variable reference)
+	if colonPos := h.findTargetColon(lineText); colonPos != -1 {
+		// Target line
+		h.parseMakefileTarget(lineText, colonPos, &tokens)
+		return tokens
+	}
+	
+	// Check for variable assignment
+	if h.containsVariableAssignment(lineText) {
+		h.parseMakefileVariable(lineText, &tokens)
+		return tokens
+	}
+	
+	// Parse as generic makefile content
+	h.parseMakefileGeneric(lineText, &tokens)
+	return tokens
+}
+
+// findTargetColon finds the colon that indicates a target (not inside variable references or assignment operators)
+func (h *Highlighter) findTargetColon(line string) int {
+	inVar := 0
+	for i, char := range line {
+		switch char {
+		case '$':
+			if i+1 < len(line) && (line[i+1] == '(' || line[i+1] == '{') {
+				inVar++
+			}
+		case '(', '{':
+			if i > 0 && line[i-1] == '$' {
+				// Already counted above
+				continue
+			}
+		case ')', '}':
+			if inVar > 0 {
+				inVar--
+			}
+		case ':':
+			if inVar == 0 {
+				// Check if this is part of an assignment operator like :=
+				if i+1 < len(line) && line[i+1] == '=' {
+					// This is :=, not a target separator
+					continue
+				}
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// containsVariableAssignment checks if line contains variable assignment
+func (h *Highlighter) containsVariableAssignment(line string) bool {
+	// Look for =, :=, +=, ?=, etc.
+	inVar := 0
+	for i, char := range line {
+		switch char {
+		case '$':
+			if i+1 < len(line) && (line[i+1] == '(' || line[i+1] == '{') {
+				inVar++
+			}
+		case '(', '{':
+			if i > 0 && line[i-1] == '$' {
+				continue
+			}
+		case ')', '}':
+			if inVar > 0 {
+				inVar--
+			}
+		case '=':
+			if inVar == 0 {
+				return true
+			}
+		case ':':
+			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
+				return true
+			}
+		case '+', '?':
+			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// parseMakefileTarget parses a target definition line
+func (h *Highlighter) parseMakefileTarget(line string, colonPos int, tokens *[]Token) {
+	// Target(s) before colon - find the actual start and end positions
+	targetEnd := colonPos
+	for targetEnd > 0 && line[targetEnd-1] == ' ' {
+		targetEnd-- // Remove trailing spaces
+	}
+	
+	targetStart := 0
+	for targetStart < targetEnd && line[targetStart] == ' ' {
+		targetStart++ // Remove leading spaces
+	}
+	
+	if targetStart < targetEnd {
+		*tokens = append(*tokens, Token{
+			Start:     targetStart,
+			End:       targetEnd,
+			TokenType: TokenTypeMakeTarget,
+		})
+	}
+	
+	// Colon
+	*tokens = append(*tokens, Token{
+		Start:     colonPos,
+		End:       colonPos + 1,
+		TokenType: TokenTypeOperator,
+	})
+	
+	// Dependencies after colon
+	deps := strings.TrimSpace(line[colonPos+1:])
+	if deps != "" {
+		depStart := colonPos + 1
+		for depStart < len(line) && line[depStart] == ' ' {
+			depStart++
+		}
+		h.parseMakefileGeneric(deps, tokens, depStart)
+	}
+}
+
+// parseMakefileCommand parses a command/recipe line
+func (h *Highlighter) parseMakefileCommand(line string, tokens *[]Token) {
+	// Skip leading tab
+	cmdStart := 0
+	for cmdStart < len(line) && (line[cmdStart] == '\t' || line[cmdStart] == ' ') {
+		cmdStart++
+	}
+	
+	if cmdStart >= len(line) {
+		return
+	}
+	
+	// Parse the command
+	h.parseMakefileGeneric(line[cmdStart:], tokens, cmdStart)
+}
+
+// parseMakefileVariable parses a variable assignment line
+func (h *Highlighter) parseMakefileVariable(line string, tokens *[]Token) {
+	// Find the assignment operator
+	inVar := 0
+	assignPos := -1
+	assignLen := 1
+	
+	for i, char := range line {
+		switch char {
+		case '$':
+			if i+1 < len(line) && (line[i+1] == '(' || line[i+1] == '{') {
+				inVar++
+			}
+		case '(', '{':
+			if i > 0 && line[i-1] == '$' {
+				continue
+			}
+		case ')', '}':
+			if inVar > 0 {
+				inVar--
+			}
+		case ':':
+			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
+				assignPos = i
+				assignLen = 2
+				goto found
+			}
+		case '+', '?':
+			if inVar == 0 && i+1 < len(line) && line[i+1] == '=' {
+				assignPos = i
+				assignLen = 2
+				goto found
+			}
+		case '=':
+			if inVar == 0 {
+				assignPos = i
+				assignLen = 1
+				goto found
+			}
+		}
+	}
+	
+found:
+	if assignPos == -1 {
+		return
+	}
+	
+	// Variable name - find actual position
+	varEnd := assignPos
+	for varEnd > 0 && line[varEnd-1] == ' ' {
+		varEnd-- // Remove trailing spaces
+	}
+	
+	varStart := 0
+	for varStart < varEnd && line[varStart] == ' ' {
+		varStart++ // Remove leading spaces
+	}
+	
+	if varStart < varEnd {
+		*tokens = append(*tokens, Token{
+			Start:     varStart,
+			End:       varEnd,
+			TokenType: TokenTypeMakeVariable,
+		})
+	}
+	
+	// Assignment operator
+	*tokens = append(*tokens, Token{
+		Start:     assignPos,
+		End:       assignPos + assignLen,
+		TokenType: TokenTypeMakeOperator,
+	})
+	
+	// Variable value
+	if assignPos+assignLen < len(line) {
+		valueStart := assignPos + assignLen
+		for valueStart < len(line) && line[valueStart] == ' ' {
+			valueStart++
+		}
+		
+		if valueStart < len(line) {
+			value := line[valueStart:]
+			h.parseMakefileGeneric(value, tokens, valueStart)
+		}
+	}
+}
+
+// parseMakefileGeneric parses generic makefile content, looking for variable references, strings, etc.
+func (h *Highlighter) parseMakefileGeneric(text string, tokens *[]Token, offset ...int) {
+	baseOffset := 0
+	if len(offset) > 0 {
+		baseOffset = offset[0]
+	}
+	
+	i := 0
+	for i < len(text) {
+		char := text[i]
+		
+		switch char {
+		case '$':
+			// Variable reference
+			if i+1 < len(text) {
+				if text[i+1] == '(' || text[i+1] == '{' {
+					// Find the matching closing bracket
+					closer := ')'
+					if text[i+1] == '{' {
+						closer = '}'
+					}
+					
+					end := i + 2
+					depth := 1
+					for end < len(text) && depth > 0 {
+						if text[end] == text[i+1] {
+							depth++
+						} else if text[end] == byte(closer) {
+							depth--
+						}
+						end++
+					}
+					
+					*tokens = append(*tokens, Token{
+						Start:     baseOffset + i,
+						End:       baseOffset + end,
+						TokenType: TokenTypeMakeVariableRef,
+					})
+					i = end
+					continue
+				} else if i+1 < len(text) && (text[i+1] >= 'A' && text[i+1] <= 'Z' || 
+					text[i+1] >= 'a' && text[i+1] <= 'z' || text[i+1] == '_' ||
+					text[i+1] == '@' || text[i+1] == '<' || text[i+1] == '^' || 
+					text[i+1] == '?' || text[i+1] == '*' || text[i+1] == '+') {
+					// Single character variable like $@, $<, etc.
+					*tokens = append(*tokens, Token{
+						Start:     baseOffset + i,
+						End:       baseOffset + i + 2,
+						TokenType: TokenTypeMakeVariableRef,
+					})
+					i += 2
+					continue
+				}
+			}
+		case '"':
+			// Double quoted string
+			end := i + 1
+			for end < len(text) && text[end] != '"' {
+				if text[end] == '\\' && end+1 < len(text) {
+					end++ // Skip escaped character
+				}
+				end++
+			}
+			if end < len(text) {
+				end++ // Include closing quote
+			}
+			*tokens = append(*tokens, Token{
+				Start:     baseOffset + i,
+				End:       baseOffset + end,
+				TokenType: TokenTypeMakeString,
+			})
+			i = end
+			continue
+		case '\'':
+			// Single quoted string
+			end := i + 1
+			for end < len(text) && text[end] != '\'' {
+				if text[end] == '\\' && end+1 < len(text) {
+					end++ // Skip escaped character
+				}
+				end++
+			}
+			if end < len(text) {
+				end++ // Include closing quote
+			}
+			*tokens = append(*tokens, Token{
+				Start:     baseOffset + i,
+				End:       baseOffset + end,
+				TokenType: TokenTypeMakeString,
+			})
+			i = end
+			continue
+		case '#':
+			// Comment (from this point to end of text)
+			*tokens = append(*tokens, Token{
+				Start:     baseOffset + i,
+				End:       baseOffset + len(text),
+				TokenType: TokenTypeMakeComment,
+			})
+			return
+		}
+		i++
+	}
+	
+	// If we have untokenized text segments, add them as generic text
+	if strings.TrimSpace(text) != "" {
+		// Find gaps between tokens and fill them with text tokens
+		tokensBeforeSort := *tokens
+		if len(tokensBeforeSort) == 0 {
+			// No tokens found, make the entire text a token
+			*tokens = append(*tokens, Token{
+				Start:     baseOffset,
+				End:       baseOffset + len(text),
+				TokenType: TokenTypeText,
+			})
+		} else {
+			// Sort tokens by position to find gaps
+			for i := 1; i < len(tokensBeforeSort); i++ {
+				key := tokensBeforeSort[i]
+				j := i - 1
+				for j >= 0 && tokensBeforeSort[j].Start > key.Start {
+					tokensBeforeSort[j+1] = tokensBeforeSort[j]
+					j--
+				}
+				tokensBeforeSort[j+1] = key
+			}
+			
+			// Add text token for any gap at the beginning
+			if tokensBeforeSort[0].Start > baseOffset {
+				*tokens = append(*tokens, Token{
+					Start:     baseOffset,
+					End:       tokensBeforeSort[0].Start,
+					TokenType: TokenTypeText,
+				})
+			}
+			
+			// Add text tokens for gaps between tokens
+			for i := 0; i < len(tokensBeforeSort)-1; i++ {
+				if tokensBeforeSort[i].End < tokensBeforeSort[i+1].Start {
+					*tokens = append(*tokens, Token{
+						Start:     tokensBeforeSort[i].End,
+						End:       tokensBeforeSort[i+1].Start,
+						TokenType: TokenTypeText,
+					})
+				}
+			}
+			
+			// Add text token for any gap at the end
+			if tokensBeforeSort[len(tokensBeforeSort)-1].End < baseOffset+len(text) {
+				*tokens = append(*tokens, Token{
+					Start:     tokensBeforeSort[len(tokensBeforeSort)-1].End,
+					End:       baseOffset + len(text),
+					TokenType: TokenTypeText,
+				})
+			}
+		}
+	}
+}
+
 // mapPythonNodeToTokenType maps Python-specific node types to token types
 func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
 	switch nodeType {
@@ -1385,6 +1857,23 @@ func GetStyleForToken(tokenType TokenType, theme *theme.Theme) theme.StyleDef {
 		return theme.SyntaxType
 	case TokenTypePythonImport:
 		return theme.SyntaxKeyword
+	// Makefile token types
+	case TokenTypeMakeTarget:
+		return theme.SyntaxFunction
+	case TokenTypeMakeVariable:
+		return theme.SyntaxVariable
+	case TokenTypeMakeVariableRef:
+		return theme.SyntaxConstant
+	case TokenTypeMakeComment:
+		return theme.SyntaxComment
+	case TokenTypeMakeKeyword:
+		return theme.SyntaxKeyword
+	case TokenTypeMakeFunction:
+		return theme.SyntaxFunction
+	case TokenTypeMakeString:
+		return theme.SyntaxString
+	case TokenTypeMakeOperator:
+		return theme.SyntaxOperator
 	case TokenTypeText:
 		fallthrough
 	default:
