@@ -116,16 +116,26 @@ func (e *Editor) recomputeWindowsLayout() {
         return
     }
 
-    // Ensure the active window gets at least minActiveWindowWidth
-    minW := e.minActiveWindowWidth
-    if minW <= 0 {
-        minW = 110
-    }
-    if minW > screenW-(n-1) {
-        // leave at least 1 column for others total
-        minW = screenW - (n - 1)
-        if minW < 1 {
-            minW = 1
+    // Calculate minimum window width if configured
+    var minW int
+    if e.minActiveWindowWidth > 0 {
+        // minActiveWindowWidth specifies buffer content columns
+        // Add gutter width (line numbers + indicators) to get total window width
+        gutterWidth := 0
+        if e.buffer != nil {
+            gutterWidth = e.buffer.LineNumberWidth
+        } else {
+            // Fallback: assume typical gutter width for reasonable line counts
+            gutterWidth = 7 // 4 digits + 1 padding + 2 indicators
+        }
+        minW = e.minActiveWindowWidth + gutterWidth
+        
+        if minW > screenW-(n-1) {
+            // leave at least 1 column for others total
+            minW = screenW - (n - 1)
+            if minW < 1 {
+                minW = 1
+            }
         }
     }
 
@@ -146,9 +156,9 @@ func (e *Editor) recomputeWindowsLayout() {
         widths[i] = w
     }
 
-    // If the active window is narrower than the minimum, enlarge it by
-    // borrowing columns from other windows (preferentially from widest ones).
-    if widths[activeIdx] < minW {
+    // If minimum width is configured and the active window is narrower than the minimum,
+    // enlarge it by borrowing columns from other windows (preferentially from widest ones).
+    if minW > 0 && widths[activeIdx] < minW {
         need := minW - widths[activeIdx]
         widths[activeIdx] = minW
 

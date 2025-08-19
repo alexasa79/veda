@@ -322,7 +322,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
         windows:              nil,
         activeWindow:         0,
         lastWindow:           0,
-        minActiveWindowWidth: 100,
+        minActiveWindowWidth: 110,
         terminalSessions:     make(map[string]*TerminalSessionState),
 	}
 
