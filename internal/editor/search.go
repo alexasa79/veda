@@ -63,10 +63,27 @@ func (e *Editor) executeSearch() {
 	// Find all matches
 	e.updateSearchMatches()
 
-	// Move to the first match
+	// Move to the next match from cursor position
 	if len(e.searchMatches) > 0 {
-		e.currentMatch = 0
-		e.moveCursorToPosition(e.searchMatches[0])
+		// Get current position
+		currentPos := e.getAbsolutePosition()
+
+		// Find the first match at or after the cursor
+		nextIndex := -1
+		for i, matchPos := range e.searchMatches {
+			if matchPos >= currentPos {
+				nextIndex = i
+				break
+			}
+		}
+
+		// If no match found after cursor, wrap to beginning
+		if nextIndex == -1 {
+			nextIndex = 0
+		}
+
+		e.currentMatch = nextIndex
+		e.moveCursorToPosition(e.searchMatches[nextIndex])
 	} else {
 		// No matches found - show error
 		e.ShowError("Pattern not found: %s", pattern)
