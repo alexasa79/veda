@@ -1201,6 +1201,8 @@ func sanitizeTerminalText(input string) string {
 }
 
 // translateKeyToTerminal converts a key event to terminal bytes (UTF-8 / ANSI)
+// This function handles the translation of keyboard input into the appropriate
+// byte sequences that terminals expect, including control characters like Ctrl+C
 func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
     // Basic mapping: runes, Enter, Backspace, Tab, arrows
     switch ev.Key {
@@ -1217,6 +1219,8 @@ func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
     case events.KeyTab:
         return []byte{'\t'}
     // Common control keys to forward raw to the shell
+    case events.KeyCtrlC:
+        return []byte{0x03} // ETX (interrupt signal)
     case events.KeyCtrlD:
         return []byte{0x04} // EOT
     case events.KeyCtrlL:
