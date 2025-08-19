@@ -457,6 +457,8 @@ func (e *Editor) Run() {
                 }
                 if done {
                     e.renderingState.CompleteOverlay(result)
+                    // Clear screen to remove overlay artifacts
+                    e.screen.Clear()
                 }
             }
 		} else {
