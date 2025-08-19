@@ -72,11 +72,24 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 		}
 	}
 
+	// Handle empty line deletion: (15,0)-(16,0) represents deleting from 
+	// beginning of line 15 to beginning of line 16, which should delete the
+	// entire line 15 including its newline character.
+	if startChar == 0 && endLine == startLine + 1 && endChar == 0 {
+		// This is a single empty line deletion - get the actual line content
+		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		if !iter.IsEOF() {
+			line := iter.Line()
+			// Delete the line content plus the newline character
+			textToDelete = line + "\n"
+			isLineDeletion = true
+		}
+	}
+
 	// Handle multi-line full line deletions (e.g., count-prefixed dd/cc)
 	// When deleting N whole lines across multiple lines, ensure we also remove
 	// the newline after the last selected line (if it exists). Otherwise a
 	// leading blank line remains.
-	// Note: Single line deletion (3,0)-(4,0) should NOT trigger this logic
 	if startChar == 0 && endLine > startLine && endChar > 0 {
 		iter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
 		if !iter.IsEOF() {
