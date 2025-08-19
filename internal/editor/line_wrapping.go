@@ -146,6 +146,13 @@ func (wc *WrapCalculator) findWrapPoint(line string, start int) int {
 // CalculateWrappedLines calculates all wrapped lines for the visible portion of the buffer
 func (e *Editor) CalculateWrappedLines() []WrappedLine {
     t0 := e.perfTracker.Start()
+    
+    // Handle empty windows
+    if e.buffer == nil {
+        e.perfTracker.ReportSince("CalculateWrappedLines", t0)
+        return []WrappedLine{}
+    }
+    
     width, _ := e.screen.Size()
 	gutterWidth := e.buffer.LineNumberWidth
 	
@@ -237,6 +244,13 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 // Returns the visual line and column position relative to the current view
 func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
     t0 := e.perfTracker.Start()
+    
+    // Handle empty windows
+    if e.buffer == nil {
+        e.perfTracker.ReportSince("GetCursorVisualPosition", t0)
+        return 0, 0
+    }
+    
 	// Calculate all visible wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
     LL.Trace("GetCursorVisualPosition: viewTop=%d visibleWrapped=%d cursor(line=%d,x=%d)",

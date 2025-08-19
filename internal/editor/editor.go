@@ -534,7 +534,15 @@ func (e *Editor) render() {
 
     // Draw each window using a windowScreen. Inactive windows are dimmed.
     for i, win := range e.windows {
-        if win == nil || win.Buffer == nil {
+        if win == nil {
+            continue
+        }
+        
+        // Handle empty windows (Buffer == nil)
+        if win.Buffer == nil {
+            dim := i != e.activeWindow
+            sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
+            e.drawEmptyWindow(sub, i == e.activeWindow)
             continue
         }
         // Prepare sub-screen
@@ -657,7 +665,7 @@ afterWindows:
             // Compute and show cursor relative to the active window region
             if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
                 win := e.windows[e.activeWindow]
-                if win != nil {
+                if win != nil && win.Buffer != nil {
                     sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
                     realScreen := e.screen
                     realBuffer := e.buffer
@@ -1451,9 +1459,12 @@ func (e *Editor) updateCursor() {
 		// Show cursor in search line
 		cursorX, cursorY := e.searchLine.GetCursorPosition()
 		e.screen.ShowCursor(cursorX, cursorY)
+    } else if e.buffer == nil {
+        // Empty window - hide the cursor or show it at top-left
+        e.screen.ShowCursor(0, e.getContentStartY())
     } else {
         // Terminal/internal buffers: position cursor directly from emulator state
-        if e.buffer != nil && e.buffer.IsInternal {
+        if e.buffer.IsInternal {
             if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
                 if e.mode == commands.TerminalMode {
                     // In terminal mode, show at terminal cursor, accounting for scrollback and view top

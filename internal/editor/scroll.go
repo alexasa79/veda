@@ -7,6 +7,12 @@ import (
 // scroll ensures the cursor is visible within the viewport with appropriate margins
 func (e *Editor) scroll() {
     t0 := e.perfTracker.Start()
+    
+    // Skip scrolling for empty windows
+    if e.buffer == nil {
+        return
+    }
+    
 	visibleHeight := e.getVisibleHeight()
 	bufferLines := e.buffer.LineCount
 	topLine := e.buffer.ViewIterator.LineNumber()

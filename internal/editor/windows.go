@@ -89,6 +89,9 @@ func (e *Editor) activateWindow(idx int) {
     e.recomputeWindowsLayout()
     if win := e.windows[idx]; win != nil && win.Buffer != nil {
         e.switchToBuffer(win.Buffer)
+    } else {
+        // When activating an empty window, clear the editor's buffer
+        e.buffer = nil
     }
 }
 
@@ -316,35 +319,118 @@ func (e *Editor) switchToNextWindow(args []string) error {
     return nil
 }
 
-// moveBufferLeft moves the active window's buffer into the immediate left window, if any
+// moveBufferLeft moves the active window's buffer to the immediate left window,
+// creating a new window if none exists to the left
 func (e *Editor) moveBufferLeft(args []string) error {
-    if len(e.windows) < 2 || e.activeWindow <= 0 {
-        return nil
-    }
     cur := e.activeWindow
-    left := cur - 1
-    e.windows[left].Buffer = e.windows[cur].Buffer
-    // Move state too to keep position aligned with where the user is
-    e.windows[left].ViewLine = e.windows[cur].ViewLine
-    e.windows[left].CursorLine = e.windows[cur].CursorLine
-    e.windows[left].CursorX = e.windows[cur].CursorX
-    // Focus the destination
-    e.activateWindow(left)
+    currentBuffer := e.windows[cur].Buffer
+    
+    // If no window to the left, create one
+    if cur <= 0 {
+        // Create new window to the left
+        newWin := newWindow(currentBuffer)
+        
+        // Copy view state to new window
+        newWin.ViewLine = e.windows[cur].ViewLine
+        newWin.CursorLine = e.windows[cur].CursorLine
+        newWin.CursorX = e.windows[cur].CursorX
+        
+        // Insert at the beginning
+        e.windows = append([]*Window{newWin}, e.windows...)
+        
+        // Leave original window empty
+        // (cur is now at index cur+1 after insertion)
+        e.windows[cur+1].Buffer = nil
+        e.windows[cur+1].ViewLine = 0
+        e.windows[cur+1].CursorLine = 0
+        e.windows[cur+1].CursorX = 0
+        
+        // Activate the new left window (index 0)
+        e.activateWindow(0)
+    } else {
+        // Move to existing left window
+        left := cur - 1
+        
+        // Store the buffer from the left window (to swap if needed)
+        leftBuffer := e.windows[left].Buffer
+        
+        // Move current buffer to left window
+        e.windows[left].Buffer = currentBuffer
+        e.windows[left].ViewLine = e.windows[cur].ViewLine
+        e.windows[left].CursorLine = e.windows[cur].CursorLine
+        e.windows[left].CursorX = e.windows[cur].CursorX
+        
+        // Put the left window's buffer in current window (or leave empty if it was the same)
+        if leftBuffer == currentBuffer {
+            e.windows[cur].Buffer = nil
+        } else {
+            e.windows[cur].Buffer = leftBuffer
+        }
+        e.windows[cur].ViewLine = 0
+        e.windows[cur].CursorLine = 0
+        e.windows[cur].CursorX = 0
+        
+        // Activate the left window
+        e.activateWindow(left)
+    }
+    
+    e.recomputeWindowsLayout()
     return nil
 }
 
-// moveBufferRight moves the active window's buffer into the immediate right window, if any
+// moveBufferRight moves the active window's buffer to the immediate right window,
+// creating a new window if none exists to the right
 func (e *Editor) moveBufferRight(args []string) error {
-    if len(e.windows) < 2 || e.activeWindow >= len(e.windows)-1 {
-        return nil
-    }
     cur := e.activeWindow
-    right := cur + 1
-    e.windows[right].Buffer = e.windows[cur].Buffer
-    e.windows[right].ViewLine = e.windows[cur].ViewLine
-    e.windows[right].CursorLine = e.windows[cur].CursorLine
-    e.windows[right].CursorX = e.windows[cur].CursorX
-    e.activateWindow(right)
+    currentBuffer := e.windows[cur].Buffer
+    
+    // If no window to the right, create one
+    if cur >= len(e.windows)-1 {
+        // Create new window to the right
+        newWin := newWindow(currentBuffer)
+        e.windows = append(e.windows, newWin)
+        
+        // Copy view state to new window
+        newWin.ViewLine = e.windows[cur].ViewLine
+        newWin.CursorLine = e.windows[cur].CursorLine
+        newWin.CursorX = e.windows[cur].CursorX
+        
+        // Leave current window empty
+        e.windows[cur].Buffer = nil
+        e.windows[cur].ViewLine = 0
+        e.windows[cur].CursorLine = 0
+        e.windows[cur].CursorX = 0
+        
+        // Activate the new right window
+        e.activateWindow(len(e.windows) - 1)
+    } else {
+        // Move to existing right window
+        right := cur + 1
+        
+        // Store the buffer from the right window (to swap if needed)
+        rightBuffer := e.windows[right].Buffer
+        
+        // Move current buffer to right window
+        e.windows[right].Buffer = currentBuffer
+        e.windows[right].ViewLine = e.windows[cur].ViewLine
+        e.windows[right].CursorLine = e.windows[cur].CursorLine
+        e.windows[right].CursorX = e.windows[cur].CursorX
+        
+        // Put the right window's buffer in current window (or leave empty if it was the same)
+        if rightBuffer == currentBuffer {
+            e.windows[cur].Buffer = nil
+        } else {
+            e.windows[cur].Buffer = rightBuffer
+        }
+        e.windows[cur].ViewLine = 0
+        e.windows[cur].CursorLine = 0
+        e.windows[cur].CursorX = 0
+        
+        // Activate the right window
+        e.activateWindow(right)
+    }
+    
+    e.recomputeWindowsLayout()
     return nil
 }
 
@@ -366,11 +452,28 @@ func (e *Editor) moveBufferCenter(args []string) error {
     if cur == center {
         return nil
     }
-    e.windows[center].Buffer = e.windows[cur].Buffer
+    
+    currentBuffer := e.windows[cur].Buffer
+    centerBuffer := e.windows[center].Buffer
+    
+    // Move current buffer to center window
+    e.windows[center].Buffer = currentBuffer
     e.windows[center].ViewLine = e.windows[cur].ViewLine
     e.windows[center].CursorLine = e.windows[cur].CursorLine
     e.windows[center].CursorX = e.windows[cur].CursorX
+    
+    // Put the center window's buffer in current window (or leave empty if it was the same)
+    if centerBuffer == currentBuffer {
+        e.windows[cur].Buffer = nil
+    } else {
+        e.windows[cur].Buffer = centerBuffer
+    }
+    e.windows[cur].ViewLine = 0
+    e.windows[cur].CursorLine = 0
+    e.windows[cur].CursorX = 0
+    
     e.activateWindow(center)
+    e.recomputeWindowsLayout()
     return nil
 }
 

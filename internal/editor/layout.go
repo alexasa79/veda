@@ -16,8 +16,8 @@ func (e *Editor) getVisibleHeight() int {
     if _, ok := e.screen.(*windowScreen); ok {
         return height
     }
-    // Terminal/internal buffers should not reserve extra lines for context/diagnostics/signature
-    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+    // Terminal/internal buffers or empty windows should not reserve extra lines for context/diagnostics/signature
+    if e.mode == commands.TerminalMode || e.buffer == nil || (e.buffer != nil && e.buffer.IsInternal) {
         // Reserve only the status bar line
         return height - 1
     }

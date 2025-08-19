@@ -116,7 +116,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 	// Calculate line start position once if we need it for flash highlighting
 	var lineStartPos int
-	if lineNum >= 0 && e.hasFlashHighlight() {
+	if lineNum >= 0 && e.buffer != nil && e.hasFlashHighlight() {
 		lineStartIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 		lineStartPos = lineStartIter.Position()
 	}
@@ -176,7 +176,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		// Virtual cursors store the logical column position (CursorX)
 		// We need to compare with the actual position in the line
 		// Only check for virtual cursors if we're rendering in the text area (not line numbers)
-		if screenX >= e.buffer.LineNumberWidth && lineNum >= 0 {
+		if e.buffer != nil && screenX >= e.buffer.LineNumberWidth && lineNum >= 0 {
 			for _, vc := range e.virtualCursors {
 				if vc.Y == lineNum && vc.X == charPosInLine {
 					hasVirtualCursor = true
@@ -187,7 +187,12 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 		// Check if this column is a ruler position (only in content area, not status bar)
 		// Calculate text column position (screenX minus line number width)
-		textColumn := screenX - e.buffer.LineNumberWidth
+		var textColumn int
+		if e.buffer != nil {
+			textColumn = screenX - e.buffer.LineNumberWidth
+		} else {
+			textColumn = screenX // For empty windows, assume no line numbers
+		}
 		isRulerColumn := false
 		if y != e.getStatusBarY() { // Don't apply ruler styling on status bar
 			for _, rulerPos := range e.config.VerticalRulers {
@@ -321,7 +326,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
     originalLine := iter.Line()  // Keep the original line for whitespace detection
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-	isCurrentLine := lineIndex == e.buffer.CursorIterator.LineNumber()
+	isCurrentLine := e.buffer != nil && lineIndex == e.buffer.CursorIterator.LineNumber()
 
 	// Find search matches in this line
 	searchMatches := e.findSearchMatches(originalLine)
@@ -606,7 +611,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	originalLine := iter.Line()
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-	isCurrentLine := lineIndex == e.buffer.CursorIterator.LineNumber()
+	isCurrentLine := e.buffer != nil && lineIndex == e.buffer.CursorIterator.LineNumber()
 
 	// Find search matches in the full line
 	searchMatches := e.findSearchMatches(originalLine)
@@ -1175,17 +1180,22 @@ func (e *Editor) drawStatusBar() {
 		x += e.drawText(x, statusBarY, modeStyle, modeText, 0, nil, -1, 0, -1)
 		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space after mode
 
-		// Show filename and modified indicator
-		filename := e.buffer.FileName()
-		x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil, -1, 0, -1)
+		// Show filename and modified indicator (only if buffer exists)
+		if e.buffer != nil {
+			filename := e.buffer.FileName()
+			x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil, -1, 0, -1)
 
-		// Add modified indicator if buffer is modified
-		if e.buffer.IsModified {
-			x += e.drawText(x, statusBarY, statusBarStyle, " [+]", 0, nil, -1, 0, -1)
+			// Add modified indicator if buffer is modified
+			if e.buffer.IsModified {
+				x += e.drawText(x, statusBarY, statusBarStyle, " [+]", 0, nil, -1, 0, -1)
+			}
+		} else {
+			// Show empty window indicator
+			x += e.drawText(x, statusBarY, statusBarStyle, "[empty window]", 0, nil, -1, 0, -1)
 		}
 		
-		// Add git branch and change counts
-		if e.buffer.GitBranch != "" {
+		// Add git branch and change counts (only if buffer exists)
+		if e.buffer != nil && e.buffer.GitBranch != "" {
 			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  %s", e.buffer.GitBranch), 0, nil, -1, 0, -1)
 
 			// Count added and deleted lines
@@ -1201,8 +1211,8 @@ func (e *Editor) drawStatusBar() {
 			}
 		}
 
-		// Add diagnostic counts if there are any
-		if e.buffer.Diagnostics != nil && len(e.buffer.Diagnostics) > 0 {
+		// Add diagnostic counts if there are any (only if buffer exists)
+		if e.buffer != nil && e.buffer.Diagnostics != nil && len(e.buffer.Diagnostics) > 0 {
 			errorCount := 0
 			warningCount := 0
 			
@@ -1241,8 +1251,8 @@ func (e *Editor) drawStatusBar() {
 			}
 		}
 
-		// Add LSP indicator if LSP is available
-		if e.buffer.HasLSP {
+		// Add LSP indicator if LSP is available (only if buffer exists)
+		if e.buffer != nil && e.buffer.HasLSP {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1)
 		}
 
@@ -1298,74 +1308,116 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, referencesHighlightStyle, referencesText, 0, nil, -1, 0, -1)
 		}
 
-		// Right side: indentation and line:col
+		// Right side: indentation and line:col (only if buffer exists)
 
-		// Use visual column position for display (accounting for tabs)
-		visualCol := 1
-		if !e.buffer.CursorIterator.IsEOF() {
-			line := e.buffer.CursorIterator.Line()
-			if e.buffer.CursorX <= len(line) {
-				visualCol = e.visualWidth(line[:e.buffer.CursorX]) + 1
+		var rightSideInfo string
+		if e.buffer != nil {
+			// Use visual column position for display (accounting for tabs)
+			visualCol := 1
+			if !e.buffer.CursorIterator.IsEOF() {
+				line := e.buffer.CursorIterator.Line()
+				if e.buffer.CursorX <= len(line) {
+					visualCol = e.visualWidth(line[:e.buffer.CursorX]) + 1
+				}
 			}
-		}
 
-		// Combine indentation info and line:col
-		var indentInfo string
-		if e.buffer.Indentation.Type == config.IndentTabs {
-			indentInfo = "Tabs"
-		} else {
-			indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
-		}
-
-		// Get current line indentation info
-		lineIndent := e.getCurrentLineIndentInfo(e.buffer.CursorIterator)
-		var lineIndentDisplay string
-		if lineIndent.Level > 0 {
-			lineIndentDisplay = fmt.Sprintf("L%d", lineIndent.Level)
-			if lineIndent.IsContinuation {
-				lineIndentDisplay += "+C"
+			// Combine indentation info and line:col
+			var indentInfo string
+			if e.buffer.Indentation.Type == config.IndentTabs {
+				indentInfo = "Tabs"
+			} else {
+				indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
 			}
-		} else {
-			lineIndentDisplay = "L0"
-		}
 
-		// Get current line length
-		currentLine := ""
-		if !e.buffer.CursorIterator.IsEOF() {
-			currentLine = e.buffer.CursorIterator.Line()
+			// Get current line indentation info
+			lineIndent := e.getCurrentLineIndentInfo(e.buffer.CursorIterator)
+			var lineIndentDisplay string
+			if lineIndent.Level > 0 {
+				lineIndentDisplay = fmt.Sprintf("L%d", lineIndent.Level)
+				if lineIndent.IsContinuation {
+					lineIndentDisplay += "+C"
+				}
+			} else {
+				lineIndentDisplay = "L0"
+			}
+
+			// Get current line length
+			currentLine := ""
+			if !e.buffer.CursorIterator.IsEOF() {
+				currentLine = e.buffer.CursorIterator.Line()
+			}
+			lineLength := len(currentLine)
+
+			// Build line info with mixed styles
+			// Format: "40/65:1/16 [1234]"
+			currentLineNum := e.buffer.CursorIterator.LineNumber() + 1
+			totalLines := e.buffer.LineCount
+
+			// Calculate the full right info for positioning
+			rightSideInfo = fmt.Sprintf("%s  %s  %d/%d:%d/%d [%d]  ",
+				indentInfo, lineIndentDisplay,
+				currentLineNum, totalLines,
+				visualCol, lineLength,
+				e.getAbsolutePosition())
+		} else {
+			// Empty window - no position info
+			rightSideInfo = ""
 		}
-		lineLength := len(currentLine)
 
 		// Get subdued style for total counts (without bold)
 		subduedStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBarSubdued)
 
-		// Build line info with mixed styles
-		// Format: "40/65:1/16 [1234]"
-		currentLineNum := e.buffer.CursorIterator.LineNumber() + 1
-		totalLines := e.buffer.LineCount
-
-		// Calculate the full right info for positioning
-		fullRightInfo := fmt.Sprintf("%s  %s  %d/%d:%d/%d [%d]  ",
-			indentInfo, lineIndentDisplay,
-			currentLineNum, totalLines,
-			visualCol, lineLength,
-			e.getAbsolutePosition())
-
 		// Calculate position for right-aligned text
-		rightX := width - len(fullRightInfo)
+		rightX := width - len(rightSideInfo)
 
-		if rightX > x { // Only draw if there's space
-			// Draw each part separately with appropriate styles
-			x = rightX
-			x += e.drawText(x, statusBarY, statusBarStyle, indentInfo+"  ", 0, nil, -1, 0, -1)
-			x += e.drawText(x, statusBarY, statusBarStyle, lineIndentDisplay+"  ", 0, nil, -1, 0, -1)
+		if rightX > x && rightSideInfo != "" { // Only draw if there's space and info to show
+			// For empty windows, we already set rightSideInfo to "", so this won't draw
+			if e.buffer != nil {
+				// Draw each part separately with appropriate styles
+				x = rightX
+				indentInfo := ""
+				if e.buffer.Indentation.Type == config.IndentTabs {
+					indentInfo = "Tabs"
+				} else {
+					indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
+				}
+				
+				lineIndent := e.getCurrentLineIndentInfo(e.buffer.CursorIterator)
+				lineIndentDisplay := ""
+				if lineIndent.Level > 0 {
+					lineIndentDisplay = fmt.Sprintf("L%d", lineIndent.Level)
+					if lineIndent.IsContinuation {
+						lineIndentDisplay += "+C"
+					}
+				} else {
+					lineIndentDisplay = "L0"
+				}
+				
+				x += e.drawText(x, statusBarY, statusBarStyle, indentInfo+"  ", 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, statusBarStyle, lineIndentDisplay+"  ", 0, nil, -1, 0, -1)
 
-			// Line info with mixed styles
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", currentLineNum), 0, nil, -1, 0, -1)
-			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", totalLines), 0, nil, -1, 0, -1)
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(":%d", visualCol), 0, nil, -1, 0, -1)
-			x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", lineLength), 0, nil, -1, 0, -1)
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil, -1, 0, -1)
+				// Line info with mixed styles
+				currentLineNum := e.buffer.CursorIterator.LineNumber() + 1
+				totalLines := e.buffer.LineCount
+				visualCol := 1
+				if !e.buffer.CursorIterator.IsEOF() {
+					line := e.buffer.CursorIterator.Line()
+					if e.buffer.CursorX <= len(line) {
+						visualCol = e.visualWidth(line[:e.buffer.CursorX]) + 1
+					}
+				}
+				currentLine := ""
+				if !e.buffer.CursorIterator.IsEOF() {
+					currentLine = e.buffer.CursorIterator.Line()
+				}
+				lineLength := len(currentLine)
+				
+				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", currentLineNum), 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", totalLines), 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(":%d", visualCol), 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", lineLength), 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil, -1, 0, -1)
+			}
 		}
 	}
 }
@@ -1402,9 +1454,10 @@ func (e *Editor) drawErrorLine() {
         return
     }
 
-    // Otherwise, show diagnostic for cursor line persistently
-    cursorLine := e.buffer.CursorIterator.LineNumber() + 1
-    if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+    // Otherwise, show diagnostic for cursor line persistently (only if buffer exists)
+    if e.buffer != nil {
+        cursorLine := e.buffer.CursorIterator.LineNumber() + 1
+        if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
         var style ui.Style
         switch diag.Severity {
         case "error":
@@ -1460,11 +1513,17 @@ func (e *Editor) drawErrorLine() {
             
             e.drawText(0, bannerY, style, " "+cleanLine+" ", 0, nil, -1, 0, -1)
         }
+        }
     }
 }
 
 // drawSignature renders the function signature above the status bar
 func (e *Editor) drawSignature() {
+	// Skip if no buffer
+	if e.buffer == nil {
+		return
+	}
+	
 	LL.Trace("Drawing signature %v", e.buffer.CurrentSignature)
 	if e.buffer.CurrentSignature == nil {
 		return
@@ -1632,5 +1691,56 @@ func max(a, b int) int {
         return a
     }
     return b
+}
+
+// drawEmptyWindow renders an empty window with visible boundaries
+func (e *Editor) drawEmptyWindow(screen Screen, isActive bool) {
+    width, height := screen.Size()
+    
+    // Get styles for empty window
+    normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+    borderStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
+    
+    // Fill the entire window area with normal background
+    for y := 0; y < height; y++ {
+        for x := 0; x < width; x++ {
+            screen.SetContent(x, y, ' ', nil, normalStyle)
+        }
+    }
+    
+    // Draw right border for window separation (vertical line)
+    if width > 0 {
+        for y := 0; y < height; y++ {
+            screen.SetContent(width-1, y, '│', nil, borderStyle)
+        }
+    }
+    
+    // Draw a subtle indicator in the middle for empty window
+    if width > 10 && height > 5 {
+        centerX := width / 2
+        centerY := height / 2
+        
+        // Draw a small empty window indicator
+        text := "[empty]"
+        startX := centerX - len(text)/2
+        if startX >= 0 && startX+len(text) < width {
+            for i, ch := range text {
+                if startX+i < width-1 { // Don't overwrite the border
+                    screen.SetContent(startX+i, centerY, ch, nil, borderStyle)
+                }
+            }
+        }
+    }
+    
+    // Show cursor in center of empty window if it's active
+    if isActive && width > 2 && height > 0 {
+        centerX := width / 2
+        centerY := height / 2
+        // Position cursor to not overlap with border
+        if centerX >= width-1 {
+            centerX = width - 2
+        }
+        screen.ShowCursor(centerX, centerY)
+    }
 }
 
