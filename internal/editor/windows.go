@@ -18,6 +18,11 @@ type Window struct {
     ViewLine   int // Top visible logical line number
     CursorLine int // Cursor logical line number
     CursorX    int // Cursor X within the line
+    
+    // Per-window buffer management
+    Buffers     map[string]*buffer.Buffer // Buffers open in this window (path -> buffer)
+    BufferOrder []string                   // Order of buffers for cycling within this window
+    ActiveBufferIndex int                  // Index in BufferOrder of the currently active buffer
 }
 
 // windowScreen clips drawing to a window region and can dim output for inactive windows.
@@ -236,7 +241,7 @@ func (e *Editor) vsplit(args []string) error {
 
     // Insert new window to the right of the active window
     insertAt := e.activeWindow + 1
-    newWin := &Window{Buffer: rightBuf, ViewLine: 0, CursorLine: 0, CursorX: 0}
+    newWin := newWindow(rightBuf)
     if insertAt >= len(e.windows) {
         e.windows = append(e.windows, newWin)
     } else {
@@ -356,5 +361,170 @@ func (e *Editor) moveBufferCenter(args []string) error {
     e.windows[center].CursorLine = e.windows[cur].CursorLine
     e.windows[center].CursorX = e.windows[cur].CursorX
     e.activateWindow(center)
+    return nil
+}
+
+// newWindow creates a new window with initialized buffer management
+func newWindow(buf *buffer.Buffer) *Window {
+    window := &Window{
+        Buffer:         buf,
+        ViewLine:       0,
+        CursorLine:     0,
+        CursorX:        0,
+        Buffers:        make(map[string]*buffer.Buffer),
+        BufferOrder:    []string{},
+        ActiveBufferIndex: 0,
+    }
+    
+    // Add the initial buffer to the window
+    if buf != nil {
+        window.Buffers[buf.FilePath] = buf
+        window.BufferOrder = []string{buf.FilePath}
+    }
+    
+    return window
+}
+
+// addBufferToWindow adds a buffer to a window's buffer list
+func (w *Window) addBuffer(buf *buffer.Buffer) {
+    if buf == nil {
+        return
+    }
+    
+    path := buf.FilePath
+    
+    // If buffer is already in this window, just switch to it
+    if _, exists := w.Buffers[path]; exists {
+        w.switchToBuffer(path)
+        return
+    }
+    
+    // Add buffer to window
+    w.Buffers[path] = buf
+    w.BufferOrder = append(w.BufferOrder, path)
+    
+    // Switch to the new buffer
+    w.ActiveBufferIndex = len(w.BufferOrder) - 1
+    w.Buffer = buf
+}
+
+// removeBufferFromWindow removes a buffer from a window's buffer list
+func (w *Window) removeBuffer(path string) bool {
+    if _, exists := w.Buffers[path]; !exists {
+        return false
+    }
+    
+    // Remove from buffers map
+    delete(w.Buffers, path)
+    
+    // Remove from buffer order
+    for i, p := range w.BufferOrder {
+        if p == path {
+            w.BufferOrder = append(w.BufferOrder[:i], w.BufferOrder[i+1:]...)
+            break
+        }
+    }
+    
+    // Adjust active buffer index
+    if len(w.BufferOrder) == 0 {
+        // No more buffers in this window
+        w.ActiveBufferIndex = 0
+        w.Buffer = nil
+        return true // Window should be closed
+    }
+    
+    // If we removed the active buffer, switch to another one
+    if w.ActiveBufferIndex >= len(w.BufferOrder) {
+        w.ActiveBufferIndex = len(w.BufferOrder) - 1
+    }
+    
+    // Set the new active buffer
+    newPath := w.BufferOrder[w.ActiveBufferIndex]
+    w.Buffer = w.Buffers[newPath]
+    
+    return false // Window still has buffers
+}
+
+// switchToBuffer switches to a buffer within the window
+func (w *Window) switchToBuffer(path string) bool {
+    if _, exists := w.Buffers[path]; !exists {
+        return false
+    }
+    
+    // Find the buffer in the order
+    for i, p := range w.BufferOrder {
+        if p == path {
+            w.ActiveBufferIndex = i
+            w.Buffer = w.Buffers[path]
+            return true
+        }
+    }
+    
+    return false
+}
+
+// getNextBuffer gets the next buffer in the window's buffer order
+func (w *Window) getNextBuffer() *buffer.Buffer {
+    if len(w.BufferOrder) <= 1 {
+        return w.Buffer
+    }
+    
+    nextIndex := (w.ActiveBufferIndex + 1) % len(w.BufferOrder)
+    w.ActiveBufferIndex = nextIndex
+    nextPath := w.BufferOrder[nextIndex]
+    w.Buffer = w.Buffers[nextPath]
+    return w.Buffer
+}
+
+// getPreviousBuffer gets the previous buffer in the window's buffer order
+func (w *Window) getPreviousBuffer() *buffer.Buffer {
+    if len(w.BufferOrder) <= 1 {
+        return w.Buffer
+    }
+    
+    prevIndex := w.ActiveBufferIndex - 1
+    if prevIndex < 0 {
+        prevIndex = len(w.BufferOrder) - 1
+    }
+    w.ActiveBufferIndex = prevIndex
+    prevPath := w.BufferOrder[prevIndex]
+    w.Buffer = w.Buffers[prevPath]
+    return w.Buffer
+}
+
+// closeWindow removes a window and adjusts the active window index
+func (e *Editor) closeWindow(windowIndex int) error {
+    if windowIndex < 0 || windowIndex >= len(e.windows) {
+        return nil
+    }
+    
+    // Don't close the last window
+    if len(e.windows) <= 1 {
+        return nil
+    }
+    
+    // Remove the window from the slice
+    e.windows = append(e.windows[:windowIndex], e.windows[windowIndex+1:]...)
+    
+    // Adjust active window index
+    if e.activeWindow >= windowIndex {
+        e.activeWindow--
+        if e.activeWindow < 0 {
+            e.activeWindow = 0
+        }
+    }
+    
+    // Make sure we have a valid active window
+    if e.activeWindow >= len(e.windows) {
+        e.activeWindow = len(e.windows) - 1
+    }
+    
+    // Update the editor's current buffer to match the new active window
+    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+        if e.windows[e.activeWindow] != nil {
+            e.buffer = e.windows[e.activeWindow].Buffer
+        }
+    }
+    
     return nil
 }
