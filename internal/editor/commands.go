@@ -119,6 +119,8 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious, false)
 	e.commandRegistry.Register("show-buffer-list-previous", e.showBufferListWithPrevious, false) // More descriptive alias
 	e.commandRegistry.Register("new-buffer", e.newBuffer, false)                                 // Create a new empty buffer
+	e.commandRegistry.Register("next-buffer", e.nextBufferInWindow, false)                      // Switch to next buffer in current window
+	e.commandRegistry.Register("previous-buffer", e.previousBufferInWindow, false)              // Switch to previous buffer in current window
 
 	// Symbol commands
 	e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd, false)

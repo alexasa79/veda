@@ -327,7 +327,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	}
 
     // Initialize windows with a single window for the initial buffer (always have a window)
-    editor.windows = []*Window{{Buffer: initialBuffer, ViewLine: 0, CursorLine: 0, CursorX: 0}}
+    editor.windows = []*Window{newWindow(initialBuffer)}
     editor.activeWindow = 0
     editor.recomputeWindowsLayout()
 
@@ -2616,10 +2616,10 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
     // Create a new window to the right and open the file there
     insertAt := e.activeWindow + 1
     if insertAt >= len(e.windows) {
-        e.windows = append(e.windows, &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0})
+        e.windows = append(e.windows, newWindow(e.buffer))
     } else {
         e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-        e.windows[insertAt] = &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0}
+        e.windows[insertAt] = newWindow(e.buffer)
     }
     e.activateWindow(insertAt)
 

@@ -42,10 +42,10 @@ func (e *Editor) openMarkdownLinkInNewWindow(args []string) error {
         insertAt := e.activeWindow + 1
         oldActive := e.activeWindow
         if insertAt >= len(e.windows) {
-            e.windows = append(e.windows, &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0})
+            e.windows = append(e.windows, newWindow(e.buffer))
         } else {
             e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-            e.windows[insertAt] = &Window{Buffer: e.buffer, ViewLine: 0, CursorLine: 0, CursorX: 0}
+            e.windows[insertAt] = newWindow(e.buffer)
         }
         e.recomputeWindowsLayout()
         e.lastWindow = oldActive
