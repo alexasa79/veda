@@ -66,8 +66,10 @@ func TestTerminalProxyColorSGR(t *testing.T) {
     // Expect 'R' at (col=9,row=9) zero-based
     x, y := 9, 9
     fg, _, attrs := te.StyleAt(x, y)
-    if fg != ui.ColorRed {
-        t.Fatalf("expected red at (%d,%d), got fg=%v", x, y, fg)
+    // SGR code 31 (red) should be stored as NewSGRColor(31)
+    expectedRed := ui.NewSGRColor(31)
+    if fg != expectedRed {
+        t.Fatalf("expected SGR red (31) at (%d,%d), got fg=%v (expected %v)", x, y, fg, expectedRed)
     }
     if attrs != ui.AttrNone && (attrs&ui.AttrBold) == 0 { // allow bold or none
         t.Fatalf("unexpected attrs at (%d,%d): %v", x, y, attrs)

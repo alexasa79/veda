@@ -23,38 +23,39 @@ func TestTerminalEmulatorSGRColors(t *testing.T) {
             t.Fatalf("at (%d,%d) attrs=%v want has %v", x, y, attrs, wantAttr)
         }
     }
-    // 'u' in user at x=0
-    chk(0, 0, ui.ColorWhite, ui.AttrBold)
+    // 'u' in user at x=0 - should be SGR white (37) with bold
+    chk(0, 0, ui.NewSGRColor(37), ui.AttrBold)
     // space after user should be default
     fg, bg, attrs := te.StyleAt(4, 0)
     if fg != ui.ColorDefault || attrs != ui.AttrNone || bg != ui.ColorDefault {
         t.Fatalf("space after user not default: fg=%v bg=%v attrs=%v", fg, bg, attrs)
     }
-    // '@' in @host should be yellow; find first '@'
+    // '@' in @host should be SGR yellow (33); find first '@'
     atX := -1
     for x := 0; x < 80; x++ {
         // locate by rune scan in Render text to be precise
         if r := te.cells[te.index(x, 0)]; r == '@' { atX = x; break }
     }
     if atX == -1 { t.Fatalf("did not find '@' on line 0") }
-    chk(atX, 0, ui.ColorYellow, ui.AttrNone)
-    // '~' in path should be blue; find first '~'
+    chk(atX, 0, ui.NewSGRColor(33), ui.AttrNone)
+    // '~' in path should be SGR blue (34); find first '~'
     tildeX := -1
     for x := 0; x < 80; x++ {
         if r := te.cells[te.index(x, 0)]; r == '~' { tildeX = x; break }
     }
     if tildeX == -1 { t.Fatalf("did not find '~' on line 0") }
-    chk(tildeX, 0, ui.ColorBlue, ui.AttrNone)
-    // 'm' in main should be magenta somewhere
+    chk(tildeX, 0, ui.NewSGRColor(34), ui.AttrNone)
+    // 'm' in main should be SGR magenta (35) somewhere
+    expectedMagenta := ui.NewSGRColor(35)
     foundMagenta := false
     for x := 0; x < 80; x++ {
         fg, _, _ := te.StyleAt(x, 0)
-        if fg == ui.ColorMagenta {
+        if fg == expectedMagenta {
             foundMagenta = true
             break
         }
     }
     if !foundMagenta {
-        t.Fatalf("expected to find magenta in line for branch name")
+        t.Fatalf("expected to find SGR magenta (35) in line for branch name")
     }
 }
