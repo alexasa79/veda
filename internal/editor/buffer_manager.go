@@ -89,15 +89,22 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	}
 }
 
+// findWindowContainingBuffer returns the window index that contains the given buffer path
+func (e *Editor) findWindowContainingBuffer(bufferPath string) int {
+	for i, window := range e.windows {
+		if window != nil {
+			if _, exists := window.Buffers[bufferPath]; exists {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
 // showBuffers shows the buffer list using the fuzzy list widget
 func (e *Editor) showBuffers(args []string) error {
-	// Get buffers from current window
-	var currentWindow *Window
-	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
-		currentWindow = e.windows[e.activeWindow]
-	}
-	
-	if currentWindow == nil || len(currentWindow.Buffers) == 0 {
+	// Check if we have any windows at all
+	if len(e.windows) == 0 {
 		return nil
 	}
 
@@ -110,24 +117,39 @@ func (e *Editor) showBuffers(args []string) error {
 	fuzzyListY := (height - fuzzyListHeight) / 2
 
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
-	fuzzyListWidget.SetTitle("Buffers in Current Window")
+	fuzzyListWidget.SetTitle("All Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 
-	// Create list of buffer display names from current window
+	// Create list of buffer display names from all windows
 	var bufferDisplays []string
 	pathToDisplay := make(map[string]string)
+	pathToWindow := make(map[string]int) // Maps buffer path to window index
+	seenBuffers := make(map[string]bool) // Track already seen buffers to avoid duplicates
 
-	for _, path := range currentWindow.BufferOrder {
-		if buf, exists := currentWindow.Buffers[path]; exists {
-			displayName := buf.DisplayName()
-			if path == e.buffer.FilePath {
-				// Mark current buffer
-				bufferDisplays = append(bufferDisplays, displayName+" [current]")
-			} else {
-				bufferDisplays = append(bufferDisplays, displayName)
+	// Collect buffers from all windows
+	for windowIdx, window := range e.windows {
+		if window == nil {
+			continue
+		}
+		for _, path := range window.BufferOrder {
+			if buf, exists := window.Buffers[path]; exists && !seenBuffers[path] {
+				seenBuffers[path] = true
+				pathToWindow[path] = windowIdx
+				
+				displayName := buf.DisplayName()
+				windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
+				
+				var fullDisplayName string
+				if path == e.buffer.FilePath {
+					// Mark current buffer
+					fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
+				} else {
+					fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
+				}
+				
+				bufferDisplays = append(bufferDisplays, fullDisplayName)
+				pathToDisplay[fullDisplayName] = path
 			}
-			pathToDisplay[displayName+" [current]"] = path
-			pathToDisplay[displayName] = path
 		}
 	}
 
@@ -148,19 +170,19 @@ func (e *Editor) showBuffers(args []string) error {
                 openInNewWin = true
                 selection = strings.TrimPrefix(selection, "__SHIFT__\n")
             }
-			// Remove the " [current]" suffix if present
-			selection = strings.TrimSuffix(selection, " [current]")
 
 			// Save current buffer state before switching
 			e.saveCurrentBufferState()
 
 			// Look up the actual path from the display name
 			if path, ok := pathToDisplay[selection]; ok {
-                // Switch to selected buffer
-                if buf, exists := currentWindow.Buffers[path]; exists {
-                    if openInNewWin {
-                        // Create a new window to the right and assign buffer
-                        insertAt := e.activeWindow + 1
+                // Find which window contains this buffer
+                targetWindowIdx := pathToWindow[path]
+                
+                if openInNewWin {
+                    // Create a new window to the right and assign buffer
+                    insertAt := e.activeWindow + 1
+                    if buf, exists := e.buffers[path]; exists {
                         newWin := newWindow(buf)
                         if insertAt >= len(e.windows) {
                             e.windows = append(e.windows, newWin)
@@ -170,8 +192,19 @@ func (e *Editor) showBuffers(args []string) error {
                         }
                         e.activateWindow(insertAt)
                         e.switchToBuffer(buf)
-                    } else {
-                        e.switchToBuffer(buf)
+                    }
+                } else {
+                    // Switch to the window containing the buffer and then to the buffer
+                    if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
+                        targetWindow := e.windows[targetWindowIdx]
+                        if targetWindow != nil {
+                            if buf, exists := targetWindow.Buffers[path]; exists {
+                                // Activate the target window (this will call switchToBuffer automatically)
+                                e.activateWindow(targetWindowIdx)
+                                // Make sure we're on the right buffer within that window
+                                e.switchToBuffer(buf)
+                            }
+                        }
                     }
                 }
 			}
@@ -283,13 +316,8 @@ func (e *Editor) previousBufferInWindow(args []string) error {
 // showBufferListWithPrevious shows the buffer list with cursor on the previous buffer
 // This replaces the old switchToPreviousBuffer functionality
 func (e *Editor) showBufferListWithPrevious(args []string) error {
-	// Get buffers from current window
-	var currentWindow *Window
-	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
-		currentWindow = e.windows[e.activeWindow]
-	}
-	
-	if currentWindow == nil || len(currentWindow.Buffers) == 0 {
+	// Check if we have any windows at all
+	if len(e.windows) == 0 {
 		return nil
 	}
 
@@ -302,28 +330,44 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 	fuzzyListY := (height - fuzzyListHeight) / 2
 
 	fuzzyListWidget := widgets.NewFuzzyListWidget(fuzzyListX, fuzzyListY, fuzzyListWidth, fuzzyListHeight, e.config.Theme)
-	fuzzyListWidget.SetTitle("Buffers in Current Window")
+	fuzzyListWidget.SetTitle("All Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 
-	// Create list of buffer display names
+	// Create list of buffer display names from all windows
 	var bufferDisplays []string
 	pathToDisplay := make(map[string]string)
+	pathToWindow := make(map[string]int) // Maps buffer path to window index
+	seenBuffers := make(map[string]bool) // Track already seen buffers to avoid duplicates
 	previousBufferIndex := -1
 
-	for _, path := range currentWindow.BufferOrder {
-		if buf, exists := currentWindow.Buffers[path]; exists {
-			displayName := buf.DisplayName()
-			if path == e.buffer.FilePath {
-				// Mark current buffer
-				bufferDisplays = append(bufferDisplays, displayName+" [current]")
-			} else {
-				bufferDisplays = append(bufferDisplays, displayName)
-				// Track the previous buffer's index
-				if e.previousBuffer != nil && path == e.previousBuffer.FilePath {
-					previousBufferIndex = len(bufferDisplays) - 1
+	// Collect buffers from all windows
+	for windowIdx, window := range e.windows {
+		if window == nil {
+			continue
+		}
+		for _, path := range window.BufferOrder {
+			if buf, exists := window.Buffers[path]; exists && !seenBuffers[path] {
+				seenBuffers[path] = true
+				pathToWindow[path] = windowIdx
+				
+				displayName := buf.DisplayName()
+				windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
+				
+				var fullDisplayName string
+				if path == e.buffer.FilePath {
+					// Mark current buffer
+					fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
+				} else {
+					fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
+					// Track the previous buffer's index
+					if e.previousBuffer != nil && path == e.previousBuffer.FilePath {
+						previousBufferIndex = len(bufferDisplays)
+					}
 				}
+				
+				bufferDisplays = append(bufferDisplays, fullDisplayName)
+				pathToDisplay[fullDisplayName] = path
 			}
-			pathToDisplay[displayName] = path
 		}
 	}
 
@@ -352,19 +396,19 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 				openInNewWin = true
 				selection = strings.TrimPrefix(selection, "__SHIFT__\n")
 			}
-			// Remove the " [current]" suffix if present
-			selection = strings.TrimSuffix(selection, " [current]")
 
 			// Save current buffer state before switching
 			e.saveCurrentBufferState()
 
 			// Look up the actual path from the display name
 			if path, ok := pathToDisplay[selection]; ok {
-				// Switch to selected buffer
-				if buf, exists := currentWindow.Buffers[path]; exists {
-					if openInNewWin {
-						// Create a new window to the right and assign buffer
-						insertAt := e.activeWindow + 1
+				// Find which window contains this buffer
+				targetWindowIdx := pathToWindow[path]
+				
+				if openInNewWin {
+					// Create a new window to the right and assign buffer
+					insertAt := e.activeWindow + 1
+					if buf, exists := e.buffers[path]; exists {
 						newWin := newWindow(buf)
 						if insertAt >= len(e.windows) {
 							e.windows = append(e.windows, newWin)
@@ -374,8 +418,19 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 						}
 						e.activateWindow(insertAt)
 						e.switchToBuffer(buf)
-					} else {
-						e.switchToBuffer(buf)
+					}
+				} else {
+					// Switch to the window containing the buffer and then to the buffer
+					if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
+						targetWindow := e.windows[targetWindowIdx]
+						if targetWindow != nil {
+							if buf, exists := targetWindow.Buffers[path]; exists {
+								// Activate the target window (this will call switchToBuffer automatically)
+								e.activateWindow(targetWindowIdx)
+								// Make sure we're on the right buffer within that window
+								e.switchToBuffer(buf)
+							}
+						}
 					}
 				}
 			}
