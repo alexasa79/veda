@@ -107,6 +107,9 @@ func (e *Editor) getCommandDescriptions() map[string]string {
         // Terminal
         "term":                       "open terminal",
         "term-new-window":            "open terminal (new window)",
+        
+        // Buffer management
+        "q":                          "close buffer",
 	}
 }
 

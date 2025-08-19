@@ -88,7 +88,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space s b    - Show open buffers\n")
 	helpText.WriteString("  (Enter switches in current window; Shift+Enter opens buffer in a new split)\n")
 	helpText.WriteString("Space Space  - Show buffers (cursor on previous)\n")
-	helpText.WriteString("  (Enter switches in current window; Shift+Enter opens buffer in a new split)\n\n")
+	helpText.WriteString("  (Enter switches in current window; Shift+Enter opens buffer in a new split)\n")
+	helpText.WriteString("Space x      - Close current buffer\n\n")
 
     helpText.WriteString("= Info =\n")
 	helpText.WriteString("Ctrl+G       - Show current file info (temporary banner)\n\n")
@@ -112,9 +113,9 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("gt           - Show git changes in project\n")
 	helpText.WriteString("gn           - Go to next reference (when references are found)\n")
 	helpText.WriteString("gp           - Go to previous reference (when references are found)\n")
-	helpText.WriteString("Space s w    - List project symbols\n")
+	helpText.WriteString("s w          - List project symbols\n")
 	helpText.WriteString("  (Enter opens in current window; Shift+Enter opens in a new split)\n")
-	helpText.WriteString("Space s d    - List document symbols\n\n")
+	helpText.WriteString("s d          - List document symbols\n\n")
 	
 	helpText.WriteString("= Calculator =\n")
 	helpText.WriteString("- -          - Calculate expression and append result (e.g., 2+2 → 4)\n")
