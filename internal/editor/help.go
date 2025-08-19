@@ -101,7 +101,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space tab    - Switch to next window\n")
 	helpText.WriteString("Space w left - Move buffer to left window\n")
 	helpText.WriteString("Space w right - Move buffer to right window\n")
-	helpText.WriteString("Space w c    - Move buffer to center window\n\n")
+	helpText.WriteString("Space w c    - Move buffer to center window\n")
+	helpText.WriteString("Space w x    - Close current window\n\n")
 	
 	helpText.WriteString("= Code Navigation =\n")
 	helpText.WriteString("gd           - Go to definition (requires LSP)\n")

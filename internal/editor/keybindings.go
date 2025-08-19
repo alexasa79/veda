@@ -126,6 +126,7 @@ func (e *Editor) setupDefaultBindings() {
     e.registerKeyBinding(commands.NormalMode, "space w left", "move-buffer-left")
     e.registerKeyBinding(commands.NormalMode, "space w right", "move-buffer-right")
     e.registerKeyBinding(commands.NormalMode, "space w c", "move-buffer-center")
+    e.registerKeyBinding(commands.NormalMode, "space w x", "close-window")
 
 	// Symbol operations
 	e.registerKeyBinding(commands.NormalMode, "s w", "list-project-symbols")
