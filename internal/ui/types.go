@@ -15,7 +15,9 @@ type Color int32
 const (
 	// ColorDefault is the default color
 	ColorDefault Color = -1
-	
+)
+
+const (
 	// Basic colors (0-15)
 	ColorBlack Color = iota
 	ColorRed
