@@ -172,7 +172,7 @@ func TestGetAvailableKeyHints(t *testing.T) {
 		}
 	})
 	
-	t.Run("key hint behavior for space and space m", func(t *testing.T) {
+	t.Run("key hint behavior for space and space w", func(t *testing.T) {
 		te := NewTestEditor(80, 24)
 		commandDescs := te.getCommandDescriptions()
 		categoryDescs := te.getCategoryDescriptions()
@@ -184,26 +184,26 @@ func TestGetAvailableKeyHints(t *testing.T) {
 		t.Logf("After pressing 'space', found %d hints:", len(spaceHints))
 		for i, hint := range spaceHints {
 			t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
-			if hint.Key == "m" && hint.Description != "window management" {
-				t.Errorf("Expected 'm' key to have 'window management' description, got '%s'", hint.Description)
+			if hint.Key == "w" && hint.Description != "window management" {
+				t.Errorf("Expected 'w' key to have 'window management' description, got '%s'", hint.Description)
 			}
 		}
 		
-		// Test what happens when you press "space m"
-		spaceMSeq := []commands.Key{
+		// Test what happens when you press "space w"
+		spaceWSeq := []commands.Key{
 			{Key: events.KeyRune, Rune: ' '},
-			{Key: events.KeyRune, Rune: 'm'},
+			{Key: events.KeyRune, Rune: 'w'},
 		}
-		spaceMHints := widgets.GetAvailableKeyHints(te.keyMapper, spaceMSeq, commands.NormalMode, commandDescs, categoryDescs)
+		spaceWHints := widgets.GetAvailableKeyHints(te.keyMapper, spaceWSeq, commands.NormalMode, commandDescs, categoryDescs)
 		
-		t.Logf("After pressing 'space m', found %d hints:", len(spaceMHints))
-		for i, hint := range spaceMHints {
+		t.Logf("After pressing 'space w', found %d hints:", len(spaceWHints))
+		for i, hint := range spaceWHints {
 			t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
 		}
 		
 		// The individual commands should have specific descriptions (not "window management")
-		if len(spaceMHints) > 0 {
-			for _, hint := range spaceMHints {
+		if len(spaceWHints) > 0 {
+			for _, hint := range spaceWHints {
 				if hint.Description == "window management" {
 					t.Errorf("Individual command '%s' should not have generic 'window management' description", hint.Key)
 				}

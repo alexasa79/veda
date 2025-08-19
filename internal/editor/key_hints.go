@@ -113,7 +113,7 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 // getCategoryDescriptions returns a map of partial key sequences to category descriptions
 func (e *Editor) getCategoryDescriptions() map[string]string {
 	return map[string]string{
-		"space m":   "window management",
+		"space w":   "window management",
 		"g space":   "go with new window", 
 		"g space d": "go to definition",
 	}
