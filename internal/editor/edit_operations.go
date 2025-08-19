@@ -294,6 +294,11 @@ func (e *Editor) insertChar(ch rune) error {
 	// Auto-pairing feature has been disabled
 	// Simply insert the character without any pairing or skipping logic
 
+	// Skip if no buffer (empty window)
+	if e.buffer == nil {
+		return nil
+	}
+
 	// Reset desired column when inserting text
 	e.desiredColumn = -1
 	

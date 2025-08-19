@@ -595,8 +595,13 @@ func (e *Editor) getUnsavedBuffers() []string {
 
 // quitWithWarning handles :q and :quit commands with unsaved change warnings
 func (e *Editor) quitWithWarning(args []string, force bool) error {
+	// Ignore quit command in empty windows
+	if e.buffer == nil {
+		return nil
+	}
+	
 	// Check if current buffer has unsaved changes
-	if !force && e.buffer != nil && e.buffer.IsModified && e.buffer.HasFile() && !e.buffer.IsInternal {
+	if !force && e.buffer.IsModified && e.buffer.HasFile() && !e.buffer.IsInternal {
 		return e.showUnsavedBufferDialog(e.buffer.FileName(), "quit")
 	}
 	
