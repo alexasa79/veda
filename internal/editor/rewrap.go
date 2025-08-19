@@ -702,6 +702,8 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		// Cursor was above the paragraph, recreate iterator at same position
 		// (it may have been invalidated by buffer changes)
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+		// Restore the original cursor X position
+		e.buffer.CursorX = cursorX
 	}
 	
 	// Update view iterator to handle line count changes
