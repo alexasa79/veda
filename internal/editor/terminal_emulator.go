@@ -11,7 +11,7 @@ import (
 // - Printable UTF-8, CR, LF, BS, TAB
 // - CSI cursor movement (A/B/C/D), CUP/HVP (H/f), CHA (G)
 // - CSI erase in line (K) and erase in display (J) [0/1/2]
-// - SGR (m) for attributes and colors (basic, bright, 256, RGB)
+// - SGR (m) ignored for now (no colors)
 // - DECSET/DECRST (ESC [ ? ... h/l) ignored
 // - OSC (ESC ] ... BEL or ST) ignored
 // - Charset selects ESC ( B, etc. ignored
@@ -216,7 +216,7 @@ func (te *TerminalEmulator) Write(data []byte) {
                         te.curFg = ui.ColorDefault
                         te.curBg = ui.ColorDefault
                         te.curAttrs = ui.AttrNone
-                    case 1:
+                case 1:
                         te.curAttrs |= ui.AttrBold
                     case 2:
                         te.curAttrs |= ui.AttrDim
@@ -245,12 +245,15 @@ func (te *TerminalEmulator) Write(data []byte) {
                         te.curAttrs &^= ui.AttrStrikeThrough
                     // Foreground 30-37, 90-97
                     case 30,31,32,33,34,35,36,37, 90,91,92,93,94,95,96,97:
-                        te.curFg = mapSGRBasicColor(p)
+                        te.curFg = ui.NewSGRColor(int32(p))
+                        if p == 94 {
+                            LL.Trace("SGR fg=94 -> stored raw SGR color")
+                        }
                     case 39:
                         te.curFg = ui.ColorDefault
                     // Background 40-47, 100-107
                     case 40,41,42,43,44,45,46,47, 100,101,102,103,104,105,106,107:
-                        te.curBg = mapSGRBasicColor(p)
+                        te.curBg = ui.NewSGRColor(int32(p))
                     case 49:
                         te.curBg = ui.ColorDefault
                     case 38, 48:
@@ -294,15 +297,11 @@ func (te *TerminalEmulator) Write(data []byte) {
                     case 'D':
                         n := 1; if len(params) > 0 && params[0] > 0 { n = params[0] }
                         te.curX -= n; te.clampCursor()
-                    case 'G', 'F':
+                    case 'G':
                         col := 1; if len(params) > 0 && params[0] > 0 { col = params[0] }
                         if col < 1 { col = 1 }
                         if col > te.width { col = te.width }
                         te.curX = col - 1
-                        // If 'F' (End key mapping in some terminals), move to last column when no param
-                        if c == 'F' && len(params) == 0 {
-                            te.curX = te.width - 1
-                        }
                     case 'K':
                         mode := 0; if len(params) > 0 { mode = params[0] }
                         te.clearLineMode(mode)
@@ -392,7 +391,11 @@ func (te *TerminalEmulator) Write(data []byte) {
             r, size = utf8.DecodeRune(data[i:])
             if r == utf8.RuneError && size == 1 { r = '�' }
         }
-        // Render all printable runes, including RETURN SYMBOL (⏎)
+        // Filter out the RETURN SYMBOL (⏎) which some prompts echo; do not render as a glyph
+        if r == '\u23CE' {
+            i += size
+            continue
+        }
         // Determine display width (handle common wide runes like emoji)
         w := runeDisplayWidth(r)
         if w < 1 { w = 1 }
@@ -447,34 +450,18 @@ func runeDisplayWidth(r rune) int {
 // Trailing spaces on each line are trimmed for readability.
 func (te *TerminalEmulator) Render() string {
     var buf bytes.Buffer
-    // Helper to write a visual line while collapsing placeholder cells following wide runes
-    writeCollapsed := func(cells []rune, bgs []ui.Color, width int) {
-        // Trim trailing spaces with default bg
-        end := width
-        for end > 0 && cells[end-1] == ' ' && bgs[end-1] == ui.ColorDefault { end-- }
-        lastWasWide := false
-        for x := 0; x < end; x++ {
-            r := cells[x]
-            if lastWasWide && r == ' ' {
-                // Skip placeholder after a double-width rune
-                lastWasWide = false
-                continue
-            }
-            buf.WriteRune(r)
-            lastWasWide = (runeDisplayWidth(r) == 2)
-        }
-    }
-
     // First render scrollback lines
     for si := 0; si < len(te.scrollback); si++ {
-        writeCollapsed(te.scrollback[si].cells, te.scrollback[si].bg, te.width)
+        end := te.width
+        // Trim trailing spaces with default bg
+        for end > 0 && te.scrollback[si].cells[end-1] == ' ' && te.scrollback[si].bg[end-1] == ui.ColorDefault { end-- }
+        for x := 0; x < end; x++ { buf.WriteRune(te.scrollback[si].cells[x]) }
         buf.WriteByte('\n')
     }
     for y := 0; y < te.height; y++ {
-        // Build slices for this row
-        rowCells := te.cells[y*te.width : y*te.width+te.width]
-        rowBgs := te.bg[y*te.width : y*te.width+te.width]
-        writeCollapsed(rowCells, rowBgs, te.width)
+        end := te.width
+        for end > 0 && te.cells[te.index(end-1, y)] == ' ' && te.bg[te.index(end-1, y)] == ui.ColorDefault { end-- }
+        for x := 0; x < end; x++ { buf.WriteRune(te.cells[te.index(x, y)]) }
         if y != te.height-1 { buf.WriteByte('\n') }
     }
     return buf.String()
