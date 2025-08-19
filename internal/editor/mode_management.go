@@ -575,7 +575,7 @@ func (e *Editor) enterCommandModeCmd(args []string) error {
 // hasUnsavedChanges returns true if any buffer has unsaved changes
 func (e *Editor) hasUnsavedChanges() bool {
 	for _, buf := range e.buffers {
-		if buf.IsModified && buf.HasFile() {
+		if buf.IsModified && buf.HasFile() && !buf.IsInternal {
 			return true
 		}
 	}
@@ -586,7 +586,7 @@ func (e *Editor) hasUnsavedChanges() bool {
 func (e *Editor) getUnsavedBuffers() []string {
 	var unsaved []string
 	for _, buf := range e.buffers {
-		if buf.IsModified && buf.HasFile() {
+		if buf.IsModified && buf.HasFile() && !buf.IsInternal {
 			unsaved = append(unsaved, buf.FileName())
 		}
 	}
@@ -596,7 +596,7 @@ func (e *Editor) getUnsavedBuffers() []string {
 // quitWithWarning handles :q and :quit commands with unsaved change warnings
 func (e *Editor) quitWithWarning(args []string, force bool) error {
 	// Check if current buffer has unsaved changes
-	if !force && e.buffer != nil && e.buffer.IsModified && e.buffer.HasFile() {
+	if !force && e.buffer != nil && e.buffer.IsModified && e.buffer.HasFile() && !e.buffer.IsInternal {
 		return e.showUnsavedBufferDialog(e.buffer.FileName(), "quit")
 	}
 	

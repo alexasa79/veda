@@ -52,6 +52,19 @@ make clean
 - Command mode: Triggered by ':', supports commands like `:q` or `:quit`. Block cursor.
 - The editor loads test data (100 lines) on startup for scrolling demonstration
 
+### Word Navigation and Text Objects (w vs W)
+Veda implements a unique interpretation of word operations that differs from vim:
+- **`w` (lowercase)**: Operates on the **entire current word** regardless of cursor position within the word
+  - `dw`: Deletes the entire word the cursor is on (plus trailing space)
+  - `cw`: Changes the entire word the cursor is on (excluding trailing space, like `ce`)
+  - Example: cursor on "hel|lo_world" → `dw` deletes entire "hello_world "
+- **`W` (uppercase)**: Operates **from cursor position to end of current word**
+  - `dW`: Deletes from cursor position to end of the current word
+  - `cW`: Changes from cursor position to end of the current word
+  - Example: cursor on "hel|lo_world" → `dW` deletes only "lo_world"
+- **Word Definition**: Both use the same word definition (alphanumeric characters + underscores)
+- **Key Insight**: W is NOT about different word boundaries (like vim's WORD concept), but about partial vs. complete word operations
+
 ### Undo/Redo System
 - **Undo**: Press 'u' in normal mode to undo the last change
 - **Redo**: Press 'U' (shift-u) in normal mode to redo an undone change
