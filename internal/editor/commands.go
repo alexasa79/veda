@@ -208,6 +208,9 @@ func (e *Editor) registerCommands() {
     e.commandRegistry.Register("move-buffer-left", e.moveBufferLeft, false)
     e.commandRegistry.Register("move-buffer-right", e.moveBufferRight, false)
     e.commandRegistry.Register("move-buffer-center", e.moveBufferCenter, false)
+    
+    // Window management commands
+    e.commandRegistry.Register("close-window", e.closeCurrentWindow, false)
 
     // Info commands
     e.commandRegistry.Register("show-file-info", e.showFileInfoCommand, false)

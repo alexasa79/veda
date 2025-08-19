@@ -641,3 +641,8 @@ func (e *Editor) closeWindow(windowIndex int) error {
     
     return nil
 }
+
+// closeCurrentWindow closes the currently active window
+func (e *Editor) closeCurrentWindow(args []string) error {
+    return e.closeWindow(e.activeWindow)
+}
