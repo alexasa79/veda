@@ -98,6 +98,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space v      - Vertical split (new empty buffer on right)\n")
 	helpText.WriteString("Space 1..9   - Switch to window N (1-based)\n")
 	helpText.WriteString("Space o      - Switch to last window\n")
+	helpText.WriteString("Space tab    - Switch to next window\n")
 	helpText.WriteString("Space w left - Move buffer to left window\n")
 	helpText.WriteString("Space w right - Move buffer to right window\n")
 	helpText.WriteString("Space w c    - Move buffer to center window\n\n")
