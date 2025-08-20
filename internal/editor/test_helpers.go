@@ -215,10 +215,8 @@ func (te *TestEditor) GetBufferContent() string {
 
 // GetScreenContent returns what's visible on the screen
 func (te *TestEditor) GetScreenContent() []string {
-	// Force a render
-	te.drawEditor()
-	te.drawErrorLine()
-	te.drawStatusBar()
+    // Force a full render using the editor's unified path so tests see exactly what users see
+    te.Editor.render()
 	
 	lines := make([]string, 0)
 	_, height := te.screen.Size()
