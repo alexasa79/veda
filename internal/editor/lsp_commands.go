@@ -21,25 +21,7 @@ func (e *Editor) findReferences(args []string) error {
 
 	LL.Debug("findReferences: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
 
-    // If a references buffer already exists, close it to ensure only one window
-    if e.currentReferencesBuffer != nil {
-        oldName := e.currentReferencesBuffer.BufferName
-        // Remove tracking first
-        delete(e.referencesBuffers, oldName)
-        e.currentReferencesBuffer = nil
-
-        // If the current visible buffer is the references buffer, close it using
-        // the standard close flow (will switch to another buffer automatically)
-        if e.buffer != nil && e.buffer.FilePath == oldName {
-            _ = e.closeBuffer(nil)
-        } else {
-            // Otherwise, remove the old references buffer silently
-            if _, exists := e.buffers[oldName]; exists {
-                delete(e.buffers, oldName)
-                e.bufferOrder = removeFromSlice(e.bufferOrder, oldName)
-            }
-        }
-    }
+    // We'll reuse a single references buffer if it already exists
 
     // Get references from LSP
 	locations, err := e.proxyManager.FindReferences(e.buffer.FilePath, line, character, true)
@@ -65,11 +47,11 @@ func (e *Editor) findReferences(args []string) error {
 	// Create references buffer content in markdown format
 	content := e.formatReferencesAsMarkdown(locations, sourceFilePath, line, character)
 
-	// Create a unique buffer name
-	bufferName := fmt.Sprintf("*References: %s:%d:%d*", sourceFilePath, line+1, character+1)
+    // Use a single fixed buffer name for references
+    bufferName := "*References:*"
 
-	// Check if references buffer already exists
-	if existingBuffer, exists := e.buffers[bufferName]; exists {
+    // Check if the references buffer already exists; if so, reuse it
+    if existingBuffer, exists := e.buffers[bufferName]; exists {
 		// Update existing buffer's content
 		existingBuffer.Rope = buffer.NewRopeFromString(content)
 		existingBuffer.CursorX = 0
@@ -96,7 +78,13 @@ func (e *Editor) findReferences(args []string) error {
 		BufferName:   bufferName,
 		SymbolName:   symbolName,
 	}
-	e.referencesBuffers[bufferName] = refsBuffer
+    // Ensure only one references buffer is tracked
+    for name := range e.referencesBuffers {
+        if strings.HasPrefix(name, "*References:") {
+            delete(e.referencesBuffers, name)
+        }
+    }
+    e.referencesBuffers[bufferName] = refsBuffer
 	e.currentReferencesBuffer = refsBuffer
 
 	// Position cursor on the current reference (where find-references was invoked)
