@@ -510,16 +510,14 @@ func (e *Editor) render() {
 	// Clear expired flash highlight
 	e.clearFlashHighlight()
 
-    // If only one window, render like legacy single-pane to preserve expected test behavior
-    if len(e.windows) == 1 {
-        e.drawEditor()
-        t0 = e.perfTracker.ReportSince("drawEditor", t0)
-        e.drawContext()
-        t0 = e.perfTracker.ReportSince("drawContext", t0)
-        e.drawErrorLine()
-        e.drawStatusBar()
-        t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
-        goto afterWindows
+    // Unified rendering for any number of windows (including single-window)
+    // Ensure there is at least one window to render into
+    if len(e.windows) == 0 {
+        // Create a default window covering the content area and attach current buffer
+        w := &Window{Buffer: e.buffer}
+        e.windows = []*Window{w}
+        e.activeWindow = 0
+        e.recomputeWindowsLayout()
     }
 
     // Persist active window's state from the live buffer before drawing windows,
@@ -564,6 +562,11 @@ func (e *Editor) render() {
             e.bufferHighlighters[win.Buffer] = h
             e.highlighter = h
         }
+        // Ensure highlighter is initialized for this buffer
+        if e.highlighter != nil && e.highlighter.GetTree() == nil && win.Buffer.HasFile() {
+            _ = e.highlighter.SetLanguageFromFile(win.Buffer.FilePath)
+            e.highlighter.ParseFull([]byte(win.Buffer.Rope.String()))
+        }
         e.screen = sub
         // Temporarily map editor-wide iterators/state from window's own view/cursor
         // Save buffer iterators/X
@@ -578,8 +581,9 @@ func (e *Editor) render() {
         }
         win.Buffer.CursorX = win.CursorX
         e.buffer = win.Buffer
-        // Draw editor content area for this window
+        // Draw editor content area then context (to match legacy order)
         e.drawEditor()
+        e.drawContext()
 
         // Restore
         // Persist any scroll/cursor changes back into the window state
@@ -596,7 +600,7 @@ func (e *Editor) render() {
     }
     t0 = e.perfTracker.ReportSince("drawWindows", t0)
 
-    // Draw global UI once (status bar and any global banners) for the active window/buffer.
+    // Draw global UI once (signature, banners, status bar) for the active window/buffer.
     if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
         activeBuf := e.windows[e.activeWindow].Buffer
         if activeBuf != nil {
@@ -610,6 +614,8 @@ func (e *Editor) render() {
             activeBuf.CursorIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.CursorLine))
             activeBuf.CursorX = w.CursorX
             e.buffer = activeBuf
+            // Signature above status bar
+            e.drawSignature()
             e.drawErrorLine()
             e.drawStatusBar()
             // restore
@@ -618,16 +624,16 @@ func (e *Editor) render() {
             activeBuf.CursorX = savedX
             e.buffer = realBuf
         } else {
+            e.drawSignature()
             e.drawErrorLine()
             e.drawStatusBar()
         }
     } else {
+        e.drawSignature()
         e.drawErrorLine()
         e.drawStatusBar()
     }
 	t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
-
-afterWindows:
 
     // Render overlay if active
     if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
