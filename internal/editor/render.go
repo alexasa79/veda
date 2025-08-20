@@ -1121,10 +1121,28 @@ func (e *Editor) drawEditor() {
 		}
 	}
 
-    // Fill remaining screen with tildes
+    // Fill remaining screen lines for this window region.
+    // Previously we only drew tildes in the gutter and left the content area
+    // untouched, which could leave stale cells when rendering into a sub-screen
+    // (right window) after a full-screen draw. Paint the entire line background
+    // first, then overlay the tildes in the gutter to match typical editor UX.
     visibleHeight := e.getVisibleHeight()
+    rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
     for i := len(wrappedLines); i < visibleHeight; i++ {
         screenY := contentStartY + i
+        // Fill the whole line with normal background (and rulers where applicable)
+        for x := 0; x < width; x++ {
+            fillStyle := normalStyle
+            textColumn := x - e.buffer.LineNumberWidth
+            for _, rulerPos := range e.config.VerticalRulers {
+                if textColumn == rulerPos {
+                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+                    break
+                }
+            }
+            e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
+        }
+        // Draw the tildes in the gutter area
         for x := 0; x < lineNumberWidth; x++ {
             e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
         }
