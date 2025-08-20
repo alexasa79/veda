@@ -59,6 +59,32 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	if !found {
 		te.bufferOrder = append(te.bufferOrder, te.buffer.FilePath)
 	}
+
+    // Ensure the active window renders this new buffer in unified window mode
+    // The editor initializes with a window bound to the initial empty buffer.
+    // After swapping te.buffer, also attach it to the active window so render() paints it.
+    if len(te.windows) == 0 {
+        // Create a default window for this buffer and layout
+        te.windows = []*Window{newWindow(te.buffer)}
+        te.activeWindow = 0
+        te.recomputeWindowsLayout()
+    } else {
+        // Attach the test buffer to the currently active window
+        aw := te.activeWindow
+        if aw < 0 || aw >= len(te.windows) {
+            aw = 0
+            te.activeWindow = 0
+        }
+        if te.windows[aw] == nil {
+            te.windows[aw] = newWindow(te.buffer)
+        } else {
+            te.windows[aw].Buffer = te.buffer
+        }
+        // Sync per-window cursor/view state from the buffer so status/render are consistent
+        te.windows[aw].ViewLine = te.buffer.ViewIterator.LineNumber()
+        te.windows[aw].CursorLine = te.buffer.CursorIterator.LineNumber()
+        te.windows[aw].CursorX = te.buffer.CursorX
+    }
 	
 	return te
 }
