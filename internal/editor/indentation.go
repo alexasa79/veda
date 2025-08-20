@@ -143,59 +143,42 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 		return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
 	}
 
-	// Count frequency of each indentation level
-	freqMap := make(map[int]int)
-	for _, spaces := range spaceCounts {
-		freqMap[spaces]++
-	}
+    // Count frequency of each indentation level
+    freqMap := make(map[int]int)
+    for _, spaces := range spaceCounts {
+        freqMap[spaces]++
+    }
 
-	// Find the smallest common indentation
-	minIndent := -1
-	for spaces := range freqMap {
-		if spaces > 0 && (minIndent == -1 || spaces < minIndent) {
-			minIndent = spaces
-		}
-	}
+    // Weighted vote among standard widths {2,4,8}
+    // score(width) = 2*exactCount + multiplesCount
+    candidates := []int{2, 4, 8}
+    bestWidth := 4
+    bestScore := -1
 
-	// If the minimum indentation is a standard width, use it
-	if minIndent == 2 || minIndent == 4 || minIndent == 8 {
-		return buffer.IndentationInfo{Type: config.IndentSpaces, Width: minIndent}
-	}
+    for _, width := range candidates {
+        exact := 0
+        multiples := 0
+        for spaces, count := range freqMap {
+            if spaces == width {
+                exact += count
+            }
+            if spaces%width == 0 {
+                multiples += count
+            }
+        }
+        score := 2*exact + multiples
+        if score > bestScore || (score == bestScore && width > bestWidth) {
+            bestScore = score
+            bestWidth = width
+        }
+    }
 
-	// Otherwise, find GCD of all indentation levels
-	if len(spaceCounts) > 0 {
-		indentWidth := spaceCounts[0]
-		for i := 1; i < len(spaceCounts); i++ {
-			indentWidth = gcd(indentWidth, spaceCounts[i])
-		}
-		
-		// Ensure it's a reasonable width
-		if indentWidth == 2 || indentWidth == 4 || indentWidth == 8 {
-			return buffer.IndentationInfo{Type: config.IndentSpaces, Width: indentWidth}
-		}
-		
-		// If GCD gives an odd result, check which standard width fits best
-		bestWidth := 4
-		bestScore := 0
-		
-		for _, width := range []int{2, 4, 8} {
-			score := 0
-			for spaces, count := range freqMap {
-				if spaces%width == 0 {
-					score += count
-				}
-			}
-			if score > bestScore {
-				bestScore = score
-				bestWidth = width
-			}
-		}
-		
-		return buffer.IndentationInfo{Type: config.IndentSpaces, Width: bestWidth}
-	}
+    // If no candidate gained any support, fall back to defaults
+    if bestScore <= 0 {
+        return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
+    }
 
-	// Default fallback
-	return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
+    return buffer.IndentationInfo{Type: config.IndentSpaces, Width: bestWidth}
 }
 
 

@@ -358,6 +358,33 @@ func TestIndentationDetection(t *testing.T) {
 			t.Errorf("Expected width 4 for ast-parser.cpp pattern, got %d", info.Width)
 		}
 	})
+
+	// New test: mixed 2- and 4-space indents should prefer 4 when 4 is majority
+	t.Run("C mixed indent prefers 4 over singleton 2", func(t *testing.T) {
+		content := strings.Join([]string{
+			"#ifndef     _GNU_SOURCE",
+			"  #define _GNU_SOURCE // for pthread_getaffinity_np()",
+			"#endif  // !_GNU_SOURCE",
+			"",
+			"#include <stdio.h>",
+			"",
+			"int main()",
+			"{",
+			"    printf(\"Hello world\\n\");",
+			"    return 0;",
+			"}",
+		}, "\n")
+
+		te := NewTestEditorWithContent(80, 24, content)
+		info := te.detectIndentation()
+
+		if info.Type != config.IndentSpaces {
+			t.Errorf("Expected IndentSpaces, got %v", info.Type)
+		}
+		if info.Width != 4 {
+			t.Errorf("Expected width 4 for mixed 2/4 case, got %d", info.Width)
+		}
+	})
 }
 
 func TestIndentationCommands(t *testing.T) {
