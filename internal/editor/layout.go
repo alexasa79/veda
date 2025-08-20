@@ -3,6 +3,7 @@ package editor
 import (
     "strings"
     "veda/internal/commands"
+    "veda/internal/syntax"
 )
 
 // Layout calculation methods
@@ -150,11 +151,25 @@ func (e *Editor) getAbsolutePosition() int {
 
 // updateSyntaxHighlighting re-parses the buffer for syntax highlighting
 func (e *Editor) updateSyntaxHighlighting() {
-	if e.highlighter != nil && e.buffer.HasFile() {
-		content := e.buffer.Rope.String()
-		// Force a full reparse by not reusing the old tree
-		e.highlighter.ParseFull([]byte(content))
-	}
+    if e.buffer == nil || !e.buffer.HasFile() {
+        return
+    }
+    // Always update the highlighter associated with the current buffer/window,
+    // not the last global highlighter. In multi-window mode the global
+    // e.highlighter may point to another buffer, causing skew.
+    var h *syntax.Highlighter
+    if hh, ok := e.bufferHighlighters[e.buffer]; ok && hh != nil {
+        h = hh
+    } else {
+        h = syntax.NewHighlighter()
+        h.SetLanguageFromFile(e.buffer.FilePath)
+        e.bufferHighlighters[e.buffer] = h
+    }
+    content := e.buffer.Rope.String()
+    h.ParseFull([]byte(content))
+    // Keep the editor's active highlighter in sync for non-windowed paths and
+    // to ensure immediate token queries use the updated instance.
+    e.highlighter = h
 }
 
 // getDiagnosticLineCount returns the number of lines needed to display a diagnostic message
