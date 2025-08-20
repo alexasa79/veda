@@ -140,6 +140,7 @@ Some tests require LSP servers to be installed and available on the test machine
 - **Common Issues**: Watch out for busy loops, excessive syscalls (like SetNonblock), and inefficient polling. The input handler should use blocking I/O since it runs in a dedicated goroutine.
 
 ## Implementation Guidelines
+- **Code Style (Indentation)**: Use tabs for leading indentation across the project. For Go code, always run `gofmt -s -w` which enforces tabs for indentation (spaces may be used only for alignment by the formatter). Do not replace tabs with spaces.
 - **Undo/Redo Support**: All new commands that modify text MUST implement undo/redo functionality. This includes:
   - Storing necessary state to reverse the operation (e.g., deleted text, cursor positions)
   - Implementing the Command interface with Execute() and Undo() methods
