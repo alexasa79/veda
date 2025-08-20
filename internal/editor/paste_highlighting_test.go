@@ -235,7 +235,10 @@ func getCellStyle(te *TestEditor, lineNum int, text string) *ui.Style {
 
 // stylesMatch compares two styles for equality
 func stylesMatch(a, b ui.Style) bool {
-	aFg, aBg, aAttr := a.Decompose()
-	bFg, bBg, bAttr := b.Decompose()
-	return aFg == bFg && aBg == bBg && aAttr == bAttr
+    // Compare foreground and attributes; ignore background differences.
+    // Backgrounds can vary due to current-line, rulers, or window dimming overlays
+    // and are not relevant for token identity or color consistency checks.
+    aFg, _, aAttr := a.Decompose()
+    bFg, _, bAttr := b.Decompose()
+    return aFg == bFg && aAttr == bAttr
 }

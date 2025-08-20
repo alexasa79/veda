@@ -29,6 +29,9 @@ test:
 testall:
 	$(GOTEST) -v -p $(PARALLEL) -parallel $(PARALLEL) -count=1 ./internal/*/
 
+testfast:
+	$(GOTEST) -v -p $(PARALLEL) -parallel $(PARALLEL) -failfast ./internal/*/
+
 # Clean up
 clean:
 	$(GOCLEAN)

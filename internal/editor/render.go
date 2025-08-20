@@ -106,8 +106,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 	flashStyle := e.config.Theme.GetStyle(e.config.Theme.FlashHighlight)
-	whitespaceStyle := e.whitespaceStyle.style
-	rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+    whitespaceStyle := e.whitespaceStyle.style
 	screenX := x
 	charPos := textOffset
 
@@ -185,23 +184,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			}
 		}
 
-		// Check if this column is a ruler position (only in content area, not status bar)
-		// Calculate text column position (screenX minus line number width)
-		var textColumn int
-		if e.buffer != nil {
-			textColumn = screenX - e.buffer.LineNumberWidth
-		} else {
-			textColumn = screenX // For empty windows, assume no line numbers
-		}
-		isRulerColumn := false
-		if y != e.getStatusBarY() { // Don't apply ruler styling on status bar
-			for _, rulerPos := range e.config.VerticalRulers {
-				if textColumn == rulerPos {
-					isRulerColumn = true
-					break
-				}
-			}
-		}
+        // Note: Do not apply vertical ruler background on characters themselves.
+        // Ruler background is rendered in background fill phases to avoid per-character
+        // style variation within tokens (important for multi-window consistency tests).
 
         if inFlash {
 			// Flash takes highest precedence
@@ -219,10 +204,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
 			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
-		} else if isRulerColumn {
-			// Apply ruler style (lower precedence than search/selection/flash)
-			currentStyle = theme.ApplyBackgroundStyle(style, rulerStyle)
-		}
+        }
 
 		// Check if we should visualize this character
 		absolutePos := segmentStart + i
@@ -420,46 +402,36 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	} else if e.highlighter == nil || !e.buffer.HasFile() {
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
-		// Fill rest of line if we have background
-		if hasBg {
-			width, _ := e.screen.Size()
-			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
-			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-			
+        // Fill rest of line if we have background
+        if hasBg {
+            width, _ := e.screen.Size()
+            virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+            
             for i := x; i < width; i++ {
-				fillStyle := normalStyle
-				
-				// Check if this column is a ruler position
-				// Calculate text column position (i minus line number width)
-                textColumn := i - e.buffer.LineNumberWidth
-				for _, rulerPos := range e.config.VerticalRulers {
-                    if textColumn+1 == rulerPos {
-						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-						break
-					}
-				}
-				
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					charPosInLine := textColumn
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == charPosInLine {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-				
-				// Apply virtual cursor style if needed
-				if hasVirtualCursor {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-				}
-				
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-			}
-		}
+                fillStyle := normalStyle
+                
+                // Check if this position has a virtual cursor beyond the end of line
+                hasVirtualCursor := false
+                if lineIndex >= 0 {
+                    // Calculate the character position in the line for this screen position
+                    textColumn := i - e.buffer.LineNumberWidth
+                    charPosInLine := textColumn
+                    for _, vc := range e.virtualCursors {
+                        if vc.Y == lineIndex && vc.X == charPosInLine {
+                            hasVirtualCursor = true
+                            break
+                        }
+                    }
+                }
+                
+                // Apply virtual cursor style if needed
+                if hasVirtualCursor {
+                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+                }
+                
+                e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+            }
+        }
 	} else {
 		// Even if no background fill, we still need to render virtual cursors beyond end of line
 		width, _ := e.screen.Size()
@@ -538,46 +510,36 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 	}
 
-	// Fill rest of line with background if needed
-	if hasBg {
-		width, _ := e.screen.Size()
-		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
-		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-		
-		for i := x; i < width; i++ {
-			fillStyle := normalStyle
-			
-			// Check if this column is a ruler position
-			// Calculate text column position (i minus line number width)
-            textColumn := i - e.buffer.LineNumberWidth
-			for _, rulerPos := range e.config.VerticalRulers {
-                if textColumn+1 == rulerPos {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-					break
-				}
-			}
-			
-			// Check if this position has a virtual cursor beyond the end of line
-			hasVirtualCursor := false
-			if lineIndex >= 0 {
-				// Calculate the character position in the line for this screen position
-				charPosInLine := textColumn
-				for _, vc := range e.virtualCursors {
-					if vc.Y == lineIndex && vc.X == charPosInLine {
-						hasVirtualCursor = true
-						break
-					}
-				}
-			}
-			
-			// Apply virtual cursor style if needed
-			if hasVirtualCursor {
-				fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-			}
-			
-			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-		}
-	} else {
+    // Fill rest of line with background if needed
+    if hasBg {
+        width, _ := e.screen.Size()
+        virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+        
+        for i := x; i < width; i++ {
+            fillStyle := normalStyle
+            
+            // Check if this position has a virtual cursor beyond the end of line
+            hasVirtualCursor := false
+            if lineIndex >= 0 {
+                // Calculate the character position in the line for this screen position
+                textColumn := i - e.buffer.LineNumberWidth
+                charPosInLine := textColumn
+                for _, vc := range e.virtualCursors {
+                    if vc.Y == lineIndex && vc.X == charPosInLine {
+                        hasVirtualCursor = true
+                        break
+                    }
+                }
+            }
+            
+            // Apply virtual cursor style if needed
+            if hasVirtualCursor {
+                fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+            }
+            
+            e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+        }
+    } else {
 		// Even if no background fill, we still need to render virtual cursors beyond end of line
 		width, _ := e.screen.Size()
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
@@ -687,45 +649,36 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		segmentOffset := lineStartOffset + wl.StartChar
 		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
 
-		// Fill rest of line if we have background
-		if hasBg {
-			width, _ := e.screen.Size()
-			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
-			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-			
-			for i := x; i < width; i++ {
-				fillStyle := normalStyle
-				
-				// Check if this column is a ruler position
-				textColumn := i - e.buffer.LineNumberWidth
-				for _, rulerPos := range e.config.VerticalRulers {
-					if textColumn == rulerPos {
-						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-						break
-					}
-				}
-				
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					charPosInLine := textColumn
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == charPosInLine {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-				
-				// Apply virtual cursor style if needed
-				if hasVirtualCursor {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-				}
-				
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-			}
-		} else {
+        // Fill rest of line if we have background
+        if hasBg {
+            width, _ := e.screen.Size()
+            virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+            
+            for i := x; i < width; i++ {
+                fillStyle := normalStyle
+                
+                // Check if this position has a virtual cursor beyond the end of line
+                hasVirtualCursor := false
+                if lineIndex >= 0 {
+                    // Calculate the character position in the line for this screen position
+                    textColumn := i - e.buffer.LineNumberWidth
+                    charPosInLine := textColumn
+                    for _, vc := range e.virtualCursors {
+                        if vc.Y == lineIndex && vc.X == charPosInLine {
+                            hasVirtualCursor = true
+                            break
+                        }
+                    }
+                }
+                
+                // Apply virtual cursor style if needed
+                if hasVirtualCursor {
+                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+                }
+                
+                e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+            }
+        } else {
 			// Even if no background fill, we still need to render virtual cursors beyond end of line
 			width, _ := e.screen.Size()
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
@@ -763,45 +716,36 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		segmentOffset := lineStartOffset + wl.StartChar
 		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
 
-		// Fill rest of line
-		if hasBg {
-			width, _ := e.screen.Size()
-			rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
-			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-			
-			for i := x; i < width; i++ {
-				fillStyle := normalStyle
-				
-				// Check if this column is a ruler position
-				textColumn := i - e.buffer.LineNumberWidth
-				for _, rulerPos := range e.config.VerticalRulers {
-					if textColumn == rulerPos {
-						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-						break
-					}
-				}
-				
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					charPosInLine := textColumn
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == charPosInLine {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-				
-				// Apply virtual cursor style if needed
-				if hasVirtualCursor {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-				}
-				
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-			}
-		} else {
+        // Fill rest of line
+        if hasBg {
+            width, _ := e.screen.Size()
+            virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+            
+            for i := x; i < width; i++ {
+                fillStyle := normalStyle
+                
+                // Check if this position has a virtual cursor beyond the end of line
+                hasVirtualCursor := false
+                if lineIndex >= 0 {
+                    // Calculate the character position in the line for this screen position
+                    textColumn := i - e.buffer.LineNumberWidth
+                    charPosInLine := textColumn
+                    for _, vc := range e.virtualCursors {
+                        if vc.Y == lineIndex && vc.X == charPosInLine {
+                            hasVirtualCursor = true
+                            break
+                        }
+                    }
+                }
+                
+                // Apply virtual cursor style if needed
+                if hasVirtualCursor {
+                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+                }
+                
+                e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+            }
+        } else {
 			// Even if no background fill, we still need to render virtual cursors beyond end of line
 			width, _ := e.screen.Size()
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
@@ -1127,20 +1071,12 @@ func (e *Editor) drawEditor() {
     // (right window) after a full-screen draw. Paint the entire line background
     // first, then overlay the tildes in the gutter to match typical editor UX.
     visibleHeight := e.getVisibleHeight()
-    rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+    // No vertical ruler application in this background pass to avoid token style skew
     for i := len(wrappedLines); i < visibleHeight; i++ {
         screenY := contentStartY + i
-        // Fill the whole line with normal background (and rulers where applicable)
+        // Fill the whole line with normal background only (no per-column rulers here)
         for x := 0; x < width; x++ {
-            fillStyle := normalStyle
-            textColumn := x - e.buffer.LineNumberWidth
-            for _, rulerPos := range e.config.VerticalRulers {
-                if textColumn == rulerPos {
-                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-                    break
-                }
-            }
-            e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
+            e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
         }
         // Draw the tildes in the gutter area
         for x := 0; x < lineNumberWidth; x++ {

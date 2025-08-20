@@ -10,9 +10,9 @@ func TestAsyncFileSaveTracking(t *testing.T) {
 		// Create test editor with content
 		te := NewTestEditorWithContent(80, 24, "Hello, World!\nThis is a test file.")
 		
-		// Set a file path for the buffer
-		te.buffer.FilePath = "/tmp/test_file.txt"
-		te.buffers["/tmp/test_file.txt"] = te.buffer
+        // Set a file path for the buffer within project artifacts to avoid using /tmp
+        te.buffer.FilePath = "artifacts/test_file.txt"
+        te.buffers["artifacts/test_file.txt"] = te.buffer
 		
 		// Check that no async operations are running initially
 		if te.hasAsyncOperations() {
