@@ -12,6 +12,48 @@ import (
 	"veda/internal/ui"
 )
 
+// isInWordRange checks if a character position is within any of the word diff ranges
+func isInWordRange(pos int, ranges []DiffRange) bool {
+	for _, r := range ranges {
+		if pos >= r.Start && pos < r.End {
+			return true
+		}
+	}
+	return false
+}
+
+// getWordLevelDiffBg returns the background color for word-level diff highlighting if the token intersects with diff ranges
+func getWordLevelDiffBg(e *Editor, lineIndex, tokenStart, tokenEnd int) *ui.Color {
+	if e.buffer == nil {
+		return nil
+	}
+	
+	// Check if this buffer has diff line info
+	diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]
+	if !isDiffBuffer || lineIndex < 0 || lineIndex >= len(diffLines) {
+		return nil
+	}
+	
+	diffLine := diffLines[lineIndex]
+	
+	// Only apply word-level highlighting for modified lines
+	if diffLine.LineType != DiffLineModified || len(diffLine.WordRanges) == 0 {
+		return nil
+	}
+	
+	// Check if the token range intersects with any word diff ranges
+	for _, wordRange := range diffLine.WordRanges {
+		// Check if token range [tokenStart, tokenEnd) intersects with word range [wordRange.Start, wordRange.End)
+		if tokenStart < wordRange.End && tokenEnd > wordRange.Start {
+			// Token intersects with a diff range - return modified line background color
+			bg := ui.NewRGBColor(100, 80, 30) // Even brighter yellow/orange background for modified sections
+			return &bg
+		}
+	}
+	
+	return nil
+}
+
 // drawGutterGitIndicator renders git added/modified indicator in the gutter for a given wrapped line.
 // - Renders a space with background color corresponding to the change type
 // - Deleted indicators are intentionally not rendered
@@ -331,9 +373,39 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	// Determine which background to use
 	var lineBg ui.Color
 	var hasBg bool
+	
+	// Check for diff highlighting first (if not overridden and not current line)
+	var diffBg *ui.Color
+	if bgOverride == nil && e.buffer != nil {
+		if diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]; isDiffBuffer {
+			if lineIndex >= 0 && lineIndex < len(diffLines) {
+				diffLine := diffLines[lineIndex]
+				switch diffLine.LineType {
+				case DiffLineAdded:
+					// Use a brighter green for diff highlighting
+					bg := ui.NewRGBColor(40, 100, 40) // Even brighter green background
+					diffBg = &bg
+				case DiffLineDeleted:
+					// Use a brighter red for diff highlighting
+					bg := ui.NewRGBColor(100, 40, 40) // Even brighter red background
+					diffBg = &bg
+				case DiffLineModified:
+					// For modified lines, we'll apply word-level highlighting at the token level
+					// Don't set diffBg here - it will be handled per-character in token rendering
+				// DiffLineContext uses normal background (no special highlighting)
+				}
+			}
+		}
+	}
+	
 	if bgOverride != nil {
 		// Use the provided background override
 		lineBg = *bgOverride
+		normalStyle = normalStyle.Background(lineBg)
+		hasBg = true
+	} else if diffBg != nil {
+		// Use diff highlighting background
+		lineBg = *diffBg
 		normalStyle = normalStyle.Background(lineBg)
 		hasBg = true
 	} else if isCurrentLine {
@@ -601,7 +673,38 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	// Determine background style
 	var lineBg ui.Color
 	var hasBg bool
-	if isCurrentLine {
+	
+	// Check for diff highlighting first
+	var diffBg *ui.Color
+	if e.buffer != nil {
+		if diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]; isDiffBuffer {
+			if lineIndex >= 0 && lineIndex < len(diffLines) {
+				diffLine := diffLines[lineIndex]
+				switch diffLine.LineType {
+				case DiffLineAdded:
+					// Use a brighter green for diff highlighting
+					bg := ui.NewRGBColor(40, 100, 40) // Even brighter green background
+					diffBg = &bg
+				case DiffLineDeleted:
+					// Use a brighter red for diff highlighting
+					bg := ui.NewRGBColor(100, 40, 40) // Even brighter red background
+					diffBg = &bg
+				case DiffLineModified:
+					// For modified lines, we'll apply word-level highlighting at the token level
+					// Don't set diffBg here - it will be handled per-character in token rendering
+				// DiffLineContext uses normal background (no special highlighting)
+				}
+			}
+		}
+	}
+	
+	if diffBg != nil {
+		// Use diff highlighting background
+		lineBg = *diffBg
+		normalStyle = normalStyle.Background(lineBg)
+		hasBg = true
+	} else if isCurrentLine {
+		// Use current line background
 		currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
 		_, lineBg, _ = currentLineStyle.Decompose()
 		normalStyle = normalStyle.Background(lineBg)
@@ -848,7 +951,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			}
 			if endPos > pos {
 				text := originalLine[pos:endPos]
-				x += e.drawText(x, screenY, normalStyle, text, lineStartOffset+pos, searchMatches, lineIndex, pos, trailingStart)
+				// Use diff background for normal text if available
+				textStyle := normalStyle
+				if diffBg != nil {
+					textStyle = normalStyle.Background(*diffBg)
+				}
+				x += e.drawText(x, screenY, textStyle, text, lineStartOffset+pos, searchMatches, lineIndex, pos, trailingStart)
 				pos = endPos
 			}
 		}
@@ -867,7 +975,17 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			if tokenEnd > tokenStart {
 				tokenText := originalLine[tokenStart:tokenEnd]
 				tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-				if isCurrentLine {
+				
+				// Check for word-level diff highlighting first
+				wordLevelDiffBg := getWordLevelDiffBg(e, lineIndex, tokenStart, tokenEnd)
+				
+				if wordLevelDiffBg != nil {
+					// Word-level diff highlighting takes highest precedence
+					tokenStyle = tokenStyle.Background(*wordLevelDiffBg)
+				} else if diffBg != nil {
+					// Full-line diff highlighting takes precedence over current line highlighting
+					tokenStyle = tokenStyle.Background(*diffBg)
+				} else if isCurrentLine {
 					tokenStyle = tokenStyle.Background(lineBg)
 				}
 
@@ -880,7 +998,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	// Draw any remaining text with normal style
 	if pos < segEnd {
 		text := originalLine[pos:segEnd]
-		x += e.drawText(x, screenY, normalStyle, text, lineStartOffset+pos, searchMatches, lineIndex, pos, trailingStart)
+		// Use diff background for remaining text if available
+		textStyle := normalStyle
+		if diffBg != nil {
+			textStyle = normalStyle.Background(*diffBg)
+		}
+		x += e.drawText(x, screenY, textStyle, text, lineStartOffset+pos, searchMatches, lineIndex, pos, trailingStart)
 	}
 
 	// Fill rest of line if we have background
@@ -892,12 +1015,17 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		for i := x; i < width; i++ {
 			fillStyle := normalStyle
 
-			// Check if this column is a ruler position
-			textColumn := i - e.CurrentBuffer().LineNumberWidth
-			for _, rulerPos := range e.config.VerticalRulers {
-				if textColumn == rulerPos {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-					break
+			// Apply diff background if available (takes precedence over rulers)
+			if diffBg != nil {
+				fillStyle = normalStyle.Background(*diffBg)
+			} else {
+				// Only apply ruler styling if we don't have diff highlighting
+				textColumn := i - e.CurrentBuffer().LineNumberWidth
+				for _, rulerPos := range e.config.VerticalRulers {
+					if textColumn == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
 				}
 			}
 
@@ -905,6 +1033,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			hasVirtualCursor := false
 			if lineIndex >= 0 {
 				// Calculate the character position in the line for this screen position
+				textColumn := i - e.CurrentBuffer().LineNumberWidth
 				charPosInLine := textColumn
 				for _, vc := range e.virtualCursors {
 					if vc.Y == lineIndex && vc.X == charPosInLine {
@@ -1033,6 +1162,7 @@ func (e *Editor) drawEditor() {
 
 	// Calculate wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
+	
 
 	// Prepare iterator reuse across the entire visible region
 	var cachedIter *buffer.BufferIterator
@@ -1047,15 +1177,47 @@ func (e *Editor) drawEditor() {
 	for i, wl := range wrappedLines {
 		screenY := contentStartY + i
 
-		// First, fill the entire line with the normal background
+		// Determine if this line needs diff highlighting
+		var diffFillStyle *ui.Style
+		if e.buffer != nil {
+			if diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]; isDiffBuffer {
+				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
+					diffLine := diffLines[wl.LogicalLineNum]
+					switch diffLine.LineType {
+					case DiffLineAdded:
+						// Use a brighter green for diff highlighting
+						bg := ui.NewRGBColor(40, 100, 40) // Even brighter green background
+						diffStyle := normalStyle.Background(bg)
+						diffFillStyle = &diffStyle
+					case DiffLineDeleted:
+						// Use a brighter red for diff highlighting
+						bg := ui.NewRGBColor(100, 40, 40) // Even brighter red background
+						diffStyle := normalStyle.Background(bg)
+						diffFillStyle = &diffStyle
+					case DiffLineModified:
+						// For modified lines, don't highlight the fill area - only specific word ranges
+						// The diffFillStyle will remain nil for modified lines
+					// DiffLineContext uses normal background (no special highlighting)
+					}
+				}
+			}
+		}
+		
+		// First, fill the entire line with the appropriate background
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		for x := 0; x < width; x++ {
 			fillStyle := normalStyle
-			textColumn := x - e.CurrentBuffer().LineNumberWidth
-			for _, rulerPos := range e.config.VerticalRulers {
-				if textColumn == rulerPos {
-					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-					break
+			if diffFillStyle != nil {
+				// Diff highlighting takes precedence over rulers
+				fillStyle = *diffFillStyle
+			} else {
+				// Only apply ruler styling if we don't have diff highlighting
+				textColumn := x - e.CurrentBuffer().LineNumberWidth
+				for _, rulerPos := range e.config.VerticalRulers {
+					if textColumn == rulerPos {
+						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+						break
+					}
 				}
 			}
 			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
@@ -1063,21 +1225,76 @@ func (e *Editor) drawEditor() {
 
 		// Draw line number only for first visual line
 		if wl.IsFirstLine {
-			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1
-			// Draw line number with standard line number style
-			// Compute digit area width (exclude 2 indicator columns and 1 space padding)
-			digitsWidth := lineNumberWidth - 3
-			if digitsWidth < 1 {
-				digitsWidth = 1
+			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1 (default)
+			var lineNumStr string
+			
+			// Check if this is a diff buffer and get original line number
+			if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
+					diffLine := diffLines[wl.LogicalLineNum]
+					if diffLine.IsFillerLine {
+						// Filler lines don't get line numbers
+						lineNumStr = ""
+					} else {
+						// Use original line number from source file
+						var originalLineNum int = -1
+						if strings.HasSuffix(e.CurrentBuffer().FilePath, "@HEAD") {
+							// For HEAD buffer, use LeftLine
+							if diffLine.LeftLine >= 0 {
+								originalLineNum = diffLine.LeftLine + 1 // Convert to 1-based
+							}
+						} else if strings.HasSuffix(e.CurrentBuffer().FilePath, "@current") {
+							// For current buffer, use RightLine  
+							if diffLine.RightLine >= 0 {
+								originalLineNum = diffLine.RightLine + 1 // Convert to 1-based
+							}
+						} else {
+							// This diff buffer doesn't match our expected naming pattern
+							// Fall back to sequential numbering
+							originalLineNum = wl.LogicalLineNum + 1
+						}
+						
+						// Debug logging (uncomment for debugging)
+						// fmt.Printf("DIFF LINE %d: buffer=%s, LeftLine=%d, RightLine=%d, originalLineNum=%d, lineType=%v, filler=%v\n", 
+						//     wl.LogicalLineNum, e.buffer.FilePath, diffLine.LeftLine, diffLine.RightLine, originalLineNum, diffLine.LineType, diffLine.IsFillerLine)
+						
+						if originalLineNum > 0 {
+							// Compute digit area width (exclude 2 indicator columns and 1 space padding)
+							digitsWidth := lineNumberWidth - 3
+							if digitsWidth < 1 {
+								digitsWidth = 1
+							}
+							lineNumStr = fmt.Sprintf("%*d", digitsWidth, originalLineNum)
+						} else {
+							lineNumStr = ""
+						}
+					}
+				}
+			} else {
+				// Regular buffer - use sequential line numbers
+				// Compute digit area width (exclude 2 indicator columns and 1 space padding)
+				digitsWidth := lineNumberWidth - 3
+				if digitsWidth < 1 {
+					digitsWidth = 1
+				}
+				lineNumStr = fmt.Sprintf("%*d", digitsWidth, lineNum)
 			}
-			lineNumStr := fmt.Sprintf("%*d", digitsWidth, lineNum)
+			
 			// Fill entire line number area with the standard background
 			for x := 0; x < lineNumberWidth; x++ {
 				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
 			}
-			// Draw the line number text starting at column 0
-			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
+			
+			// Draw the line number text starting at column 0 (if we have one)
+			if lineNumStr != "" {
+				e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
+			}
+			
 			// Draw 1 space padding after digits
+			digitsWidth := lineNumberWidth - 3
+			if digitsWidth < 1 {
+				digitsWidth = 1
+			}
 			padX := digitsWidth
 			if padX < lineNumberWidth {
 				e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
@@ -1719,12 +1936,6 @@ func min(a, b int) int {
 	return b
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
 
 // drawEmptyWindow renders an empty window with visible boundaries
 func (e *Editor) drawEmptyWindow(screen Screen, isActive bool) {

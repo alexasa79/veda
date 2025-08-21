@@ -343,6 +343,11 @@ func (e *Editor) closeBuffer(args []string) error {
 	}
 	currentPath := cur.FilePath
 
+	// Check if this is a diff buffer - if so, close both buffers in the pair
+	if isDiffBuffer(currentPath) {
+		return e.closeDiffBufferPair(currentPath)
+	}
+
 	// Remove buffer from current window (close the window if it becomes empty)
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
 		w := e.windows[e.activeWindow]
@@ -393,6 +398,11 @@ func (e *Editor) closeBuffer(args []string) error {
 		if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
 			_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
 			delete(e.terminalSessions, currentPath)
+		}
+		// Clean up associated data for the buffer
+		if buf := e.buffers[currentPath]; buf != nil {
+			delete(e.bufferHighlighters, buf)
+			delete(e.diffLineInfo, buf)
 		}
 		// Remove from global buffers registry
 		delete(e.buffers, currentPath)
@@ -676,6 +686,125 @@ func (e *Editor) newBuffer(args []string) error {
 
 	// Switch to the new buffer
 	e.switchToBuffer(newBuffer)
+
+	return nil
+}
+
+// isDiffBuffer checks if a buffer path represents a diff buffer
+func isDiffBuffer(bufferPath string) bool {
+	return strings.HasSuffix(bufferPath, "@HEAD") || strings.HasSuffix(bufferPath, "@current")
+}
+
+// getPairedDiffBuffer returns the path of the paired diff buffer, or empty string if not found
+func getPairedDiffBuffer(bufferPath string) string {
+	if strings.HasSuffix(bufferPath, "@HEAD") {
+		// Return the @current version
+		baseName := strings.TrimSuffix(bufferPath, "@HEAD")
+		return baseName + "@current"
+	} else if strings.HasSuffix(bufferPath, "@current") {
+		// Return the @HEAD version
+		baseName := strings.TrimSuffix(bufferPath, "@current")
+		return baseName + "@HEAD"
+	}
+	return ""
+}
+
+// closeDiffBufferPair closes both diff buffers in a pair and handles window management
+func (e *Editor) closeDiffBufferPair(bufferPath string) error {
+	pairedPath := getPairedDiffBuffer(bufferPath)
+	if pairedPath == "" {
+		// Not a diff buffer, handle normally
+		return nil
+	}
+
+	// Find both buffers
+	currentBuffer := e.buffers[bufferPath]
+	pairedBuffer := e.buffers[pairedPath]
+
+	// Clean up diff line info for both buffers
+	if currentBuffer != nil {
+		delete(e.bufferHighlighters, currentBuffer)
+		delete(e.diffLineInfo, currentBuffer)
+	}
+	if pairedBuffer != nil {
+		delete(e.bufferHighlighters, pairedBuffer)
+		delete(e.diffLineInfo, pairedBuffer)
+	}
+
+	// Remove both buffers from all windows
+	windowsToClose := make([]int, 0)
+	
+	for i, window := range e.windows {
+		if window == nil {
+			continue
+		}
+		
+		shouldCloseWindow := false
+		
+		// Remove both diff buffers from this window
+		if _, exists := window.Buffers[bufferPath]; exists {
+			removed := window.removeBuffer(bufferPath)
+			if removed {
+				shouldCloseWindow = true
+			}
+		}
+		if _, exists := window.Buffers[pairedPath]; exists {
+			removed := window.removeBuffer(pairedPath)
+			if removed && !shouldCloseWindow {
+				shouldCloseWindow = true
+			}
+		}
+		
+		if shouldCloseWindow {
+			windowsToClose = append(windowsToClose, i)
+		}
+	}
+
+	// Remove both buffers from global buffers
+	delete(e.buffers, bufferPath)
+	delete(e.buffers, pairedPath)
+	e.bufferOrder = removeFromSlice(e.bufferOrder, bufferPath)
+	e.bufferOrder = removeFromSlice(e.bufferOrder, pairedPath)
+
+	// Close windows that no longer have buffers, starting from the highest index
+	// to avoid index shifting issues
+	for i := len(windowsToClose) - 1; i >= 0; i-- {
+		windowIndex := windowsToClose[i]
+		if windowIndex < len(e.windows) {
+			err := e.closeWindow(windowIndex)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// If no windows left but we still have other buffers, create a new window
+	if len(e.windows) == 0 && len(e.buffers) > 0 {
+		// Find any remaining buffer and create a window for it
+		for _, buf := range e.buffers {
+			newWin := newWindow(buf)
+			e.windows = append(e.windows, newWin)
+			e.activeWindow = 0
+			e.switchToBuffer(buf)
+			break
+		}
+	}
+
+	// If no buffers left at all, create an unnamed buffer
+	if len(e.buffers) == 0 {
+		newBuf := e.createUnnamedBuffer()
+		e.buffers[newBuf.FilePath] = newBuf
+		e.bufferOrder = append(e.bufferOrder, newBuf.FilePath)
+		
+		if len(e.windows) == 0 {
+			newWin := newWindow(newBuf)
+			e.windows = append(e.windows, newWin)
+			e.activeWindow = 0
+		} else {
+			e.windows[0].addBuffer(newBuf)
+		}
+		e.switchToBuffer(newBuf)
+	}
 
 	return nil
 }
