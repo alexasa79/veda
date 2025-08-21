@@ -401,7 +401,7 @@ func (e *Editor) openFile(filePath string) {
 		} else {
 			// Other errors (permission denied, etc.) - show error and return
 			LL.Error("Failed to open file %s: %v", resolvedPath, err)
-			// TODO: Show error to user
+			e.ShowError("Failed to open file: %v", err)
 			return
 		}
 	} else {
@@ -946,6 +946,7 @@ func (e *Editor) writeFile(args []string) error {
 
 		// Show success message
 		LL.Info("Wrote %s", filePath)
+		e.ShowInfo("File saved: %s", filePath)
 	}()
 
 	return nil

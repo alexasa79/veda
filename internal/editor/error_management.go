@@ -137,6 +137,31 @@ func (e *Editor) ShowError(format string, args ...interface{}) {
 	messagesBuffer.CursorIterator = buffer.NewBufferIterator(messagesBuffer)
 }
 
+// ShowInfo displays an informational message to the user and logs it to the messages buffer
+func (e *Editor) ShowInfo(format string, args ...interface{}) {
+	infoMsg := fmt.Sprintf(format, args...)
+
+	// Show in status line as info (blue color)
+	e.errorManager.ShowInfo("%s", infoMsg)
+
+	// Log to messages buffer
+	messagesBuffer := e.getOrCreateMessagesBuffer()
+
+	// Format with timestamp
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	logEntry := fmt.Sprintf("[%s] INFO: %s", timestamp, infoMsg)
+
+	// Append to messages buffer; recreating iterators afterwards to avoid generation mismatch
+	messagesBuffer.AppendLine(logEntry)
+
+	// Ensure the buffer stays read-only
+	messagesBuffer.IsReadOnly = true
+
+	// Recreate iterators to match new generation (whether current or background)
+	messagesBuffer.ViewIterator = buffer.NewBufferIterator(messagesBuffer)
+	messagesBuffer.CursorIterator = buffer.NewBufferIterator(messagesBuffer)
+}
+
 // errorCommand implements the "error" command for testing
 func (e *Editor) errorCommand(args []string) error {
 	if len(args) == 0 {

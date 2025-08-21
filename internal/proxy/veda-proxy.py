@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.5"
+PROXY_VERSION = "1.0.6"
 
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
@@ -1343,7 +1343,14 @@ class VedaProxy:
         file_path = Path(path).expanduser().resolve()
         
         if not file_path.exists():
-            raise FileNotFoundError(f"File does not exist: {path}")
+            # For non-existent files, return empty content to allow creating new files
+            logger.info(f"File does not exist, returning empty content for new file: {path}")
+            return {
+                'content': '',
+                'changes': {'added': [], 'deleted': [], 'modified': []},
+                'branch': 'main',
+                'diagnostics': [],
+            }
             
         if not file_path.is_file():
             raise ValueError(f"Path is not a file: {path}")
