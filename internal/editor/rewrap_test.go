@@ -30,6 +30,14 @@ func TestDetectWrapContext(t *testing.T) {
 			wantIndent:  "",
 			wantPrefix:  "   ",
 		},
+        {
+            name:        "markdown parenthesized numbered list",
+            lines:       []string{"1) This is a list item"},
+            startLine:   0,
+            wantContext: wrapContextMarkdownList,
+            wantIndent:  "",
+            wantPrefix:  "   ",
+        },
 		{
 			name:        "markdown bullet list",
 			lines:       []string{"- This is a list item"},
@@ -95,11 +103,14 @@ func TestIsMarkdownListItem(t *testing.T) {
 	}{
 		{"1. Item", true},
 		{"123. Item", true},
+        {"1) Item", true},
+        {"123) Item", true},
 		{"- Item", true},
 		{"* Item", true},
 		{"+ Item", true},
 		{"-Item", false},
 		{"1.Item", false},
+        {"1)Item", false},
 		{"Regular text", false},
 		{"", false},
 	}
@@ -241,6 +252,17 @@ func TestFindParagraphBounds(t *testing.T) {
 			wantStart:  0,
 			wantEnd:    0,
 		},
+        {
+            name: "parenthesized numbered list items as separate paragraphs",
+            lines: []string{
+                "1) first item",
+                "2) second item",
+                "3) third item",
+            },
+            cursorLine: 1,
+            wantStart:  1,
+            wantEnd:    1,
+        },
 	}
 
 	for _, tt := range tests {
@@ -368,6 +390,36 @@ understand what is NAT router and router overall.`,
   not be merged with the next list item
 - This is another bullet point`,
 		},
+        {
+            name:      "paragraph stops before numbered markdown list",
+            input:     `This is an introductory paragraph that should be wrapped but must not consume the numbered list below when rewrapping.
+1. First thing to do
+2. Second thing to do`,
+            cursorY:   0,
+            wrapWidth: 60,
+            want: `This is an introductory paragraph that should be wrapped but
+must not consume the numbered list below when rewrapping.
+1. First thing to do
+2. Second thing to do`,
+        },
+        {
+            name:      "numbered list with parenthesis should not be merged",
+            input: `1) first item
+2) second item`,
+            cursorY:   0,
+            wrapWidth: 80,
+            want: `1) first item
+2) second item`,
+        },
+        {
+            name:      "long numbered list with parenthesis wraps correctly",
+            input:     `1) This is a very long numbered list item that should wrap with subsequent lines aligned under the text`,
+            cursorY:   0,
+            wrapWidth: 40,
+            want: `1) This is a very long numbered list
+   item that should wrap with subsequent
+   lines aligned under the text`,
+        },
 	}
 
 	for _, tt := range tests {
@@ -563,4 +615,38 @@ func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 	if firstLineLen > 45 || firstLineLen < 35 {
 		t.Errorf("First line length %d not near 40 characters after returning to original position", firstLineLen)
 	}
+}
+
+func TestRewrapThirdNumberedItemPreservesAlignment(t *testing.T) {
+    input := `1. Open the original version of the file (the HEAD version) in the current
+   window. We will call this buffer <file>@HEAD
+2. We will make sure there is at least one window to the right of the current
+   window. If there is no window, we will create a new one.
+3. We will then open a copy of the current buffer. Note that we will open
+   another buffer for the current file, not the original file. We will call this
+   buffer <file>@current.`
+
+    te := NewTestEditorWithContent(100, 24, input)
+    // Move cursor to the 3rd list item first line (zero-based index 4)
+    for i := 0; i < 4; i++ {
+        te.ExecuteCommand("down")
+    }
+
+    if err := te.ExecuteCommand("rewrap-paragraph"); err != nil {
+        t.Fatalf("rewrap-paragraph failed: %v", err)
+    }
+
+    lines := strings.Split(te.GetBufferContent(), "\n")
+    if len(lines) < 7 {
+        t.Fatalf("unexpected number of lines: %d", len(lines))
+    }
+
+    // The 3rd item header must not be indented; it must start with "3. " at column 0
+    if !strings.HasPrefix(lines[4], "3. ") {
+        t.Fatalf("third item header got indented or altered: %q", lines[4])
+    }
+    // Continuation lines should be indented by three spaces
+    if !strings.HasPrefix(lines[5], "   ") || !strings.HasPrefix(lines[6], "   ") {
+        t.Fatalf("third item continuation lines not properly indented: %q | %q", lines[5], lines[6])
+    }
 }
