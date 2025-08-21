@@ -1203,6 +1203,238 @@ func (e *Editor) wordBackwardInsert(args []string) error {
 	return e.wordBackward(args)
 }
 
+// reindentLine recalculates indentation of the current line based on context (vim '==')
+func (e *Editor) reindentLine(args []string) error {
+    if e.buffer == nil {
+        return nil
+    }
+    // Preserve view position
+    curLine := e.buffer.CursorIterator.LineNumber()
+    viewLine := e.buffer.ViewIterator.LineNumber()
+
+    // Get current line text and its current indent info
+    line := e.buffer.CursorIterator.Line()
+    indentInfo := e.buffer.GetLineIndentInfo(line)
+
+    // Compute desired indentation string using buffer's auto-indent context for empty line
+    // We reuse calculateIndentForEmptyLine-like logic via Buffer.CalculateAutoIndent on an empty line context.
+    // Use beginning of line as cursor column.
+    auto := e.buffer.CalculateAutoIndent("", 0)
+    desired := auto.IndentStr
+
+    // If desired equals current actual prefix, nothing to do
+    if desired == indentInfo.ActualPrefix {
+        return nil
+    }
+
+    // Build composite: replace current leading whitespace with desired
+    // First, delete current prefix (if any), then insert desired (if any)
+    composite := buffer.NewCompositeEntry("Reindent line")
+    if indentInfo.ActualPrefix != "" {
+        composite.Add(buffer.NewDeleteTextEntry(curLine, 0, indentInfo.ActualPrefix))
+    }
+    if desired != "" {
+        composite.Add(buffer.NewInsertTextEntry(curLine, 0, desired))
+    }
+
+    if e.buffer.History != nil {
+        if executed, err := e.buffer.History.Execute(e.buffer, composite); err != nil {
+            return err
+        } else if executed != nil {
+            e.setLastChange(executed)
+            // Treat as simple command for '.' repeat compatibility similar to indent/unindent
+            e.lastSimpleCommand = "reindent-line"
+        }
+    } else {
+        // Fallback direct edits without history
+        lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
+        if indentInfo.ActualPrefix != "" {
+            e.buffer.Delete(lineStart, len(indentInfo.ActualPrefix))
+        }
+        if desired != "" {
+            e.buffer.Insert(lineStart, desired)
+        }
+    }
+
+    // Restore iterators
+    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, curLine)
+    e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+
+    // Place cursor at first non-whitespace character
+    newLine := e.buffer.CursorIterator.Line()
+    e.buffer.CursorX = 0
+    for i := 0; i < len(newLine); i++ {
+        if newLine[i] != ' ' && newLine[i] != '\t' {
+            e.buffer.CursorX = i
+            break
+        }
+    }
+
+    e.updateSyntaxHighlighting()
+    return nil
+}
+
+// reindentExpression recalculates indentation for the entire enclosing expression or block.
+// It attempts to find a structural region (LSP folding block, then {..}, then (..)),
+// and replaces leading whitespace on each line within that region using the editor's
+// auto-indent heuristics. Repeated invocations at the same position will cycle the
+// target width index (stored in lastRewrap* fields) to mirror Alt+Q behavior, so we
+// can later extend line-breaking by rulers. For now, width cycling is recorded but
+// does not change indentation.
+func (e *Editor) reindentExpression(args []string) error {
+    if e.buffer == nil {
+        return nil
+    }
+
+    // Determine width cycling index similar to rewrapParagraph
+    cursorLine := e.buffer.CursorIterator.LineNumber()
+    cursorX := e.buffer.CursorX
+    width := 0
+    if len(e.config.VerticalRulers) > 0 {
+        if e.lastRewrapLine == cursorLine && e.lastRewrapChar == cursorX {
+            e.lastRewrapIndex = (e.lastRewrapIndex + 1) % len(e.config.VerticalRulers)
+        } else {
+            e.lastRewrapIndex = 0
+        }
+        width = e.config.VerticalRulers[e.lastRewrapIndex]
+    }
+    _ = width // Reserved for future line-breaking based on rulers
+
+    // Find expression range:
+    startLine, _, endLine, _, ok := e.findExpressionRange()
+    if !ok {
+        // Fallback to current line only
+        startLine, endLine = cursorLine, cursorLine
+    }
+
+    // Build a composite history edit
+    composite := buffer.NewCompositeEntry("Reindent expression")
+
+    // Preserve view position
+    viewLine := e.buffer.ViewIterator.LineNumber()
+
+    // Helper: unit indentation string
+    unit := e.buffer.GetIndentationString()
+
+    for ln := startLine; ln <= endLine; ln++ {
+        iter := buffer.NewBufferIteratorAtLine(e.buffer, ln)
+        if iter.IsEOF() {
+            continue
+        }
+        line := iter.Line()
+        // Place CursorIterator at this line to let CalculateAutoIndent analyze context
+        e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, ln)
+        // Desired indentation for an empty line at this position (block-level)
+        auto := e.buffer.CalculateAutoIndent("", 0)
+        desired := auto.IndentStr
+
+        // If this line begins with a closing brace, align to its matching open brace's indent
+        trimmed := strings.TrimLeft(line, " \t")
+        if len(trimmed) > 0 && trimmed[0] == '}' {
+            if openLine, openIndent := e.findMatchingOpenBrace(ln); openLine >= 0 {
+                desired = strings.Repeat(unit, openIndent)
+            }
+        }
+
+        // Current leading whitespace
+        i := 0
+        for i < len(line) {
+            ch := line[i]
+            if ch == ' ' || ch == '\t' {
+                i++
+            } else {
+                break
+            }
+        }
+        current := line[:i]
+        if current == desired {
+            continue
+        }
+        // Apply: delete current, insert desired
+        if current != "" {
+            composite.Add(buffer.NewDeleteTextEntry(ln, 0, current))
+        }
+        if desired != "" {
+            composite.Add(buffer.NewInsertTextEntry(ln, 0, desired))
+        }
+    }
+
+    if e.buffer.History != nil {
+        if executed, err := e.buffer.History.Execute(e.buffer, composite); err != nil {
+            return err
+        } else if executed != nil {
+            e.setLastChange(executed)
+            e.lastSimpleCommand = "reindent-line" // repeat-friendly; treat like simple reindent
+        }
+    } else {
+        // Fallback: execute entries directly
+        _ = composite.Execute(e.buffer)
+    }
+
+    // Restore iterators
+    if viewLine >= e.buffer.LineCount {
+        viewLine = e.buffer.LineCount - 1
+        if viewLine < 0 {
+            viewLine = 0
+        }
+    }
+    if cursorLine >= e.buffer.LineCount {
+        cursorLine = e.buffer.LineCount - 1
+        if cursorLine < 0 {
+            cursorLine = 0
+        }
+    }
+    e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+
+    // Move cursor to first non-whitespace of its line
+    newLine := e.buffer.CursorIterator.Line()
+    e.buffer.CursorX = 0
+    for i := 0; i < len(newLine); i++ {
+        if newLine[i] != ' ' && newLine[i] != '\t' {
+            e.buffer.CursorX = i
+            break
+        }
+    }
+
+    // Remember position for width cycling
+    e.lastRewrapLine = cursorLine
+    e.lastRewrapChar = e.buffer.CursorX
+
+    e.updateSyntaxHighlighting()
+    return nil
+}
+
+// findExpressionRange tries to find a structural range around the cursor:
+// 1) LSP folding block (around), 2) braces {..}, 3) parentheses (..).
+func (e *Editor) findExpressionRange() (int, int, int, int, bool) {
+    if e.buffer == nil {
+        return 0, 0, 0, 0, false
+    }
+    line := e.buffer.CursorIterator.LineNumber()
+    x := e.buffer.CursorX
+
+    // Prefer LSP folding range if available
+    if len(e.buffer.FoldingRanges) > 0 {
+        tb := NewBlockTextObject(ModifierAround)
+        if sL, sC, eL, eC, ok := tb.GetRange(e.buffer, line, x); ok {
+            return sL, sC, eL, eC, true
+        }
+    }
+
+    // Try braces
+    bt := NewBracketTextObject('{', ModifierAround)
+    if sL, sC, eL, eC, ok := bt.GetRange(e.buffer, line, x); ok {
+        return sL, sC, eL, eC, true
+    }
+    // Try parentheses
+    pt := NewBracketTextObject('(', ModifierAround)
+    if sL, sC, eL, eC, ok := pt.GetRange(e.buffer, line, x); ok {
+        return sL, sC, eL, eC, true
+    }
+    return 0, 0, 0, 0, false
+}
+
 // indentLine indents the current line by one level (>> in vim)
 func (e *Editor) indentLine(args []string) error {
 	// Get current position

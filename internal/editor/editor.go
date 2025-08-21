@@ -1418,6 +1418,7 @@ func (e *Editor) isTextModifyingCommand(command string) bool {
 		"delete-word-backward":     true,
 		"indent-line":              true,
 		"unindent-line":            true,
+		"reindent-line":            true,
 		"yank-line":                true,
 		"insert-tab":               true,
 		"enter-insert-mode":        true,
@@ -2038,8 +2039,8 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 		return
 	}
 	e.lastCommand = nil // Clear operator+text object command for other cases
-	// Clear simple command unless it was just set (indent/unindent set it right before calling this)
-	if e.lastSimpleCommand != "indent-line" && e.lastSimpleCommand != "unindent-line" {
+	// Clear simple command unless it was just set (indent/unindent/reindent set it right before calling this)
+	if e.lastSimpleCommand != "indent-line" && e.lastSimpleCommand != "unindent-line" && e.lastSimpleCommand != "reindent-line" {
 		e.lastSimpleCommand = ""
 	}
 }
