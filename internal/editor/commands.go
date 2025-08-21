@@ -150,8 +150,10 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("start-change", e.startChangeOperation, false)
 
 	// Indentation commands
-	e.commandRegistry.Register("indent-line", e.indentLine, true)     // Apply to all cursors
-	e.commandRegistry.Register("unindent-line", e.unindentLine, true) // Apply to all cursors
+	e.commandRegistry.Register("indent-line", e.indentLine, true)         // Apply to all cursors
+	e.commandRegistry.Register("unindent-line", e.unindentLine, true)     // Apply to all cursors
+    e.commandRegistry.Register("reindent-line", e.reindentLine, true)         // Apply to all cursors
+    e.commandRegistry.Register("reindent-expression", e.reindentExpression, true) // Apply to all cursors
 
 	// Search commands
 	e.commandRegistry.Register("find-next", e.findNextCmd, true)         // Apply to all cursors for navigation

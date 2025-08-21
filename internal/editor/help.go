@@ -60,6 +60,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Alt+Q        - Rewrap paragraph (press again for 100, 120 columns)\n")
 	helpText.WriteString(">>           - Indent current line (also works in VISUAL to indent selection)\n")
 	helpText.WriteString("<<           - Unindent current line (also works in VISUAL to unindent selection)\n")
+	helpText.WriteString("==           - Reindent current line based on context\n")
+	helpText.WriteString("=            - Reindent current expression/block; repeat cycles width\n")
 	helpText.WriteString("m            - Enter cursor mode for multiple cursors\n\n")
 
 	helpText.WriteString("= Registers =\n")
