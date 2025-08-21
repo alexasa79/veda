@@ -13,7 +13,7 @@ func TestProxyManager(t *testing.T) {
 		t.Fatalf("Failed to create ProxyManager: %v", err)
 	}
 	defer pm.Close()
-	
+
 	// Test local file access
 	t.Run("LocalFile", func(t *testing.T) {
 		// Try to read a known file (this test file)
@@ -25,7 +25,7 @@ func TestProxyManager(t *testing.T) {
 			t.Error("File content doesn't contain expected text")
 		}
 	})
-	
+
 	// Test remote path detection (should fail with "not yet implemented")
 	t.Run("RemotePath", func(t *testing.T) {
 		_, err := pm.GetFile("testhost:/tmp/test.txt")
@@ -50,21 +50,21 @@ func TestParseRemotePath(t *testing.T) {
 		{"host:/path/to/file", "host", "/path/to/file", true},
 		{"server:file.txt", "server", "file.txt", true},
 		{"remote.host:~/documents/test.go", "remote.host", "~/documents/test.go", true},
-		
+
 		// Local paths
 		{"/home/user/file.txt", "", "/home/user/file.txt", false},
 		{"./file.txt", "", "./file.txt", false},
 		{"file.txt", "", "file.txt", false},
-		
+
 		// Windows-style paths (should be local)
 		{"C:/Windows/System32", "", "C:/Windows/System32", false},
 		{"D:\\Documents\\file.txt", "", "D:\\Documents\\file.txt", false},
-		
+
 		// Edge cases
 		{"host/with/slash:path", "", "host/with/slash:path", false}, // Invalid host
-		{":nohost", "", ":nohost", false}, // No host part
+		{":nohost", "", ":nohost", false},                           // No host part
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			gotHost, gotPath, gotRemote := parseRemotePath(tt.input)

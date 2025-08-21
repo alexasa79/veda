@@ -13,11 +13,11 @@ const (
 type Config struct {
 	ScrollOffset int
 	Theme        *theme.Theme
-	
+
 	// Default indentation settings for new buffers
 	DefaultIndentType  IndentationType
 	DefaultIndentWidth int
-	
+
 	// Vertical ruler positions
 	VerticalRulers []int
 }
@@ -25,9 +25,9 @@ type Config struct {
 func New() *Config {
 	return &Config{
 		ScrollOffset:       10,
-		Theme:             theme.NewTheme(),
-		DefaultIndentType: IndentSpaces,
+		Theme:              theme.NewTheme(),
+		DefaultIndentType:  IndentSpaces,
 		DefaultIndentWidth: 4,
-		VerticalRulers:    []int{80, 100, 120},
+		VerticalRulers:     []int{80, 100, 120},
 	}
 }

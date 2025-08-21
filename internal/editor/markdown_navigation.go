@@ -27,8 +27,8 @@ func (e *Editor) jumpToReference(args []string) error {
 	}
 
 	// Check if we're on a markdown link (works in any buffer including references)
-    if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
-        return e.openMarkdownLink(link, lineNum)
+	if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
+		return e.openMarkdownLink(link, lineNum)
 	}
 
 	// Not on a reference or link, do nothing
@@ -37,36 +37,36 @@ func (e *Editor) jumpToReference(args []string) error {
 
 // openMarkdownLinkInNewWindow opens the markdown link target in a new window
 func (e *Editor) openMarkdownLinkInNewWindow(args []string) error {
-    if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
-        // Create a new window to the right and open the link
-        insertAt := e.activeWindow + 1
-        oldActive := e.activeWindow
-        if insertAt >= len(e.windows) {
-            e.windows = append(e.windows, newWindow(e.buffer))
-        } else {
-            e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-            e.windows[insertAt] = newWindow(e.buffer)
-        }
-        e.recomputeWindowsLayout()
-        e.lastWindow = oldActive
-        e.activeWindow = insertAt
-        // Open in new window
-        if err := e.openMarkdownLink(link, lineNum); err != nil {
-            return err
-        }
-        return nil
-    }
-    return nil
+	if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
+		// Create a new window to the right and open the link
+		insertAt := e.activeWindow + 1
+		oldActive := e.activeWindow
+		if insertAt >= len(e.windows) {
+			e.windows = append(e.windows, newWindow(e.buffer))
+		} else {
+			e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+			e.windows[insertAt] = newWindow(e.buffer)
+		}
+		e.recomputeWindowsLayout()
+		e.lastWindow = oldActive
+		e.activeWindow = insertAt
+		// Open in new window
+		if err := e.openMarkdownLink(link, lineNum); err != nil {
+			return err
+		}
+		return nil
+	}
+	return nil
 }
 
 // getMarkdownLinkAtCursor returns the link URL and line number (if any) at the current cursor position
 func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 	line := e.buffer.CursorIterator.Line()
 	cursorX := e.buffer.CursorX
-	
+
 	// Find all markdown links in the line
 	matches := markdownLinkRegex.FindAllStringSubmatchIndex(line, -1)
-	
+
 	for _, match := range matches {
 		// match[0] and match[1] are the start and end of the entire match
 		// match[4] and match[5] are the start and end of the URL group
@@ -74,11 +74,11 @@ func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 		linkEnd := match[1]
 		urlStart := match[4]
 		urlEnd := match[5]
-		
+
 		// Check if cursor is within the link
 		if cursorX >= linkStart && cursorX < linkEnd {
 			url := line[urlStart:urlEnd]
-			
+
 			// Parse line number from URL if present (e.g., file.go#L42)
 			lineNum := 0
 			if idx := strings.LastIndex(url, "#L"); idx != -1 {
@@ -87,11 +87,11 @@ func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 					url = url[:idx] // Remove the line number part from URL
 				}
 			}
-			
+
 			return url, lineNum
 		}
 	}
-	
+
 	return "", 0
 }
 
@@ -104,7 +104,7 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 	if lineNum > 0 {
 		targetLine = lineNum - 1 // Convert 1-based to 0-based
 	}
-	
+
 	location := proxy.Location{
 		URI: "file://" + link,
 		Range: proxy.Range{
@@ -118,17 +118,17 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 			},
 		},
 	}
-	
+
 	// For testing, we need to handle pre-existing buffers
 	if _, exists := e.buffers[link]; exists {
 		// Push navigation history before switching
 		e.pushNavigationHistory()
-		
+
 		// Switch to the buffer
 		if buf, ok := e.buffers[link]; ok {
 			e.switchToBuffer(buf)
 		}
-		
+
 		// Jump to the line if specified
 		if lineNum > 0 {
 			targetLine := lineNum - 1
@@ -136,10 +136,10 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 			e.buffer.CursorX = 0
 			e.scrollToCenter()
 		}
-		
+
 		return nil
 	}
-	
+
 	// Use the standard jumpToLocation for real files
 	return e.jumpToLocation(location)
 }

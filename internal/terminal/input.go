@@ -53,10 +53,10 @@ var keyCodes = []keyCode{
 	{[]byte{'\x7f'}, events.KeyBackspace, events.ModNone},
 	{[]byte{'\x08'}, events.KeyBackspace2, events.ModNone},
 	{[]byte{'\t'}, events.KeyTab, events.ModNone},
-    {[]byte{'\r'}, events.KeyEnter, events.ModNone},
-    {[]byte{'\n'}, events.KeyEnter, events.ModNone},
-    // CSI-u/kitty keyboard: Shift+Enter often arrives as ESC [ 13 ; 2 u
-    {[]byte{'\x1b','[','1','3',';','2','u'}, events.KeyEnter, events.ModShift},
+	{[]byte{'\r'}, events.KeyEnter, events.ModNone},
+	{[]byte{'\n'}, events.KeyEnter, events.ModNone},
+	// CSI-u/kitty keyboard: Shift+Enter often arrives as ESC [ 13 ; 2 u
+	{[]byte{'\x1b', '[', '1', '3', ';', '2', 'u'}, events.KeyEnter, events.ModShift},
 
 	// Arrow keys - both normal and application mode
 	{[]byte{'\x1b', '[', 'A'}, events.KeyUp, events.ModNone},
@@ -141,19 +141,19 @@ var keyCodes = []keyCode{
 
 	// Alt+arrow keys (must be before ESC)
 	// Emacs-style keybindings (ESC b for back word, ESC f for forward word)
-	{[]byte{'\x1b', 'b'}, events.KeyLeft, events.ModAlt},   // Alt+Left (word backward)
-	{[]byte{'\x1b', 'f'}, events.KeyRight, events.ModAlt},  // Alt+Right (word forward)
-	
+	{[]byte{'\x1b', 'b'}, events.KeyLeft, events.ModAlt},  // Alt+Left (word backward)
+	{[]byte{'\x1b', 'f'}, events.KeyRight, events.ModAlt}, // Alt+Right (word forward)
+
 	// These use ESC followed by the arrow sequence
-	{[]byte{'\x1b', '\x1b', '[', 'C'}, events.KeyRight, events.ModAlt},  // Alt+Right
-	{[]byte{'\x1b', '\x1b', '[', 'D'}, events.KeyLeft, events.ModAlt},   // Alt+Left
-	{[]byte{'\x1b', '\x1b', '[', 'A'}, events.KeyUp, events.ModAlt},     // Alt+Up
-	{[]byte{'\x1b', '\x1b', '[', 'B'}, events.KeyDown, events.ModAlt},   // Alt+Down
+	{[]byte{'\x1b', '\x1b', '[', 'C'}, events.KeyRight, events.ModAlt}, // Alt+Right
+	{[]byte{'\x1b', '\x1b', '[', 'D'}, events.KeyLeft, events.ModAlt},  // Alt+Left
+	{[]byte{'\x1b', '\x1b', '[', 'A'}, events.KeyUp, events.ModAlt},    // Alt+Up
+	{[]byte{'\x1b', '\x1b', '[', 'B'}, events.KeyDown, events.ModAlt},  // Alt+Down
 	// Some terminals send different sequences for Alt+arrow
-	{[]byte{'\x1b', '[', '1', ';', '3', 'C'}, events.KeyRight, events.ModAlt},  // Alt+Right
-	{[]byte{'\x1b', '[', '1', ';', '3', 'D'}, events.KeyLeft, events.ModAlt},   // Alt+Left
-	{[]byte{'\x1b', '[', '1', ';', '3', 'A'}, events.KeyUp, events.ModAlt},     // Alt+Up
-	{[]byte{'\x1b', '[', '1', ';', '3', 'B'}, events.KeyDown, events.ModAlt},   // Alt+Down
+	{[]byte{'\x1b', '[', '1', ';', '3', 'C'}, events.KeyRight, events.ModAlt}, // Alt+Right
+	{[]byte{'\x1b', '[', '1', ';', '3', 'D'}, events.KeyLeft, events.ModAlt},  // Alt+Left
+	{[]byte{'\x1b', '[', '1', ';', '3', 'A'}, events.KeyUp, events.ModAlt},    // Alt+Up
+	{[]byte{'\x1b', '[', '1', ';', '3', 'B'}, events.KeyDown, events.ModAlt},  // Alt+Down
 
 	// Alt+Delete and Alt+Backspace
 	{[]byte{'\x1b', 'd'}, events.KeyDelete, events.ModAlt},                     // Alt+d (Emacs-style delete word forward)
@@ -180,12 +180,12 @@ func (t *Terminal) inputHandler() {
 		readDone := make(chan struct{})
 		var n int
 		var err error
-		
+
 		go func() {
-            n, err = os.Stdin.Read(buf)
+			n, err = os.Stdin.Read(buf)
 			close(readDone)
 		}()
-		
+
 		select {
 		case <-t.stopChan:
 			return
@@ -194,21 +194,20 @@ func (t *Terminal) inputHandler() {
 				continue
 			}
 
-            if n > 0 {
+			if n > 0 {
 				pending = append(pending, buf[:n]...)
 				lastReadTime = time.Now()
-                t.parseInput(&pending)
+				t.parseInput(&pending)
 			} else if len(pending) > 0 {
 				// No new data, but we have pending bytes
 				// If it's been more than 50ms since last read, process what we have
 				if time.Since(lastReadTime) > 50*time.Millisecond {
-                    t.parseInput(&pending)
+					t.parseInput(&pending)
 				}
 			}
 		}
 	}
 }
-
 
 // parseInput processes the input buffer and generates events
 func (t *Terminal) parseInput(buf *[]byte) {
@@ -228,13 +227,13 @@ func (t *Terminal) parseInput(buf *[]byte) {
 			// but NOT '[' or 'O' which start escape sequences
 			nextChar := (*buf)[1]
 			if nextChar != '[' && nextChar != 'O' && // Exclude escape sequence starters
-			   ((nextChar >= 'a' && nextChar <= 'z') || 
-			   (nextChar >= 'A' && nextChar <= 'Z') ||
-			   (nextChar >= '0' && nextChar <= '9') ||
-			   nextChar == ' ' || nextChar == '-' || nextChar == '=' ||
-			   nextChar == ',' || nextChar == '.' || nextChar == '/' ||
-			   nextChar == ';' || nextChar == '\'' || nextChar == '\\' ||
-			   nextChar == '`') {
+				((nextChar >= 'a' && nextChar <= 'z') ||
+					(nextChar >= 'A' && nextChar <= 'Z') ||
+					(nextChar >= '0' && nextChar <= '9') ||
+					nextChar == ' ' || nextChar == '-' || nextChar == '=' ||
+					nextChar == ',' || nextChar == '.' || nextChar == '/' ||
+					nextChar == ';' || nextChar == '\'' || nextChar == '\\' ||
+					nextChar == '`') {
 				// It's ESC followed by a regular character - treat as Alt+char
 				r, size := decodeRune((*buf)[1:])
 				if r != 0 && size > 0 {
@@ -244,7 +243,7 @@ func (t *Terminal) parseInput(buf *[]byte) {
 					continue
 				}
 			}
-			
+
 			// Try to match Alt+key sequences by checking if ESC + remaining buffer matches a key
 			altBuf := (*buf)[1:]
 			matched, consumedBytes := t.matchKeyCodeWithAlt(&altBuf)
@@ -300,32 +299,32 @@ func (t *Terminal) parseInput(buf *[]byte) {
 
 // matchBracketedPaste handles bracketed paste sequences (\033[200~ ... \033[201~)
 func (t *Terminal) matchBracketedPaste(buf *[]byte) (bool, bool) {
-    pasteStart := []byte{'\x1b', '[', '2', '0', '0', '~'}
-    pasteEnd := []byte{'\x1b', '[', '2', '0', '1', '~'}
+	pasteStart := []byte{'\x1b', '[', '2', '0', '0', '~'}
+	pasteEnd := []byte{'\x1b', '[', '2', '0', '1', '~'}
 
-    if len(*buf) >= len(pasteStart) && bytesEqual((*buf)[:len(pasteStart)], pasteStart) {
-        event := events.NewPasteEvent(true)
-        t.inputChan <- event
-        *buf = (*buf)[len(pasteStart):]
-        return true, false
-    }
-    if len(*buf) >= len(pasteEnd) && bytesEqual((*buf)[:len(pasteEnd)], pasteEnd) {
-        event := events.NewPasteEvent(false)
-        t.inputChan <- event
-        *buf = (*buf)[len(pasteEnd):]
-        return true, false
-    }
+	if len(*buf) >= len(pasteStart) && bytesEqual((*buf)[:len(pasteStart)], pasteStart) {
+		event := events.NewPasteEvent(true)
+		t.inputChan <- event
+		*buf = (*buf)[len(pasteStart):]
+		return true, false
+	}
+	if len(*buf) >= len(pasteEnd) && bytesEqual((*buf)[:len(pasteEnd)], pasteEnd) {
+		event := events.NewPasteEvent(false)
+		t.inputChan <- event
+		*buf = (*buf)[len(pasteEnd):]
+		return true, false
+	}
 
-    // Partial matches: require at least ESC '[' before stalling to avoid delaying lone ESC
-    if len(*buf) >= 2 {
-        if len(*buf) < len(pasteStart) && bytesEqual(*buf, pasteStart[:len(*buf)]) {
-            return false, true
-        }
-        if len(*buf) < len(pasteEnd) && bytesEqual(*buf, pasteEnd[:len(*buf)]) {
-            return false, true
-        }
-    }
-    return false, false
+	// Partial matches: require at least ESC '[' before stalling to avoid delaying lone ESC
+	if len(*buf) >= 2 {
+		if len(*buf) < len(pasteStart) && bytesEqual(*buf, pasteStart[:len(*buf)]) {
+			return false, true
+		}
+		if len(*buf) < len(pasteEnd) && bytesEqual(*buf, pasteEnd[:len(*buf)]) {
+			return false, true
+		}
+	}
+	return false, false
 }
 
 // matchKeyCodeWithAlt tries to match the buffer against known key codes and sends Alt version
@@ -335,19 +334,19 @@ func (t *Terminal) matchKeyCodeWithAlt(buf *[]byte) (bool, int) {
 		if len(*buf) >= len(kc.seq) && bytesEqual((*buf)[:len(kc.seq)], kc.seq) {
 			// Found a match - send it with Alt modifier
 			var event *events.KeyEvent
-			
+
 			// Skip if it's already an Alt combination or ESC key
 			if kc.mod&events.ModAlt != 0 || kc.key == events.KeyEscape {
 				return false, 0
 			}
-			
+
 			// Special handling for space key
 			if kc.key == events.KeySpace {
 				event = events.NewKeyEvent(kc.key, ' ', kc.mod|events.ModAlt)
 			} else {
 				event = events.NewKeyEvent(kc.key, 0, kc.mod|events.ModAlt)
 			}
-			
+
 			t.inputChan <- event
 			*buf = (*buf)[len(kc.seq):]
 			return true, len(kc.seq)

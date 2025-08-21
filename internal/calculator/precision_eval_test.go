@@ -15,7 +15,7 @@ func TestPrecisionEvaluation(t *testing.T) {
 		{"pre100 1/3", "0.3333333333", 100},
 		{"1/pre 100 3", "0.3333333333", 100},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.expr, func(t *testing.T) {
 			result, err := EvaluateExpressionWithResult(tt.expr)
@@ -23,15 +23,15 @@ func TestPrecisionEvaluation(t *testing.T) {
 				t.Errorf("Failed to evaluate %q: %v", tt.expr, err)
 				return
 			}
-			
+
 			resultStr := result.String()
-			
+
 			// Check if result starts with expected prefix
 			if !strings.HasPrefix(resultStr, tt.expectedPrefix) {
 				t.Errorf("Expression %q = %q, expected to start with %q",
 					tt.expr, resultStr, tt.expectedPrefix)
 			}
-			
+
 			// Check decimal places
 			parts := strings.Split(resultStr, ".")
 			if len(parts) == 2 {
@@ -60,7 +60,7 @@ func TestActualPrecisionExpressions(t *testing.T) {
 		{"(1+2)/3 pre20", true, "complex expression with precision"},
 		{"pre20 (1+2)/3", true, "precision before complex expression"},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			result, err := EvaluateExpressionWithResult(tt.expr)

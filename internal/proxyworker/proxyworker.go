@@ -46,26 +46,27 @@ type ProxyRequest struct {
 
 	// Future: add other request-specific fields for different proxy operations
 }
+
 // ProxyResponse represents a response from the proxy worker thread
 type ProxyResponse struct {
-	Type          ProxyRequestType
-	FilePath      string
-	Buffer        interface{} // Reference to the buffer that made the request
-	Generation    uint64      // Generation number from the original request
-	FoldingRanges []proxy.FoldingRange
-	SignatureHelp interface{} // Raw signature help response from proxy
-	ProjectSymbols []proxy.ProjectSymbol // Project symbols response
+	Type            ProxyRequestType
+	FilePath        string
+	Buffer          interface{} // Reference to the buffer that made the request
+	Generation      uint64      // Generation number from the original request
+	FoldingRanges   []proxy.FoldingRange
+	SignatureHelp   interface{}            // Raw signature help response from proxy
+	ProjectSymbols  []proxy.ProjectSymbol  // Project symbols response
 	DocumentSymbols []proxy.DocumentSymbol // Document symbols response
-	Query         string      // The query that was used for project/document symbols
-	ResponseTo    interface{} // Widget or component to send response to
-	Files         []proxy.FileInfo // Directory listing response
-	Error         error
-	
+	Query           string                 // The query that was used for project/document symbols
+	ResponseTo      interface{}            // Widget or component to send response to
+	Files           []proxy.FileInfo       // Directory listing response
+	Error           error
+
 	// Path resolution response fields
-	IsDirectory   bool   // Whether the path is a directory
-	ResolvedPath  string // The resolved path
+	IsDirectory      bool   // Whether the path is a directory
+	ResolvedPath     string // The resolved path
 	WorkingDirectory string // Extracted working directory for files
-	
+
 	// Future: add other response fields for different proxy operations
 }
 

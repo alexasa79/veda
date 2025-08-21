@@ -15,7 +15,7 @@ const (
 // RenderingState manages the editor's rendering state
 type RenderingState struct {
 	mode          RenderingMode
-    overlay       Overlay
+	overlay       Overlay
 	overlayResult chan string
 }
 
@@ -28,10 +28,10 @@ func NewRenderingState() *RenderingState {
 
 // Overlay is a generic interface implemented by modal UI overlays
 type Overlay interface {
-    Draw(screen widgets.Screen)
-    CheckContentUpdates()
-    HandleEvent(event interface{}) (bool, string)
-    GetCursorPosition() (int, int)
+	Draw(screen widgets.Screen)
+	CheckContentUpdates()
+	HandleEvent(event interface{}) (bool, string)
+	GetCursorPosition() (int, int)
 }
 
 // SetOverlay activates overlay mode with the given overlay

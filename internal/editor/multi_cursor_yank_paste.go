@@ -18,60 +18,60 @@ func (e *Editor) yankForAllCursors(yankFunc func() (string, error)) error {
 		}
 		return clipboard.Copy(text)
 	}
-	
+
 	// Save primary cursor position
 	primaryLineNum := e.buffer.CursorIterator.LineNumber()
 	primaryCursorX := e.buffer.CursorX
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Collect yanked text from all cursors
 	var yankedTexts []string
-	
+
 	// First yank from virtual cursors
 	for _, cursor := range e.virtualCursors {
 		// Set cursor to virtual cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
 		e.buffer.CursorX = cursor.X
-		
+
 		// Yank at this position
 		text, err := yankFunc()
 		if err != nil {
 			LL.Debug("Failed to yank at virtual cursor: %v", err)
 			continue
 		}
-		
+
 		// Remove trailing newline for consistency
 		text = strings.TrimSuffix(text, "\n")
 		yankedTexts = append(yankedTexts, text)
 	}
-	
+
 	// Restore primary cursor and yank from it
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
 	e.buffer.CursorX = primaryCursorX
-	
+
 	text, err := yankFunc()
 	if err != nil {
 		return err
 	}
-	
+
 	// Remove trailing newline for consistency
 	text = strings.TrimSuffix(text, "\n")
 	yankedTexts = append(yankedTexts, text)
-	
+
 	// Join all yanked texts with newlines
 	combinedText := strings.Join(yankedTexts, "\n")
-	
+
 	// Copy to clipboard
 	if err := clipboard.Copy(combinedText); err != nil {
 		LL.Error("Failed to copy to clipboard: %v", err)
 		return fmt.Errorf("failed to copy to clipboard: %w", err)
 	}
-	
+
 	// Restore view iterator
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	LL.Debug("Yanked %d items to clipboard (%d characters total)", len(yankedTexts), len(combinedText))
-	
+
 	return nil
 }
 
@@ -90,64 +90,64 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 		LL.Error("Failed to paste from clipboard: %v", err)
 		return nil
 	}
-	
+
 	if content == "" {
 		return nil
 	}
-	
+
 	// Check if we have virtual cursors
 	if len(e.virtualCursors) == 0 {
 		// No virtual cursors, just do normal paste
 		return pasteFunc(content)
 	}
-	
+
 	// Split content into lines
 	lines := strings.Split(content, "\n")
-	
+
 	// Determine if this is multi-line content
 	// Multi-line content has more than one line, regardless of trailing newline
 	isMultiLine := len(lines) > 1
-	
+
 	// Save positions
 	primaryLineNum := e.buffer.CursorIterator.LineNumber()
 	primaryCursorX := e.buffer.CursorX
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// If single line (or character paste), paste the same content at each cursor
 	if !isMultiLine {
 		// First paste at virtual cursors (in reverse order to maintain positions)
 		for i := len(e.virtualCursors) - 1; i >= 0; i-- {
 			cursor := e.virtualCursors[i]
-			
+
 			// Set cursor to virtual cursor position
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
 			e.buffer.CursorX = cursor.X
-			
+
 			// Paste at this position
 			if err := pasteFunc(content); err != nil {
 				LL.Debug("Failed to paste at virtual cursor: %v", err)
 			}
-			
+
 			// Update virtual cursor position after paste
 			e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
 			e.virtualCursors[i].X = e.buffer.CursorX
 		}
-		
+
 		// Restore and paste at primary cursor
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
 		e.buffer.CursorX = primaryCursorX
-		
+
 		// Execute paste
 		if err := pasteFunc(content); err != nil {
 			return err
 		}
-		
+
 		// Restore view iterator
 		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-		
+
 		return nil
 	}
-	
+
 	// Multi-line paste: distribute lines among cursors
 	// We need to collect all cursor positions first, then paste in document order
 	type cursorInfo struct {
@@ -155,9 +155,9 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 		isVirtual bool
 		index     int // for virtual cursors
 	}
-	
+
 	var cursors []cursorInfo
-	
+
 	// Add virtual cursors
 	for i, vc := range e.virtualCursors {
 		cursors = append(cursors, cursorInfo{
@@ -167,7 +167,7 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 			index:     i,
 		})
 	}
-	
+
 	// Add primary cursor
 	cursors = append(cursors, cursorInfo{
 		x:         primaryCursorX,
@@ -179,13 +179,13 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 	// This ensures we paste in document order
 	for i := 0; i < len(cursors); i++ {
 		for j := i + 1; j < len(cursors); j++ {
-			if cursors[i].y > cursors[j].y || 
-			   (cursors[i].y == cursors[j].y && cursors[i].x > cursors[j].x) {
+			if cursors[i].y > cursors[j].y ||
+				(cursors[i].y == cursors[j].y && cursors[i].x > cursors[j].x) {
 				cursors[i], cursors[j] = cursors[j], cursors[i]
 			}
 		}
 	}
-	
+
 	// Determine how many lines each cursor should get
 	// If we have more lines than cursors, the last cursor gets all remaining lines
 	linesToPaste := make(map[int][]string) // map from cursor index in sorted order to lines
@@ -200,11 +200,11 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 			}
 		}
 	}
-	
+
 	// Now paste lines in reverse order to maintain positions
 	for i := len(cursors) - 1; i >= 0; i-- {
 		cursor := cursors[i]
-		
+
 		// Find which sorted position this cursor is at
 		sortedIndex := -1
 		for j := 0; j < len(cursors); j++ {
@@ -213,40 +213,40 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 				break
 			}
 		}
-		
+
 		if sortedIndex == -1 || len(linesToPaste[sortedIndex]) == 0 {
 			continue
 		}
-		
+
 		// Set buffer cursor to this position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.y)
 		e.buffer.CursorX = cursor.x
-		
+
 		// Paste the lines for this cursor
 		textToPaste := strings.Join(linesToPaste[sortedIndex], "\n")
-		
+
 		// Paste at this position
 		if err := pasteFunc(textToPaste); err != nil {
 			LL.Debug("Failed to paste at cursor: %v", err)
 		}
-		
+
 		// Update cursor position if it's a virtual cursor
 		if cursor.isVirtual {
 			e.virtualCursors[cursor.index].Y = e.buffer.CursorIterator.LineNumber()
 			e.virtualCursors[cursor.index].X = e.buffer.CursorX
 		}
 	}
-	
+
 	// Restore primary cursor to its final position
 	if cursors[len(cursors)-1].isVirtual {
 		// Primary cursor wasn't the last, restore its position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
 		e.buffer.CursorX = primaryCursorX
 	}
-	
+
 	// Restore view iterator
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	return nil
 }
 
@@ -256,40 +256,40 @@ func (e *Editor) executeMovementForAllCursors(moveFunc func() error) error {
 		// No virtual cursors, just execute normally
 		return moveFunc()
 	}
-	
+
 	// Save primary cursor position
 	primaryLineNum := e.buffer.CursorIterator.LineNumber()
 	primaryCursorX := e.buffer.CursorX
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Move virtual cursors
 	for i := range e.virtualCursors {
 		// Set cursor to virtual cursor position
 		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, e.virtualCursors[i].Y)
 		e.buffer.CursorX = e.virtualCursors[i].X
-		
+
 		// Execute movement
 		if err := moveFunc(); err != nil {
 			LL.Debug("Failed to move virtual cursor: %v", err)
 			continue
 		}
-		
+
 		// Update virtual cursor position
 		e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
 		e.virtualCursors[i].X = e.buffer.CursorX
 	}
-	
+
 	// Restore and move primary cursor
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
 	e.buffer.CursorX = primaryCursorX
-	
+
 	// Execute movement for primary cursor
 	if err := moveFunc(); err != nil {
 		return err
 	}
-	
+
 	// Restore view iterator
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
+
 	return nil
 }

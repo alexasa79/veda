@@ -9,40 +9,40 @@ func TestFindWindowContainingBuffer(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create some buffers
-    buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-    buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-    buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	// Add buffers to the global buffer list
-    te.buffers["artifacts/file1.txt"] = buf1
-    te.buffers["artifacts/file2.txt"] = buf2
-    te.buffers["artifacts/file3.txt"] = buf3
+	te.buffers["artifacts/file1.txt"] = buf1
+	te.buffers["artifacts/file2.txt"] = buf2
+	te.buffers["artifacts/file3.txt"] = buf3
 
 	// Create windows and add buffers to them
 	win1 := newWindow(buf1)
-	win1.addBuffer(buf2) // buf1 and buf2 in window 1
+	win1.addBuffer(buf2)    // buf1 and buf2 in window 1
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
 
 	// Test finding windows
-    windowIdx1 := te.findWindowContainingBuffer("artifacts/file1.txt")
+	windowIdx1 := te.findWindowContainingBuffer("artifacts/file1.txt")
 	if windowIdx1 != 0 {
 		t.Errorf("Expected file1.txt to be in window 0, got %d", windowIdx1)
 	}
 
-    windowIdx2 := te.findWindowContainingBuffer("artifacts/file2.txt")
+	windowIdx2 := te.findWindowContainingBuffer("artifacts/file2.txt")
 	if windowIdx2 != 0 {
 		t.Errorf("Expected file2.txt to be in window 0, got %d", windowIdx2)
 	}
 
-    windowIdx3 := te.findWindowContainingBuffer("artifacts/file3.txt")
+	windowIdx3 := te.findWindowContainingBuffer("artifacts/file3.txt")
 	if windowIdx3 != 1 {
 		t.Errorf("Expected file3.txt to be in window 1, got %d", windowIdx3)
 	}
 
 	// Test non-existent buffer
-    windowIdxNone := te.findWindowContainingBuffer("artifacts/nonexistent.txt")
+	windowIdxNone := te.findWindowContainingBuffer("artifacts/nonexistent.txt")
 	if windowIdxNone != -1 {
 		t.Errorf("Expected non-existent buffer to return -1, got %d", windowIdxNone)
 	}
@@ -52,18 +52,18 @@ func TestShowBuffersWithMultipleWindows(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create some buffers
-    buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-    buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-    buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	// Add buffers to the global buffer list
-    te.buffers["artifacts/file1.txt"] = buf1
-    te.buffers["artifacts/file2.txt"] = buf2
-    te.buffers["artifacts/file3.txt"] = buf3
+	te.buffers["artifacts/file1.txt"] = buf1
+	te.buffers["artifacts/file2.txt"] = buf2
+	te.buffers["artifacts/file3.txt"] = buf3
 
 	// Create windows and add buffers to them
 	win1 := newWindow(buf1)
-	win1.addBuffer(buf2) // buf1 and buf2 in window 1
+	win1.addBuffer(buf2)    // buf1 and buf2 in window 1
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
@@ -91,19 +91,19 @@ func TestShowBuffersWithMultipleWindows(t *testing.T) {
 func TestWindowSwitchingIntegration(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-    // Create some buffers
-    buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-    buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-    buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	// Create some buffers
+	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
-    // Add buffers to the global buffer list
-    te.buffers["artifacts/file1.txt"] = buf1
-    te.buffers["artifacts/file2.txt"] = buf2
-    te.buffers["artifacts/file3.txt"] = buf3
+	// Add buffers to the global buffer list
+	te.buffers["artifacts/file1.txt"] = buf1
+	te.buffers["artifacts/file2.txt"] = buf2
+	te.buffers["artifacts/file3.txt"] = buf3
 
 	// Create windows and add buffers to them
 	win1 := newWindow(buf1)
-	win1.addBuffer(buf2) // buf1 and buf2 in window 1
+	win1.addBuffer(buf2)    // buf1 and buf2 in window 1
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
@@ -114,12 +114,12 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 	if te.activeWindow != 0 {
 		t.Errorf("Expected active window to be 0, got %d", te.activeWindow)
 	}
-    if te.buffer.FilePath != "artifacts/file1.txt" {
+	if te.buffer.FilePath != "artifacts/file1.txt" {
 		t.Errorf("Expected current buffer to be file1.txt, got %s", te.buffer.FilePath)
 	}
 
 	// Test finding buffer in different window
-    targetWindowIdx := te.findWindowContainingBuffer("artifacts/file3.txt")
+	targetWindowIdx := te.findWindowContainingBuffer("artifacts/file3.txt")
 	if targetWindowIdx != 1 {
 		t.Errorf("Expected file3.txt to be in window 1, got %d", targetWindowIdx)
 	}
@@ -129,7 +129,7 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 	if te.activeWindow != 1 {
 		t.Errorf("Expected active window to be 1 after activation, got %d", te.activeWindow)
 	}
-    if te.buffer.FilePath != "artifacts/file3.txt" {
+	if te.buffer.FilePath != "artifacts/file3.txt" {
 		t.Errorf("Expected current buffer to be file3.txt after window switch, got %s", te.buffer.FilePath)
 	}
 }

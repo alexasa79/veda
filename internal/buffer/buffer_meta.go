@@ -14,17 +14,17 @@ func calculateLineCount(rope *Rope) int {
 	if rope.Length() == 0 {
 		return 1 // Empty buffer has 1 line
 	}
-	
+
 	// Number of lines is newline count + 1
-    return rope.root.newlineCount + 1
+	return rope.root.newlineCount + 1
 }
 
 // SignatureHelp represents function signature information from LSP
 type SignatureHelp struct {
-	Label           string                 `json:"label"`          // The function signature
-	Documentation   string                 `json:"documentation"`  // Optional documentation
-	Parameters      []ParameterInfo        `json:"parameters"`     // Information about each parameter
-	ActiveParameter int                    `json:"activeParameter"` // Which parameter is currently active
+	Label           string          `json:"label"`           // The function signature
+	Documentation   string          `json:"documentation"`   // Optional documentation
+	Parameters      []ParameterInfo `json:"parameters"`      // Information about each parameter
+	ActiveParameter int             `json:"activeParameter"` // Which parameter is currently active
 }
 
 // ParameterInfo represents information about a function parameter
@@ -40,19 +40,19 @@ type Buffer struct {
 	*Rope // Embed the rope data structure
 
 	// File information
-	FilePath    string
-	IsModified  bool
+	FilePath   string
+	IsModified bool
 
 	// Cursor and view state
 	CursorX        int
-	ViewIterator   *BufferIterator  // Current view position iterator
-	CursorIterator *BufferIterator  // Current cursor position iterator
+	ViewIterator   *BufferIterator // Current view position iterator
+	CursorIterator *BufferIterator // Current cursor position iterator
 
 	// Caching
-	LineCount    int    // Cache of the number of lines
+	LineCount int // Cache of the number of lines
 
 	// Indentation settings for this buffer
-	Indentation  IndentationInfo
+	Indentation IndentationInfo
 
 	// Line number display width (e.g., 4 for files with 1000-9999 lines)
 	LineNumberWidth int
@@ -61,11 +61,11 @@ type Buffer struct {
 	Generation uint64
 
 	// LSP availability
-	HasLSP bool  // Whether LSP is available for this buffer
+	HasLSP bool // Whether LSP is available for this buffer
 
 	// Function signature state
-	CurrentSignature *SignatureHelp // The current function signature from LSP
-	SignatureGeneration uint64    // Generation number for signature help requests
+	CurrentSignature    *SignatureHelp // The current function signature from LSP
+	SignatureGeneration uint64         // Generation number for signature help requests
 
 	// Folding ranges from LSP
 	FoldingRanges []proxy.FoldingRange // Cached folding ranges for this buffer
@@ -77,18 +77,18 @@ type Buffer struct {
 	VisualAnchorLine   int // Line number where visual selection started
 	VisualAnchorX      int // X position where visual selection started
 	VisualAnchorOffset int // Byte offset where visual selection started
-	
+
 	// Git changes tracking
 	GitChanges *proxy.FileChanges // Git changes for this buffer (added, deleted, modified lines)
 	GitBranch  string             // Current git branch for this buffer
-    
-    // Diagnostics from LSP (1-based lines)
-    Diagnostics []proxy.Diagnostic
-	
+
+	// Diagnostics from LSP (1-based lines)
+	Diagnostics []proxy.Diagnostic
+
 	// Buffer flags
 	IsReadOnly bool // Whether this buffer is read-only
 	IsInternal bool // Whether this is an internal buffer (not tied to a file)
-	
+
 	// LSP notification callback
 	OnContentChange func() // Called when buffer content changes, for LSP notifications
 }
@@ -111,20 +111,20 @@ func (i *IndentationInfo) String() string {
 func NewBuffer(content string, filePath string, defaultIndentType config.IndentationType, defaultIndentWidth int) *Buffer {
 	rope := NewRopeFromString(content)
 	b := &Buffer{
-		Rope:         rope,
-		FilePath:     filePath,
-		IsModified:   false,
-		CursorX:      0,
-		ViewIterator:   nil,  // Will be created when buffer is first used
-		CursorIterator: nil,  // Will be created when buffer is first used
-		LineCount:    calculateLineCount(rope),
+		Rope:           rope,
+		FilePath:       filePath,
+		IsModified:     false,
+		CursorX:        0,
+		ViewIterator:   nil, // Will be created when buffer is first used
+		CursorIterator: nil, // Will be created when buffer is first used
+		LineCount:      calculateLineCount(rope),
 		Indentation: IndentationInfo{
 			Type:  defaultIndentType,
 			Width: defaultIndentWidth,
 		},
-		Generation:   0,  // Start with generation 0
-		History:      NewHistory(), // Initialize undo/redo history
-		VisualAnchorLine:   -1, // -1 means no visual selection
+		Generation:         0,            // Start with generation 0
+		History:            NewHistory(), // Initialize undo/redo history
+		VisualAnchorLine:   -1,           // -1 means no visual selection
 		VisualAnchorX:      -1,
 		VisualAnchorOffset: -1,
 	}
@@ -138,43 +138,42 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 // GetDiagnosticForLine returns the highest-severity diagnostic for a 1-based line.
 // Returns (nil, false) if no diagnostic exists for that line.
 func (b *Buffer) GetDiagnosticForLine(lineNum int) (*proxy.Diagnostic, bool) {
-    if b == nil || len(b.Diagnostics) == 0 {
-        return nil, false
-    }
-    // Higher rank is more severe
-    severityRank := func(s string) int {
-        switch s {
-        case "error":
-            return 4
-        case "warning":
-            return 3
-        case "info":
-            return 2
-        case "hint":
-            return 1
-        default:
-            return 0
-        }
-    }
-    bestIdx := -1
-    bestRank := 0
-    for i := range b.Diagnostics {
-        d := &b.Diagnostics[i]
-        if d.Line != lineNum {
-            continue
-        }
-        r := severityRank(d.Severity)
-        if r > bestRank {
-            bestRank = r
-            bestIdx = i
-        }
-    }
-    if bestIdx >= 0 {
-        return &b.Diagnostics[bestIdx], true
-    }
-    return nil, false
+	if b == nil || len(b.Diagnostics) == 0 {
+		return nil, false
+	}
+	// Higher rank is more severe
+	severityRank := func(s string) int {
+		switch s {
+		case "error":
+			return 4
+		case "warning":
+			return 3
+		case "info":
+			return 2
+		case "hint":
+			return 1
+		default:
+			return 0
+		}
+	}
+	bestIdx := -1
+	bestRank := 0
+	for i := range b.Diagnostics {
+		d := &b.Diagnostics[i]
+		if d.Line != lineNum {
+			continue
+		}
+		r := severityRank(d.Severity)
+		if r > bestRank {
+			bestRank = r
+			bestIdx = i
+		}
+	}
+	if bestIdx >= 0 {
+		return &b.Diagnostics[bestIdx], true
+	}
+	return nil, false
 }
-
 
 // MarkModified marks the buffer as modified
 func (b *Buffer) MarkModified() {
@@ -248,11 +247,11 @@ func (b *Buffer) GetIndentationString() string {
 
 // LineIndentInfo holds information about a line's indentation
 type LineIndentInfo struct {
-	Level            int    // The indentation level (in terms of file's indent width)
-	Spaces           int    // Total number of spaces
-	Tabs             int    // Total number of tabs
-	IsContinuation   bool   // Whether this appears to be a continuation line
-	ActualPrefix     string // The actual whitespace prefix
+	Level          int    // The indentation level (in terms of file's indent width)
+	Spaces         int    // Total number of spaces
+	Tabs           int    // Total number of tabs
+	IsContinuation bool   // Whether this appears to be a continuation line
+	ActualPrefix   string // The actual whitespace prefix
 }
 
 // GetLineIndentInfo analyzes a line and returns its indentation information
@@ -289,7 +288,7 @@ func (b *Buffer) GetLineIndentInfo(line string) LineIndentInfo {
 		if b.Indentation.Width > 0 {
 			info.Level = info.Spaces / b.Indentation.Width
 			// Check if it's a continuation line (not a multiple of indent width)
-			if info.Spaces % b.Indentation.Width != 0 {
+			if info.Spaces%b.Indentation.Width != 0 {
 				info.IsContinuation = true
 			}
 		}
@@ -313,15 +312,15 @@ func (b *Buffer) GetCurrentLineIndentInfo(iter *BufferIterator) LineIndentInfo {
 
 // UpdateLineNumberWidth calculates and caches the width needed for line numbers
 func (b *Buffer) UpdateLineNumberWidth() {
-    if b.LineCount == 0 {
-        // Minimum width: 1 digit + 1 padding + 2 indicator columns
-        b.LineNumberWidth = 4
-    } else {
-        // Calculate the width needed for the largest line number
-        digitsWidth := len(fmt.Sprintf("%d", b.LineCount))
-        // Total = digits + 1 padding + 2 indicator columns
-        b.LineNumberWidth = digitsWidth + 3
-    }
+	if b.LineCount == 0 {
+		// Minimum width: 1 digit + 1 padding + 2 indicator columns
+		b.LineNumberWidth = 4
+	} else {
+		// Calculate the width needed for the largest line number
+		digitsWidth := len(fmt.Sprintf("%d", b.LineCount))
+		// Total = digits + 1 padding + 2 indicator columns
+		b.LineNumberWidth = digitsWidth + 3
+	}
 }
 
 // Insert inserts text at the given position and increments the generation
@@ -329,7 +328,7 @@ func (b *Buffer) Insert(pos int, text string) {
 	b.Rope.Insert(pos, text)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
-	
+
 	// Notify LSP if callback is set
 	if b.OnContentChange != nil {
 		b.OnContentChange()
@@ -341,7 +340,7 @@ func (b *Buffer) Delete(start, end int) {
 	b.Rope.Delete(start, end)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
-	
+
 	// Notify LSP if callback is set
 	if b.OnContentChange != nil {
 		b.OnContentChange()
@@ -355,15 +354,15 @@ func (b *Buffer) AppendLine(line string) {
 	if b.IsInternal && b.IsReadOnly {
 		b.IsReadOnly = false
 	}
-	
+
 	// If buffer is not empty and doesn't end with newline, add one
 	if b.Length() > 0 && b.ByteAt(b.Length()-1) != '\n' {
 		b.Insert(b.Length(), "\n")
 	}
-	
+
 	// Append the line with a newline
-	b.Insert(b.Length(), line + "\n")
-	
+	b.Insert(b.Length(), line+"\n")
+
 	// Restore read-only status
 	if wasReadOnly {
 		b.IsReadOnly = true
@@ -375,10 +374,10 @@ func (b *Buffer) String() string {
 	if b == nil {
 		return "Buffer(nil)"
 	}
-	
+
 	filename := b.FileName()
 	lines := b.LineCount
 	chars := b.Rope.Length()
-	
+
 	return fmt.Sprintf("Buffer(file=%s, lines=%d, chars=%d)", filename, lines, chars)
 }

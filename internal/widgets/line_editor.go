@@ -17,12 +17,12 @@ type LineEditor struct {
 // NewLineEditor creates a new single-line editor widget
 func NewLineEditor(x, y, width int) *LineEditor {
 	return &LineEditor{
-		x:     x,
-		y:     y,
-		width: width,
-		text:  "",
+		x:      x,
+		y:      y,
+		width:  width,
+		text:   "",
 		cursor: 0,
-		style: ui.StyleDefault,
+		style:  ui.StyleDefault,
 	}
 }
 

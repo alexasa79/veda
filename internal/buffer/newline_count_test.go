@@ -60,8 +60,8 @@ func TestNewlineCountInfrastructure(t *testing.T) {
 
 	t.Run("NewConcatNode newline count aggregation", func(t *testing.T) {
 		t.Run("both children non-nil", func(t *testing.T) {
-			left := NewLeaf("hello\nworld\n")   // 2 newlines
-			right := NewLeaf("foo\nbar")        // 1 newline
+			left := NewLeaf("hello\nworld\n") // 2 newlines
+			right := NewLeaf("foo\nbar")      // 1 newline
 
 			concat := NewConcatNode(left, right)
 
@@ -77,7 +77,7 @@ func TestNewlineCountInfrastructure(t *testing.T) {
 		})
 
 		t.Run("left child nil", func(t *testing.T) {
-			right := NewLeaf("foo\nbar\n")  // 2 newlines
+			right := NewLeaf("foo\nbar\n") // 2 newlines
 
 			concat := NewConcatNode(nil, right)
 
@@ -87,7 +87,7 @@ func TestNewlineCountInfrastructure(t *testing.T) {
 		})
 
 		t.Run("right child nil", func(t *testing.T) {
-			left := NewLeaf("hello\nworld")  // 1 newline
+			left := NewLeaf("hello\nworld") // 1 newline
 
 			concat := NewConcatNode(left, nil)
 
@@ -106,13 +106,13 @@ func TestNewlineCountInfrastructure(t *testing.T) {
 
 		t.Run("nested concatenation", func(t *testing.T) {
 			// Create a tree: ((A, B), (C, D))
-			nodeA := NewLeaf("A\n")      // 1 newline
-			nodeB := NewLeaf("B\nB2\n")  // 2 newlines
-			nodeC := NewLeaf("C")        // 0 newlines
-			nodeD := NewLeaf("D\nD2")    // 1 newline
+			nodeA := NewLeaf("A\n")     // 1 newline
+			nodeB := NewLeaf("B\nB2\n") // 2 newlines
+			nodeC := NewLeaf("C")       // 0 newlines
+			nodeD := NewLeaf("D\nD2")   // 1 newline
 
-			leftSubtree := NewConcatNode(nodeA, nodeB)   // 3 newlines
-			rightSubtree := NewConcatNode(nodeC, nodeD)  // 1 newline
+			leftSubtree := NewConcatNode(nodeA, nodeB)       // 3 newlines
+			rightSubtree := NewConcatNode(nodeC, nodeD)      // 1 newline
 			root := NewConcatNode(leftSubtree, rightSubtree) // 4 newlines total
 
 			if leftSubtree.newlineCount != 3 {
@@ -253,9 +253,9 @@ func TestNewlineCountConsistencyAfterOperations(t *testing.T) {
 			start int
 			end   int
 		}{
-			{6, 12},  // Delete "line2\n"
-			{0, 6},   // Delete "line1\n"
-			{6, 12},  // Delete "line4\n"
+			{6, 12}, // Delete "line2\n"
+			{0, 6},  // Delete "line1\n"
+			{6, 12}, // Delete "line4\n"
 		}
 
 		for i, del := range deletions {

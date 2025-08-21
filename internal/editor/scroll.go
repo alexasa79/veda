@@ -6,13 +6,13 @@ import (
 
 // scroll ensures the cursor is visible within the viewport with appropriate margins
 func (e *Editor) scroll() {
-    t0 := e.perfTracker.Start()
-    
-    // Skip scrolling for empty windows
-    if e.buffer == nil {
-        return
-    }
-    
+	t0 := e.perfTracker.Start()
+
+	// Skip scrolling for empty windows
+	if e.buffer == nil {
+		return
+	}
+
 	visibleHeight := e.getVisibleHeight()
 	bufferLines := e.buffer.LineCount
 	topLine := e.buffer.ViewIterator.LineNumber()
@@ -48,7 +48,7 @@ func (e *Editor) scroll() {
 		linesToMove := desiredTopLine - topLine
 
 		// Don't scroll past the maximum allowed top line
-		if topLine + linesToMove > maxTopLine {
+		if topLine+linesToMove > maxTopLine {
 			linesToMove = maxTopLine - topLine
 		}
 
@@ -58,7 +58,7 @@ func (e *Editor) scroll() {
 			}
 		}
 	}
-    e.perfTracker.ReportSince("scroll.core", t0)
+	e.perfTracker.ReportSince("scroll.core", t0)
 }
 
 // scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top

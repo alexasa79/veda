@@ -9,13 +9,13 @@ import (
 func TestBashSyntaxHighlighting(t *testing.T) {
 	// Create a highlighter
 	h := NewHighlighter()
-	
+
 	// Set language to bash
 	err := h.SetLanguage("bash")
 	if err != nil {
 		t.Fatalf("Failed to set language to bash: %v", err)
 	}
-	
+
 	// Test bash script
 	bashCode := `#!/bin/bash
 
@@ -38,7 +38,7 @@ done`
 
 	// Parse the code
 	h.ParseFull([]byte(bashCode))
-	
+
 	// Test cases for different token types
 	testCases := []struct {
 		text      string
@@ -49,8 +49,8 @@ done`
 		{"# This is a comment", TokenTypeComment, false},
 		{"NAME", TokenTypeVariable, false},
 		{"Hello World", TokenTypeString, true}, // String content
-		{"echo", TokenTypeFunction, false}, // echo is parsed as a function by tree-sitter
-		{"NAME", TokenTypeVariable, true}, // Variable reference (part of $NAME)
+		{"echo", TokenTypeFunction, false},     // echo is parsed as a function by tree-sitter
+		{"NAME", TokenTypeVariable, true},      // Variable reference (part of $NAME)
 		{"if", TokenTypeKeyword, false},
 		{"then", TokenTypeKeyword, false},
 		{"fi", TokenTypeKeyword, false},
@@ -65,12 +65,12 @@ done`
 		{"?", TokenTypeConstant, true}, // Part of $? - special variable parsed as constant
 		{"1", TokenTypeVariable, true}, // Part of $1
 	}
-	
+
 	// Check each test case
 	for _, tc := range testCases {
 		found := false
 		var foundToken *Token
-		
+
 		// Find the token containing our test text
 		for lineNum := 0; lineNum < 20; lineNum++ { // Check first 20 lines
 			lineStart := 0
@@ -87,13 +87,13 @@ done`
 				}
 				lineStart = pos
 			}
-			
+
 			// Calculate line end
 			lineEnd := lineStart
 			for lineEnd < len(bashCode) && bashCode[lineEnd] != '\n' {
 				lineEnd++
 			}
-			
+
 			tokens := h.GetTokensForLine(lineStart, lineEnd)
 			for _, token := range tokens {
 				tokenText := string(bashCode[lineStart+token.Start : lineStart+token.End])
@@ -117,20 +117,20 @@ done`
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Errorf("Token not found for text: %s", tc.text)
 			continue
 		}
-		
+
 		if foundToken.TokenType != tc.tokenType {
 			t.Errorf("Wrong token type for %s: got %v, want %v", tc.text, foundToken.TokenType, tc.tokenType)
 		}
-		
+
 		// Verify that GetStyleForToken returns the correct style
 		testTheme := theme.NewTheme()
 		style := GetStyleForToken(foundToken.TokenType, testTheme)
-		
+
 		// Verify that tokens get appropriate styles
 		switch tc.tokenType {
 		case TokenTypeKeyword:
@@ -167,9 +167,9 @@ done`
 
 func TestBashFileDetection(t *testing.T) {
 	h := NewHighlighter()
-	
+
 	testCases := []struct {
-		filename string
+		filename     string
 		shouldBeBash bool
 	}{
 		{"script.sh", true},
@@ -180,16 +180,16 @@ func TestBashFileDetection(t *testing.T) {
 		{"script.go", false},
 		{"README.md", false},
 	}
-	
+
 	for _, tc := range testCases {
 		err := h.SetLanguageFromFile(tc.filename)
-		
+
 		if tc.shouldBeBash {
 			if err != nil {
 				t.Errorf("Failed to set language for %s: %v", tc.filename, err)
 				continue
 			}
-			
+
 			// Check that bash language was loaded by verifying we can parse bash code
 			h.ParseFull([]byte("echo test"))
 			if h.currentTree == nil {

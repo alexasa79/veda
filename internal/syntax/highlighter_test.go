@@ -2,19 +2,19 @@ package syntax
 
 import (
 	"testing"
-	
+
 	sitter "github.com/smacker/go-tree-sitter"
 )
 
 func TestMarkdownHighlighting(t *testing.T) {
 	highlighter := NewHighlighter()
-	
+
 	// Set language to markdown
 	err := highlighter.SetLanguageFromFile("test.md")
 	if err != nil {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
-	
+
 	tests := []struct {
 		name     string
 		input    string
@@ -147,7 +147,7 @@ func TestMarkdownHighlighting(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse the input
@@ -155,10 +155,10 @@ func TestMarkdownHighlighting(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to parse: %v", err)
 			}
-			
+
 			// Use GetTokensForString since we're testing full markdown parsing
 			tokens := highlighter.GetTokensForString(tt.input)
-			
+
 			// Debug: print all tokens found
 			t.Logf("Input: %q", tt.input)
 			t.Logf("Found %d tokens:", len(tokens))
@@ -166,7 +166,7 @@ func TestMarkdownHighlighting(t *testing.T) {
 				text := tt.input[token.Start:token.End]
 				t.Logf("  Token %d: %q [%d-%d] type=%s", i, text, token.Start, token.End, token.TokenType)
 			}
-			
+
 			// Check if expected tokens are found
 			for _, expected := range tt.expected {
 				found := false
@@ -177,7 +177,7 @@ func TestMarkdownHighlighting(t *testing.T) {
 						break
 					}
 				}
-				
+
 				if !found {
 					t.Errorf("Expected token %q with type %s not found", expected.text, expected.tokenType)
 				}
@@ -188,13 +188,13 @@ func TestMarkdownHighlighting(t *testing.T) {
 
 func TestMarkdownTreeStructure(t *testing.T) {
 	highlighter := NewHighlighter()
-	
+
 	// Set language to markdown
 	err := highlighter.SetLanguageFromFile("test.md")
 	if err != nil {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
-	
+
 	// Test input with various markdown elements
 	input := `# Heading 1
 ## Heading 2
@@ -213,13 +213,13 @@ Here's some ` + "`code`" + ` inline.
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
 	}
-	
+
 	// Get the tree
 	tree := highlighter.GetTree()
 	if tree == nil {
 		t.Fatal("Tree is nil")
 	}
-	
+
 	// Print tree structure for debugging
 	t.Log("Tree structure:")
 	printNodeTree(t, tree.RootNode(), []byte(input), 0)
@@ -230,7 +230,7 @@ func printNodeTree(t *testing.T, node *sitter.Node, source []byte, depth int) {
 	for i := 0; i < depth; i++ {
 		indent += "  "
 	}
-	
+
 	start := node.StartByte()
 	end := node.EndByte()
 	text := ""
@@ -239,9 +239,9 @@ func printNodeTree(t *testing.T, node *sitter.Node, source []byte, depth int) {
 	} else if end <= uint32(len(source)) {
 		text = string(source[start:start+47]) + "..."
 	}
-	
+
 	t.Logf("%s%s [%d-%d] %q", indent, node.Type(), start, end, text)
-	
+
 	for i := 0; i < int(node.ChildCount()); i++ {
 		printNodeTree(t, node.Child(i), source, depth+1)
 	}
@@ -250,13 +250,13 @@ func printNodeTree(t *testing.T, node *sitter.Node, source []byte, depth int) {
 // TestMarkdownLinkTokenization tests how markdown links are tokenized
 func TestMarkdownLinkTokenization(t *testing.T) {
 	highlighter := NewHighlighter()
-	
+
 	// Set language to markdown
 	err := highlighter.SetLanguageFromFile("test.md")
 	if err != nil {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
-	
+
 	tests := []struct {
 		name  string
 		input string
@@ -266,7 +266,7 @@ func TestMarkdownLinkTokenization(t *testing.T) {
 			input: "[link]",
 		},
 		{
-			name:  "Link with URL", 
+			name:  "Link with URL",
 			input: "[link](https://example.com)",
 		},
 		{
@@ -278,7 +278,7 @@ func TestMarkdownLinkTokenization(t *testing.T) {
 			input: "Click [here] to continue",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Parse the input
@@ -286,10 +286,10 @@ func TestMarkdownLinkTokenization(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to parse: %v", err)
 			}
-			
+
 			// Get tokens for the line
 			tokens := highlighter.GetTokensForLine(0, len(tt.input))
-			
+
 			// Print out all tokens for debugging
 			t.Logf("Input: %q", tt.input)
 			t.Logf("Tokens found:")
@@ -299,7 +299,7 @@ func TestMarkdownLinkTokenization(t *testing.T) {
 					t.Logf("  [%d:%d] %q -> %s", token.Start, token.End, tokenText, token.TokenType)
 				}
 			}
-			
+
 			// Also print the syntax tree for debugging
 			if tree := highlighter.GetTree(); tree != nil {
 				t.Logf("Syntax tree:")
@@ -312,13 +312,13 @@ func TestMarkdownLinkTokenization(t *testing.T) {
 // TestMarkdownReparseConsistency tests that reparsing doesn't duplicate content
 func TestMarkdownReparseConsistency(t *testing.T) {
 	highlighter := NewHighlighter()
-	
+
 	// Set language to markdown
 	err := highlighter.SetLanguageFromFile("test.md")
 	if err != nil {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name  string
 		input string
@@ -336,7 +336,7 @@ func TestMarkdownReparseConsistency(t *testing.T) {
 			input: "[link](https://example.com)",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// First parse
@@ -344,20 +344,20 @@ func TestMarkdownReparseConsistency(t *testing.T) {
 			if err != nil {
 				t.Fatalf("First parse failed: %v", err)
 			}
-			
+
 			firstTokens := highlighter.GetTokensForLine(0, len(tc.input))
-			
+
 			// Second parse (simulating what happens when exiting insert mode)
 			err = highlighter.ParseFull([]byte(tc.input))
 			if err != nil {
 				t.Fatalf("Second parse failed: %v", err)
 			}
-			
+
 			secondTokens := highlighter.GetTokensForLine(0, len(tc.input))
-			
+
 			// Compare tokens
 			if len(firstTokens) != len(secondTokens) {
-				t.Errorf("Token count changed after reparse: first=%d, second=%d", 
+				t.Errorf("Token count changed after reparse: first=%d, second=%d",
 					len(firstTokens), len(secondTokens))
 				t.Logf("First tokens:")
 				for _, tok := range firstTokens {
@@ -368,12 +368,12 @@ func TestMarkdownReparseConsistency(t *testing.T) {
 					t.Logf("  [%d:%d] %s", tok.Start, tok.End, tok.TokenType)
 				}
 			}
-			
+
 			// Check that tokens are identical
 			for i := 0; i < len(firstTokens) && i < len(secondTokens); i++ {
 				if firstTokens[i].Start != secondTokens[i].Start ||
-				   firstTokens[i].End != secondTokens[i].End ||
-				   firstTokens[i].TokenType != secondTokens[i].TokenType {
+					firstTokens[i].End != secondTokens[i].End ||
+					firstTokens[i].TokenType != secondTokens[i].TokenType {
 					t.Errorf("Token %d differs after reparse: first=[%d:%d %s], second=[%d:%d %s]",
 						i, firstTokens[i].Start, firstTokens[i].End, firstTokens[i].TokenType,
 						secondTokens[i].Start, secondTokens[i].End, secondTokens[i].TokenType)

@@ -133,16 +133,16 @@ func TestWhitespaceStyleRenderChar(t *testing.T) {
 func TestWhitespaceRenderingIntegration(t *testing.T) {
 	// Create test editor
 	te := NewTestEditorWithContent(80, 24, "\thello world   ")
-	
+
 	// Draw the editor
 	te.drawEditor()
-	
+
 	// Get the rendered output
 	mockScreen := te.screen.(*MockScreen)
-	
-    // Line numbers are shown by default; use buffer's configured width
-    lineNumberWidth := te.buffer.LineNumberWidth
-	
+
+	// Line numbers are shown by default; use buffer's configured width
+	lineNumberWidth := te.buffer.LineNumberWidth
+
 	// Check that tab is rendered as arrow
 	if cell, ok := mockScreen.cells[0][lineNumberWidth]; ok {
 		if cell.Rune != '→' {
@@ -151,7 +151,7 @@ func TestWhitespaceRenderingIntegration(t *testing.T) {
 	} else {
 		t.Error("No character rendered at tab position")
 	}
-	
+
 	// Check that trailing spaces are rendered as dots
 	// Tab = 4 visual chars (arrow + 3 spaces), "hello world" = 11 chars
 	// So trailing spaces start at lineNumberWidth + 4 + 11 = 17

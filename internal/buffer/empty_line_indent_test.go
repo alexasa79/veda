@@ -57,29 +57,29 @@ func TestEmptyLineIndentation(t *testing.T) {
 			if tt.name == "empty line with tab indentation" {
 				indentType = config.IndentTabs
 			}
-			
+
 			buffer := NewBuffer(tt.content, "test.c", indentType, 4)
-			
+
 			// Set cursor to the specified line for context analysis
 			buffer.CursorIterator = NewBufferIteratorAtLine(buffer, tt.cursorLine)
-			
+
 			// Get the empty line content (should be empty)
 			emptyLine := ""
 			if !buffer.CursorIterator.IsEOF() {
 				emptyLine = buffer.CursorIterator.Line()
 			}
-			
+
 			// Calculate auto-indent for the empty line
 			result := buffer.CalculateAutoIndent(emptyLine, 0)
-			
+
 			// Verify the result
 			if result.Column != tt.expectedColumn {
-				t.Errorf("%s: Expected column %d, got %d", 
+				t.Errorf("%s: Expected column %d, got %d",
 					tt.description, tt.expectedColumn, result.Column)
 			}
-			
+
 			if result.IndentStr != tt.expectedIndent {
-				t.Errorf("%s: Expected indent string %q, got %q", 
+				t.Errorf("%s: Expected indent string %q, got %q",
 					tt.description, tt.expectedIndent, result.IndentStr)
 			}
 		})
@@ -121,16 +121,16 @@ func TestEmptyLineIndentationEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buffer := NewBuffer(tt.content, "test.c", config.IndentSpaces, 4)
-			
+
 			if tt.content != "" {
 				buffer.CursorIterator = NewBufferIteratorAtLine(buffer, tt.cursorLine)
 			}
-			
+
 			// Calculate auto-indent for empty line
 			result := buffer.CalculateAutoIndent("", 0)
-			
+
 			if result.Column != tt.expectedColumn {
-				t.Errorf("%s: Expected column %d, got %d", 
+				t.Errorf("%s: Expected column %d, got %d",
 					tt.description, tt.expectedColumn, result.Column)
 			}
 		})

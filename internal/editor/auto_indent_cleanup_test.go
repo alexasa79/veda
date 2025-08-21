@@ -12,14 +12,14 @@ func TestAutoIndentCleanupBasics(t *testing.T) {
 		autoIndentLines: make(map[string]AutoIndentInfo),
 		lastCursorLine:  -1,
 	}
-	
+
 	// Create a test buffer
 	testBuffer := buffer.NewBuffer("", "test.go", config.IndentSpaces, 4)
 	editor.buffer = testBuffer
-	
+
 	// Test tracking auto-indent
 	editor.trackAutoIndent(1, 4)
-	
+
 	// Verify tracking
 	key := editor.makeAutoIndentKey("test.go", 1)
 	info, exists := editor.autoIndentLines[key]
@@ -32,7 +32,7 @@ func TestAutoIndentCleanupBasics(t *testing.T) {
 	if info.HasUserContent {
 		t.Error("Should not have user content initially")
 	}
-	
+
 	// Test marking line with user content
 	editor.markLineHasUserContent(1)
 	info, exists = editor.autoIndentLines[key]
@@ -46,12 +46,12 @@ func TestAutoIndentCleanupBasics(t *testing.T) {
 
 func TestAutoIndentCleanupKey(t *testing.T) {
 	editor := &Editor{}
-	
+
 	key1 := editor.makeAutoIndentKey("test.go", 5)
 	key2 := editor.makeAutoIndentKey("test.go", 5)
 	key3 := editor.makeAutoIndentKey("test.go", 6)
 	key4 := editor.makeAutoIndentKey("other.go", 5)
-	
+
 	if key1 != key2 {
 		t.Error("Same file and line should produce same key")
 	}

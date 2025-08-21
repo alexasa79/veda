@@ -25,7 +25,7 @@ func TestShouldSkipFile(t *testing.T) {
 			expected: true,
 			reason:   "Should skip files in hidden directories",
 		},
-		
+
 		// Directories
 		{
 			name:     "directory",
@@ -33,7 +33,7 @@ func TestShouldSkipFile(t *testing.T) {
 			expected: true,
 			reason:   "Should skip directories",
 		},
-		
+
 		// .d files
 		{
 			name:     "dependency file",
@@ -41,7 +41,7 @@ func TestShouldSkipFile(t *testing.T) {
 			expected: true,
 			reason:   "Should skip .d dependency files",
 		},
-		
+
 		// Binary files
 		{
 			name:     "object file",
@@ -97,7 +97,7 @@ func TestShouldSkipFile(t *testing.T) {
 			expected: true,
 			reason:   "Should skip vd editor binary",
 		},
-		
+
 		// Files that should NOT be skipped
 		{
 			name:     "source file",
@@ -154,7 +154,7 @@ func TestShouldSkipFile(t *testing.T) {
 			reason:   "Should not skip .d.ts TypeScript declaration files",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := shouldSkipFile(tt.fileInfo)

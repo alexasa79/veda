@@ -34,7 +34,7 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 	// Get absolute path to test file
 	cwd, _ := os.Getwd()
 	testFile := filepath.Join(cwd, "../../artifacts/python_test_project/services/task_manager.py")
-	
+
 	// Make sure the test file exists
 	if _, err := os.Stat(testFile); os.IsNotExist(err) {
 		t.Fatalf("Test file not found: %s", testFile)
@@ -89,34 +89,34 @@ func TestLSPDidChangeIntegration(t *testing.T) {
     def get_task_count(self):
         """Get the total number of tasks."""
         return len(self.`
-		
+
 		// Insert the new method (incomplete, so we can test completion)
 		modifiedLines := make([]string, 0, len(lines)+4)
 		modifiedLines = append(modifiedLines, lines[:insertLine]...)
 		modifiedLines = append(modifiedLines, strings.Split(newMethod, "\n")...)
 		modifiedLines = append(modifiedLines, lines[insertLine:]...)
-		
+
 		modifiedContent := strings.Join(modifiedLines, "\n")
-		
+
 		t.Logf("Inserting new method at line %d", insertLine)
-		
+
 		// Send didChange notification
 		err = pm.NotifyFileChange(testFile, modifiedContent)
 		if err != nil {
 			t.Logf("Warning: Failed to send didChange notification: %v", err)
 			// This might be expected if LSP is not fully initialized
 		}
-		
+
 		// Give LSP time to process the change
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Calculate the position for completion (after "self.")
 		// Find the line number and character position
 		completionLine := insertLine + 3 // The line with "return len(self."
 		completionChar := len("        return len(self.")
-		
+
 		t.Logf("Requesting completion at line %d, char %d", completionLine, completionChar)
-		
+
 		// Request completions at the position after "self."
 		completions, err := pm.GetCompletions(testFile, completionLine, completionChar)
 		if err != nil {
@@ -124,14 +124,14 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 			// Don't fail the test - LSP might not be fully ready
 			return
 		}
-		
+
 		// Check if we got completions
 		if completions != nil {
 			// Try to extract completion items
 			if result, ok := completions.(map[string]interface{}); ok {
 				if items, ok := result["items"].([]interface{}); ok {
 					t.Logf("Got %d completion items", len(items))
-					
+
 					// Look for "tasks" in completions (should be available as self.tasks)
 					foundTasks := false
 					for _, item := range items {
@@ -145,7 +145,7 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 							}
 						}
 					}
-					
+
 					if !foundTasks && len(items) > 0 {
 						t.Logf("Did not find 'tasks' in completions, but got %d other items", len(items))
 						// Log first few items for debugging
@@ -165,7 +165,7 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 	t.Run("SignatureHelpAfterUnsavedChanges", func(t *testing.T) {
 		// Add a new function call that's not saved to disk
 		lines := strings.Split(originalContent.Content, "\n")
-		
+
 		// Find a good place to add a function call
 		insertLine := -1
 		for i, line := range lines {
@@ -180,43 +180,43 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if insertLine == -1 {
 			t.Skip("Could not find appropriate insertion point for signature help test")
 		}
-		
+
 		// Add a new line with a function call
 		newLine := "        task.set_priority("
-		
+
 		modifiedLines := make([]string, 0, len(lines)+1)
 		modifiedLines = append(modifiedLines, lines[:insertLine]...)
 		modifiedLines = append(modifiedLines, newLine)
 		modifiedLines = append(modifiedLines, lines[insertLine:]...)
-		
+
 		modifiedContent := strings.Join(modifiedLines, "\n")
-		
+
 		// Send didChange notification
 		err = pm.NotifyFileChange(testFile, modifiedContent)
 		if err != nil {
 			t.Logf("Warning: Failed to send didChange notification: %v", err)
 		}
-		
+
 		// Give LSP time to process
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Request signature help at the position inside the parentheses
 		signatureLine := insertLine
 		signatureChar := len(newLine) - 1 // Just inside the opening parenthesis
-		
+
 		t.Logf("Requesting signature help at line %d, char %d", signatureLine, signatureChar)
-		
+
 		sigHelp, err := pm.GetSignatureHelp(testFile, signatureLine, signatureChar)
 		if err != nil {
 			t.Logf("GetSignatureHelp failed: %v", err)
 			// Don't fail - LSP might not provide signature help for this
 			return
 		}
-		
+
 		if sigHelp != nil {
 			t.Logf("Got signature help response: %T", sigHelp)
 			// Log the response for debugging
@@ -231,7 +231,7 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 	t.Run("DiagnosticsAfterUnsavedChanges", func(t *testing.T) {
 		// Introduce a syntax error that's not saved to disk
 		lines := strings.Split(originalContent.Content, "\n")
-		
+
 		// Find a line to break
 		breakLine := -1
 		for i, line := range lines {
@@ -240,31 +240,31 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if breakLine == -1 {
 			t.Skip("Could not find line to introduce error")
 		}
-		
+
 		// Introduce a syntax error (missing colon)
 		lines[breakLine] = strings.Replace(lines[breakLine], ":", "", 1)
 		modifiedContent := strings.Join(lines, "\n")
-		
+
 		// Send didChange notification
 		err = pm.NotifyFileChange(testFile, modifiedContent)
 		if err != nil {
 			t.Logf("Warning: Failed to send didChange notification: %v", err)
 		}
-		
+
 		// Give LSP time to process and generate diagnostics
 		time.Sleep(1 * time.Second)
-		
+
 		// Get diagnostics
 		diagnostics, err := pm.GetDiagnostics(testFile)
 		if err != nil {
 			t.Logf("GetDiagnostics failed: %v", err)
 			return
 		}
-		
+
 		if diagnostics != nil {
 			t.Logf("Got diagnostics map with %d URIs", len(diagnostics))
 			// Check if we have diagnostics for our test file
@@ -294,7 +294,7 @@ func TestLSPDidChangeWithGoProject(t *testing.T) {
 		os.ExpandEnv("$GOPATH/bin/gopls"),
 		os.ExpandEnv("$HOME/go/bin/gopls"),
 	}
-	
+
 	goplsFound := false
 	for _, path := range gopaths {
 		if _, err := os.Stat(path); err == nil {
@@ -302,7 +302,7 @@ func TestLSPDidChangeWithGoProject(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !goplsFound {
 		t.Skip("gopls not found, skipping Go LSP integration tests")
 	}
@@ -319,7 +319,7 @@ func TestLSPDidChangeWithGoProject(t *testing.T) {
 	// Use main.go as test file
 	cwd, _ := os.Getwd()
 	testFile := filepath.Join(cwd, "../../main.go")
-	
+
 	// Read original content
 	originalContent, err := pm.GetFile(testFile)
 	if err != nil {
@@ -335,7 +335,7 @@ func TestLSPDidChangeWithGoProject(t *testing.T) {
 	t.Run("GoCompletionAfterUnsavedChanges", func(t *testing.T) {
 		// Add a new line in main function
 		lines := strings.Split(originalContent.Content, "\n")
-		
+
 		// Find main function
 		mainLine := -1
 		for i, line := range lines {
@@ -350,47 +350,47 @@ func TestLSPDidChangeWithGoProject(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if mainLine == -1 {
 			t.Skip("Could not find main function")
 		}
-		
+
 		// Add incomplete line for completion
 		incompleteLine := "\tfmt."
-		
+
 		modifiedLines := make([]string, 0, len(lines)+1)
 		modifiedLines = append(modifiedLines, lines[:mainLine]...)
 		modifiedLines = append(modifiedLines, incompleteLine)
 		modifiedLines = append(modifiedLines, lines[mainLine:]...)
-		
+
 		modifiedContent := strings.Join(modifiedLines, "\n")
-		
+
 		// Send didChange notification
 		err = pm.NotifyFileChange(testFile, modifiedContent)
 		if err != nil {
 			t.Logf("Warning: Failed to send didChange notification: %v", err)
 		}
-		
+
 		// Give gopls time to process
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Request completions after "fmt."
 		completionLine := mainLine
 		completionChar := len(incompleteLine)
-		
+
 		t.Logf("Requesting Go completions at line %d, char %d", completionLine, completionChar)
-		
+
 		completions, err := pm.GetCompletions(testFile, completionLine, completionChar)
 		if err != nil {
 			t.Logf("GetCompletions failed: %v", err)
 			return
 		}
-		
+
 		if completions != nil {
 			if result, ok := completions.(map[string]interface{}); ok {
 				if items, ok := result["items"].([]interface{}); ok {
 					t.Logf("Got %d completion items from gopls", len(items))
-					
+
 					// Look for common fmt functions
 					foundPrintln := false
 					for _, item := range items {
@@ -404,7 +404,7 @@ func TestLSPDidChangeWithGoProject(t *testing.T) {
 							}
 						}
 					}
-					
+
 					if !foundPrintln && len(items) > 0 {
 						t.Logf("Got %d completions but didn't find Println", len(items))
 					}

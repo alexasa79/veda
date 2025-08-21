@@ -1,11 +1,11 @@
 package editor
 
 import (
-    "strings"
-    "testing"
-    "veda/internal/buffer"
-    "veda/internal/commands"
-    "veda/internal/events"
+	"strings"
+	"testing"
+	"veda/internal/buffer"
+	"veda/internal/commands"
+	"veda/internal/events"
 )
 
 // Constants for common keys
@@ -26,7 +26,7 @@ func NewTestEditor(width, height int) *TestEditor {
 	if err != nil {
 		panic(err) // In tests, we panic on setup errors
 	}
-	
+
 	return &TestEditor{
 		Editor:     editor,
 		mockScreen: mockScreen,
@@ -40,12 +40,12 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	// Update iterators to point to the new buffer
 	te.buffer.ViewIterator = buffer.NewBufferIterator(te.buffer)
 	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
-	
+
 	// Set up content change callback for search match updates
 	te.buffer.OnContentChange = func() {
 		te.updateSearchMatchesOnContentChange()
 	}
-	
+
 	// Add the buffer to the buffers map so buffer management functions work
 	te.buffers[te.buffer.FilePath] = te.buffer
 	// Update buffer order if the file path isn't already there
@@ -60,32 +60,32 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 		te.bufferOrder = append(te.bufferOrder, te.buffer.FilePath)
 	}
 
-    // Ensure the active window renders this new buffer in unified window mode
-    // The editor initializes with a window bound to the initial empty buffer.
-    // After swapping te.buffer, also attach it to the active window so render() paints it.
-    if len(te.windows) == 0 {
-        // Create a default window for this buffer and layout
-        te.windows = []*Window{newWindow(te.buffer)}
-        te.activeWindow = 0
-        te.recomputeWindowsLayout()
-    } else {
-        // Attach the test buffer to the currently active window
-        aw := te.activeWindow
-        if aw < 0 || aw >= len(te.windows) {
-            aw = 0
-            te.activeWindow = 0
-        }
-        if te.windows[aw] == nil {
-            te.windows[aw] = newWindow(te.buffer)
-        } else {
-            te.windows[aw].Buffer = te.buffer
-        }
-        // Sync per-window cursor/view state from the buffer so status/render are consistent
-        te.windows[aw].ViewLine = te.buffer.ViewIterator.LineNumber()
-        te.windows[aw].CursorLine = te.buffer.CursorIterator.LineNumber()
-        te.windows[aw].CursorX = te.buffer.CursorX
-    }
-	
+	// Ensure the active window renders this new buffer in unified window mode
+	// The editor initializes with a window bound to the initial empty buffer.
+	// After swapping te.buffer, also attach it to the active window so render() paints it.
+	if len(te.windows) == 0 {
+		// Create a default window for this buffer and layout
+		te.windows = []*Window{newWindow(te.buffer)}
+		te.activeWindow = 0
+		te.recomputeWindowsLayout()
+	} else {
+		// Attach the test buffer to the currently active window
+		aw := te.activeWindow
+		if aw < 0 || aw >= len(te.windows) {
+			aw = 0
+			te.activeWindow = 0
+		}
+		if te.windows[aw] == nil {
+			te.windows[aw] = newWindow(te.buffer)
+		} else {
+			te.windows[aw].Buffer = te.buffer
+		}
+		// Sync per-window cursor/view state from the buffer so status/render are consistent
+		te.windows[aw].ViewLine = te.buffer.ViewIterator.LineNumber()
+		te.windows[aw].CursorLine = te.buffer.CursorIterator.LineNumber()
+		te.windows[aw].CursorX = te.buffer.CursorX
+	}
+
 	return te
 }
 
@@ -103,51 +103,51 @@ func (te *TestEditor) InsertChar(ch rune) error {
 
 // TypeKeys simulates typing a sequence of keys in normal mode
 func (te *TestEditor) TypeKeys(keys string) {
-    // Quick handling for named arrow keys passed as full strings
-    switch keys {
-    case "left":
-        te.PressKey(events.KeyLeft, 0)
-        return
-    case "right":
-        te.PressKey(events.KeyRight, 0)
-        return
-    case "up":
-        te.PressKey(events.KeyUp, 0)
-        return
-    case "down":
-        te.PressKey(events.KeyDown, 0)
-        return
-    }
+	// Quick handling for named arrow keys passed as full strings
+	switch keys {
+	case "left":
+		te.PressKey(events.KeyLeft, 0)
+		return
+	case "right":
+		te.PressKey(events.KeyRight, 0)
+		return
+	case "up":
+		te.PressKey(events.KeyUp, 0)
+		return
+	case "down":
+		te.PressKey(events.KeyDown, 0)
+		return
+	}
 
-    // If the input looks like a key sequence (e.g., "space v", "g d"),
-    // parse it using the same parser the keybindings use so multi-key
-    // sequences are recognized correctly.
-    if fields := strings.Fields(keys); len(fields) > 1 {
-        if seq, err := commands.ParseKeySequence(keys); err == nil {
-            for _, k := range seq {
-                ev := &events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod}
-                // Delegate to the main event handler logic
-                te.handleEvent(ev)
-            }
-            return
-        }
-        // If parsing fails, fall through to raw typing below
-    }
+	// If the input looks like a key sequence (e.g., "space v", "g d"),
+	// parse it using the same parser the keybindings use so multi-key
+	// sequences are recognized correctly.
+	if fields := strings.Fields(keys); len(fields) > 1 {
+		if seq, err := commands.ParseKeySequence(keys); err == nil {
+			for _, k := range seq {
+				ev := &events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod}
+				// Delegate to the main event handler logic
+				te.handleEvent(ev)
+			}
+			return
+		}
+		// If parsing fails, fall through to raw typing below
+	}
 
-    // Raw typing: send each rune as a key event, mapping common control chars
-    for _, ch := range keys {
-        var ev *events.KeyEvent
-        switch ch {
-        case '\n':
-            ev = &events.KeyEvent{Key: events.KeyEnter}
-        case '\t':
-            ev = &events.KeyEvent{Key: events.KeyTab}
-        default:
-            ev = &events.KeyEvent{Key: events.KeyRune, Rune: ch}
-        }
-        // Delegate to the main event handler logic
-        te.handleEvent(ev)
-    }
+	// Raw typing: send each rune as a key event, mapping common control chars
+	for _, ch := range keys {
+		var ev *events.KeyEvent
+		switch ch {
+		case '\n':
+			ev = &events.KeyEvent{Key: events.KeyEnter}
+		case '\t':
+			ev = &events.KeyEvent{Key: events.KeyTab}
+		default:
+			ev = &events.KeyEvent{Key: events.KeyRune, Rune: ch}
+		}
+		// Delegate to the main event handler logic
+		te.handleEvent(ev)
+	}
 }
 
 // PressKey simulates pressing a special key
@@ -156,26 +156,26 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 		Key:       key,
 		Modifiers: modifiers,
 	}
-    // In terminal mode, route events through the main event loop to honor
-    // terminal-specific handling (e.g., ESC exits terminal mode)
-    if te.mode == commands.TerminalMode {
-        te.handleEvent(ev)
-        return
-    }
+	// In terminal mode, route events through the main event loop to honor
+	// terminal-specific handling (e.g., ESC exits terminal mode)
+	if te.mode == commands.TerminalMode {
+		te.handleEvent(ev)
+		return
+	}
 	// Handle cursor mode specially
 	if te.mode == commands.CursorMode {
 		te.handleCursorMode(ev)
-    } else if te.mode == commands.NormalMode && key == events.KeyEscape {
-        if te.hasPendingOperation() {
-            te.cancelPendingOperation()
-        } else if len(te.virtualCursors) > 0 {
-            // Clear virtual cursors on escape in normal mode
-            te.clearVirtualCursors()
-        }
-        // In normal mode, ESC should hide key hints popup
-        te.keyHintsPopup.Hide()
-        // Also clear any pending key sequence to match real event path
-        te.keyMapper.ResetPending()
+	} else if te.mode == commands.NormalMode && key == events.KeyEscape {
+		if te.hasPendingOperation() {
+			te.cancelPendingOperation()
+		} else if len(te.virtualCursors) > 0 {
+			// Clear virtual cursors on escape in normal mode
+			te.clearVirtualCursors()
+		}
+		// In normal mode, ESC should hide key hints popup
+		te.keyHintsPopup.Hide()
+		// Also clear any pending key sequence to match real event path
+		te.keyMapper.ResetPending()
 	} else if te.mode == commands.NormalMode && te.hasPendingOperation() {
 		// Handle pending operations for special keys
 		keyStr := ""
@@ -189,7 +189,7 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 		case events.KeyDown:
 			keyStr = "down"
 		}
-		
+
 		if keyStr != "" {
 			te.handlePendingOperation(keyStr)
 		} else if command, found := te.keyMapper.ProcessKey(ev, te.mode); found {
@@ -212,15 +212,15 @@ func (te *TestEditor) GetCursorPosition() (x, y int) {
 // SetCursorPosition sets the cursor to a specific position
 func (te *TestEditor) SetCursorPosition(x, y int) {
 	te.buffer.CursorX = x
-	
+
 	// Reset cursor iterator to beginning
 	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
-	
+
 	// Move to target line
 	for i := 0; i < y && !te.buffer.CursorIterator.IsEOF(); i++ {
 		te.buffer.CursorIterator = te.buffer.CursorIterator.Next()
 	}
-	
+
 	// Ensure cursor X is within bounds
 	if !te.buffer.CursorIterator.IsEOF() {
 		line := te.buffer.CursorIterator.Line()
@@ -241,9 +241,9 @@ func (te *TestEditor) GetBufferContent() string {
 
 // GetScreenContent returns what's visible on the screen
 func (te *TestEditor) GetScreenContent() []string {
-    // Force a full render using the editor's unified path so tests see exactly what users see
-    te.Editor.render()
-	
+	// Force a full render using the editor's unified path so tests see exactly what users see
+	te.Editor.render()
+
 	lines := make([]string, 0)
 	_, height := te.screen.Size()
 	// Get all lines including status bar
@@ -289,7 +289,7 @@ func AssertScreenLineEquals(t *testing.T, te *TestEditor, lineNum int, expected 
 		t.Errorf("Line %d does not exist (only %d lines on screen)", lineNum, len(lines))
 		return
 	}
-	
+
 	actual := lines[lineNum]
 	if actual != expected {
 		t.Errorf("Expected line %d to be:\n%q\nBut got:\n%q", lineNum, expected, actual)

@@ -65,7 +65,7 @@ func (r *CalculationResult) String() string {
 	if r.Format == FormatHex || r.Format == FormatBinary || r.Format == FormatOctal {
 		return r.formatNonDecimal()
 	}
-	
+
 	// Handle separator formats (comma or underscore)
 	if r.Format == FormatComma || r.Format == FormatUnderscore {
 		return r.formatWithSeparator()
@@ -87,27 +87,27 @@ func (r *CalculationResult) formatDefault() string {
 	// For reasonable sized numbers, use moderate precision (similar to old 'g' format behavior)
 	// For very small or very large numbers, use higher precision to avoid scientific notation
 	precision := 10 // Start with 10 decimal places (similar to old behavior)
-	
+
 	// Check if the number would round to zero with our default precision
 	testStr := r.Value.Text('f', precision)
 	if strings.TrimRight(strings.TrimRight(testStr, "0"), ".") == "0" && r.Value.Sign() != 0 {
 		// Number is very small, try with higher precision to avoid showing 0
 		precision = 100
 		testStr = r.Value.Text('f', precision)
-		
+
 		// If still zero, try even higher
 		if strings.TrimRight(strings.TrimRight(testStr, "0"), ".") == "0" && r.Value.Sign() != 0 {
 			precision = 200
 		}
 	}
-	
+
 	// Use Text with 'f' format to avoid scientific notation
 	str := r.Value.Text('f', precision)
-	
+
 	// Remove trailing zeros and decimal point if not needed
 	str = strings.TrimRight(str, "0")
 	str = strings.TrimRight(str, ".")
-	
+
 	return str
 }
 
@@ -129,7 +129,7 @@ func (r *CalculationResult) formatWithSeparator() string {
 		// Use 'f' format to avoid scientific notation, then trim trailing zeros
 		precision := 10 // Start with reasonable precision
 		str = r.Value.Text('f', precision)
-		
+
 		// If we got zero but the value is non-zero, increase precision
 		if strings.TrimRight(strings.TrimRight(str, "0"), ".") == "0" && r.Value.Sign() != 0 {
 			precision = 100
@@ -140,17 +140,17 @@ func (r *CalculationResult) formatWithSeparator() string {
 				str = r.Value.Text('f', precision)
 			}
 		}
-		
+
 		str = strings.TrimRight(str, "0")
 		str = strings.TrimRight(str, ".")
 	}
-	
+
 	// Determine separator
 	sep := ","
 	if r.Format == FormatUnderscore {
 		sep = "_"
 	}
-	
+
 	// Split into integer and fractional parts
 	parts := strings.Split(str, ".")
 	intPart := parts[0]
@@ -158,29 +158,29 @@ func (r *CalculationResult) formatWithSeparator() string {
 	if len(parts) > 1 {
 		fracPart = parts[1]
 	}
-	
+
 	// Handle negative sign
 	negative := false
 	if strings.HasPrefix(intPart, "-") {
 		negative = true
 		intPart = intPart[1:]
 	}
-	
+
 	// Add separators to integer part (from right to left, every 3 digits)
 	formattedInt := addSeparators(intPart, sep, 3, true)
-	
+
 	// Add separators to fractional part (from left to right, every 3 digits)
 	result := formattedInt
 	if fracPart != "" {
 		formattedFrac := addSeparators(fracPart, sep, 3, false)
 		result = result + "." + formattedFrac
 	}
-	
+
 	// Add back negative sign
 	if negative {
 		result = "-" + result
 	}
-	
+
 	return result
 }
 
@@ -189,9 +189,9 @@ func addSeparators(s string, sep string, groupSize int, fromRight bool) string {
 	if len(s) <= groupSize {
 		return s
 	}
-	
+
 	var result []string
-	
+
 	if fromRight {
 		// For integer part: group from right to left
 		for i := len(s); i > 0; i -= groupSize {
@@ -211,7 +211,7 @@ func addSeparators(s string, sep string, groupSize int, fromRight bool) string {
 			result = append(result, s[i:end])
 		}
 	}
-	
+
 	return strings.Join(result, sep)
 }
 
@@ -219,14 +219,14 @@ func addSeparators(s string, sep string, groupSize int, fromRight bool) string {
 func (r *CalculationResult) formatNonDecimal() string {
 	// Convert to integer (truncate if necessary)
 	intVal, _ := r.Value.Int(nil)
-	
+
 	// If bit width is specified, mask the value to fit
 	if r.BitWidth > 0 {
 		// Create a mask for the bit width
 		one := big.NewInt(1)
 		mask := new(big.Int).Lsh(one, uint(r.BitWidth))
 		mask.Sub(mask, one) // mask = (1 << bitWidth) - 1
-		
+
 		// Apply mask to get only the bits that fit
 		intVal = new(big.Int).And(intVal, mask)
 	} else if intVal.Sign() < 0 {
@@ -236,7 +236,7 @@ func (r *CalculationResult) formatNonDecimal() string {
 		// Convert to two's complement
 		intVal = r.toTwosComplement(intVal, bitWidth)
 	}
-	
+
 	// Format based on type
 	switch r.Format {
 	case FormatHex:
@@ -294,7 +294,7 @@ func (r *CalculationResult) autoDetermineBitWidth(val *big.Int) int {
 	// Get the absolute value for bit count
 	absVal := new(big.Int).Abs(val)
 	bitLen := absVal.BitLen()
-	
+
 	// Round up to nearest power of 2 that's at least 8
 	if bitLen <= 8 {
 		return 8
@@ -317,12 +317,12 @@ func (r *CalculationResult) toTwosComplement(val *big.Int, bitWidth int) *big.In
 	one := big.NewInt(1)
 	mask := new(big.Int).Lsh(one, uint(bitWidth))
 	mask.Sub(mask, one) // mask = (1 << bitWidth) - 1
-	
+
 	// Two's complement: (2^bitWidth + val) & mask
 	result := new(big.Int).Lsh(one, uint(bitWidth))
 	result.Add(result, val)
 	result.And(result, mask)
-	
+
 	return result
 }
 
@@ -335,7 +335,7 @@ func (r *CalculationResult) isInteger() bool {
 	// Check if the value is an integer by comparing with truncated value
 	intPart, _ := r.Value.Int(nil)
 	intAsFloat := new(big.Float).SetInt(intPart)
-	
+
 	// Compare with original
 	diff := new(big.Float).Sub(r.Value, intAsFloat)
 	return diff.Sign() == 0
@@ -354,23 +354,23 @@ func FormatResultWithPrecision(value float64, precision int) string {
 func preprocessExpression(expr string) (string, int, bool) {
 	// Use the tokenizer to handle this properly
 	tokens, directive, hasDirective := TokenizeAndExtractPreprocessors(expr, 0)
-	
+
 	// Rebuild the expression from tokens (without the pre directive)
 	// The goal is to reconstruct minimal/compact form
 	result := strings.Builder{}
-	
+
 	for _, token := range tokens {
 		if token.Type == TokenEOF {
 			break
 		}
 		result.WriteString(token.Value)
 	}
-	
+
 	precision := -1
 	if hasDirective && directive.Precision >= 0 {
 		precision = directive.Precision
 	}
-	
+
 	return strings.TrimSpace(result.String()), precision, hasDirective && directive.Precision >= 0
 }
 

@@ -18,14 +18,14 @@ const (
 
 // YesNoDialog represents a modal yes/no dialog widget
 type YesNoDialog struct {
-	x, y          int            // Position on screen
-	width, height int            // Dimensions
-	title         string         // Dialog title
-	message       string         // Dialog message
-	theme         *theme.Theme   // Theme for styling
-	selectedIndex int            // 0 = Yes, 1 = No
-	closed        bool           // Whether dialog has been closed
-	result        DialogResult   // Result of the dialog
+	x, y          int          // Position on screen
+	width, height int          // Dimensions
+	title         string       // Dialog title
+	message       string       // Dialog message
+	theme         *theme.Theme // Theme for styling
+	selectedIndex int          // 0 = Yes, 1 = No
+	closed        bool         // Whether dialog has been closed
+	result        DialogResult // Result of the dialog
 }
 
 // NewYesNoDialog creates a new yes/no dialog
@@ -105,12 +105,12 @@ func (d *YesNoDialog) Render(screen Screen) {
 	if minWidth < 30 {
 		minWidth = 30
 	}
-	
+
 	actualWidth := d.width
 	if actualWidth < minWidth {
 		actualWidth = minWidth
 	}
-	
+
 	actualHeight := d.height
 	if actualHeight < 7 {
 		actualHeight = 7
@@ -132,10 +132,10 @@ func (d *YesNoDialog) Render(screen Screen) {
 		for col := 0; col < actualWidth; col++ {
 			x := startX + col
 			y := startY + row
-			
+
 			var char rune
 			var style ui.Style
-			
+
 			// Border characters
 			if row == 0 || row == actualHeight-1 {
 				if col == 0 {
@@ -161,7 +161,7 @@ func (d *YesNoDialog) Render(screen Screen) {
 					style = backgroundStyle
 				}
 			}
-			
+
 			screen.SetContent(x, y, char, nil, style)
 		}
 	}
@@ -194,14 +194,14 @@ func (d *YesNoDialog) Render(screen Screen) {
 	buttonY := startY + actualHeight - 2
 	yesText := "[Yes]"
 	noText := "[No]"
-	
+
 	// Calculate button positions
 	totalButtonWidth := len(yesText) + len(noText) + 4 // 4 spaces between buttons
 	buttonStartX := startX + (actualWidth-totalButtonWidth)/2
-	
+
 	yesX := buttonStartX
 	noX := buttonStartX + len(yesText) + 4
-	
+
 	// Draw Yes button
 	yesStyle := buttonStyle
 	if d.selectedIndex == 0 {
@@ -210,7 +210,7 @@ func (d *YesNoDialog) Render(screen Screen) {
 	for i, r := range yesText {
 		screen.SetContent(yesX+i, buttonY, r, nil, yesStyle)
 	}
-	
+
 	// Draw No button
 	noStyle := buttonStyle
 	if d.selectedIndex == 1 {
@@ -226,11 +226,11 @@ func (d *YesNoDialog) wrapText(text string, maxWidth int) []string {
 	if len(text) <= maxWidth {
 		return []string{text}
 	}
-	
+
 	words := strings.Fields(text)
 	lines := make([]string, 0)
 	currentLine := ""
-	
+
 	for _, word := range words {
 		if len(currentLine) == 0 {
 			currentLine = word
@@ -241,11 +241,11 @@ func (d *YesNoDialog) wrapText(text string, maxWidth int) []string {
 			currentLine = word
 		}
 	}
-	
+
 	if len(currentLine) > 0 {
 		lines = append(lines, currentLine)
 	}
-	
+
 	return lines
 }
 

@@ -1,10 +1,10 @@
 package editor
 
 import (
-    "strings"
-    "unicode"
-    "veda/internal/buffer"
-    "veda/internal/commands"
+	"strings"
+	"unicode"
+	"veda/internal/buffer"
+	"veda/internal/commands"
 )
 
 const defaultWrapWidth = 80
@@ -58,22 +58,22 @@ func detectWrapContext(lines []string, startLine int) (wrapContext, string, stri
 	// Check for # at beginning - could be markdown heading or Python comment
 	if strings.HasPrefix(trimmed, "#") {
 		indent := strings.Index(firstLine, "#")
-		
+
 		// Multiple # characters (like ### or ####) - definitely markdown
 		if len(trimmed) > 1 && trimmed[1] == '#' {
 			return wrapContextMarkdownHeading, "", ""
 		}
-		
+
 		// All # characters - markdown heading separator
 		if strings.Count(trimmed, "#") == len(trimmed) {
 			return wrapContextMarkdownHeading, "", ""
 		}
-		
+
 		// # with indentation - Python comment
 		if indent > 0 {
 			return wrapContextPythonComment, strings.Repeat(" ", indent), "# "
 		}
-		
+
 		// # at start of line with space - check first character after "# "
 		if len(trimmed) > 2 && trimmed[1] == ' ' {
 			firstChar := trimmed[2]
@@ -82,7 +82,7 @@ func detectWrapContext(lines []string, startLine int) (wrapContext, string, stri
 				return wrapContextPythonComment, "", "# "
 			}
 		}
-		
+
 		// Default: treat as markdown heading
 		return wrapContextMarkdownHeading, "", ""
 	}
@@ -139,14 +139,14 @@ func isMarkdownListItem(line string) bool {
 			break
 		}
 	}
-	
+
 	// Check for bullet lists
 	if len(line) >= 2 {
 		if (line[0] == '-' || line[0] == '*' || line[0] == '+') && line[1] == ' ' {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -170,7 +170,7 @@ func extractListPrefix(line string) string {
 func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 	startLine := cursorLine
 	endLine := cursorLine
-	
+
 	LL.Trace("findParagraphBounds: Starting at cursorLine=%d", cursorLine)
 	if cursorLine < len(lines) {
 		LL.Trace("findParagraphBounds: Current line content: '%s'", lines[cursorLine])
@@ -180,23 +180,23 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 	for startLine > 0 {
 		prevLine := strings.TrimSpace(lines[startLine-1])
 		LL.Trace("findParagraphBounds: Checking line %d: '%s'", startLine-1, lines[startLine-1])
-		
+
 		// Stop at empty line
 		if prevLine == "" {
 			break
 		}
-		
+
 		// Stop at markdown heading (line starting with #)
 		if strings.HasPrefix(prevLine, "#") {
 			break
 		}
-		
+
 		// Stop at markdown list item (if current line is also a list item)
 		currentLine := strings.TrimSpace(lines[startLine])
 		if isMarkdownListItem(prevLine) && isMarkdownListItem(currentLine) {
 			break
 		}
-		
+
 		startLine--
 	}
 
@@ -204,23 +204,23 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 	for endLine < len(lines)-1 {
 		nextLine := strings.TrimSpace(lines[endLine+1])
 		LL.Trace("findParagraphBounds: Checking line %d: '%s'", endLine+1, lines[endLine+1])
-		
+
 		// Stop at empty line
 		if nextLine == "" {
 			break
 		}
-		
+
 		// Stop at markdown heading (line starting with #)
 		if strings.HasPrefix(nextLine, "#") {
 			break
 		}
-		
+
 		// Stop at markdown list item (if current line is also a list item)
 		currentLine := strings.TrimSpace(lines[endLine])
 		if isMarkdownListItem(nextLine) && isMarkdownListItem(currentLine) {
 			break
 		}
-		
+
 		endLine++
 	}
 
@@ -266,11 +266,11 @@ func (e *Editor) rewrapParagraph() error {
 	if len(e.config.VerticalRulers) == 0 {
 		return e.rewrapParagraphWithWidth(defaultWrapWidth)
 	}
-	
+
 	// Get current cursor position
 	currentLine := e.buffer.CursorIterator.LineNumber()
 	currentChar := e.buffer.CursorX
-	
+
 	// Determine the ruler index to use
 	var rulerIndex int
 	if currentLine == e.lastRewrapLine && currentChar == e.lastRewrapChar {
@@ -280,48 +280,48 @@ func (e *Editor) rewrapParagraph() error {
 		// Different position - start at first ruler
 		rulerIndex = 0
 	}
-	
-    // Get the width from the ruler at this index
-    width := e.config.VerticalRulers[rulerIndex]
 
-    // Perform the rewrap
-    if err := e.rewrapParagraphWithWidth(width); err != nil {
-        return err
-    }
+	// Get the width from the ruler at this index
+	width := e.config.VerticalRulers[rulerIndex]
 
-    // Update tracking AFTER rewrap to the new cursor position so a repeated
-    // Alt+Q at the same physical location cycles correctly even if cursorX shifts
-    // due to reflow.
-    e.lastRewrapLine = e.buffer.CursorIterator.LineNumber()
-    e.lastRewrapChar = e.buffer.CursorX
-    e.lastRewrapIndex = rulerIndex
-    
-    return nil
+	// Perform the rewrap
+	if err := e.rewrapParagraphWithWidth(width); err != nil {
+		return err
+	}
+
+	// Update tracking AFTER rewrap to the new cursor position so a repeated
+	// Alt+Q at the same physical location cycles correctly even if cursorX shifts
+	// due to reflow.
+	e.lastRewrapLine = e.buffer.CursorIterator.LineNumber()
+	e.lastRewrapChar = e.buffer.CursorX
+	e.lastRewrapIndex = rulerIndex
+
+	return nil
 }
 
 // rewrapParagraphCmd is the command wrapper for rewrapParagraph
 func (e *Editor) rewrapParagraphCmd(args []string) error {
-    // If invoked during insert mode, create an undo boundary so the rewrap
-    // is undoable separately from the ongoing insert session. We do this by
-    // ending the current insert session, executing the rewrap as its own
-    // history entry, and then immediately starting a new insert session.
-    if e.mode == commands.InsertMode && e.buffer != nil && e.buffer.History != nil {
-        // End current insert session (no-op if empty)
-        e.buffer.History.EndInsertSession()
-        // Perform the rewrap as a standalone history unit
-        if err := e.rewrapParagraph(); err != nil {
-            return err
-        }
-        // Resume a fresh insert session so subsequent typing is grouped
-        e.buffer.History.StartInsertSession("i")
-        return nil
-    }
-    return e.rewrapParagraph()
+	// If invoked during insert mode, create an undo boundary so the rewrap
+	// is undoable separately from the ongoing insert session. We do this by
+	// ending the current insert session, executing the rewrap as its own
+	// history entry, and then immediately starting a new insert session.
+	if e.mode == commands.InsertMode && e.buffer != nil && e.buffer.History != nil {
+		// End current insert session (no-op if empty)
+		e.buffer.History.EndInsertSession()
+		// Perform the rewrap as a standalone history unit
+		if err := e.rewrapParagraph(); err != nil {
+			return err
+		}
+		// Resume a fresh insert session so subsequent typing is grouped
+		e.buffer.History.StartInsertSession("i")
+		return nil
+	}
+	return e.rewrapParagraph()
 }
 
 func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	LL.Trace("rewrapParagraphWithWidth: Starting with width=%d", width)
-	
+
 	if e.buffer == nil {
 		LL.Trace("rewrapParagraphWithWidth: buffer is nil, returning")
 		return nil
@@ -331,7 +331,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 	cursorX := e.buffer.CursorX
 	viewLine := e.buffer.ViewIterator.LineNumber()
-	
+
 	LL.Trace("rewrapParagraphWithWidth: cursorLine=%d, cursorX=%d, viewLine=%d", cursorLine, cursorX, viewLine)
 
 	// Get all lines from buffer
@@ -340,59 +340,59 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		iter := buffer.NewBufferIteratorAtLine(e.buffer, i)
 		lines[i] = iter.Line()
 	}
-	
+
 	LL.Trace("rewrapParagraphWithWidth: buffer has %d lines", len(lines))
-	
+
 	if cursorLine >= len(lines) {
 		cursorLine = len(lines) - 1
 	}
 
-    // Initial naive bounds
-    startLine, endLine := findParagraphBounds(lines, cursorLine)
-    // Detect context near the cursor line (more accurate for comments)
-    context, indentation, prefix := detectWrapContext(lines, cursorLine)
+	// Initial naive bounds
+	startLine, endLine := findParagraphBounds(lines, cursorLine)
+	// Detect context near the cursor line (more accurate for comments)
+	context, indentation, prefix := detectWrapContext(lines, cursorLine)
 
-    // Recompute bounds strictly by comment context to avoid including adjacent code
-    if context == wrapContextCLineComment || context == wrapContextPythonComment {
-        isCommentLine := func(s string) bool {
-            trimmed := strings.TrimSpace(s)
-            if context == wrapContextCLineComment {
-                return strings.HasPrefix(trimmed, "//")
-            }
-            return strings.HasPrefix(trimmed, "#")
-        }
-        // Start from cursor line and expand only across contiguous comment lines
-        startLine, endLine = cursorLine, cursorLine
-        for startLine > 0 && isCommentLine(lines[startLine-1]) {
-            startLine--
-        }
-        for endLine < len(lines)-1 && isCommentLine(lines[endLine+1]) {
-            endLine++
-        }
-        // Re-detect indent/prefix at the new start line
-        _, indentation, prefix = detectWrapContext(lines, startLine)
-    } else if context == wrapContextCBlockComment {
-        // Find exact block boundaries: up to '/*' and down to '*/'
-        openLine := cursorLine
-        for openLine > 0 && !strings.Contains(lines[openLine], "/*") {
-            openLine--
-        }
-        // If we didn't land on an opener, scan forward until we find one
-        for openLine < len(lines) && !strings.Contains(lines[openLine], "/*") {
-            openLine++
-        }
-        if openLine >= 0 && openLine < len(lines) {
-            closeLine := openLine
-            for closeLine < len(lines) && !strings.Contains(lines[closeLine], "*/") {
-                closeLine++
-            }
-            if closeLine < len(lines) {
-                startLine, endLine = openLine, closeLine
-            }
-        }
-        // For block comments indentation is computed later from opener position
-    }
-    LL.Trace("rewrapParagraphWithWidth: paragraph bounds (adjusted): startLine=%d, endLine=%d", startLine, endLine)
+	// Recompute bounds strictly by comment context to avoid including adjacent code
+	if context == wrapContextCLineComment || context == wrapContextPythonComment {
+		isCommentLine := func(s string) bool {
+			trimmed := strings.TrimSpace(s)
+			if context == wrapContextCLineComment {
+				return strings.HasPrefix(trimmed, "//")
+			}
+			return strings.HasPrefix(trimmed, "#")
+		}
+		// Start from cursor line and expand only across contiguous comment lines
+		startLine, endLine = cursorLine, cursorLine
+		for startLine > 0 && isCommentLine(lines[startLine-1]) {
+			startLine--
+		}
+		for endLine < len(lines)-1 && isCommentLine(lines[endLine+1]) {
+			endLine++
+		}
+		// Re-detect indent/prefix at the new start line
+		_, indentation, prefix = detectWrapContext(lines, startLine)
+	} else if context == wrapContextCBlockComment {
+		// Find exact block boundaries: up to '/*' and down to '*/'
+		openLine := cursorLine
+		for openLine > 0 && !strings.Contains(lines[openLine], "/*") {
+			openLine--
+		}
+		// If we didn't land on an opener, scan forward until we find one
+		for openLine < len(lines) && !strings.Contains(lines[openLine], "/*") {
+			openLine++
+		}
+		if openLine >= 0 && openLine < len(lines) {
+			closeLine := openLine
+			for closeLine < len(lines) && !strings.Contains(lines[closeLine], "*/") {
+				closeLine++
+			}
+			if closeLine < len(lines) {
+				startLine, endLine = openLine, closeLine
+			}
+		}
+		// For block comments indentation is computed later from opener position
+	}
+	LL.Trace("rewrapParagraphWithWidth: paragraph bounds (adjusted): startLine=%d, endLine=%d", startLine, endLine)
 	LL.Trace("rewrapParagraphWithWidth: context=%d, indentation='%s', prefix='%s'", context, indentation, prefix)
 
 	// Handle markdown heading - don't rewrap
@@ -436,7 +436,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			}
 			cursorOffsetInParagraph += len(trimmed) + 1 // +1 for space between words
 		}
-		
+
 		// Add position within current line
 		currentLineTrimmed := strings.TrimSpace(lines[cursorLine])
 		switch context {
@@ -479,10 +479,10 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	for i := startLine; i <= endLine; i++ {
 		line := lines[i]
 		LL.Trace("rewrapParagraphWithWidth: Processing line %d: '%s'", i, line)
-		
+
 		// Remove existing prefix/indentation
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Skip empty lines within the paragraph
 		if trimmed == "" {
 			LL.Trace("rewrapParagraphWithWidth: Skipping empty line %d", i)
@@ -514,7 +514,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		}
 
 		LL.Trace("rewrapParagraphWithWidth: After processing, trimmed text: '%s'", trimmed)
-		
+
 		if paragraphText.Len() > 0 {
 			paragraphText.WriteString(" ")
 		}
@@ -522,79 +522,79 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	}
 
 	LL.Trace("rewrapParagraphWithWidth: Final paragraph text: '%s'", paragraphText.String())
-	
-    // Now prepare wrapped output and replacement region based on context
-    wrappedLines := []string{}
-    if context == wrapContextCBlockComment {
-        // Handle only multi-line block comments with isolated markers in Stage 1.
-        openIdx := strings.Index(lines[startLine], "/*")
-        closeIdx := strings.Index(lines[endLine], "*/")
-        if openIdx < 0 || closeIdx < 0 {
-            // Fallback: do nothing if malformed
-            return nil
-        }
-        openTail := strings.TrimSpace(lines[startLine][openIdx+2:])
-        closeTrim := strings.TrimSpace(lines[endLine])
-        // Only proceed if opener has nothing after /* and closer line is exactly */
-        if openTail != "" || closeTrim != "*/" {
-            // Stage 1: skip complex inline block comments to avoid breaking code
-            return nil
-        }
 
-        // Extract inner text between startLine+1 and endLine-1
-        var inner strings.Builder
-        for i := startLine + 1; i <= endLine-1 && i < len(lines); i++ {
-            t := strings.TrimSpace(lines[i])
-            if t == "" {
-                continue
-            }
-            if strings.HasPrefix(t, "*") {
-                t = strings.TrimSpace(strings.TrimPrefix(t, "*"))
-            }
-            if t != "" {
-                if inner.Len() > 0 {
-                    inner.WriteString(" ")
-                }
-                inner.WriteString(t)
-            }
-        }
+	// Now prepare wrapped output and replacement region based on context
+	wrappedLines := []string{}
+	if context == wrapContextCBlockComment {
+		// Handle only multi-line block comments with isolated markers in Stage 1.
+		openIdx := strings.Index(lines[startLine], "/*")
+		closeIdx := strings.Index(lines[endLine], "*/")
+		if openIdx < 0 || closeIdx < 0 {
+			// Fallback: do nothing if malformed
+			return nil
+		}
+		openTail := strings.TrimSpace(lines[startLine][openIdx+2:])
+		closeTrim := strings.TrimSpace(lines[endLine])
+		// Only proceed if opener has nothing after /* and closer line is exactly */
+		if openTail != "" || closeTrim != "*/" {
+			// Stage 1: skip complex inline block comments to avoid breaking code
+			return nil
+		}
 
-        // Determine indentation where stars should align: one space after opener indent
-        indent := lines[startLine][:openIdx]
-        starIndent := indent + " "
-        // Wrap with "* " prefix
-        wrapped := wrapText(inner.String(), width, starIndent, "* ")
-        wrappedLines = wrapped
+		// Extract inner text between startLine+1 and endLine-1
+		var inner strings.Builder
+		for i := startLine + 1; i <= endLine-1 && i < len(lines); i++ {
+			t := strings.TrimSpace(lines[i])
+			if t == "" {
+				continue
+			}
+			if strings.HasPrefix(t, "*") {
+				t = strings.TrimSpace(strings.TrimPrefix(t, "*"))
+			}
+			if t != "" {
+				if inner.Len() > 0 {
+					inner.WriteString(" ")
+				}
+				inner.WriteString(t)
+			}
+		}
 
-        // Compute replacement region (whole lines from startLine to endLine)
-        // Build new content lines including markers
-        newBlock := make([]string, 0, len(wrapped)+2)
-        newBlock = append(newBlock, indent+"/*")
-        newBlock = append(newBlock, wrapped...)
-        newBlock = append(newBlock, indent+"*/")
+		// Determine indentation where stars should align: one space after opener indent
+		indent := lines[startLine][:openIdx]
+		starIndent := indent + " "
+		// Wrap with "* " prefix
+		wrapped := wrapText(inner.String(), width, starIndent, "* ")
+		wrappedLines = wrapped
 
-        // Overwrite wrappedLines with full block for downstream insertion
-        wrappedLines = newBlock
-        // Reset indentation/prefix since wrappedLines already include them
-        indentation = ""
-        prefix = ""
-    } else {
-        // Non-block contexts use existing wrap behavior
-        wrappedLines = wrapText(paragraphText.String(), width, indentation, prefix)
-        LL.Trace("rewrapParagraphWithWidth: Wrapped into %d lines", len(wrappedLines))
-        if context == wrapContextMarkdownList && len(wrappedLines) > 0 {
-            firstLineTrimmed := strings.TrimSpace(lines[startLine])
-            listPrefix := extractListPrefix(firstLineTrimmed)
-            wrappedLines[0] = indentation + listPrefix + strings.TrimPrefix(wrappedLines[0], indentation+prefix)
-        }
-    }
+		// Compute replacement region (whole lines from startLine to endLine)
+		// Build new content lines including markers
+		newBlock := make([]string, 0, len(wrapped)+2)
+		newBlock = append(newBlock, indent+"/*")
+		newBlock = append(newBlock, wrapped...)
+		newBlock = append(newBlock, indent+"*/")
 
-    // Calculate the byte positions for replacement (full lines for all Stage 1 contexts)
-    startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
-    startPos := startIter.Position()
-    endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
-    endPos := endIter.LineEnd()
-	
+		// Overwrite wrappedLines with full block for downstream insertion
+		wrappedLines = newBlock
+		// Reset indentation/prefix since wrappedLines already include them
+		indentation = ""
+		prefix = ""
+	} else {
+		// Non-block contexts use existing wrap behavior
+		wrappedLines = wrapText(paragraphText.String(), width, indentation, prefix)
+		LL.Trace("rewrapParagraphWithWidth: Wrapped into %d lines", len(wrappedLines))
+		if context == wrapContextMarkdownList && len(wrappedLines) > 0 {
+			firstLineTrimmed := strings.TrimSpace(lines[startLine])
+			listPrefix := extractListPrefix(firstLineTrimmed)
+			wrappedLines[0] = indentation + listPrefix + strings.TrimPrefix(wrappedLines[0], indentation+prefix)
+		}
+	}
+
+	// Calculate the byte positions for replacement (full lines for all Stage 1 contexts)
+	startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+	startPos := startIter.Position()
+	endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
+	endPos := endIter.LineEnd()
+
 	// Build new content with newlines
 	var newContent strings.Builder
 	for i, line := range wrappedLines {
@@ -603,15 +603,15 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		}
 		newContent.WriteString(line)
 	}
-	
+
 	// Save cursor position before change
 	oldCursorX := e.buffer.CursorX
 	oldCursorY := e.buffer.CursorIterator.LineNumber()
-	
+
 	// Create a single history entry for the whole operation
 	oldLinesCopy := make([]string, endLine-startLine+1)
 	copy(oldLinesCopy, lines[startLine:endLine+1])
-	
+
 	entry := &RewrapHistoryEntry{
 		buffer:     e.buffer,
 		startLine:  startLine,
@@ -624,7 +624,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		endPos:     endPos,
 		newContent: newContent.String(),
 	}
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
@@ -636,7 +636,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		// If no history, execute directly
 		entry.Execute(e.buffer)
 	}
-	
+
 	// Update cursor position
 	if cursorLine >= startLine && cursorLine <= endLine && cursorOffsetInParagraph >= 0 {
 		// Cursor was in the paragraph - find its new position
@@ -644,20 +644,20 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		remainingOffset := cursorOffsetInParagraph
 		newCursorLine := startLine
 		newCursorX := len(indentation) + len(prefix)
-		
+
 		for i, wrappedLine := range wrappedLines {
 			// Get the actual text content (without indentation/prefix)
 			lineContent := wrappedLine
 			if i == 0 && context == wrapContextMarkdownList {
 				// First line of markdown list has the list prefix
 				listPrefix := extractListPrefix(strings.TrimSpace(lines[startLine]))
-				lineContent = strings.TrimPrefix(wrappedLine, indentation + listPrefix)
+				lineContent = strings.TrimPrefix(wrappedLine, indentation+listPrefix)
 			} else {
-				lineContent = strings.TrimPrefix(wrappedLine, indentation + prefix)
+				lineContent = strings.TrimPrefix(wrappedLine, indentation+prefix)
 			}
-			
+
 			lineContent = strings.TrimSpace(lineContent)
-			
+
 			if remainingOffset <= len(lineContent) {
 				// Cursor is on this line
 				newCursorLine = startLine + i
@@ -669,7 +669,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 				}
 				break
 			}
-			
+
 			// Account for the space between lines
 			remainingOffset -= len(lineContent) + 1
 			if remainingOffset < 0 {
@@ -679,9 +679,9 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 				break
 			}
 		}
-		
+
 		// Ensure we don't go past the end of the wrapped paragraph
-		if newCursorLine >= startLine + len(wrappedLines) {
+		if newCursorLine >= startLine+len(wrappedLines) {
 			newCursorLine = startLine + len(wrappedLines) - 1
 			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newCursorLine)
 			e.buffer.CursorX = len(e.buffer.CursorIterator.Line())
@@ -705,7 +705,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		// Restore the original cursor X position
 		e.buffer.CursorX = cursorX
 	}
-	
+
 	// Update view iterator to handle line count changes
 	if viewLine > endLine {
 		// Adjust view if it was below the paragraph
@@ -728,15 +728,14 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		}
 		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
 	}
-	
-    // Update syntax highlighting (skip during paste mode)
-    if !e.inPasteMode {
-        e.updateSyntaxHighlighting()
-    }
-	
+
+	// Update syntax highlighting (skip during paste mode)
+	if !e.inPasteMode {
+		e.updateSyntaxHighlighting()
+	}
+
 	return nil
 }
-
 
 func (e *Editor) indentationForLine(line string) string {
 	indent := 0
@@ -768,10 +767,10 @@ func (r *RewrapHistoryEntry) Execute(buf *buffer.Buffer) error {
 	if r.endPos > r.startPos {
 		buf.Delete(r.startPos, r.endPos)
 	}
-	
+
 	// Insert the new content
 	buf.Insert(r.startPos, r.newContent)
-	
+
 	return nil
 }
 
@@ -782,10 +781,10 @@ func (r *RewrapHistoryEntry) Undo(buf *buffer.Buffer) error {
 	if numNewLines == 0 {
 		numNewLines = 1
 	}
-	
+
 	startIter := buffer.NewBufferIteratorAtLine(buf, r.startLine)
 	startPos := startIter.Position()
-	
+
 	// Find end position after the new content
 	endLine := r.startLine + numNewLines - 1
 	if endLine >= buf.LineCount {
@@ -793,15 +792,15 @@ func (r *RewrapHistoryEntry) Undo(buf *buffer.Buffer) error {
 	}
 	endIter := buffer.NewBufferIteratorAtLine(buf, endLine)
 	endPos := endIter.LineEnd()
-	if endLine < buf.LineCount - 1 {
+	if endLine < buf.LineCount-1 {
 		endPos++ // Include newline
 	}
-	
+
 	// Delete new content
 	if endPos > startPos {
 		buf.Delete(startPos, endPos)
 	}
-	
+
 	// Insert old content
 	var oldContent strings.Builder
 	for i, line := range r.oldLines {
@@ -811,11 +810,11 @@ func (r *RewrapHistoryEntry) Undo(buf *buffer.Buffer) error {
 		oldContent.WriteString(line)
 	}
 	buf.Insert(startPos, oldContent.String())
-	
+
 	// Restore cursor position
 	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, r.oldCursorY)
 	buf.CursorX = r.oldCursorX
-	
+
 	return nil
 }
 

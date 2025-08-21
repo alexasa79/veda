@@ -26,7 +26,7 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 
 	// Track the best (longest) valid expression found
 	var bestResult *Result
-	
+
 	// Try progressively longer substrings from right to left
 	for startPos := endPos - 1; startPos >= 0; startPos-- {
 		// Get the substring to test
@@ -37,7 +37,7 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 
 		// Check for stopping characters at the start position
 		ch := line[startPos]
-		
+
 		// Check for arrow symbol (→) in the substring
 		// If the substring contains an arrow, only consider the part after the last arrow
 		if idx := strings.LastIndex(line[startPos:endPos], "→"); idx != -1 {
@@ -72,11 +72,11 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 			// Don't break - we found a result after the arrow, but don't continue past the arrow
 			break
 		}
-		
+
 		// Check for other delimiter characters
 		// Note: Don't treat comma as delimiter since it can be part of numbers (1,000)
-		if ch == '=' || ch == ';' || ch == '[' || ch == ']' || 
-		   ch == '{' || ch == '}' || ch == '"' || ch == '\'' || ch == '`' {
+		if ch == '=' || ch == ';' || ch == '[' || ch == ']' ||
+			ch == '{' || ch == '}' || ch == '"' || ch == '\'' || ch == '`' {
 			// Found delimiter, can't include it in expression
 			break
 		}
@@ -84,11 +84,11 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 		// Try to parse and evaluate this expression with preprocessing
 		// First tokenize and extract preprocessor directives
 		tokens, _, _ := TokenizeAndExtractPreprocessors(testExpr, startPos)
-		
+
 		// Parse using the tokens (which have directives removed)
 		parser := NewParserFromTokens(tokens)
 		bigValue, err := parser.Parse()
-		
+
 		// If parsing succeeded, update best result (we want the longest valid expression)
 		if err == nil {
 			// Convert to float64 for Result struct
@@ -148,17 +148,17 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 func EvaluateExpression(expr string) (float64, error) {
 	// Tokenize and extract preprocessor directives
 	tokens, _, _ := TokenizeAndExtractPreprocessors(expr, 0)
-	
+
 	// Parse and evaluate the expression
 	parser := NewParserFromTokens(tokens)
 	result, err := parser.Parse()
 	if err != nil {
 		return 0, err
 	}
-	
+
 	// Save result to $? variable
 	parser.variables.SetLastResult(result)
-	
+
 	// Convert to float64 for backward compatibility
 	f64, _ := result.Float64()
 	return f64, nil
@@ -168,17 +168,17 @@ func EvaluateExpression(expr string) (float64, error) {
 func EvaluateExpressionWithResult(expr string) (*CalculationResult, error) {
 	// Tokenize and extract preprocessor directives
 	tokens, directive, hasDirective := TokenizeAndExtractPreprocessors(expr, 0)
-	
+
 	// Parse and evaluate the expression
 	parser := NewParserFromTokens(tokens)
 	value, err := parser.Parse()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Save result to $? variable
 	parser.variables.SetLastResult(value)
-	
+
 	// Create result with appropriate formatting
 	result := NewCalculationResult(value)
 	if hasDirective {
@@ -189,7 +189,7 @@ func EvaluateExpressionWithResult(expr string) (*CalculationResult, error) {
 			result.SetFormat(directive.Format, directive.BitWidth)
 		}
 	}
-	
+
 	return result, nil
 }
 
@@ -217,12 +217,12 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 
 	// Check if we need to include preprocessor directives before or after the expression
 	fullExpr := exprInfo.Expression
-	
+
 	// Helper function to check if a number is power of 2
 	isPowerOfTwo := func(n int) bool {
 		return n > 0 && (n&(n-1)) == 0
 	}
-	
+
 	// Check for preprocessor directives right before the found expression
 	// Check for "pre", "hex", "bin", "oct", "dec"
 	for _, directive := range []string{"pre", "hex", "bin", "oct", "dec"} {
@@ -259,12 +259,12 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 			}
 		}
 	}
-	
+
 	// Check if there's a directive AFTER the expression
 	// Look for patterns like "15 hex", "255 hex16", "7 bin", "15 dec"
-	if exprInfo.EndPos < len(line) && !strings.Contains(fullExpr, "pre") && 
-	   !strings.Contains(fullExpr, "hex") && !strings.Contains(fullExpr, "bin") && 
-	   !strings.Contains(fullExpr, "oct") && !strings.Contains(fullExpr, "dec") {
+	if exprInfo.EndPos < len(line) && !strings.Contains(fullExpr, "pre") &&
+		!strings.Contains(fullExpr, "hex") && !strings.Contains(fullExpr, "bin") &&
+		!strings.Contains(fullExpr, "oct") && !strings.Contains(fullExpr, "dec") {
 		// Look forward for directive patterns
 		searchEnd := exprInfo.EndPos + 10
 		if searchEnd > len(line) {
@@ -272,7 +272,7 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 		}
 		afterStr := line[exprInfo.EndPos:searchEnd]
 		trimmed := strings.TrimSpace(afterStr)
-		
+
 		// Check for directive patterns
 		for _, directive := range []string{"pre", "hex", "bin", "oct", "dec"} {
 			if strings.HasPrefix(trimmed, directive) {
@@ -305,12 +305,12 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 			}
 		}
 	}
-	
+
 	// Also check if there's a directive pattern before the expression
 	// Look for patterns like "pre20 2/3", "hex 15", "dec 3.14" where the expression comes after
-	if exprInfo.StartPos > 0 && !strings.Contains(fullExpr, "pre") && 
-	   !strings.Contains(fullExpr, "hex") && !strings.Contains(fullExpr, "bin") && 
-	   !strings.Contains(fullExpr, "oct") && !strings.Contains(fullExpr, "dec") {
+	if exprInfo.StartPos > 0 && !strings.Contains(fullExpr, "pre") &&
+		!strings.Contains(fullExpr, "hex") && !strings.Contains(fullExpr, "bin") &&
+		!strings.Contains(fullExpr, "oct") && !strings.Contains(fullExpr, "dec") {
 		// Look backwards for directive patterns
 		searchStart := 0
 		if exprInfo.StartPos > 10 {
@@ -318,7 +318,7 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 		}
 		beforeStr := line[searchStart:exprInfo.StartPos]
 		trimmed := strings.TrimSpace(beforeStr)
-		
+
 		// Check for directive patterns
 		for _, directive := range []string{"pre", "hex", "bin", "oct", "dec"} {
 			if strings.HasPrefix(trimmed, directive) {
@@ -344,16 +344,16 @@ func ProcessLineAppend(line string, cursorPos int) (string, error) {
 	if err != nil {
 		return line, err
 	}
-	
+
 	// Format the result
 	formattedResult := result.String()
-	
+
 	// Create the new line with the result appended
 	newLine := line[:exprInfo.EndPos] + " → " + formattedResult
 	if exprInfo.EndPos < len(line) {
 		newLine += line[exprInfo.EndPos:]
 	}
-	
+
 	return newLine, nil
 }
 
@@ -370,10 +370,10 @@ func ProcessLineReplace(line string, cursorPos int) (string, int, error) {
 	if err != nil {
 		return line, cursorPos, err
 	}
-	
+
 	// Format the result
 	formattedResult := result.String()
-	
+
 	// Check if there's a space before the expression position
 	// If so, we want to preserve it in the output
 	if exprInfo.StartPos > 0 && line[exprInfo.StartPos-1] == ' ' {
@@ -381,13 +381,13 @@ func ProcessLineReplace(line string, cursorPos int) (string, int, error) {
 		// Adjust to include the space in the replacement
 		exprInfo.StartPos--
 	}
-	
+
 	// Create the new line with the expression replaced
 	newLine := line[:exprInfo.StartPos] + formattedResult
 	newCursorPos := exprInfo.StartPos + len(formattedResult)
 	if exprInfo.EndPos < len(line) {
 		newLine += line[exprInfo.EndPos:]
 	}
-	
+
 	return newLine, newCursorPos, nil
 }

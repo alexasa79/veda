@@ -15,11 +15,11 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 	// Note: Markdown link hiding currently only works without line wrapping
 	// These tests use wider screens to avoid wrapping
 	tests := []struct {
-		name                 string
-		content              string
-		expectedNormalMode   string // What should be visible on screen in normal mode
-		expectedInsertMode   string // What should be visible on screen in insert mode
-		width                int
+		name               string
+		content            string
+		expectedNormalMode string // What should be visible on screen in normal mode
+		expectedInsertMode string // What should be visible on screen in insert mode
+		width              int
 	}{
 		{
 			name:               "simple_link",
@@ -64,7 +64,7 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 			t.Run("normal_mode", func(t *testing.T) {
 				te := NewTestEditorWithContent(tt.width, 10, tt.content)
 				te.buffer.FilePath = "test.md"
-				
+
 				// Set up markdown syntax highlighting
 				te.highlighter = syntax.NewHighlighter()
 				err := te.highlighter.SetLanguage("markdown")
@@ -72,26 +72,26 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 					t.Fatalf("Failed to set markdown language: %v", err)
 				}
 				te.highlighter.ParseFull([]byte(tt.content))
-				
+
 				// Ensure we're in normal mode
 				te.mode = commands.NormalMode
-				
+
 				// Render the editor
 				te.drawEditor()
 				screen := te.mockScreen.GetContent()
-				
+
 				// Check rendered output
 				actualLine := GetScreenLine(screen, 0)
 				if actualLine != tt.expectedNormalMode {
 					t.Errorf("Normal mode: expected %q, got %q", tt.expectedNormalMode, actualLine)
 				}
 			})
-			
+
 			// Test in Insert Mode
 			t.Run("insert_mode", func(t *testing.T) {
 				te := NewTestEditorWithContent(tt.width, 10, tt.content)
 				te.buffer.FilePath = "test.md"
-				
+
 				// Set up markdown syntax highlighting
 				te.highlighter = syntax.NewHighlighter()
 				err := te.highlighter.SetLanguage("markdown")
@@ -99,19 +99,19 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 					t.Fatalf("Failed to set markdown language: %v", err)
 				}
 				te.highlighter.ParseFull([]byte(tt.content))
-				
+
 				// Switch to insert mode
 				te.ExecuteCommand("enter-insert-mode")
-				
+
 				// Verify we're in insert mode
 				if te.mode != commands.InsertMode {
 					t.Fatalf("Not in insert mode, mode is: %v", te.mode)
 				}
-				
+
 				// Render the editor
 				te.drawEditor()
 				screen := te.mockScreen.GetContent()
-				
+
 				// Check rendered output
 				actualLine := GetScreenLine(screen, 0)
 				if actualLine != tt.expectedInsertMode {
@@ -126,10 +126,10 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 func TestMarkdownLinkHighlighting(t *testing.T) {
 	t.Skip("Markdown link hiding not working properly in tests")
 	content := "Visit [our site](https://example.com) for more info."
-	
+
 	te := NewTestEditorWithContent(80, 10, content)
 	te.buffer.FilePath = "test.md"
-	
+
 	// Set up markdown syntax highlighting
 	te.highlighter = syntax.NewHighlighter()
 	err := te.highlighter.SetLanguage("markdown")
@@ -137,21 +137,21 @@ func TestMarkdownLinkHighlighting(t *testing.T) {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
 	te.highlighter.ParseFull([]byte(content))
-	
+
 	// Test that link text is highlighted in normal mode
 	te.mode = commands.NormalMode
 	te.drawEditor()
 	screen := te.mockScreen.GetContent()
-	
+
 	// Find the link text "our site" and check it has link styling
 	line0 := screen[0]
 	if line0 == nil {
 		t.Fatal("No content on line 0")
 	}
-	
+
 	// Look for "our site" starting after "Visit "
 	visitEnd := 8 // "1 Visit " = 8 chars
-	
+
 	// Check if the link text has the expected style (not default)
 	hasLinkStyle := false
 	for x := visitEnd; x < visitEnd+8; x++ { // "our site" = 8 chars
@@ -160,7 +160,7 @@ func TestMarkdownLinkHighlighting(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !hasLinkStyle {
 		t.Error("Link text should have syntax highlighting in normal mode")
 	}
@@ -170,10 +170,10 @@ func TestMarkdownLinkHighlighting(t *testing.T) {
 func TestMarkdownLinkCursorPositioning(t *testing.T) {
 	t.Skip("Markdown link hiding not working properly in tests")
 	content := "Click [here](https://example.com) to continue."
-	
+
 	te := NewTestEditorWithContent(80, 10, content)
 	te.buffer.FilePath = "test.md"
-	
+
 	// Set up markdown syntax highlighting
 	te.highlighter = syntax.NewHighlighter()
 	err := te.highlighter.SetLanguage("markdown")
@@ -181,33 +181,33 @@ func TestMarkdownLinkCursorPositioning(t *testing.T) {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
 	te.highlighter.ParseFull([]byte(content))
-	
+
 	// In normal mode, move cursor to where the link URL would be
 	te.mode = commands.NormalMode
-	
+
 	// Move cursor to position 12 (middle of URL in buffer)
 	// "Click [here]" = 12 chars, so cursor is at the start of URL
 	te.buffer.CursorX = 12
-	
+
 	// Render and check cursor position
 	te.drawEditor()
 	screenX, _ := te.mockScreen.GetCursorPosition()
-	
+
 	// In normal mode, the URL is hidden, so cursor should be adjusted
 	// "Click here" = 10 chars, + line number "1 " = 2 chars = 12
 	// But cursor at position 12 is past "here", so it should be at end of "here"
-	expectedX := 12 // "1 Click here" 
+	expectedX := 12 // "1 Click here"
 	if screenX != expectedX {
 		t.Errorf("Normal mode cursor X: expected %d, got %d", expectedX, screenX)
 	}
-	
+
 	// Switch to insert mode
 	te.ExecuteCommand("insert")
-	
+
 	// Render again and check cursor position
 	te.drawEditor()
 	screenX, _ = te.mockScreen.GetCursorPosition()
-	
+
 	// In insert mode, full text is shown, so cursor should be at original position
 	// "1 Click [here]" = 14 chars (line number + content up to cursor)
 	expectedX = 14
@@ -220,10 +220,10 @@ func TestMarkdownLinkCursorPositioning(t *testing.T) {
 func TestMarkdownLinkEditing(t *testing.T) {
 	t.Skip("Markdown link hiding not working properly in tests")
 	content := "Check [this](https://example.com) out."
-	
+
 	te := NewTestEditorWithContent(80, 10, content)
 	te.buffer.FilePath = "test.md"
-	
+
 	// Set up markdown syntax highlighting
 	te.highlighter = syntax.NewHighlighter()
 	err := te.highlighter.SetLanguage("markdown")
@@ -231,28 +231,28 @@ func TestMarkdownLinkEditing(t *testing.T) {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
 	te.highlighter.ParseFull([]byte(content))
-	
+
 	// Move cursor to the link text in normal mode
 	te.buffer.CursorX = 7 // Position at 't' in "this"
-	
+
 	// Enter insert mode and add text
 	te.ExecuteCommand("insert")
 	te.InsertChar('!')
-	
+
 	// Buffer should now contain "Check [t!his](https://example.com) out."
 	expected := "Check [t!his](https://example.com) out."
 	actual := te.buffer.Rope.String()
 	if actual != expected {
 		t.Errorf("After insert: expected %q, got %q", expected, actual)
 	}
-	
+
 	// Exit insert mode
 	te.ExecuteCommand("normal_mode")
-	
+
 	// Render and check display
 	te.drawEditor()
 	screen := te.mockScreen.GetContent()
-	
+
 	// In normal mode, should show "Check t!his out."
 	expectedLine := "1 Check t!his out."
 	actualLine := GetScreenLine(screen, 0)
@@ -267,7 +267,7 @@ func GetVisibleLine(screen map[int]map[int]Cell, y int) string {
 	if !ok {
 		return ""
 	}
-	
+
 	var line strings.Builder
 	maxX := 0
 	for x := range row {
@@ -275,7 +275,7 @@ func GetVisibleLine(screen map[int]map[int]Cell, y int) string {
 			maxX = x
 		}
 	}
-	
+
 	for x := 0; x <= maxX; x++ {
 		if cell, ok := row[x]; ok {
 			line.WriteRune(cell.Rune)
@@ -283,6 +283,6 @@ func GetVisibleLine(screen map[int]map[int]Cell, y int) string {
 			line.WriteRune(' ')
 		}
 	}
-	
+
 	return strings.TrimRight(line.String(), " ")
 }

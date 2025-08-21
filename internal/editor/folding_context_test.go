@@ -68,16 +68,16 @@ func helper() {
 	if err != nil {
 		// Log the error but don't fail - gopls might not support folding ranges
 		t.Logf("GetFoldingRanges error (this is expected if gopls doesn't support it): %v", err)
-		
+
 		// Let's also try with document symbols for comparison
 		symbols, symbolErr := client.GetDocumentSymbols(testFile)
 		if symbolErr != nil {
 			t.Fatalf("Both GetFoldingRanges and GetDocumentSymbols failed: %v, %v", err, symbolErr)
 		}
-		
+
 		t.Logf("Got %d document symbols instead:", len(symbols))
 		for _, sym := range symbols {
-			t.Logf("  Symbol: %s (kind %d) at lines %d-%d", 
+			t.Logf("  Symbol: %s (kind %d) at lines %d-%d",
 				sym.Name, sym.Kind, sym.Range.Start.Line, sym.Range.End.Line)
 		}
 		return

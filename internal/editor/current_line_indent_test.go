@@ -236,37 +236,37 @@ func TestGetCurrentLineIndentInfo(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.content)
 			te.buffer.Indentation.Type = tt.indentType
 			te.buffer.Indentation.Width = tt.indentWidth
-			
+
 			// Position cursor on the line to test
 			lines := strings.Split(tt.content, "\n")
 			if tt.cursorLine < len(lines) {
 				te.SetCursorPosition(0, tt.cursorLine)
 			}
-			
+
 			// Get the line being tested
 			line := ""
 			if tt.cursorLine < len(lines) {
 				line = lines[tt.cursorLine]
 			}
-			
+
 			info := te.buffer.GetLineIndentInfo(line)
-			
+
 			if info.Level != tt.expectedLevel {
 				t.Errorf("Expected level %d, got %d", tt.expectedLevel, info.Level)
 			}
-			
+
 			if info.Spaces != tt.expectedSpaces {
 				t.Errorf("Expected %d spaces, got %d", tt.expectedSpaces, info.Spaces)
 			}
-			
+
 			if info.Tabs != tt.expectedTabs {
 				t.Errorf("Expected %d tabs, got %d", tt.expectedTabs, info.Tabs)
 			}
-			
+
 			if info.IsContinuation != tt.isContinuation {
 				t.Errorf("Expected IsContinuation=%v, got %v", tt.isContinuation, info.IsContinuation)
 			}
-			
+
 			// Verify the actual prefix is correct
 			expectedPrefix := ""
 			for i := 0; i < info.Tabs; i++ {
@@ -275,7 +275,7 @@ func TestGetCurrentLineIndentInfo(t *testing.T) {
 			for i := 0; i < info.Spaces; i++ {
 				expectedPrefix += " "
 			}
-			
+
 			if info.ActualPrefix != expectedPrefix {
 				t.Errorf("Expected prefix %q, got %q", expectedPrefix, info.ActualPrefix)
 			}
@@ -291,11 +291,11 @@ func TestGetCurrentLineIndentInfoWithCursor(t *testing.T) {
 		"        two levels",
 		"      continuation",
 	}, "\n")
-	
+
 	te := NewTestEditorWithContent(80, 24, content)
 	te.buffer.Indentation.Type = config.IndentSpaces
 	te.buffer.Indentation.Width = 4
-	
+
 	// Test each line
 	testCases := []struct {
 		cursorY        int
@@ -307,16 +307,16 @@ func TestGetCurrentLineIndentInfoWithCursor(t *testing.T) {
 		{2, 2, false}, // "        two levels"
 		{3, 1, true},  // "      continuation" (6 spaces)
 	}
-	
+
 	for _, tc := range testCases {
 		te.SetCursorPosition(0, tc.cursorY)
 		info := te.getCurrentLineIndentInfo(te.buffer.CursorIterator)
-		
+
 		if info.Level != tc.expectedLevel {
-			t.Errorf("Line %d: expected level %d, got %d", 
+			t.Errorf("Line %d: expected level %d, got %d",
 				tc.cursorY, tc.expectedLevel, info.Level)
 		}
-		
+
 		if info.IsContinuation != tc.isContinuation {
 			t.Errorf("Line %d: expected IsContinuation=%v, got %v",
 				tc.cursorY, tc.isContinuation, info.IsContinuation)
@@ -327,11 +327,11 @@ func TestGetCurrentLineIndentInfoWithCursor(t *testing.T) {
 func TestIndentInfoFormatting(t *testing.T) {
 	// Test how indent info should be formatted for status bar
 	tests := []struct {
-		name           string
-		info           buffer.LineIndentInfo
-		fileIndentType config.IndentationType
+		name            string
+		info            buffer.LineIndentInfo
+		fileIndentType  config.IndentationType
 		fileIndentWidth int
-		expectedFormat string
+		expectedFormat  string
 	}{
 		{
 			name: "normal indent level 1",
@@ -378,7 +378,7 @@ func TestIndentInfoFormatting(t *testing.T) {
 			expectedFormat:  "L0",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// This tests the expected format - we'll implement the actual

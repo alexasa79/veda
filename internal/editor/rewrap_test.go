@@ -7,12 +7,12 @@ import (
 
 func TestDetectWrapContext(t *testing.T) {
 	tests := []struct {
-		name           string
-		lines          []string
-		startLine      int
-		wantContext    wrapContext
-		wantIndent     string
-		wantPrefix     string
+		name        string
+		lines       []string
+		startLine   int
+		wantContext wrapContext
+		wantIndent  string
+		wantPrefix  string
 	}{
 		{
 			name:        "plain text with indentation",
@@ -178,11 +178,11 @@ func TestWrapText(t *testing.T) {
 
 func TestFindParagraphBounds(t *testing.T) {
 	tests := []struct {
-		name         string
-		lines        []string
-		cursorLine   int
-		wantStart    int
-		wantEnd      int
+		name       string
+		lines      []string
+		cursorLine int
+		wantStart  int
+		wantEnd    int
 	}{
 		{
 			name: "single paragraph",
@@ -234,7 +234,7 @@ func TestFindParagraphBounds(t *testing.T) {
 			name: "numbered list items as separate paragraphs",
 			lines: []string{
 				"1. first item",
-				"2. second item", 
+				"2. second item",
 				"3. third item",
 			},
 			cursorLine: 0,
@@ -265,8 +265,8 @@ func TestRewrapParagraph(t *testing.T) {
 		want      string
 	}{
 		{
-			name: "plain text paragraph",
-			input: `This is a very long line that definitely needs to be wrapped because it exceeds the normal width limit that we have set for our editor.`,
+			name:      "plain text paragraph",
+			input:     `This is a very long line that definitely needs to be wrapped because it exceeds the normal width limit that we have set for our editor.`,
 			cursorY:   0,
 			wrapWidth: 40,
 			want: `This is a very long line that definitely
@@ -275,8 +275,8 @@ the normal width limit that we have set
 for our editor.`,
 		},
 		{
-			name: "indented paragraph",
-			input: `    This is an indented paragraph that is quite long and needs to be wrapped while preserving the indentation.`,
+			name:      "indented paragraph",
+			input:     `    This is an indented paragraph that is quite long and needs to be wrapped while preserving the indentation.`,
 			cursorY:   0,
 			wrapWidth: 40,
 			want: `    This is an indented paragraph that
@@ -285,8 +285,8 @@ for our editor.`,
     indentation.`,
 		},
 		{
-			name: "markdown list",
-			input: `1. This is a numbered list item that is very long and needs to be wrapped properly with the correct indentation.`,
+			name:      "markdown list",
+			input:     `1. This is a numbered list item that is very long and needs to be wrapped properly with the correct indentation.`,
 			cursorY:   0,
 			wrapWidth: 40,
 			want: `1. This is a numbered list item that is
@@ -295,8 +295,8 @@ for our editor.`,
    indentation.`,
 		},
 		{
-			name: "C++ comment",
-			input: `// This is a C++ style comment that is very long and needs to be wrapped with comment prefixes.`,
+			name:      "C++ comment",
+			input:     `// This is a C++ style comment that is very long and needs to be wrapped with comment prefixes.`,
 			cursorY:   0,
 			wrapWidth: 40,
 			want: `// This is a C++ style comment that is
@@ -304,8 +304,8 @@ for our editor.`,
 // with comment prefixes.`,
 		},
 		{
-			name: "Python comment",
-			input: `# this is a python comment that is very long and needs to be wrapped with proper prefixes.`,
+			name:      "Python comment",
+			input:     `# this is a python comment that is very long and needs to be wrapped with proper prefixes.`,
 			cursorY:   0,
 			wrapWidth: 40,
 			want: `# this is a python comment that is very
@@ -313,11 +313,11 @@ for our editor.`,
 # proper prefixes.`,
 		},
 		{
-			name: "markdown heading should not wrap",
-			input: `# This is a very long markdown heading that should not be wrapped no matter how long it is`,
+			name:      "markdown heading should not wrap",
+			input:     `# This is a very long markdown heading that should not be wrapped no matter how long it is`,
 			cursorY:   0,
 			wrapWidth: 40,
-			want: `# This is a very long markdown heading that should not be wrapped no matter how long it is`,
+			want:      `# This is a very long markdown heading that should not be wrapped no matter how long it is`,
 		},
 		{
 			name: "markdown heading without empty line - text should wrap",
@@ -374,7 +374,7 @@ understand what is NAT router and router overall.`,
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test editor with content
 			te := NewTestEditorWithContent(100, 24, tt.input)
-			
+
 			// Move cursor to the desired line
 			for i := 0; i < tt.cursorY; i++ {
 				te.ExecuteCommand("down")
@@ -450,55 +450,55 @@ func TestRewrapCommandUndoRedo(t *testing.T) {
 }
 
 func TestRewrapCreatesUndoBoundaryInInsertMode(t *testing.T) {
-    te := NewTestEditorWithContent(100, 24, "")
+	te := NewTestEditorWithContent(100, 24, "")
 
-    // Enter insert mode and type a paragraph
-    te.ExecuteCommand("enter-insert-mode")
-    text := "This is a paragraph that will be wrapped to test undo boundaries. " +
-        "Typing should be one undo unit separate from the rewrap."
-    for _, ch := range text {
-        te.InsertChar(ch)
-    }
+	// Enter insert mode and type a paragraph
+	te.ExecuteCommand("enter-insert-mode")
+	text := "This is a paragraph that will be wrapped to test undo boundaries. " +
+		"Typing should be one undo unit separate from the rewrap."
+	for _, ch := range text {
+		te.InsertChar(ch)
+	}
 
-    // Trigger rewrap while still in insert mode
-    if err := te.ExecuteCommand("rewrap-paragraph"); err != nil {
-        t.Fatalf("rewrap-paragraph failed: %v", err)
-    }
+	// Trigger rewrap while still in insert mode
+	if err := te.ExecuteCommand("rewrap-paragraph"); err != nil {
+		t.Fatalf("rewrap-paragraph failed: %v", err)
+	}
 
-    // Exit insert mode to perform undo in normal mode
-    te.ExecuteCommand("exit-insert-mode")
+	// Exit insert mode to perform undo in normal mode
+	te.ExecuteCommand("exit-insert-mode")
 
-    wrappedAfter := te.GetBufferContent()
-    if wrappedAfter == text {
-        t.Fatalf("expected rewrap to change content")
-    }
+	wrappedAfter := te.GetBufferContent()
+	if wrappedAfter == text {
+		t.Fatalf("expected rewrap to change content")
+	}
 
-    // First undo should undo only the rewrap, keeping the typed text
-    te.ExecuteCommand("undo")
-    afterFirstUndo := te.GetBufferContent()
-    if afterFirstUndo != text {
-        t.Fatalf("first undo should revert rewrap only.\nGot:\n%q\nWant:\n%q", afterFirstUndo, text)
-    }
+	// First undo should undo only the rewrap, keeping the typed text
+	te.ExecuteCommand("undo")
+	afterFirstUndo := te.GetBufferContent()
+	if afterFirstUndo != text {
+		t.Fatalf("first undo should revert rewrap only.\nGot:\n%q\nWant:\n%q", afterFirstUndo, text)
+	}
 
-    // Second undo should undo the insert session (typed text)
-    te.ExecuteCommand("undo")
-    AssertBufferEquals(t, te, "")
+	// Second undo should undo the insert session (typed text)
+	te.ExecuteCommand("undo")
+	AssertBufferEquals(t, te, "")
 }
 
 func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 	// Create test editor with vertical rulers at 40, 60, 80
 	content := "This is a test line that is long enough to be wrapped at different widths to test the cycling behavior"
 	te := NewTestEditorWithContent(100, 24, content)
-	
+
 	// Set vertical rulers
 	te.Editor.config.VerticalRulers = []int{40, 60, 80}
-	
+
 	// First rewrap at cursor position (0,0) - should use first ruler (40)
 	err := te.Editor.rewrapParagraph()
 	if err != nil {
 		t.Fatalf("First rewrapParagraph() failed: %v", err)
 	}
-	
+
 	// Verify the line is wrapped at ~40 characters
 	bufferContent := te.GetBufferContent()
 	lines := strings.Split(bufferContent, "\n")
@@ -509,18 +509,18 @@ func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 	if firstLineLen > 45 || firstLineLen < 35 {
 		t.Errorf("First line length %d not near 40 characters", firstLineLen)
 	}
-	
-    // Save cursor position after first rewrap; subsequent rewraps at "same place"
-    // should cycle to the next ruler even if CursorX shifts. We'll reuse these to return later.
-    savedLine := te.Editor.buffer.CursorIterator.LineNumber()
-    savedChar := te.Editor.buffer.CursorX
-	
+
+	// Save cursor position after first rewrap; subsequent rewraps at "same place"
+	// should cycle to the next ruler even if CursorX shifts. We'll reuse these to return later.
+	savedLine := te.Editor.buffer.CursorIterator.LineNumber()
+	savedChar := te.Editor.buffer.CursorX
+
 	// Second rewrap at same position - should cycle to second ruler (60)
 	err = te.Editor.rewrapParagraph()
 	if err != nil {
 		t.Fatalf("Second rewrapParagraph() failed: %v", err)
 	}
-	
+
 	// Verify the line is wrapped at ~60 characters
 	bufferContent = te.GetBufferContent()
 	lines = strings.Split(bufferContent, "\n")
@@ -528,16 +528,16 @@ func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 	if firstLineLen > 65 || firstLineLen < 55 {
 		t.Errorf("First line length %d not near 60 characters after second rewrap", firstLineLen)
 	}
-	
+
 	// Move cursor to a different position
 	te.ExecuteCommand("down")
-	
+
 	// Third rewrap at different position - should reset to first ruler (40)
 	err = te.Editor.rewrapParagraph()
 	if err != nil {
 		t.Fatalf("Third rewrapParagraph() failed: %v", err)
 	}
-	
+
 	// Verify the line is wrapped at ~40 characters again
 	bufferContent = te.GetBufferContent()
 	lines = strings.Split(bufferContent, "\n")
@@ -545,17 +545,17 @@ func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 	if firstLineLen > 45 || firstLineLen < 35 {
 		t.Errorf("First line length %d not near 40 characters after moving cursor", firstLineLen)
 	}
-	
+
 	// Move cursor back to original position
 	te.SetCursorPosition(savedChar, savedLine)
-	
-    // Fourth rewrap at original position - should start over at first ruler (40)
-    // because we've been to a different position
+
+	// Fourth rewrap at original position - should start over at first ruler (40)
+	// because we've been to a different position
 	err = te.Editor.rewrapParagraph()
 	if err != nil {
 		t.Fatalf("Fourth rewrapParagraph() failed: %v", err)
 	}
-	
+
 	// Verify it's back to ~40 characters
 	bufferContent = te.GetBufferContent()
 	lines = strings.Split(bufferContent, "\n")

@@ -16,11 +16,11 @@ type StyleDef struct {
 
 // ParsedStyle represents a parsed style with color and attributes
 type ParsedStyle struct {
-	FgColor    ui.Color
-	BgColor    ui.Color
-	Bold       bool
-	Italic     bool
-	Underline  bool
+	FgColor   ui.Color
+	BgColor   ui.Color
+	Bold      bool
+	Italic    bool
+	Underline bool
 }
 
 // ToStyle converts ParsedStyle to ui.Style
@@ -28,7 +28,7 @@ func (ps ParsedStyle) ToStyle() ui.Style {
 	style := ui.StyleDefault
 	style.Fg = ps.FgColor
 	style.Bg = ps.BgColor
-	
+
 	var attrs ui.AttrMask
 	if ps.Bold {
 		attrs |= ui.AttrBold
@@ -40,7 +40,7 @@ func (ps ParsedStyle) ToStyle() ui.Style {
 		attrs |= ui.AttrUnderline
 	}
 	style.Attrs = attrs
-	
+
 	return style
 }
 
@@ -136,7 +136,7 @@ func CombineStyles(fg, bg ParsedStyle) ui.Style {
 	style := ui.StyleDefault
 	style.Fg = fg.FgColor
 	style.Bg = bg.BgColor
-	
+
 	// Apply foreground attributes (typically text attributes apply to foreground)
 	var attrs ui.AttrMask
 	if fg.Bold {
@@ -149,7 +149,7 @@ func CombineStyles(fg, bg ParsedStyle) ui.Style {
 		attrs |= ui.AttrUnderline
 	}
 	style.Attrs = attrs
-	
+
 	return style
 }
 

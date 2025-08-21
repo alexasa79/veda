@@ -12,7 +12,7 @@ type TextObject interface {
 	// Returns (startLine, startChar, endLine, endChar, found)
 	// If found is false, no valid text object was found at the cursor position
 	GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool)
-	
+
 	// GetType returns the type of text object for debugging
 	GetType() string
 }
@@ -35,11 +35,11 @@ func (l LineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 	if iter.IsEOF() {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	line := iter.Line()
-	
+
 	// Check if this is the last line in the buffer
-	if cursorLine == buf.LineCount - 1 {
+	if cursorLine == buf.LineCount-1 {
 		// For the last line, delete from beginning of line to end of line content
 		return cursorLine, 0, cursorLine, len(line), true
 	} else {
@@ -59,25 +59,25 @@ func (l LineTextObject) GetType() string {
 type EndOfLineTextObject struct{}
 
 func (eol EndOfLineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-    iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
-    if iter.IsEOF() {
-        return 0, 0, 0, 0, false
-    }
+	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+	if iter.IsEOF() {
+		return 0, 0, 0, 0, false
+	}
 
-    line := iter.Line()
-    // Select from cursor to the end of the current line (exclusive of newline)
-    startChar := cursorChar
-    if startChar < 0 {
-        startChar = 0
-    }
-    if startChar > len(line) {
-        startChar = len(line)
-    }
-    return cursorLine, startChar, cursorLine, len(line), true
+	line := iter.Line()
+	// Select from cursor to the end of the current line (exclusive of newline)
+	startChar := cursorChar
+	if startChar < 0 {
+		startChar = 0
+	}
+	if startChar > len(line) {
+		startChar = len(line)
+	}
+	return cursorLine, startChar, cursorLine, len(line), true
 }
 
 func (eol EndOfLineTextObject) GetType() string {
-    return "end-of-line"
+	return "end-of-line"
 }
 
 // CharacterTextObject represents a single character movement
@@ -90,9 +90,9 @@ func (c CharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar
 	if iter.IsEOF() {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	line := iter.Line()
-	
+
 	if c.Direction == "left" {
 		// Moving left - delete character to the left of cursor
 		if cursorChar == 0 {
@@ -110,7 +110,7 @@ func (c CharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar
 		// Delete the character at the cursor
 		return cursorLine, cursorChar, cursorLine, cursorChar + 1, true
 	}
-	
+
 	return 0, 0, 0, 0, false
 }
 
@@ -136,24 +136,24 @@ func (l LineMotionTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorCha
 			return 0, 0, 0, 0, false
 		}
 		currentLineLen := len(currentIter.Line())
-		
+
 		return cursorLine - 1, 0, cursorLine, currentLineLen, true
 	} else if l.Direction == "down" {
 		// Moving down - select current line and line below
-		if cursorLine >= buf.LineCount - 1 {
+		if cursorLine >= buf.LineCount-1 {
 			// At last line, can't move down
 			return 0, 0, 0, 0, false
 		}
 		// Select from beginning of current line to end of line below
-		nextIter := buffer.NewBufferIteratorAtLine(buf, cursorLine + 1)
+		nextIter := buffer.NewBufferIteratorAtLine(buf, cursorLine+1)
 		if nextIter.IsEOF() {
 			return 0, 0, 0, 0, false
 		}
 		nextLineLen := len(nextIter.Line())
-		
+
 		return cursorLine, 0, cursorLine + 1, nextLineLen, true
 	}
-	
+
 	return 0, 0, 0, 0, false
 }
 
@@ -170,19 +170,19 @@ func (m MultiLineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar
 	// Select Count lines starting from current line
 	startLine := cursorLine
 	endLine := cursorLine + m.Count - 1
-	
+
 	// Ensure we don't go past end of buffer
 	if endLine >= buf.LineCount {
 		endLine = buf.LineCount - 1
 	}
-	
+
 	// Get length of last line
 	iter := buffer.NewBufferIteratorAtLine(buf, endLine)
 	if iter.IsEOF() {
 		return 0, 0, 0, 0, false
 	}
 	lastLine := iter.Line()
-	
+
 	return startLine, 0, endLine, len(lastLine), true
 }
 
@@ -192,7 +192,7 @@ func (m MultiLineTextObject) GetType() string {
 
 // WordTextObject represents a word (sequence of alphanumeric chars and underscores)
 type WordTextObject struct {
-	modifier TextObjectModifier
+	modifier             TextObjectModifier
 	excludeTrailingSpace bool // For 'cw' which should act like 'ce'
 }
 
@@ -207,7 +207,7 @@ func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 		}
 		return boundary.StartLine, boundary.StartChar, boundary.EndLine, boundary.EndChar, true
 	}
-	
+
 	// For 'diw' and 'daw', use shared logic without trailing space for 'inside'
 	// and with trailing space for 'around'
 	includeTrailing := w.modifier == ModifierAround
@@ -215,7 +215,7 @@ func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 	if boundary == nil {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// For 'diw', we need to handle the case where cursor is not on a word
 	if w.modifier == ModifierInside || w.modifier == ModifierAround {
 		iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
@@ -223,7 +223,7 @@ func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 			return 0, 0, 0, 0, false
 		}
 		line := iter.Line()
-		
+
 		// If we're not on a word character, find the next word
 		if cursorChar < len(line) && !isWordCharByte(line[cursorChar]) {
 			nextWord := FindNextWordBoundary(buf, cursorLine, cursorChar)
@@ -237,7 +237,7 @@ func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 			}
 		}
 	}
-	
+
 	return boundary.StartLine, boundary.StartChar, boundary.EndLine, boundary.EndChar, true
 }
 
@@ -253,27 +253,27 @@ func (w WordTextObject) GetType() string {
 type WTextObject struct{}
 
 func (w WTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-    // Use the unified current word boundary finder without trailing whitespace
-    boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, false)
-    if boundary == nil {
-        return 0, 0, 0, 0, false
-    }
-    // Start from the cursor position, end at the end of the current word
-    startLine := cursorLine
-    startChar := cursorChar
-    endLine := boundary.EndLine
-    endChar := boundary.EndChar
+	// Use the unified current word boundary finder without trailing whitespace
+	boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, false)
+	if boundary == nil {
+		return 0, 0, 0, 0, false
+	}
+	// Start from the cursor position, end at the end of the current word
+	startLine := cursorLine
+	startChar := cursorChar
+	endLine := boundary.EndLine
+	endChar := boundary.EndChar
 
-    // Clamp start to not exceed end
-    if startLine == endLine && startChar > endChar {
-        startChar = endChar
-    }
+	// Clamp start to not exceed end
+	if startLine == endLine && startChar > endChar {
+		startChar = endChar
+	}
 
-    return startLine, startChar, endLine, endChar, true
+	return startLine, startChar, endLine, endChar, true
 }
 
 func (w WTextObject) GetType() string {
-    return "W-to-end"
+	return "W-to-end"
 }
 
 // BracketTextObject represents text within brackets
@@ -295,7 +295,7 @@ func NewBracketTextObject(bracket rune, modifier TextObjectModifier) *BracketTex
 	default:
 		return nil
 	}
-	
+
 	return &BracketTextObject{
 		openBracket:  open,
 		closeBracket: close,
@@ -306,19 +306,19 @@ func NewBracketTextObject(bracket rune, modifier TextObjectModifier) *BracketTex
 func (b BracketTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
 	// Find matching brackets using a simple algorithm
 	// This is a simplified version - a full implementation would handle nesting
-	
+
 	// First, find the opening bracket by searching backwards
 	startLine, startChar := b.findOpeningBracket(buf, cursorLine, cursorChar)
 	if startLine == -1 {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// Then find the closing bracket
 	endLine, endChar := b.findClosingBracket(buf, startLine, startChar)
 	if endLine == -1 {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// Adjust based on modifier
 	if b.modifier == ModifierInside {
 		// Exclude the brackets themselves
@@ -334,7 +334,7 @@ func (b BracketTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar i
 		// Include the brackets
 		endChar++
 	}
-	
+
 	return startLine, startChar, endLine, endChar, true
 }
 
@@ -343,20 +343,20 @@ func (b BracketTextObject) findOpeningBracket(buf *buffer.Buffer, startLine, sta
 	depth := 0
 	line := startLine
 	char := startChar
-	
+
 	for line >= 0 {
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		if line == startLine {
 			char = min(char, len(lineStr)-1)
 		} else {
 			char = len(lineStr) - 1
 		}
-		
+
 		for char >= 0 {
 			if char < len(lineStr) {
 				if rune(lineStr[char]) == b.closeBracket {
@@ -370,10 +370,10 @@ func (b BracketTextObject) findOpeningBracket(buf *buffer.Buffer, startLine, sta
 			}
 			char--
 		}
-		
+
 		line--
 	}
-	
+
 	return -1, -1
 }
 
@@ -382,22 +382,22 @@ func (b BracketTextObject) findClosingBracket(buf *buffer.Buffer, startLine, sta
 	depth := 1 // We start inside the brackets
 	line := startLine
 	char := startChar + 1
-	
+
 	lineCount := buf.LineCount
-	
+
 	for line < lineCount {
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		if line == startLine {
 			char = max(char, startChar+1)
 		} else {
 			char = 0
 		}
-		
+
 		for char < len(lineStr) {
 			if rune(lineStr[char]) == b.openBracket {
 				depth++
@@ -409,10 +409,10 @@ func (b BracketTextObject) findClosingBracket(buf *buffer.Buffer, startLine, sta
 			}
 			char++
 		}
-		
+
 		line++
 	}
-	
+
 	return -1, -1
 }
 
@@ -434,9 +434,9 @@ func (f FindCharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursor
 	if iter.IsEOF() {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	line := iter.Line()
-	
+
 	// Search for the character starting from the position after the cursor
 	for i := cursorChar + 1; i < len(line); i++ {
 		if string(line[i]) == f.character {
@@ -444,7 +444,7 @@ func (f FindCharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursor
 			return cursorLine, cursorChar, cursorLine, i + 1, true
 		}
 	}
-	
+
 	// Character not found
 	return 0, 0, 0, 0, false
 }
@@ -463,9 +463,9 @@ func (t TillCharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursor
 	if iter.IsEOF() {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	line := iter.Line()
-	
+
 	// Search for the character starting from the position after the cursor
 	for i := cursorChar + 1; i < len(line); i++ {
 		if string(line[i]) == t.character {
@@ -473,7 +473,7 @@ func (t TillCharacterTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursor
 			return cursorLine, cursorChar, cursorLine, i, true
 		}
 	}
-	
+
 	// Character not found
 	return 0, 0, 0, 0, false
 }
@@ -502,19 +502,19 @@ func (s SearchResultTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorC
 	if s.searchPattern == "" {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// Recalculate matches for the stored pattern in the current buffer
 	searchMatches := s.findMatchesInBuffer(buf, s.searchPattern)
 	if len(searchMatches) == 0 {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// Get current cursor position in absolute terms
 	currentPos := s.editor.getAbsolutePosition()
-	
+
 	// Find which search match we're currently on or closest to
 	var matchPos int = -1
-	
+
 	// First check if we're exactly on a match
 	patternLen := len(s.searchPattern)
 	for _, pos := range searchMatches {
@@ -523,12 +523,12 @@ func (s SearchResultTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorC
 			break
 		}
 	}
-	
+
 	// If we're not on a match, find the closest one
 	if matchPos == -1 {
 		// Find the closest match (prefer the one after cursor, then before)
 		closestDistance := int(^uint(0) >> 1) // Max int
-		
+
 		for _, pos := range searchMatches {
 			distance := pos - currentPos
 			if distance >= 0 && distance < closestDistance {
@@ -536,7 +536,7 @@ func (s SearchResultTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorC
 				closestDistance = distance
 			}
 		}
-		
+
 		// If no match found after cursor, find closest before
 		if matchPos == -1 {
 			for _, pos := range searchMatches {
@@ -548,15 +548,15 @@ func (s SearchResultTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorC
 			}
 		}
 	}
-	
+
 	if matchPos == -1 {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// Convert absolute position to line/char coordinates
 	startLine, startChar := s.absoluteToLineChar(buf, matchPos)
 	endLine, endChar := s.absoluteToLineChar(buf, matchPos+patternLen)
-	
+
 	return startLine, startChar, endLine, endChar, true
 }
 
@@ -565,7 +565,7 @@ func (s SearchResultTextObject) absoluteToLineChar(buf *buffer.Buffer, pos int) 
 	iter := buffer.NewBufferIterator(buf)
 	lineNum := 0
 	lineStart := 0
-	
+
 	// Find the line containing the position
 	for !iter.IsEOF() {
 		lineEnd := iter.LineEnd()
@@ -577,7 +577,7 @@ func (s SearchResultTextObject) absoluteToLineChar(buf *buffer.Buffer, pos int) 
 		iter = iter.Next()
 		lineNum++
 	}
-	
+
 	// Position is past end of buffer
 	return buf.LineCount - 1, 0
 }
@@ -591,10 +591,10 @@ func (s SearchResultTextObject) findMatchesInBuffer(buf *buffer.Buffer, pattern 
 	if pattern == "" {
 		return []int{}
 	}
-	
+
 	// Get buffer content
 	content := buf.Rope.String()
-	
+
 	// Find all matches using the same logic as updateSearchMatches
 	var matches []int
 	pos := 0
@@ -606,7 +606,7 @@ func (s SearchResultTextObject) findMatchesInBuffer(buf *buffer.Buffer, pattern 
 		matches = append(matches, pos+index)
 		pos = pos + index + 1
 	}
-	
+
 	return matches
 }
 
@@ -627,24 +627,24 @@ func (a ArgumentTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar 
 	if openLine == -1 {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	closeLine, closeChar := a.findClosingParen(buf, openLine, openChar)
 	if closeLine == -1 {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// Parse arguments within the parentheses and find the one containing the cursor
 	argStart, argEnd := a.findCurrentArgument(buf, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar)
 	if argStart.line == -1 {
 		return 0, 0, 0, 0, false
 	}
-	
+
 	// Apply modifier (inside vs around)
 	if a.modifier == ModifierAround {
 		// Include surrounding commas and spaces
 		argStart, argEnd = a.expandAroundArgument(buf, openLine, openChar, closeLine, closeChar, argStart, argEnd)
 	}
-	
+
 	return argStart.line, argStart.char, argEnd.line, argEnd.char, true
 }
 
@@ -665,20 +665,20 @@ func (a ArgumentTextObject) findOpeningParen(buf *buffer.Buffer, startLine, star
 	depth := 0
 	line := startLine
 	char := startChar
-	
+
 	for line >= 0 {
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		if line == startLine {
 			char = min(char, len(lineStr)-1)
 		} else {
 			char = len(lineStr) - 1
 		}
-		
+
 		for char >= 0 {
 			if char < len(lineStr) {
 				ch := rune(lineStr[char])
@@ -693,10 +693,10 @@ func (a ArgumentTextObject) findOpeningParen(buf *buffer.Buffer, startLine, star
 			}
 			char--
 		}
-		
+
 		line--
 	}
-	
+
 	return -1, -1
 }
 
@@ -705,13 +705,13 @@ func (a ArgumentTextObject) findClosingParen(buf *buffer.Buffer, startLine, star
 	depth := 1 // Start inside the parentheses
 	line := startLine
 	char := startChar + 1
-	
+
 	for {
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		for char < len(lineStr) {
 			ch := rune(lineStr[char])
@@ -725,23 +725,23 @@ func (a ArgumentTextObject) findClosingParen(buf *buffer.Buffer, startLine, star
 			}
 			char++
 		}
-		
+
 		line++
 		char = 0
 	}
-	
+
 	return -1, -1
 }
 
 func (a ArgumentTextObject) findCurrentArgument(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar int) (position, position) {
 	// Parse arguments between parentheses and find the one containing the cursor
 	args := a.parseArguments(buf, openLine, openChar, closeLine, closeChar)
-	
+
 	// Debug: log all arguments found
 	for i, arg := range args {
 		LL.Debug("Argument %d: start=(%d,%d) end=(%d,%d)", i, arg.start.line, arg.start.char, arg.end.line, arg.end.char)
 	}
-	
+
 	// Find which argument contains the cursor
 	for i, arg := range args {
 		if a.positionInRange(cursorLine, cursorChar, arg.start, arg.end) {
@@ -749,7 +749,7 @@ func (a ArgumentTextObject) findCurrentArgument(buf *buffer.Buffer, openLine, op
 			return arg.start, arg.end
 		}
 	}
-	
+
 	LL.Debug("Cursor at (%d,%d) not in any argument", cursorLine, cursorChar)
 	return position{-1, -1}, position{-1, -1}
 }
@@ -762,36 +762,36 @@ type argument struct {
 func (a ArgumentTextObject) parseArguments(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar int) []argument {
 	// Use a simpler, more direct approach for multiline parsing
 	// Find all commas at the top level, then identify argument boundaries
-	
+
 	var args []argument
 	var commaPositions []position
-	
+
 	// Find all top-level commas
 	line := openLine
 	char := openChar + 1
 	depth := 0
 	inString := false
 	stringChar := rune(0)
-	
+
 	for {
 		if line == closeLine && char == closeChar {
 			break
 		}
-		
+
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		if char >= len(lineStr) {
 			line++
 			char = 0
 			continue
 		}
-		
+
 		ch := rune(lineStr[char])
-		
+
 		// Handle string literals
 		if !inString && (ch == '"' || ch == '\'' || ch == '`') {
 			inString = true
@@ -808,13 +808,13 @@ func (a ArgumentTextObject) parseArguments(buf *buffer.Buffer, openLine, openCha
 				commaPositions = append(commaPositions, position{line, char})
 			}
 		}
-		
+
 		char++
 	}
-	
+
 	// Now parse arguments between commas
 	argStart := position{openLine, openChar + 1}
-	
+
 	for _, commaPos := range commaPositions {
 		argEnd := a.findArgumentEnd(buf, argStart, commaPos)
 		if argStart.line != -1 && argEnd.line != -1 {
@@ -822,7 +822,7 @@ func (a ArgumentTextObject) parseArguments(buf *buffer.Buffer, openLine, openCha
 		}
 		argStart = a.skipWhitespaceFromPosition(buf, position{commaPos.line, commaPos.char + 1}, closeLine, closeChar)
 	}
-	
+
 	// Add the last argument (after the last comma to closing paren)
 	if argStart.line != -1 {
 		argEnd := a.findArgumentEnd(buf, argStart, position{closeLine, closeChar})
@@ -830,7 +830,7 @@ func (a ArgumentTextObject) parseArguments(buf *buffer.Buffer, openLine, openCha
 			args = append(args, argument{start: argStart, end: argEnd})
 		}
 	}
-	
+
 	return args
 }
 
@@ -839,108 +839,106 @@ func (a ArgumentTextObject) findArgumentEnd(buf *buffer.Buffer, start, limit pos
 	line := start.line
 	char := start.char
 	lastNonWhitespace := position{-1, -1}
-	
+
 	for {
 		if (line == limit.line && char >= limit.char) || line > limit.line {
 			break
 		}
-		
+
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		if char >= len(lineStr) {
 			line++
 			char = 0
 			continue
 		}
-		
+
 		ch := rune(lineStr[char])
 		if ch != ' ' && ch != '\t' && ch != '\n' {
 			lastNonWhitespace = position{line, char + 1} // Position after the character
 		}
-		
+
 		char++
 	}
-	
+
 	return lastNonWhitespace
 }
 
 func (a ArgumentTextObject) skipWhitespaceFromPosition(buf *buffer.Buffer, start position, endLine, endChar int) position {
 	line := start.line
 	char := start.char
-	
+
 	for {
 		if (line == endLine && char >= endChar) || line > endLine {
 			break
 		}
-		
+
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		if char >= len(lineStr) {
 			line++
 			char = 0
 			continue
 		}
-		
+
 		ch := rune(lineStr[char])
 		if ch != ' ' && ch != '\t' && ch != '\n' {
 			return position{line, char}
 		}
-		
+
 		char++
 	}
-	
+
 	return position{line, char}
 }
-
-
 
 func (a ArgumentTextObject) positionInRange(line, char int, start, end position) bool {
 	// Check if position is within the argument range
 	if line < start.line || line > end.line {
 		return false
 	}
-	
+
 	if line == start.line && char < start.char {
 		return false
 	}
-	
+
 	if line == end.line && char > end.char {
 		return false
 	}
-	
+
 	return true
 }
 
 func (a ArgumentTextObject) expandAroundArgument(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar int, argStart, argEnd position) (position, position) {
 	// For "around" modifier, include surrounding commas and spaces
 	// Strategy: prefer to include comma after argument, but if none exists, include comma before
-	
+
 	// First, try to include comma and whitespace after the argument
 	expandedEnd := argEnd
 	line := argEnd.line
 	char := argEnd.char
 	foundTrailingComma := false
-	
+
 	for line <= closeLine {
 		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			break
 		}
-		
+
 		lineStr := iter.Line()
 		for char < len(lineStr) {
 			if line == closeLine && char >= closeChar {
 				break
 			}
-			
+
 			ch := rune(lineStr[char])
 			if ch == ',' {
 				foundTrailingComma = true
@@ -957,33 +955,33 @@ func (a ArgumentTextObject) expandAroundArgument(buf *buffer.Buffer, openLine, o
 			}
 			char++
 		}
-		
+
 		line++
 		char = 0
 	}
-	
+
 	// If no trailing comma found, try to include comma and whitespace before the argument
 	if !foundTrailingComma {
 		expandedStart := argStart
 		line = argStart.line
 		char = argStart.char - 1
-		
+
 		for line >= openLine {
 			iter := buffer.NewBufferIteratorAtLine(buf, line)
 			if iter.IsEOF() {
 				break
 			}
-			
+
 			lineStr := iter.Line()
 			if line != argStart.line {
 				char = len(lineStr) - 1
 			}
-			
+
 			for char >= 0 {
 				if line == openLine && char <= openChar {
 					break
 				}
-				
+
 				ch := rune(lineStr[char])
 				if ch == ',' {
 					// Include the comma and move start position to after it
@@ -995,11 +993,10 @@ func (a ArgumentTextObject) expandAroundArgument(buf *buffer.Buffer, openLine, o
 				}
 				char--
 			}
-			
+
 			line--
 		}
 	}
-	
+
 	return argStart, argEnd
 }
-

@@ -21,63 +21,62 @@ import (
 type TokenType string
 
 const (
-	TokenTypeText       TokenType = "text"
-	TokenTypeKeyword    TokenType = "keyword"
-	TokenTypeFunction   TokenType = "function"
-	TokenTypeVariable   TokenType = "variable"
-	TokenTypeConstant   TokenType = "constant"
-	TokenTypeString     TokenType = "string"
-	TokenTypeComment    TokenType = "comment"
-	TokenTypeNumber     TokenType = "number"
-	TokenTypeOperator   TokenType = "operator"
+	TokenTypeText        TokenType = "text"
+	TokenTypeKeyword     TokenType = "keyword"
+	TokenTypeFunction    TokenType = "function"
+	TokenTypeVariable    TokenType = "variable"
+	TokenTypeConstant    TokenType = "constant"
+	TokenTypeString      TokenType = "string"
+	TokenTypeComment     TokenType = "comment"
+	TokenTypeNumber      TokenType = "number"
+	TokenTypeOperator    TokenType = "operator"
 	TokenTypePunctuation TokenType = "punctuation"
-	TokenTypeType       TokenType = "type"
-	TokenTypeNamespace  TokenType = "namespace"
-	TokenTypeAttribute  TokenType = "attribute"
-	TokenTypeTag        TokenType = "tag"
-	
+	TokenTypeType        TokenType = "type"
+	TokenTypeNamespace   TokenType = "namespace"
+	TokenTypeAttribute   TokenType = "attribute"
+	TokenTypeTag         TokenType = "tag"
+
 	// Markdown-specific token types
-	TokenTypeMarkdownH1        TokenType = "markdown_h1"
-	TokenTypeMarkdownH2        TokenType = "markdown_h2"
-	TokenTypeMarkdownH3        TokenType = "markdown_h3"
-	TokenTypeMarkdownH4        TokenType = "markdown_h4"
-	TokenTypeMarkdownH5        TokenType = "markdown_h5"
-	TokenTypeMarkdownH6        TokenType = "markdown_h6"
-	TokenTypeMarkdownBold      TokenType = "markdown_bold"
-	TokenTypeMarkdownItalic    TokenType = "markdown_italic"
-	TokenTypeMarkdownBoldItalic TokenType = "markdown_bold_italic"
-	TokenTypeMarkdownCode      TokenType = "markdown_code"
-	TokenTypeMarkdownCodeBlock TokenType = "markdown_code_block"
-	TokenTypeMarkdownBlockquote TokenType = "markdown_blockquote"
-	TokenTypeMarkdownLink      TokenType = "markdown_link"
-	TokenTypeMarkdownLinkText  TokenType = "markdown_link_text"
-	TokenTypeMarkdownLinkUrl   TokenType = "markdown_link_url"
-	TokenTypeMarkdownImage     TokenType = "markdown_image"
-	TokenTypeMarkdownList      TokenType = "markdown_list"
-	TokenTypeMarkdownListMarker TokenType = "markdown_list_marker"
+	TokenTypeMarkdownH1             TokenType = "markdown_h1"
+	TokenTypeMarkdownH2             TokenType = "markdown_h2"
+	TokenTypeMarkdownH3             TokenType = "markdown_h3"
+	TokenTypeMarkdownH4             TokenType = "markdown_h4"
+	TokenTypeMarkdownH5             TokenType = "markdown_h5"
+	TokenTypeMarkdownH6             TokenType = "markdown_h6"
+	TokenTypeMarkdownBold           TokenType = "markdown_bold"
+	TokenTypeMarkdownItalic         TokenType = "markdown_italic"
+	TokenTypeMarkdownBoldItalic     TokenType = "markdown_bold_italic"
+	TokenTypeMarkdownCode           TokenType = "markdown_code"
+	TokenTypeMarkdownCodeBlock      TokenType = "markdown_code_block"
+	TokenTypeMarkdownBlockquote     TokenType = "markdown_blockquote"
+	TokenTypeMarkdownLink           TokenType = "markdown_link"
+	TokenTypeMarkdownLinkText       TokenType = "markdown_link_text"
+	TokenTypeMarkdownLinkUrl        TokenType = "markdown_link_url"
+	TokenTypeMarkdownImage          TokenType = "markdown_image"
+	TokenTypeMarkdownList           TokenType = "markdown_list"
+	TokenTypeMarkdownListMarker     TokenType = "markdown_list_marker"
 	TokenTypeMarkdownHorizontalRule TokenType = "markdown_horizontal_rule"
-	TokenTypeMarkdownStrikethrough TokenType = "markdown_strikethrough"
-	TokenTypeMarkdownTable     TokenType = "markdown_table"
-	TokenTypeMarkdownTableBorder TokenType = "markdown_table_border"
-	
-	
+	TokenTypeMarkdownStrikethrough  TokenType = "markdown_strikethrough"
+	TokenTypeMarkdownTable          TokenType = "markdown_table"
+	TokenTypeMarkdownTableBorder    TokenType = "markdown_table_border"
+
 	// Python-specific token types
-	TokenTypePythonKeyword     TokenType = "python_keyword"
-	TokenTypePythonBuiltin     TokenType = "python_builtin"
-	TokenTypePythonDecorator   TokenType = "python_decorator"
-	TokenTypePythonString      TokenType = "python_string"
-	TokenTypePythonDocstring   TokenType = "python_docstring"
-	TokenTypePythonFString     TokenType = "python_fstring"
-	TokenTypePythonNumber      TokenType = "python_number"
-	TokenTypePythonBoolean     TokenType = "python_boolean"
-	TokenTypePythonNone        TokenType = "python_none"
-	TokenTypePythonFunction    TokenType = "python_function"
-	TokenTypePythonClass       TokenType = "python_class"
-	TokenTypePythonSelf        TokenType = "python_self"
-	TokenTypePythonComment     TokenType = "python_comment"
-	TokenTypePythonOperator    TokenType = "python_operator"
-	TokenTypePythonException   TokenType = "python_exception"
-	TokenTypePythonImport      TokenType = "python_import"
+	TokenTypePythonKeyword   TokenType = "python_keyword"
+	TokenTypePythonBuiltin   TokenType = "python_builtin"
+	TokenTypePythonDecorator TokenType = "python_decorator"
+	TokenTypePythonString    TokenType = "python_string"
+	TokenTypePythonDocstring TokenType = "python_docstring"
+	TokenTypePythonFString   TokenType = "python_fstring"
+	TokenTypePythonNumber    TokenType = "python_number"
+	TokenTypePythonBoolean   TokenType = "python_boolean"
+	TokenTypePythonNone      TokenType = "python_none"
+	TokenTypePythonFunction  TokenType = "python_function"
+	TokenTypePythonClass     TokenType = "python_class"
+	TokenTypePythonSelf      TokenType = "python_self"
+	TokenTypePythonComment   TokenType = "python_comment"
+	TokenTypePythonOperator  TokenType = "python_operator"
+	TokenTypePythonException TokenType = "python_exception"
+	TokenTypePythonImport    TokenType = "python_import"
 )
 
 // Token represents a syntax-highlighted token
@@ -89,11 +88,11 @@ type Token struct {
 
 // Highlighter manages syntax highlighting for different languages
 type Highlighter struct {
-	parser         *sitter.Parser
-	currentLang    string
-	currentTree    *sitter.Tree
-	currentSource  []byte
-	tokenCache     map[int][]Token  // Cache key: startByte
+	parser        *sitter.Parser
+	currentLang   string
+	currentTree   *sitter.Tree
+	currentSource []byte
+	tokenCache    map[int][]Token // Cache key: startByte
 }
 
 // NewHighlighter creates a new syntax highlighter
@@ -108,13 +107,13 @@ func NewHighlighter() *Highlighter {
 // SetLanguageFromFile sets the language based on file extension
 func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	ext := strings.ToLower(filepath.Ext(filename))
-	
+
 	// Check for shell scripts without extension (like "bashrc", "profile", etc)
 	baseName := filepath.Base(filename)
 	// Handle dotfiles specially - if the extension is the entire filename, treat it as no extension
 	if ext == "" || ext == baseName {
 		switch baseName {
-		case "bashrc", ".bashrc", "bash_profile", ".bash_profile", 
+		case "bashrc", ".bashrc", "bash_profile", ".bash_profile",
 			"profile", ".profile", "bash_aliases", ".bash_aliases",
 			"bash_logout", ".bash_logout", "zshrc", ".zshrc":
 			h.parser.SetLanguage(bash.GetLanguage())
@@ -198,12 +197,12 @@ func (h *Highlighter) SetLanguage(language string) error {
 		h.tokenCache = make(map[int][]Token)
 		return fmt.Errorf("unknown language: %s", language)
 	}
-	
+
 	// Clear the tree and cache when language changes
 	h.currentTree = nil
 	h.currentSource = nil
 	h.tokenCache = make(map[int][]Token)
-	
+
 	return nil
 }
 
@@ -291,12 +290,12 @@ func (h *Highlighter) PreloadTokenCache(startLine, endLine int) {
 	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
 		return
 	}
-	
+
 	// Convert line numbers to byte positions
 	source := h.currentSource
 	lines := 0
 	lineStarts := []int{0} // byte positions where each line starts
-	
+
 	for i, b := range source {
 		if b == '\n' {
 			lines++
@@ -305,7 +304,7 @@ func (h *Highlighter) PreloadTokenCache(startLine, endLine int) {
 			}
 		}
 	}
-	
+
 	// Process each line in the range
 	for line := startLine; line <= endLine && line < len(lineStarts); line++ {
 		lineStart := lineStarts[line]
@@ -315,12 +314,12 @@ func (h *Highlighter) PreloadTokenCache(startLine, endLine int) {
 		} else {
 			lineEnd = len(source)
 		}
-		
+
 		// Skip if already cached
 		if _, ok := h.tokenCache[lineStart]; ok {
 			continue
 		}
-		
+
 		// Pre-load this line
 		h.GetTokensForLine(lineStart, lineEnd)
 	}
@@ -368,17 +367,17 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 
 	// Check if this node has children
 	childCount := int(node.ChildCount())
-	
+
 	// For markdown, we need to handle certain parent nodes as tokens
 	if h.currentLang == "markdown" {
 		nodeType := node.Type()
 		// These markdown nodes should be tokenized even if they have children
-		isMarkdownToken := nodeType == "emphasis" || nodeType == "strong_emphasis" || 
+		isMarkdownToken := nodeType == "emphasis" || nodeType == "strong_emphasis" ||
 			nodeType == "code_span" || nodeType == "strikethrough" ||
 			nodeType == "inline_link" || nodeType == "shortcut_link" ||
 			nodeType == "fenced_code_block" || nodeType == "indented_code_block" ||
 			nodeType == "link_destination"
-		
+
 		if isMarkdownToken {
 			tokenType := h.mapNodeToTokenType(node, source)
 			if tokenType != TokenTypeText {
@@ -405,7 +404,7 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 			// For inline_link and link_destination, continue to process children
 		}
 	}
-	
+
 	// Check if this node should be tokenized
 	// Some nodes like string_literal have children but should still be tokenized as a whole
 	nodeType := node.Type()
@@ -418,7 +417,7 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		nodeType == "command_name" || // Bash command names
 		nodeType == "string" || // Python strings
 		nodeType == "decorator" // Python decorators
-	
+
 	if shouldTokenize {
 		// Map node type to token type
 		tokenType := h.mapNodeToTokenType(node, source)
@@ -443,7 +442,7 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 
 	// Performance optimization: for large nodes with many children,
 	// use optimized traversal that can skip irrelevant children
-	if childCount > 20 && (nodeEnd - nodeStart) > (lineEnd - lineStart) * 10 {
+	if childCount > 20 && (nodeEnd-nodeStart) > (lineEnd-lineStart)*10 {
 		h.walkNodeOptimized(node, lineStart, lineEnd, source, tokens)
 	} else {
 		// Always recurse into children
@@ -457,11 +456,11 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 // walkNodeOptimized provides faster traversal for large nodes with many children
 func (h *Highlighter) walkNodeOptimized(node *sitter.Node, lineStart, lineEnd int, source []byte, tokens *[]Token) {
 	childCount := int(node.ChildCount())
-	
+
 	// Binary search to find the first child that might overlap with our line
 	firstChild := 0
 	lastChild := childCount - 1
-	
+
 	// Find first potentially relevant child
 	for firstChild < childCount {
 		child := node.Child(firstChild)
@@ -470,7 +469,7 @@ func (h *Highlighter) walkNodeOptimized(node *sitter.Node, lineStart, lineEnd in
 		}
 		firstChild++
 	}
-	
+
 	// Find last potentially relevant child
 	for lastChild >= firstChild {
 		child := node.Child(lastChild)
@@ -479,7 +478,7 @@ func (h *Highlighter) walkNodeOptimized(node *sitter.Node, lineStart, lineEnd in
 		}
 		lastChild--
 	}
-	
+
 	// Process only the relevant children
 	for i := firstChild; i <= lastChild && i < childCount; i++ {
 		child := node.Child(i)
@@ -717,9 +716,9 @@ func (h *Highlighter) mapCNodeToTokenType(node *sitter.Node, nodeType string, so
 		"preproc_call", "preproc_if", "preproc_ifdef", "preproc_else",
 		"preproc_elif":
 		return TokenTypeText
-		
+
 	// Preprocessor directive keywords
-	case "#include", "#define", "#ifdef", "#ifndef", "#if", "#else", "#elif", "#endif", 
+	case "#include", "#define", "#ifdef", "#ifndef", "#if", "#else", "#elif", "#endif",
 		"#undef", "preproc_directive":
 		return TokenTypeAttribute
 
@@ -817,9 +816,9 @@ func (h *Highlighter) mapCppNodeToTokenType(node *sitter.Node, nodeType string, 
 		"preproc_call", "preproc_if", "preproc_ifdef", "preproc_else",
 		"preproc_elif":
 		return TokenTypeText
-		
+
 	// Preprocessor directive keywords
-	case "#include", "#define", "#ifdef", "#ifndef", "#if", "#else", "#elif", "#endif", 
+	case "#include", "#define", "#ifdef", "#ifndef", "#if", "#else", "#elif", "#endif",
 		"#undef", "preproc_directive":
 		return TokenTypeAttribute
 
@@ -864,7 +863,7 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 			return TokenTypeMarkdownBoldItalic
 		}
 		return TokenTypeMarkdownItalic
-	
+
 	case "strong_emphasis":
 		// If parent is emphasis, this is part of bold italic
 		parent := node.Parent()
@@ -872,18 +871,18 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 			return TokenTypeMarkdownBoldItalic
 		}
 		return TokenTypeMarkdownBold
-	
+
 	// Code
 	case "code_span":
 		return TokenTypeMarkdownCode
-	
+
 	case "fenced_code_block", "indented_code_block":
 		return TokenTypeMarkdownCodeBlock
-	
-	// Links and images  
+
+	// Links and images
 	case "inline_link":
 		return TokenTypeMarkdownLink
-	
+
 	case "shortcut_link":
 		// Check if this is a checkbox pattern [ ] or [x]
 		text := string(source[node.StartByte():node.EndByte()])
@@ -892,7 +891,7 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 			return TokenTypeText
 		}
 		return TokenTypeMarkdownLink
-	
+
 	case "link_text":
 		// Check if parent is a shortcut_link that's actually a checkbox
 		parent := node.Parent()
@@ -903,13 +902,13 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 			}
 		}
 		return TokenTypeMarkdownLinkText
-		
+
 	case "link_destination":
 		return TokenTypeMarkdownLinkUrl
-		
+
 	case "image":
 		return TokenTypeMarkdownImage
-	
+
 	// Lists - note: in markdown-inline, list markers are just "-", "+", "*" characters
 	case "-", "+", "*":
 		// Check if this is at the beginning of a line (list marker)
@@ -917,7 +916,7 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 			return TokenTypeMarkdownListMarker
 		}
 		return TokenTypeText
-	
+
 	// Block quotes - ">" character at start of line
 	case ">":
 		// Check if this is at the beginning of a line
@@ -925,7 +924,7 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 			return TokenTypeMarkdownBlockquote
 		}
 		return TokenTypeText
-	
+
 	// Headings - "#" characters at start of line
 	case "#":
 		// Check if this is at the beginning of a line
@@ -953,27 +952,27 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 			}
 		}
 		return TokenTypeText
-	
+
 	// Strikethrough
 	case "strikethrough":
 		return TokenTypeMarkdownStrikethrough
-	
+
 	// Tables
 	case "table":
 		return TokenTypeMarkdownTable
-		
+
 	case "|":
 		return TokenTypeMarkdownTableBorder
-	
+
 	// Horizontal rule - would need to check for "---", "***", "___"
 	case "thematic_break":
 		return TokenTypeMarkdownHorizontalRule
-	
+
 	// Special characters that might be part of markdown syntax
 	case "[", "]", "(", ")", "`", "~", "emphasis_delimiter", "code_span_delimiter":
 		// These are handled by their parent nodes
 		return TokenTypeText
-	
+
 	default:
 		return TokenTypeText
 	}
@@ -982,16 +981,16 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 // postProcessMarkdownTokens extends header tokens to cover the entire line
 func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineEnd int, source []byte) []Token {
 	processed := []Token{}
-	
+
 	for _, token := range tokens {
 		// Check if this is a header token at the start of the line
-		if token.Start == 0 && (token.TokenType == TokenTypeMarkdownH1 || 
-			token.TokenType == TokenTypeMarkdownH2 || 
-			token.TokenType == TokenTypeMarkdownH3 || 
-			token.TokenType == TokenTypeMarkdownH4 || 
-			token.TokenType == TokenTypeMarkdownH5 || 
+		if token.Start == 0 && (token.TokenType == TokenTypeMarkdownH1 ||
+			token.TokenType == TokenTypeMarkdownH2 ||
+			token.TokenType == TokenTypeMarkdownH3 ||
+			token.TokenType == TokenTypeMarkdownH4 ||
+			token.TokenType == TokenTypeMarkdownH5 ||
 			token.TokenType == TokenTypeMarkdownH6) {
-			
+
 			// Extend the token to the end of the line
 			extendedEnd := token.End
 			for i := lineStart + token.End; i < lineEnd && i < len(source); i++ {
@@ -1000,7 +999,7 @@ func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineE
 				}
 				extendedEnd = i - lineStart + 1
 			}
-			
+
 			processed = append(processed, Token{
 				Start:     token.Start,
 				End:       extendedEnd,
@@ -1010,7 +1009,7 @@ func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineE
 			processed = append(processed, token)
 		}
 	}
-	
+
 	return processed
 }
 
@@ -1024,38 +1023,38 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 		"source", "export", "local", "readonly", "declare",
 		"unset", "shift", "eval", "exec", "in":
 		return TokenTypeKeyword
-		
+
 	// Comments
 	case "comment":
 		return TokenTypeComment
-		
+
 	// Strings
 	case "string", "raw_string", "ansi_c_string", "string_content":
 		return TokenTypeString
-		
+
 	// Variables and expansions
 	case "variable_name", "simple_expansion":
 		return TokenTypeVariable
-		
+
 	// Command substitution and process substitution
 	case "command_substitution", "process_substitution":
 		return TokenTypeConstant
-		
+
 	// Numbers
 	case "number":
 		return TokenTypeNumber
-		
+
 	// Operators
 	case "||", "&&", "|", "&", ";", ";;", ">&", "&>", ">", "<", ">>", "<<",
 		"=", "+=", "-=", "*=", "/=", "%=", "==", "!=", "<=", ">=",
 		"-eq", "-ne", "-lt", "-le", "-gt", "-ge", "test_operator":
 		return TokenTypeOperator
-		
+
 	// Functions
 	case "function_definition":
 		// Mark the whole definition as a function
 		return TokenTypeFunction
-		
+
 	// Command names (first word in simple commands)
 	case "command_name":
 		// For command_name nodes, check their child nodes
@@ -1089,32 +1088,32 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 			}
 		}
 		return TokenTypeText
-		
+
 	// Special parameters
 	case "special_variable_name":
 		return TokenTypeConstant
-		
+
 	// File descriptors and redirections
 	case "file_descriptor", "file_redirect":
 		return TokenTypeNumber
-		
+
 	default:
 		// Check parent context for better classification
 		parent := node.Parent()
 		if parent != nil {
 			parentType := parent.Type()
-			
+
 			// If this is a word node, check its context
 			if nodeType == "word" {
 				text := string(source[node.StartByte():node.EndByte()])
-				
+
 				// Check if it's a keyword that might not be caught by the grammar
 				switch text {
 				case "if", "then", "else", "elif", "fi", "case", "esac",
 					"for", "while", "do", "done", "function", "in":
 					return TokenTypeKeyword
 				}
-				
+
 				// If this is inside a function definition, it might be the function name
 				if parentType == "function_definition" {
 					for i := 0; i < int(parent.ChildCount()); i++ {
@@ -1126,7 +1125,7 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 						}
 					}
 				}
-				
+
 				// Check for variable assignment
 				if parentType == "variable_assignment" {
 					// First word in assignment is the variable name
@@ -1135,17 +1134,16 @@ func (h *Highlighter) mapBashNodeToTokenType(node *sitter.Node, nodeType string,
 					}
 				}
 			}
-			
+
 			// Special handling for expansion-like constructs
 			if strings.HasPrefix(nodeType, "expansion") || nodeType == "substitution" {
 				return TokenTypeConstant
 			}
 		}
-		
+
 		return TokenTypeText
 	}
 }
-
 
 // mapMakeNodeToTokenType maps Make-specific node types to token types
 func (h *Highlighter) mapMakeNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
@@ -1153,16 +1151,16 @@ func (h *Highlighter) mapMakeNodeToTokenType(node *sitter.Node, nodeType string,
 	// Comments
 	case "comment":
 		return TokenTypeComment
-		
+
 	// Variable assignments and references
 	case "variable_assignment":
 		// The variable_assignment node itself should not be styled - its children will be
 		return TokenTypeText
-		
+
 	case "variable_reference":
 		// The variable_reference node itself should not be styled - its children will be
 		return TokenTypeConstant
-		
+
 	// Targets
 	case "targets":
 		// Check if it's a standard target
@@ -1176,7 +1174,7 @@ func (h *Highlighter) mapMakeNodeToTokenType(node *sitter.Node, nodeType string,
 			}
 		}
 		return TokenTypeFunction
-		
+
 	// Words in different contexts
 	case "word":
 		parent := node.Parent()
@@ -1211,51 +1209,51 @@ func (h *Highlighter) mapMakeNodeToTokenType(node *sitter.Node, nodeType string,
 			return TokenTypeKeyword
 		}
 		return TokenTypeText
-		
+
 	// Operators
 	case "=", ":=", "::=", "?=", "+=", "!=", "@", "-", "+":
 		return TokenTypeOperator
 	case ":", "&:", "::", "|", ";":
 		return TokenTypeOperator
-		
+
 	// Punctuation
 	case "(", ")", "{", "}", "\"", "'", ",":
 		return TokenTypePunctuation
 	case "$", "$$":
 		return TokenTypeOperator
-		
+
 	// Automatic variables
 	case "automatic_variable":
 		return TokenTypeConstant
-		
+
 	// Strings and text
 	case "text", "string", "raw_text":
 		return TokenTypeString
 	case "shell_text":
 		return TokenTypeText
-		
+
 	// Recipe lines
 	case "recipe_line":
 		return TokenTypeText
-		
+
 	// Control flow
 	case "ifeq", "ifneq", "ifdef", "ifndef", "else", "endif", "if":
 		return TokenTypeKeyword
 	case "foreach":
 		return TokenTypeKeyword
-		
+
 	// Includes
 	case "include", "sinclude", "-include":
 		return TokenTypeKeyword
-		
+
 	// Other keywords
 	case "define", "endef", "vpath", "undefine", "export", "unexport", "override", "private":
 		return TokenTypeKeyword
-		
+
 	// Functions
 	case "function_call":
 		return TokenTypeFunction
-		
+
 	default:
 		return TokenTypeText
 	}
@@ -1334,11 +1332,11 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 		"import", "from", "global", "nonlocal", "lambda",
 		"and", "or", "not", "in", "is", "del", "async", "await":
 		return TokenTypePythonKeyword
-		
+
 	// Comments
 	case "comment":
 		return TokenTypePythonComment
-		
+
 	// Strings
 	case "string", "string_content", "string_start", "string_end":
 		// Check if it's a docstring by looking at parent context
@@ -1356,27 +1354,27 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 			}
 		}
 		return TokenTypePythonString
-		
+
 	// F-strings
 	case "interpolation":
 		return TokenTypePythonFString
-		
+
 	// Numbers
 	case "integer", "float":
 		return TokenTypePythonNumber
-		
+
 	// Booleans
 	case "true", "false":
 		return TokenTypePythonBoolean
-		
+
 	// None
 	case "none":
 		return TokenTypePythonNone
-		
+
 	// Decorators
 	case "decorator":
 		return TokenTypePythonDecorator
-		
+
 	// Function names
 	case "function_definition":
 		// Get the function name from children
@@ -1388,7 +1386,7 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 			}
 		}
 		return TokenTypeText
-		
+
 	// Class names
 	case "class_definition":
 		// Get the class name from children
@@ -1400,16 +1398,16 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 			}
 		}
 		return TokenTypeText
-		
+
 	// Identifiers - check for special cases
 	case "identifier":
 		text := string(source[node.StartByte():node.EndByte()])
-		
+
 		// self and cls
 		if text == "self" || text == "cls" {
 			return TokenTypePythonSelf
 		}
-		
+
 		// Built-in functions
 		switch text {
 		case "print", "len", "range", "str", "int", "float", "bool",
@@ -1421,7 +1419,7 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 			"eval", "exec", "compile", "globals", "locals", "vars",
 			"__import__", "super", "property", "staticmethod", "classmethod":
 			return TokenTypePythonBuiltin
-			
+
 		// Common exceptions
 		case "Exception", "ValueError", "TypeError", "KeyError",
 			"IndexError", "AttributeError", "ImportError", "IOError",
@@ -1431,7 +1429,7 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 			"ZeroDivisionError", "FileNotFoundError":
 			return TokenTypePythonException
 		}
-		
+
 		// Check if it's a function call
 		parent := node.Parent()
 		if parent != nil {
@@ -1464,7 +1462,7 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 				}
 			}
 		}
-		
+
 		// Fallback: Check if this identifier is actually a Python keyword
 		// This handles cases where Tree-sitter misclassifies keywords as identifiers due to syntax errors
 		switch text {
@@ -1475,26 +1473,26 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 			"and", "or", "not", "in", "is", "del", "async", "await":
 			return TokenTypePythonKeyword
 		}
-		
+
 		return TokenTypeVariable
-		
+
 	// Operators
 	case "+", "-", "*", "/", "//", "%", "**",
 		"=", "+=", "-=", "*=", "/=", "//=", "%=", "**=",
 		"==", "!=", "<", ">", "<=", ">=",
 		"&", "|", "^", "~", "<<", ">>",
 		"&=", "|=", "^=", "<<=", ">>=",
-		"->":  // Type annotation arrow
+		"->": // Type annotation arrow
 		return TokenTypePythonOperator
-		
+
 	// Import-related
 	case "import_statement", "import_from_statement":
 		return TokenTypePythonImport
-		
+
 	// Punctuation
 	case "(", ")", "[", "]", "{", "}", ",", ";", ".", ":", "...":
 		return TokenTypePunctuation
-		
+
 	default:
 		return TokenTypeText
 	}

@@ -136,10 +136,10 @@ func readFileLines(filePath string) ([]string, error) {
 func determineCombinedContext(symbols []proxy.DocumentSymbol, ranges []proxy.FoldingRange, lines []string, cursorLine int) string {
 	// First, get the symbol context (functions, methods, etc.)
 	symbolPath := getContextPath(symbols, cursorLine)
-	
+
 	// Then, find control flow context from folding ranges
 	controlFlowPath := getControlFlowContext(ranges, lines, cursorLine)
-	
+
 	// Combine them
 	if len(symbolPath) == 0 {
 		return controlFlowPath
@@ -147,7 +147,7 @@ func determineCombinedContext(symbols []proxy.DocumentSymbol, ranges []proxy.Fol
 	if controlFlowPath == "" {
 		return strings.Join(symbolPath, " > ")
 	}
-	
+
 	// Merge: symbol path + control flow within that symbol
 	return strings.Join(symbolPath, " > ") + " > " + controlFlowPath
 }
@@ -161,49 +161,49 @@ func getControlFlowContext(ranges []proxy.FoldingRange, lines []string, cursorLi
 			containingRanges = append(containingRanges, r)
 		}
 	}
-	
+
 	// Sort by start line to get proper nesting order
 	// In Go, we can assume that if range A starts before range B and both contain
 	// the cursor, then A contains B
 	var contextParts []string
-	
+
 	// Regular expressions for detecting control flow statements
 	forPattern := regexp.MustCompile(`^\s*for\s+(.*)`)
 	ifPattern := regexp.MustCompile(`^\s*(?:}\s*else\s+)?if\s+(.*)`)
 	elsePattern := regexp.MustCompile(`^\s*}\s*else\s*{`)
 	switchPattern := regexp.MustCompile(`^\s*switch\s+(.*)`)
 	casePattern := regexp.MustCompile(`^\s*case\s+(.*):|^\s*default:`)
-	
+
 	for _, r := range containingRanges {
 		if r.StartLine >= len(lines) {
 			continue
 		}
-		
+
 		line := lines[r.StartLine]
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Skip function/method definitions (handled by symbols)
 		if strings.HasPrefix(trimmed, "func") {
 			continue
 		}
-		
+
 		// Identify control flow type
 		if matches := forPattern.FindStringSubmatch(line); matches != nil {
-			contextParts = append(contextParts, "for " + strings.TrimSuffix(matches[1], " {"))
+			contextParts = append(contextParts, "for "+strings.TrimSuffix(matches[1], " {"))
 		} else if matches := ifPattern.FindStringSubmatch(line); matches != nil {
-			contextParts = append(contextParts, "if " + strings.TrimSuffix(matches[1], " {"))
+			contextParts = append(contextParts, "if "+strings.TrimSuffix(matches[1], " {"))
 		} else if elsePattern.MatchString(line) {
 			contextParts = append(contextParts, "else")
 		} else if matches := switchPattern.FindStringSubmatch(line); matches != nil {
-			contextParts = append(contextParts, "switch " + strings.TrimSuffix(matches[1], " {"))
+			contextParts = append(contextParts, "switch "+strings.TrimSuffix(matches[1], " {"))
 		} else if matches := casePattern.FindStringSubmatch(line); matches != nil {
 			if strings.Contains(line, "default:") {
 				contextParts = append(contextParts, "default")
 			} else {
-				contextParts = append(contextParts, "case " + strings.TrimSuffix(matches[1], ":"))
+				contextParts = append(contextParts, "case "+strings.TrimSuffix(matches[1], ":"))
 			}
 		}
 	}
-	
+
 	return strings.Join(contextParts, " > ")
 }

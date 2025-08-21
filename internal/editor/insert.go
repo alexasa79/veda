@@ -7,9 +7,9 @@ func (e *Editor) moveUpInsert(args []string) error {
 		if e.desiredColumn == -1 {
 			e.desiredColumn = e.buffer.CursorX
 		}
-		
+
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Previous()
-		
+
 		// Try to maintain desired column position
 		line := e.buffer.CursorIterator.Line()
 		if e.desiredColumn <= len(line) {
@@ -27,9 +27,9 @@ func (e *Editor) moveDownInsert(args []string) error {
 		if e.desiredColumn == -1 {
 			e.desiredColumn = e.buffer.CursorX
 		}
-		
+
 		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-		
+
 		// Try to maintain desired column position
 		line := e.buffer.CursorIterator.Line()
 		if e.desiredColumn <= len(line) {
@@ -73,4 +73,3 @@ func (e *Editor) endOfLineInsert(args []string) error {
 	e.updateCursorState()
 	return nil
 }
-

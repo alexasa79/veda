@@ -39,7 +39,7 @@ func (e *Editor) showDiagnostics(args []string) error {
 			if strings.HasPrefix(uri, "file://") {
 				filePath = uri[7:] // Remove "file://" prefix
 			}
-			
+
 			// Try to make path relative (but we can't use GetFile on "." anymore)
 			// Just use the absolute path for now
 
@@ -82,7 +82,7 @@ func (e *Editor) showDiagnostics(args []string) error {
 					}
 
 					// Format: [line:col] Severity: message
-					content.WriteString(fmt.Sprintf("[%s:%d:%d] %s: %s\n", 
+					content.WriteString(fmt.Sprintf("[%s:%d:%d] %s: %s\n",
 						filePath, line+1, character+1, severity, message))
 				}
 			}
@@ -92,10 +92,10 @@ func (e *Editor) showDiagnostics(args []string) error {
 
 	// Save current buffer state
 	e.saveCurrentBufferState()
-	
+
 	// Create or update diagnostics buffer
 	bufferName := "*Diagnostics*"
-	
+
 	if buf, exists := e.buffers[bufferName]; exists {
 		// Update existing buffer's content
 		buf.Rope = buffer.NewRopeFromString(content.String())

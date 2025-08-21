@@ -51,7 +51,7 @@ func TestOpenLineBelowWithAutoIndent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
-			
+
 			// Position cursor
 			for i := 0; i < tt.cursorLine; i++ {
 				te.ExecuteCommand("down")
@@ -59,16 +59,16 @@ func TestOpenLineBelowWithAutoIndent(t *testing.T) {
 			for i := 0; i < tt.cursorCol; i++ {
 				te.ExecuteCommand("right")
 			}
-			
+
 			// Execute open-line-below command
 			te.ExecuteCommand("open-line-below")
-			
+
 			// Check buffer content
 			AssertBufferEquals(t, te, tt.expectedBuffer)
-			
+
 			// Check cursor position
 			AssertCursorAt(t, te, tt.expectedCursor.col, tt.expectedCursor.line)
-			
+
 			// Verify we're in insert mode
 			if te.Editor.mode != commands.InsertMode {
 				t.Errorf("Expected to be in insert mode")
@@ -115,7 +115,7 @@ func TestOpenLineAboveWithAutoIndent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
-			
+
 			// Position cursor
 			for i := 0; i < tt.cursorLine; i++ {
 				te.ExecuteCommand("down")
@@ -123,16 +123,16 @@ func TestOpenLineAboveWithAutoIndent(t *testing.T) {
 			for i := 0; i < tt.cursorCol; i++ {
 				te.ExecuteCommand("right")
 			}
-			
+
 			// Execute open-line-above command
 			te.ExecuteCommand("open-line-above")
-			
+
 			// Check buffer content
 			AssertBufferEquals(t, te, tt.expectedBuffer)
-			
+
 			// Check cursor position
 			AssertCursorAt(t, te, tt.expectedCursor.col, tt.expectedCursor.line)
-			
+
 			// Verify we're in insert mode
 			if te.Editor.mode != commands.InsertMode {
 				t.Errorf("Expected to be in insert mode")
@@ -179,22 +179,22 @@ func TestInsertNewlineWithAutoIndent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
-			
+
 			// Enter insert mode
 			te.ExecuteCommand("enter-insert-mode")
-			
+
 			// Position cursor
 			for i := 0; i < tt.cursorLine; i++ {
 				te.ExecuteCommand("down")
 			}
 			te.Editor.buffer.CursorX = tt.cursorCol
-			
+
 			// Insert newline
 			te.ExecuteCommand("insert-newline")
-			
+
 			// Check buffer content
 			AssertBufferEquals(t, te, tt.expectedBuffer)
-			
+
 			// Check cursor position
 			AssertCursorAt(t, te, tt.expectedCursor.col, tt.expectedCursor.line)
 		})

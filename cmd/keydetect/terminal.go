@@ -28,30 +28,30 @@ var originalTermios termios
 
 func setRawMode() error {
 	fd := int(syscall.Stdin)
-	
+
 	// Get current terminal settings
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), TCGETS, uintptr(unsafe.Pointer(&originalTermios)))
 	if errno != 0 {
 		return errno
 	}
-	
+
 	// Make a copy for modification
 	raw := originalTermios
-	
-    // Turn off canonical mode and echo. Keep ISIG enabled so Ctrl+C (VINTR)
-    // still generates SIGINT, allowing graceful exit.
-    raw.Lflag &^= (ICANON | ECHO)
-	
+
+	// Turn off canonical mode and echo. Keep ISIG enabled so Ctrl+C (VINTR)
+	// still generates SIGINT, allowing graceful exit.
+	raw.Lflag &^= (ICANON | ECHO)
+
 	// Set minimum characters to read and timeout
 	raw.Cc[6] = 1 // VMIN
 	raw.Cc[5] = 0 // VTIME
-	
+
 	// Apply new settings
 	_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), TCSETS, uintptr(unsafe.Pointer(&raw)))
 	if errno != 0 {
 		return errno
 	}
-	
+
 	return nil
 }
 

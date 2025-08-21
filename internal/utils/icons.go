@@ -7,8 +7,8 @@ import (
 
 // Common unicode symbols for files and directories
 const (
-	IconDefault    = "⏺"
-	IconDirectory  = ""
+	IconDefault   = "⏺"
+	IconDirectory = ""
 
 	// Programming language symbols (Nerd Font)
 	IconGo         = ""
@@ -28,11 +28,11 @@ const (
 	IconCss        = ""
 
 	// Special files
-	IconGit        = ""
-	IconDocker     = ""
-	IconMakefile   = ""
-	IconReadme     = "R"
-	IconTest       = ""
+	IconGit      = ""
+	IconDocker   = ""
+	IconMakefile = ""
+	IconReadme   = "R"
+	IconTest     = ""
 )
 
 // FileIconInfo contains icon and color information

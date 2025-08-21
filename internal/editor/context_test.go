@@ -165,14 +165,14 @@ func TestGetContextForPosition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := getContextPath(tt.symbols, tt.cursorLine)
-			
+
 			if len(path) != len(tt.expectedPath) {
 				t.Errorf("Expected path length %d, got %d", len(tt.expectedPath), len(path))
 				t.Errorf("Expected: %v", tt.expectedPath)
 				t.Errorf("Got: %v", path)
 				return
 			}
-			
+
 			for i, expected := range tt.expectedPath {
 				if i >= len(path) || path[i] != expected {
 					t.Errorf("Expected path[%d] = %q, got %q", i, expected, path[i])
@@ -186,27 +186,27 @@ func TestGetContextForPosition(t *testing.T) {
 // This is the function we'll implement in the editor
 func getContextPath(symbols []proxy.DocumentSymbol, cursorLine int) []string {
 	var path []string
-	
+
 	var traverse func(symbols []proxy.DocumentSymbol) bool
 	traverse = func(symbols []proxy.DocumentSymbol) bool {
 		for _, symbol := range symbols {
 			// Check if cursor is within this symbol's range
 			if cursorLine >= symbol.Range.Start.Line && cursorLine <= symbol.Range.End.Line {
 				path = append(path, symbol.Name)
-				
+
 				// Check children
 				if len(symbol.Children) > 0 {
 					if traverse(symbol.Children) {
 						return true
 					}
 				}
-				
+
 				return true
 			}
 		}
 		return false
 	}
-	
+
 	traverse(symbols)
 	return path
 }
@@ -272,15 +272,15 @@ func formatContextPath(path []string, maxWidth int) string {
 	if len(path) == 0 {
 		return ""
 	}
-	
+
 	separator := " > "
-	
+
 	// Simple case: join and check
 	full := strings.Join(path, separator)
 	if len(full) <= maxWidth {
 		return full
 	}
-	
+
 	// Need to truncate
 	if len(path) == 1 {
 		// Single item, just truncate it
@@ -289,28 +289,28 @@ func formatContextPath(path []string, maxWidth int) string {
 		}
 		return path[0]
 	}
-	
+
 	// For simplicity, if it doesn't fit, just show "..." and as much of the end as possible
 	// This ensures we always show the most relevant (deepest) context
 	ellipsis := "..."
 	minSize := len(ellipsis) + len(separator) + 1 // at least one char from the path
-	
+
 	if maxWidth < minSize {
 		return ellipsis
 	}
-	
+
 	// Start from the end and work backwards
 	remaining := maxWidth - len(ellipsis)
 	result := ""
-	
+
 	for i := len(path) - 1; i >= 0; i-- {
 		part := path[i]
 		needed := len(part)
 		if i < len(path)-1 {
 			needed += len(separator)
 		}
-		
-		if len(result) + needed <= remaining {
+
+		if len(result)+needed <= remaining {
 			if i < len(path)-1 {
 				result = part + separator + result
 			} else {
@@ -332,16 +332,16 @@ func formatContextPath(path []string, maxWidth int) string {
 			break
 		}
 	}
-	
+
 	// If we fit everything, no ellipsis needed
 	if result == full {
 		return result
 	}
-	
+
 	// If result doesn't start with ellipsis, we need to add it
 	if !strings.HasPrefix(result, ellipsis) && len(result) < len(full) {
-		result = ellipsis + result  
+		result = ellipsis + result
 	}
-	
+
 	return result
 }

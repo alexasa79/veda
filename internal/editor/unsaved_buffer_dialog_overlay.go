@@ -7,11 +7,11 @@ import (
 
 // UnsavedBufferDialogOverlay handles dialog responses for unsaved buffer warnings
 type UnsavedBufferDialogOverlay struct {
-	dialog    *widgets.YesNoDialog
-	fileName  string
-	action    string
-	multiple  bool
-	editor    *Editor
+	dialog   *widgets.YesNoDialog
+	fileName string
+	action   string
+	multiple bool
+	editor   *Editor
 }
 
 // NewUnsavedBufferDialogOverlay creates a new unsaved buffer dialog overlay
@@ -39,10 +39,10 @@ func (o *UnsavedBufferDialogOverlay) HandleEvent(event interface{}) (bool, strin
 	} else if _, ok := event.(*events.ResizeEvent); ok {
 		// No-op; dialog will be redrawn at same position/size for now
 	}
-	
+
 	if o.dialog.IsClosed() {
 		result := o.dialog.GetResult()
-		
+
 		// Handle the user's choice
 		switch result {
 		case widgets.DialogResultYes:
@@ -61,7 +61,7 @@ func (o *UnsavedBufferDialogOverlay) HandleEvent(event interface{}) (bool, strin
 		case widgets.DialogResultNo, widgets.DialogResultCancel:
 			// User chose not to quit, do nothing (stay in editor)
 		}
-		
+
 		return true, string(result)
 	}
 	return false, ""

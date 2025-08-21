@@ -144,8 +144,8 @@ func TestIteratorLogic(t *testing.T) {
 				t.Error("Expected iterator to be at EOF")
 			}
 
-            // For "Line 1\nLine 2\nLine 3\n" there are 3 newlines; with newline-as-boundary semantics EOF line number is 4
-            expectedLineNum := 4
+			// For "Line 1\nLine 2\nLine 3\n" there are 3 newlines; with newline-as-boundary semantics EOF line number is 4
+			expectedLineNum := 4
 			if iterEnd.LineNum != expectedLineNum {
 				t.Errorf("Expected EOF line number %d, got %d", expectedLineNum, iterEnd.LineNum)
 			}
@@ -773,9 +773,9 @@ func TestIteratorLogic(t *testing.T) {
 				expected int
 				content  string
 			}{
-				{0, 0, "AB"},    // Line 0 starts at byte 0
-				{1, 3, "CDE"},   // Line 1 starts at byte 3 (after "AB\n")
-				{2, 7, "F"},     // Line 2 starts at byte 7 (after "AB\nCDE\n")
+				{0, 0, "AB"},  // Line 0 starts at byte 0
+				{1, 3, "CDE"}, // Line 1 starts at byte 3 (after "AB\n")
+				{2, 7, "F"},   // Line 2 starts at byte 7 (after "AB\nCDE\n")
 			}
 
 			iter := NewBufferIterator(buf)
@@ -797,14 +797,14 @@ func TestIteratorLogic(t *testing.T) {
 			buf := NewBuffer("Hello\nWorld\nTest", "test.txt", config.IndentSpaces, 4)
 
 			testCases := []struct {
-				lineNum     int
-				lineStart   int
-				lineEnd     int
-				content     string
+				lineNum   int
+				lineStart int
+				lineEnd   int
+				content   string
 			}{
-				{0, 0, 5, "Hello"},   // "Hello" ends at position 5 (before \n)
-				{1, 6, 11, "World"},  // "World" starts at 6, ends at 11
-				{2, 12, 16, "Test"},  // "Test" starts at 12, ends at 16
+				{0, 0, 5, "Hello"},  // "Hello" ends at position 5 (before \n)
+				{1, 6, 11, "World"}, // "World" starts at 6, ends at 11
+				{2, 12, 16, "Test"}, // "Test" starts at 12, ends at 16
 			}
 
 			iter := NewBufferIterator(buf)
@@ -934,9 +934,9 @@ func TestIteratorLogic(t *testing.T) {
 
 				// Verify byte positions are correct (unicode chars take multiple bytes)
 				lineBytes := []byte(expected)
-				if iter.LineEnd() - iter.Position() != len(lineBytes) {
+				if iter.LineEnd()-iter.Position() != len(lineBytes) {
 					t.Errorf("Line %d: byte length mismatch, expected %d bytes, got %d",
-						i, len(lineBytes), iter.LineEnd() - iter.Position())
+						i, len(lineBytes), iter.LineEnd()-iter.Position())
 				}
 
 				iter = iter.Next()
@@ -1001,7 +1001,7 @@ func TestIteratorLogic(t *testing.T) {
 			lines := []string{}
 			for i := 0; i < 100; i++ {
 				// Each line is about 60 chars, total > 6000 chars (exceeds maxLeafSize)
-				lines = append(lines, strings.Repeat("X", 50) + " Line " + strconv.Itoa(i))
+				lines = append(lines, strings.Repeat("X", 50)+" Line "+strconv.Itoa(i))
 			}
 			content := strings.Join(lines, "\n")
 			buf := NewBuffer(content, "test.txt", config.IndentSpaces, 4)
@@ -1053,8 +1053,8 @@ func TestIteratorLogic(t *testing.T) {
 				pos  int
 				text string
 			}{
-				{7, strings.Repeat("A", 2000)},  // Large insertion
-				{0, strings.Repeat("B", 1500)},   // At beginning
+				{7, strings.Repeat("A", 2000)},    // Large insertion
+				{0, strings.Repeat("B", 1500)},    // At beginning
 				{2500, strings.Repeat("C", 1800)}, // In middle
 				{5000, strings.Repeat("D", 2200)}, // Near end
 			}
@@ -1108,9 +1108,9 @@ func TestIteratorLogic(t *testing.T) {
 			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
 
 			// Create iterators at different positions
-			iter1 := NewBufferIterator(buf)           // At line 0
-			iter2 := NewBufferIterator(buf).Next()    // At line 1
-			iter3 := NewBufferIteratorAtEnd(buf)      // At EOF
+			iter1 := NewBufferIterator(buf)        // At line 0
+			iter2 := NewBufferIterator(buf).Next() // At line 1
+			iter3 := NewBufferIteratorAtEnd(buf)   // At EOF
 
 			// Store original generation
 			origGeneration := buf.Generation
@@ -1165,9 +1165,9 @@ func TestIteratorLogic(t *testing.T) {
 
 			// Complex navigation pattern: forward, forward, back, forward, back, back
 			expected := []struct {
-				op       string
-				lineNum  int
-				content  string
+				op      string
+				lineNum int
+				content string
 			}{
 				{"start", 0, "A"},
 				{"next", 1, "B"},
@@ -1321,18 +1321,18 @@ func TestIteratorLogic(t *testing.T) {
 			buf := NewBuffer("Line 1\nLine 2\nLine 3\n", "test.txt", config.IndentSpaces, 4)
 
 			testCases := []struct {
-				name       string
-				lineNum    int
-				expOffset  int
-				expLine    string
-				isEOF      bool
+				name      string
+				lineNum   int
+				expOffset int
+				expLine   string
+				isEOF     bool
 			}{
 				{"first line", 0, 0, "Line 1", false},
 				{"second line", 1, 7, "Line 2", false},
 				{"third line", 2, 14, "Line 3", false},
-				{"empty line at end", 3, 21, "", true},  // Past the last newline
-				{"beyond last line", 4, 21, "", true},   // Line doesn't exist
-				{"way beyond last line", 100, 21, "", true},  // Far beyond EOF
+				{"empty line at end", 3, 21, "", true},      // Past the last newline
+				{"beyond last line", 4, 21, "", true},       // Line doesn't exist
+				{"way beyond last line", 100, 21, "", true}, // Far beyond EOF
 			}
 
 			for _, tc := range testCases {
@@ -1384,4 +1384,3 @@ func countNodes(node *Node) int {
 	}
 	return 1 + countNodes(node.left) + countNodes(node.right)
 }
-

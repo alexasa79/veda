@@ -18,7 +18,7 @@ type Screen interface {
 	Show()
 	ShowCursor(x, y int)
 	PollEvent() events.Event
-	EventChannel() <-chan events.Event  // Returns the underlying event channel
+	EventChannel() <-chan events.Event // Returns the underlying event channel
 }
 
 // DecorationMode defines how items should be decorated in the list
@@ -37,19 +37,19 @@ const (
 // - Top section: multi-line text area
 // - Bottom section: single-line text area using LineEditor
 type FuzzyListWidget struct {
-	x, y           int            // Position on screen
-	width, height  int            // Total dimensions
-	topLines       []string       // Content of the top section (filtered, decorated)
-	allLines       []string       // All content (unfiltered, decorated)
-	rawLines       []string       // Original undecorated lines
-	topIndices     []int          // Indices mapping filtered lines to raw lines
+	x, y           int                  // Position on screen
+	width, height  int                  // Total dimensions
+	topLines       []string             // Content of the top section (filtered, decorated)
+	allLines       []string             // All content (unfiltered, decorated)
+	rawLines       []string             // Original undecorated lines
+	topIndices     []int                // Indices mapping filtered lines to raw lines
 	iconInfos      []utils.FileIconInfo // Icon info for each line (for file icon mode)
-	bottomEditor   *LineEditor    // Line editor for the bottom section
-	theme          *theme.Theme   // Theme for styling
-	topScroll      int            // Vertical scroll offset for top section
-	selectedIndex  int            // Currently selected line index
-	title          string         // Title to display in the top border
-	decorationMode DecorationMode // How to decorate items
+	bottomEditor   *LineEditor          // Line editor for the bottom section
+	theme          *theme.Theme         // Theme for styling
+	topScroll      int                  // Vertical scroll offset for top section
+	selectedIndex  int                  // Currently selected line index
+	title          string               // Title to display in the top border
+	decorationMode DecorationMode       // How to decorate items
 }
 
 // NewFuzzyListWidget creates a new fuzzy list widget
@@ -248,7 +248,7 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 			if len(runes) > contentWidth {
 				runes = runes[:contentWidth]
 			}
-			
+
 			// Check if line starts with an icon (for colored rendering)
 			iconLen := 0
 			if flw.decorationMode == DecorationSymbol && len(runes) > 0 {
@@ -263,7 +263,7 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 					}
 					screen.SetContent(flw.x+1, row, firstRune, nil, iconStyle)
 					iconLen = 1
-					
+
 					// Skip space after icon if present
 					if len(runes) > 1 && runes[1] == ' ' {
 						iconLen = 2
@@ -284,7 +284,7 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 						if len(iconRunes) > 0 {
 							screen.SetContent(flw.x+1, row, iconRunes[0], nil, iconStyle)
 							iconLen = 1
-							
+
 							// Skip space after icon if present
 							if len(runes) > 1 && runes[1] == ' ' {
 								iconLen = 2
@@ -293,7 +293,7 @@ func (flw *FuzzyListWidget) drawTopSection(screen Screen) {
 					}
 				}
 			}
-			
+
 			// Render the rest of the line
 			for j, r := range runes[iconLen:] {
 				if j+iconLen < contentWidth {
@@ -448,13 +448,13 @@ func (flw *FuzzyListWidget) MoveSelectionPageUp() {
 	if pageSize <= 0 {
 		return
 	}
-	
+
 	// Move selection up by one page
 	flw.selectedIndex -= pageSize
 	if flw.selectedIndex < 0 {
 		flw.selectedIndex = 0
 	}
-	
+
 	// Adjust scroll to keep selection visible
 	if flw.selectedIndex < flw.topScroll {
 		flw.topScroll = flw.selectedIndex
@@ -467,7 +467,7 @@ func (flw *FuzzyListWidget) MoveSelectionPageDown() {
 	if pageSize <= 0 {
 		return
 	}
-	
+
 	// Move selection down by one page
 	flw.selectedIndex += pageSize
 	maxIndex := len(flw.topLines) - 1
@@ -477,7 +477,7 @@ func (flw *FuzzyListWidget) MoveSelectionPageDown() {
 	if flw.selectedIndex < 0 {
 		flw.selectedIndex = 0
 	}
-	
+
 	// Adjust scroll to keep selection visible
 	topHeight := flw.getTopSectionHeight()
 	if flw.selectedIndex >= flw.topScroll+topHeight {
@@ -555,24 +555,24 @@ func (flw *FuzzyListWidget) Show(screen Screen, backgroundRender func()) string 
 // The onTextChanged callback is called whenever the search text changes (with the new text)
 // The contentUpdateChan can be used to send new content to display asynchronously
 // Returns the selected item (raw line), or empty string if cancelled
-func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender func(), 
+func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender func(),
 	onTextChanged func(string), contentUpdateChan <-chan []string) string {
-	
+
 	// Determine if we should use async event handling
 	useAsync := contentUpdateChan != nil
-	
+
 	var screenEvents <-chan events.Event
 	var ticker *time.Ticker
-	
+
 	if useAsync {
 		// Get the screen event channel for non-blocking event handling
 		screenEvents = screen.EventChannel()
-		
+
 		// Create a ticker for periodic redraws
 		ticker = time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 	}
-	
+
 	// Event loop
 	for {
 		// Render background (editor and status bar)
@@ -589,20 +589,20 @@ func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender fu
 		screen.Show()
 
 		var ev events.Event
-		
+
 		if useAsync {
 			// Use select for non-blocking event handling
 			select {
-            case newContent := <-contentUpdateChan:
-                // Update content asynchronously and apply current filter
-                // so pre-typed search text filters incoming results.
-                flw.SetContent(newContent)
-                flw.ApplyFilter()
-                continue // Redraw with new content
-				
+			case newContent := <-contentUpdateChan:
+				// Update content asynchronously and apply current filter
+				// so pre-typed search text filters incoming results.
+				flw.SetContent(newContent)
+				flw.ApplyFilter()
+				continue // Redraw with new content
+
 			case ev = <-screenEvents:
 				// Got a keyboard event
-				
+
 			case <-ticker.C:
 				// Periodic redraw to handle any visual updates
 				continue
@@ -611,7 +611,7 @@ func (flw *FuzzyListWidget) ShowWithCallbacks(screen Screen, backgroundRender fu
 			// Use blocking event handling for simple case
 			ev = screen.PollEvent()
 		}
-		
+
 		// Handle keyboard events
 		if keyEv, ok := ev.(*events.KeyEvent); ok {
 			switch keyEv.Key {

@@ -7,9 +7,9 @@ type Theme struct {
 	Name string
 
 	// Editor colors
-	StatusBar       StyleDef
+	StatusBar        StyleDef
 	StatusBarSubdued StyleDef
-	CommandLine     StyleDef
+	CommandLine      StyleDef
 
 	// Dialog colors
 	DialogBorder  StyleDef
@@ -25,29 +25,29 @@ type Theme struct {
 	CompletionMenuSelected StyleDef
 
 	// Text editor colors
-	Normal           StyleDef
-	Selection        StyleDef
-	LineNumber       StyleDef
-	CurrentLine      StyleDef
-	Context StyleDef // Style for context lines and signature help
-	SearchHighlight  StyleDef // Style for search matches
-	FlashHighlight   StyleDef // Style for flashing yanked/changed text
-	Whitespace       StyleDef // Style for whitespace indicators (tabs, trailing spaces)
-	VerticalRuler    StyleDef // Style for vertical rulers
-	VirtualCursor    StyleDef // Style for virtual cursors in cursor mode
+	Normal          StyleDef
+	Selection       StyleDef
+	LineNumber      StyleDef
+	CurrentLine     StyleDef
+	Context         StyleDef // Style for context lines and signature help
+	SearchHighlight StyleDef // Style for search matches
+	FlashHighlight  StyleDef // Style for flashing yanked/changed text
+	Whitespace      StyleDef // Style for whitespace indicators (tabs, trailing spaces)
+	VerticalRuler   StyleDef // Style for vertical rulers
+	VirtualCursor   StyleDef // Style for virtual cursors in cursor mode
 
 	// Git change indicators for line numbers
-	GitAdded         StyleDef // Style for added lines
-	GitModified      StyleDef // Style for modified lines
-	GitDeleted       StyleDef // Style for deleted lines
+	GitAdded    StyleDef // Style for added lines
+	GitModified StyleDef // Style for modified lines
+	GitDeleted  StyleDef // Style for deleted lines
 
-    // Diagnostics
-    DiagnosticError   StyleDef // Foreground for error indicator
-    DiagnosticWarning StyleDef // Foreground for warning indicator
+	// Diagnostics
+	DiagnosticError   StyleDef // Foreground for error indicator
+	DiagnosticWarning StyleDef // Foreground for warning indicator
 
-    // Notifications / banners
-    NotificationInfo  StyleDef // Style for low-severity info banner
-    NotificationError StyleDef // Style for error banner
+	// Notifications / banners
+	NotificationInfo  StyleDef // Style for low-severity info banner
+	NotificationError StyleDef // Style for error banner
 
 	// Syntax highlighting colors (Monokai theme)
 	SyntaxText        StyleDef
@@ -66,28 +66,28 @@ type Theme struct {
 	SyntaxTag         StyleDef
 
 	// Markdown-specific styles
-	MarkdownH1        StyleDef
-	MarkdownH2        StyleDef
-	MarkdownH3        StyleDef
-	MarkdownH4        StyleDef
-	MarkdownH5        StyleDef
-	MarkdownH6        StyleDef
-	MarkdownBold      StyleDef
-	MarkdownItalic    StyleDef
-	MarkdownBoldItalic StyleDef
-	MarkdownCode      StyleDef
-	MarkdownCodeBlock StyleDef
-	MarkdownBlockquote StyleDef
-	MarkdownLink      StyleDef
-	MarkdownLinkText  StyleDef
-	MarkdownLinkUrl   StyleDef
-	MarkdownImage     StyleDef
-	MarkdownList      StyleDef
-	MarkdownListMarker StyleDef
+	MarkdownH1             StyleDef
+	MarkdownH2             StyleDef
+	MarkdownH3             StyleDef
+	MarkdownH4             StyleDef
+	MarkdownH5             StyleDef
+	MarkdownH6             StyleDef
+	MarkdownBold           StyleDef
+	MarkdownItalic         StyleDef
+	MarkdownBoldItalic     StyleDef
+	MarkdownCode           StyleDef
+	MarkdownCodeBlock      StyleDef
+	MarkdownBlockquote     StyleDef
+	MarkdownLink           StyleDef
+	MarkdownLinkText       StyleDef
+	MarkdownLinkUrl        StyleDef
+	MarkdownImage          StyleDef
+	MarkdownList           StyleDef
+	MarkdownListMarker     StyleDef
 	MarkdownHorizontalRule StyleDef
-	MarkdownStrikethrough StyleDef
-	MarkdownTable     StyleDef
-	MarkdownTableBorder StyleDef
+	MarkdownStrikethrough  StyleDef
+	MarkdownTable          StyleDef
+	MarkdownTableBorder    StyleDef
 }
 
 // GetStyle returns a ui.Style for the given style definition
@@ -168,11 +168,11 @@ func NewTheme() *Theme {
 			Background: "#403d3d",
 		},
 
-        LineNumber: StyleDef{
-            Foreground: "#465457",
-            // Distinct gutter background to stand out from content
-            Background: "#24241e",
-        },
+		LineNumber: StyleDef{
+			Foreground: "#465457",
+			// Distinct gutter background to stand out from content
+			Background: "#24241e",
+		},
 
 		CurrentLine: StyleDef{
 			Foreground: "#f8f8f2",
@@ -210,41 +210,41 @@ func NewTheme() *Theme {
 		},
 
 		// Git change indicators for line numbers
-        // Make added vs modified more distinct while keeping same glyph ▍
-        GitAdded: StyleDef{
-            Foreground: "#7ee031", // brighter, cooler green
-            Background: "#183d18",
-        },
+		// Make added vs modified more distinct while keeping same glyph ▍
+		GitAdded: StyleDef{
+			Foreground: "#7ee031", // brighter, cooler green
+			Background: "#183d18",
+		},
 
-        GitModified: StyleDef{
-            Foreground: "#ffd866", // warmer yellow-orange
-            Background: "#3d3916",
-        },
+		GitModified: StyleDef{
+			Foreground: "#ffd866", // warmer yellow-orange
+			Background: "#3d3916",
+		},
 
 		GitDeleted: StyleDef{
 			Foreground: "#f92672",
 			Background: "#4d1a1a",
 		},
 
-        // Diagnostics
-        DiagnosticError: StyleDef{
-            Foreground: "#f92672",
-            Background: "#1b1d1e",
-        },
-        DiagnosticWarning: StyleDef{
-            Foreground: "#ffd866",
-            Background: "#1b1d1e",
-        },
+		// Diagnostics
+		DiagnosticError: StyleDef{
+			Foreground: "#f92672",
+			Background: "#1b1d1e",
+		},
+		DiagnosticWarning: StyleDef{
+			Foreground: "#ffd866",
+			Background: "#1b1d1e",
+		},
 
-        // Notifications / banners
-        NotificationInfo: StyleDef{
-            Foreground: "#ffffff",
-            Background: "#324ba0", // subtle blue
-        },
-        NotificationError: StyleDef{
-            Foreground: "#ffffff",
-            Background: "#ff0000",
-        },
+		// Notifications / banners
+		NotificationInfo: StyleDef{
+			Foreground: "#ffffff",
+			Background: "#324ba0", // subtle blue
+		},
+		NotificationError: StyleDef{
+			Foreground: "#ffffff",
+			Background: "#ff0000",
+		},
 
 		CompletionMenu: StyleDef{
 			Foreground: "#f8f8f2",

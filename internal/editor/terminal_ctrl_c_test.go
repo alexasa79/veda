@@ -40,12 +40,12 @@ func TestTranslateKeyToTerminal_ControlKeys(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			event := &events.KeyEvent{Key: test.key}
 			data := te.translateKeyToTerminal(event)
-			
+
 			if len(data) != len(test.expected) {
 				t.Errorf("Expected length %d, got %d", len(test.expected), len(data))
 				return
 			}
-			
+
 			for i, expected := range test.expected {
 				if data[i] != expected {
 					t.Errorf("Expected byte %d to be 0x%02x, got 0x%02x", i, expected, data[i])
@@ -60,7 +60,7 @@ func TestTerminalModeCtrlCHandling(t *testing.T) {
 
 	// Set up a mock terminal buffer in terminal mode
 	te.mode = commands.TerminalMode
-	
+
 	// Create a mock terminal session
 	terminalPath := "*Terminal*"
 	te.terminalSessions = make(map[string]*TerminalSessionState)
@@ -91,7 +91,7 @@ func TestTerminalModeCtrlCHandling(t *testing.T) {
 	// Verify that in terminal mode, Ctrl+C should be forwarded, not exit the mode
 	// (Only Escape should exit terminal mode to normal mode)
 	initialMode := te.mode
-	
+
 	// Process the Ctrl+C event (this would normally forward to terminal)
 	// We can't easily test the actual proxy call in unit tests, but we can verify
 	// that the mode doesn't change (unlike Escape which would exit terminal mode)

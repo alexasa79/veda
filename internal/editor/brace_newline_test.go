@@ -20,7 +20,7 @@ func TestInsertNewlineBetweenBracesProperIndent(t *testing.T) {
 			cursorLine:      0,
 			cursorX:         11, // between { and }
 			expectedContent: "if (true) {\n    \n}",
-			expectedCursorX: 4,  // indented position
+			expectedCursorX: 4, // indented position
 			description:     "Should split braces and indent cursor, but keep closing brace at original level",
 		},
 		{
@@ -29,7 +29,7 @@ func TestInsertNewlineBetweenBracesProperIndent(t *testing.T) {
 			cursorLine:      0,
 			cursorX:         15, // between { and }
 			expectedContent: "    if (true) {\n        \n    }",
-			expectedCursorX: 8,  // indented position
+			expectedCursorX: 8, // indented position
 			description:     "Should maintain closing brace at original indent level",
 		},
 		{
@@ -65,24 +65,24 @@ func TestInsertNewlineBetweenBracesProperIndent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test editor with content
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
-			
+
 			// Position cursor
 			for i := 0; i < tt.cursorLine; i++ {
 				te.ExecuteCommand("down")
 			}
 			te.buffer.CursorX = tt.cursorX
-			
+
 			// Enter insert mode and press Enter
 			te.ExecuteCommand("enter-insert-mode")
 			te.ExecuteCommand("insert-newline")
-			
+
 			// Check content
 			actual := te.buffer.Rope.String()
 			if actual != tt.expectedContent {
 				t.Errorf("%s\nExpected:\n%q\nGot:\n%q\nDescription: %s",
 					tt.name, tt.expectedContent, actual, tt.description)
 			}
-			
+
 			// Check cursor position
 			if te.buffer.CursorX != tt.expectedCursorX {
 				t.Errorf("%s: Cursor position mismatch\nExpected: %d\nGot: %d",

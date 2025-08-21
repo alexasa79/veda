@@ -22,28 +22,28 @@ func TestProcessLineAppendChaining(t *testing.T) {
 		{
 			name:      "chain first power",
 			line:      "1,000**2 → 1,000,000",
-			cursorPos: 8,  // Cursor at end of first expression "1,000**2"
+			cursorPos: 8, // Cursor at end of first expression "1,000**2"
 			expected:  "1,000**2 → 1,000,000 → 1,000,000",
 			desc:      "Should recalculate when cursor at end of expression",
 		},
 		{
 			name:      "chain second power - from result",
 			line:      "1,000**2 → 1,000,000**2",
-			cursorPos: 25,  // Cursor at end of line
+			cursorPos: 25, // Cursor at end of line
 			expected:  "1,000**2 → 1,000,000**2 → 1,000,000,000,000",
 			desc:      "Should calculate power of the result",
 		},
 		{
 			name:      "multiple chains",
 			line:      "100**2 → 10,000**2",
-			cursorPos: 20,  // Cursor at end of line
+			cursorPos: 20, // Cursor at end of line
 			expected:  "100**2 → 10,000**2 → 100,000,000",
 			desc:      "Should handle multiple arrows correctly",
 		},
 		{
 			name:      "chain with different operation",
 			line:      "1,000**2 → 1,000,000 + 1000",
-			cursorPos: 29,  // Cursor at end of line
+			cursorPos: 29, // Cursor at end of line
 			expected:  "1,000**2 → 1,000,000 + 1000 → 1,001,000",
 			desc:      "Should handle different operations in chain",
 		},
@@ -76,7 +76,7 @@ func TestFindExpressionAfterArrow(t *testing.T) {
 		{
 			name:      "expression after arrow",
 			line:      "1,000**2 → 1,000,000",
-			cursorPos: 22,  // At end of line
+			cursorPos: 22, // At end of line
 			wantExpr:  "1,000,000",
 			wantValue: 1000000,
 			desc:      "Should find the result after arrow",
@@ -84,7 +84,7 @@ func TestFindExpressionAfterArrow(t *testing.T) {
 		{
 			name:      "expression with operation after arrow",
 			line:      "1,000**2 → 1,000,000**2",
-			cursorPos: 25,  // At end of line
+			cursorPos: 25, // At end of line
 			wantExpr:  "1,000,000**2",
 			wantValue: 1000000000000,
 			desc:      "Should evaluate operation on result",
@@ -100,7 +100,7 @@ func TestFindExpressionAfterArrow(t *testing.T) {
 		{
 			name:      "multiple arrows - last expression",
 			line:      "10**2 → 100**2 → 10,000",
-			cursorPos: 27,  // At end of line
+			cursorPos: 27, // At end of line
 			wantExpr:  "10,000",
 			wantValue: 10000,
 			desc:      "Should find expression after last arrow",
@@ -116,12 +116,12 @@ func TestFindExpressionAfterArrow(t *testing.T) {
 			}
 
 			if result.Expression != tt.wantExpr {
-				t.Errorf("%s:\nExpected expression: %q\nGot: %q", 
+				t.Errorf("%s:\nExpected expression: %q\nGot: %q",
 					tt.desc, tt.wantExpr, result.Expression)
 			}
 
 			if result.Value != tt.wantValue {
-				t.Errorf("%s:\nExpected value: %f\nGot: %f", 
+				t.Errorf("%s:\nExpected value: %f\nGot: %f",
 					tt.desc, tt.wantValue, result.Value)
 			}
 		})
@@ -131,7 +131,7 @@ func TestFindExpressionAfterArrow(t *testing.T) {
 // Test the specific problematic case
 func TestProblematicChain(t *testing.T) {
 	// Simulate the exact sequence that causes the issue
-	
+
 	// Step 1: Calculate 1,000**2
 	line1 := "1,000**2"
 	result1, err := ProcessLineAppend(line1, len(line1))
@@ -139,26 +139,26 @@ func TestProblematicChain(t *testing.T) {
 		t.Fatalf("Step 1 failed: %v", err)
 	}
 	t.Logf("Step 1: %s", result1)
-	
+
 	// Expected: "1,000**2 → 1,000,000"
 	if result1 != "1,000**2 → 1,000,000" {
 		t.Errorf("Step 1: Expected '1,000**2 → 1,000,000', got %q", result1)
 	}
-	
+
 	// Step 2: Now add **2 to the result and calculate
-	line2 := result1 + "**2"  // "1,000**2 → 1,000,000**2"
+	line2 := result1 + "**2" // "1,000**2 → 1,000,000**2"
 	result2, err := ProcessLineAppend(line2, len(line2))
 	if err != nil {
 		t.Fatalf("Step 2 failed: %v", err)
 	}
 	t.Logf("Step 2: %s", result2)
-	
+
 	// Expected: "1,000**2 → 1,000,000**2 → 1,000,000,000,000"
 	expectedResult := "1,000**2 → 1,000,000**2 → 1,000,000,000,000"
 	if result2 != expectedResult {
 		t.Errorf("Step 2: Expected %q, got %q", expectedResult, result2)
 	}
-	
+
 	// Verify the result is not 0
 	if result2 == "1,000**2 → 1,000,000**2 → 0" {
 		t.Error("Result incorrectly evaluated to 0")

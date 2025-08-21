@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"veda/internal/log"
 	"veda/internal/events"
+	"veda/internal/log"
 
 	"golang.org/x/sys/unix"
 )
@@ -22,8 +22,8 @@ type Terminal struct {
 	height int
 
 	// Double buffering
-	frontBuffer []string  // What's currently displayed on screen
-	backBuffer  []string  // What we're building for next frame
+	frontBuffer []string // What's currently displayed on screen
+	backBuffer  []string // What we're building for next frame
 
 	// Cursor state
 	cursorX       int
@@ -34,7 +34,7 @@ type Terminal struct {
 	// Terminal state
 	oldTermios *unix.Termios
 	isRawMode  bool
-	tty        *os.File  // Direct terminal device
+	tty        *os.File // Direct terminal device
 
 	// Input handling
 	inputChan chan events.Event
@@ -68,7 +68,7 @@ func New() (*Terminal, error) {
 
 	t := &Terminal{
 		width:         width,
-		height:        height,  // Use actual height
+		height:        height, // Use actual height
 		frontBuffer:   make([]string, height),
 		backBuffer:    make([]string, height),
 		cursorVisible: true,
@@ -98,15 +98,15 @@ func (t *Terminal) Init() error {
 		return fmt.Errorf("failed to enter raw mode: %w", err)
 	}
 
-    // Switch to alternate screen buffer, clear screen and hide cursor initially
-    // Also enable bracketed paste mode (CSI ? 2004 h)
-    fmt.Fprint(t.tty, "\033[?1049h\033[2J\033[H\033[?25l\033[?2004h")
+	// Switch to alternate screen buffer, clear screen and hide cursor initially
+	// Also enable bracketed paste mode (CSI ? 2004 h)
+	fmt.Fprint(t.tty, "\033[?1049h\033[2J\033[H\033[?25l\033[?2004h")
 
 	// Update terminal size after switching to alternate screen
 	if width, height, err := getTerminalSize(); err == nil {
 		LL.Debug("Terminal.Init: Got terminal size after alternate screen: width=%d, height=%d", width, height)
 		t.width = width
-		t.height = height  // Use actual height
+		t.height = height // Use actual height
 		// Reinitialize buffers with correct size
 		t.frontBuffer = make([]string, t.height)
 		t.backBuffer = make([]string, t.height)
@@ -136,8 +136,8 @@ func (t *Terminal) Close() {
 	// Stop input handler
 	close(t.stopChan)
 
-    // Disable bracketed paste mode (CSI ? 2004 l), show cursor and switch back to main screen buffer
-    fmt.Fprint(t.tty, "\033[?2004l\033[?25h\033[?1049l")
+	// Disable bracketed paste mode (CSI ? 2004 l), show cursor and switch back to main screen buffer
+	fmt.Fprint(t.tty, "\033[?2004l\033[?25h\033[?1049l")
 
 	// Clear screen
 	fmt.Fprint(t.tty, "\033[2J\033[H")
@@ -315,7 +315,6 @@ func getTerminalSize() (width, height int, err error) {
 	}
 	return int(ws.Col), int(ws.Row), nil
 }
-
 
 // handleResize updates the terminal dimensions
 func (t *Terminal) handleResize() {

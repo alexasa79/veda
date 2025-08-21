@@ -40,14 +40,14 @@ func (e *Editor) handlePendingOperation(key string) error {
 			}
 		}
 	}
-	
+
 	if e.pendingOperator == nil {
 		return nil
 	}
-	
+
 	// Add key to pending keys
 	e.pendingKeys = append(e.pendingKeys, key)
-	
+
 	// Check for special cases first
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "d" && e.pendingKeys[1] == "d" {
 		// dd - delete line(s)
@@ -56,7 +56,7 @@ func (e *Editor) handlePendingOperation(key string) error {
 		}
 		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, LineTextObject{})
 	}
-	
+
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "c" && e.pendingKeys[1] == "c" {
 		// cc - change line(s)
 		if e.pendingCount > 1 {
@@ -64,7 +64,7 @@ func (e *Editor) handlePendingOperation(key string) error {
 		}
 		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, LineTextObject{})
 	}
-	
+
 	if len(e.pendingKeys) == 2 && e.pendingKeys[0] == "y" && e.pendingKeys[1] == "y" {
 		// yy - yank line(s)
 		if e.pendingCount > 1 {
@@ -72,19 +72,19 @@ func (e *Editor) handlePendingOperation(key string) error {
 		}
 		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, LineTextObject{})
 	}
-	
+
 	// Check for modifier keys
 	if len(e.pendingKeys) == 2 && (key == "a" || key == "i") {
 		e.pendingModifier = TextObjectModifier(key)
 		return nil // Wait for text object
 	}
-	
+
 	// Check for 'f' or 't' motions - need to wait for character
 	if len(e.pendingKeys) == 2 && (key == "f" || key == "t") {
 		// Don't consume the key yet, we need one more character
 		return nil // Wait for the character to find/till
 	}
-	
+
 	// Check for 'f' or 't' with character (3 keys total: operator + f/t + character)
 	if len(e.pendingKeys) == 3 && (e.pendingKeys[1] == "f" || e.pendingKeys[1] == "t") {
 		character := key
@@ -94,13 +94,13 @@ func (e *Editor) handlePendingOperation(key string) error {
 			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, TillCharacterTextObject{character: character})
 		}
 	}
-	
+
 	// Try to find a text object
 	textObj := e.getTextObjectForKey(key)
 	if textObj != nil {
 		return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, textObj)
 	}
-	
+
 	// Check for brackets after modifier
 	if len(e.pendingKeys) == 3 && (e.pendingModifier == ModifierAround || e.pendingModifier == ModifierInside) {
 		bracket := rune(key[0])
@@ -108,12 +108,12 @@ func (e *Editor) handlePendingOperation(key string) error {
 			return e.executeOperatorWithTextObjectForAllCursors(e.pendingOperator, bracketObj)
 		}
 	}
-	
+
 	// If we get here and have accumulated too many keys, cancel the operation
 	if len(e.pendingKeys) > 4 {
 		e.clearPendingOperation()
 	}
-	
+
 	return nil
 }
 
@@ -148,9 +148,9 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 	case "s":
 		// 's' for search result
 		return NewSearchResultTextObject(e)
-    case "$":
-        // End of line motion for operators (e.g., d$, c$, y$)
-        return EndOfLineTextObject{}
+	case "$":
+		// End of line motion for operators (e.g., d$, c$, y$)
+		return EndOfLineTextObject{}
 	case "left":
 		return CharacterTextObject{Direction: "left"}
 	case "right":
@@ -160,44 +160,44 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 	case "down":
 		return LineMotionTextObject{Direction: "down"}
 	}
-	
+
 	return nil
 }
 
 // executeOperatorWithTextObject executes the pending operator on the given text object
 func (e *Editor) executeOperatorWithTextObject(op Operator, textObj TextObject) error {
 	defer e.clearPendingOperation()
-	
+
 	if e.buffer == nil {
 		return nil
 	}
-	
+
 	// Store the operator+text object combination for repeat
 	e.lastCommand = &RepeatableCommand{
 		Operator:   op,
 		TextObject: textObj,
 	}
-	
+
 	// Get current cursor position
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 	cursorChar := e.buffer.CursorX
-	
+
 	// Get the range from the text object
 	startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursorLine, cursorChar)
 	if !found {
 		return nil
 	}
-	
+
 	// Execute the operator on the range
 	if err := op.Execute(e, startLine, startChar, endLine, endChar); err != nil {
 		return err
 	}
-	
-    // Update syntax highlighting (skip during paste mode)
-    if !e.inPasteMode {
-        e.updateSyntaxHighlighting()
-    }
-	
+
+	// Update syntax highlighting (skip during paste mode)
+	if !e.inPasteMode {
+		e.updateSyntaxHighlighting()
+	}
+
 	return nil
 }
 

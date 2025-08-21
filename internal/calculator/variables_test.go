@@ -7,20 +7,20 @@ import (
 
 func TestVariableStorage(t *testing.T) {
 	vars := NewVariables()
-	
+
 	// Test setting and getting a variable
 	value := new(big.Float).SetFloat64(42.5)
 	vars.Set("x", value)
-	
+
 	retrieved, ok := vars.Get("x")
 	if !ok {
 		t.Error("Failed to retrieve variable 'x'")
 	}
-	
+
 	if retrieved.Cmp(value) != 0 {
 		t.Errorf("Expected %v, got %v", value, retrieved)
 	}
-	
+
 	// Test getting non-existent variable
 	_, ok = vars.Get("y")
 	if ok {
@@ -30,27 +30,27 @@ func TestVariableStorage(t *testing.T) {
 
 func TestLastResultVariable(t *testing.T) {
 	vars := NewVariables()
-	
+
 	// Set last result
 	value := new(big.Float).SetFloat64(100)
 	vars.SetLastResult(value)
-	
+
 	// Get using GetLastResult
 	retrieved, ok := vars.GetLastResult()
 	if !ok {
 		t.Error("Failed to retrieve last result")
 	}
-	
+
 	if retrieved.Cmp(value) != 0 {
 		t.Errorf("Expected %v, got %v", value, retrieved)
 	}
-	
+
 	// Should also be accessible as "?"
 	retrieved2, ok := vars.Get("?")
 	if !ok {
 		t.Error("Failed to retrieve '?' variable")
 	}
-	
+
 	if retrieved2.Cmp(value) != 0 {
 		t.Errorf("Expected %v, got %v", value, retrieved2)
 	}
@@ -96,24 +96,24 @@ func TestVariableInExpression(t *testing.T) {
 			expected: 150, // (10 + 5) * 10
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear variables before each test
 			GetDefaultVariables().Clear()
-			
+
 			// Setup
 			if tt.setup != nil {
 				tt.setup()
 			}
-			
+
 			// Evaluate expression
 			result, err := EvaluateExpression(tt.expr)
 			if err != nil {
 				t.Errorf("Failed to evaluate %q: %v", tt.expr, err)
 				return
 			}
-			
+
 			if result != tt.expected {
 				t.Errorf("Expected %f, got %f", tt.expected, result)
 			}
@@ -153,11 +153,11 @@ func TestVariableTokenization(t *testing.T) {
 			values:   []string{"$", ""},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			tokenizer := NewTokenizer(tt.input, 0)
-			
+
 			for i, expectedType := range tt.expected {
 				token := tokenizer.NextToken()
 				if token.Type != expectedType {
@@ -174,13 +174,13 @@ func TestVariableTokenization(t *testing.T) {
 func TestUndefinedVariable(t *testing.T) {
 	// Clear variables
 	GetDefaultVariables().Clear()
-	
+
 	// Try to use undefined variable
 	_, err := EvaluateExpression("$undefined")
 	if err == nil {
 		t.Error("Expected error for undefined variable")
 	}
-	
+
 	expectedError := "undefined variable: $undefined"
 	if err.Error() != expectedError {
 		t.Errorf("Expected error %q, got %q", expectedError, err.Error())
@@ -213,25 +213,25 @@ func TestVariableWithFormatting(t *testing.T) {
 			expected: "1,000,000",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear variables
 			GetDefaultVariables().Clear()
-			
+
 			// Setup
 			_, err := EvaluateExpression(tt.setup)
 			if err != nil {
 				t.Fatalf("Setup failed: %v", err)
 			}
-			
+
 			// Evaluate with formatting
 			result, err := EvaluateExpressionWithResult(tt.expr)
 			if err != nil {
 				t.Errorf("Failed to evaluate %q: %v", tt.expr, err)
 				return
 			}
-			
+
 			output := result.String()
 			if output != tt.expected {
 				t.Errorf("Expected %q, got %q", tt.expected, output)
@@ -255,7 +255,7 @@ func TestParseVariableName(t *testing.T) {
 		{"", "", false},
 		{"$$", "$", true}, // Second $ is part of name
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			name, ok := ParseVariableName(tt.input)

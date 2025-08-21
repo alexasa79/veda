@@ -124,7 +124,7 @@ func (t *Tokenizer) NextToken() Token {
 			return Token{Type: TokenPreprocessor, Value: "pre", Pos: t.start + tokenStart}
 		}
 	}
-	
+
 	if ch == 'h' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "hex" {
 		// Make sure it's not part of a larger word
 		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
@@ -132,7 +132,7 @@ func (t *Tokenizer) NextToken() Token {
 			return Token{Type: TokenPreprocessor, Value: "hex", Pos: t.start + tokenStart}
 		}
 	}
-	
+
 	if ch == 'b' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "bin" {
 		// Make sure it's not part of a larger word
 		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
@@ -140,7 +140,7 @@ func (t *Tokenizer) NextToken() Token {
 			return Token{Type: TokenPreprocessor, Value: "bin", Pos: t.start + tokenStart}
 		}
 	}
-	
+
 	if ch == 'o' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "oct" {
 		// Make sure it's not part of a larger word
 		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
@@ -148,7 +148,7 @@ func (t *Tokenizer) NextToken() Token {
 			return Token{Type: TokenPreprocessor, Value: "oct", Pos: t.start + tokenStart}
 		}
 	}
-	
+
 	if ch == 'd' && t.pos+2 < len(t.input) && t.input[t.pos:t.pos+3] == "dec" {
 		// Make sure it's not part of a larger word
 		if t.pos+3 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+3])) {
@@ -156,7 +156,7 @@ func (t *Tokenizer) NextToken() Token {
 			return Token{Type: TokenPreprocessor, Value: "dec", Pos: t.start + tokenStart}
 		}
 	}
-	
+
 	if ch == 'c' && t.pos+1 < len(t.input) && t.input[t.pos:t.pos+2] == "cs" {
 		// Make sure it's not part of a larger word
 		if t.pos+2 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+2])) {
@@ -164,7 +164,7 @@ func (t *Tokenizer) NextToken() Token {
 			return Token{Type: TokenPreprocessor, Value: "cs", Pos: t.start + tokenStart}
 		}
 	}
-	
+
 	if ch == 'u' && t.pos+1 < len(t.input) && t.input[t.pos:t.pos+2] == "us" {
 		// Make sure it's not part of a larger word
 		if t.pos+2 >= len(t.input) || !unicode.IsLetter(rune(t.input[t.pos+2])) {
@@ -183,7 +183,7 @@ func (t *Tokenizer) scanNumber() Token {
 	tokenStart := t.pos
 	base := BaseDecimal
 	hasSeparator := false
-	
+
 	// Check for hex, octal, or binary prefix
 	if t.input[t.pos] == '0' && t.pos+1 < len(t.input) {
 		nextChar := t.input[t.pos+1]
@@ -215,7 +215,7 @@ func (t *Tokenizer) scanNumber() Token {
 	// Scan decimal number (including floating point) with support for separators
 	hasDigits := false
 	lastWasSeparator := false
-	
+
 	for t.pos < len(t.input) {
 		ch := t.input[t.pos]
 		if unicode.IsDigit(rune(ch)) {
@@ -344,13 +344,13 @@ func (t *Tokenizer) scanBinaryDigits() bool {
 func (t *Tokenizer) scanVariable() Token {
 	tokenStart := t.pos
 	t.pos++ // Skip the $
-	
+
 	// Special case for $? (last result)
 	if t.pos < len(t.input) && t.input[t.pos] == '?' {
 		t.pos++
 		return Token{Type: TokenVariable, Value: "$?", Pos: t.start + tokenStart}
 	}
-	
+
 	// Scan alphanumeric variable name
 	varStart := t.pos
 	for t.pos < len(t.input) {
@@ -360,12 +360,12 @@ func (t *Tokenizer) scanVariable() Token {
 		}
 		t.pos++
 	}
-	
+
 	// Check if we got a valid variable name
 	if t.pos > varStart {
 		return Token{Type: TokenVariable, Value: t.input[tokenStart:t.pos], Pos: t.start + tokenStart}
 	}
-	
+
 	// Invalid variable reference
 	return Token{Type: TokenInvalid, Value: "$", Pos: t.start + tokenStart}
 }
@@ -399,7 +399,7 @@ func ParseNumberBig(value string) (*big.Float, error) {
 		// Remove any comma or underscore separators
 		cleanValue := strings.ReplaceAll(value, ",", "")
 		cleanValue = strings.ReplaceAll(cleanValue, "_", "")
-		
+
 		bf := new(big.Float).SetPrec(256) // Use high precision
 		bf, _, err := bf.Parse(cleanValue, 10)
 		if err != nil {
@@ -466,18 +466,18 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 		BitWidth:  0,
 	}
 	hasDirective := false
-	
+
 	// Track the bases of all numbers in the expression for auto-detection
 	var numberBases []NumberBase
 	hasExplicitDirective := false
-	
+
 	for {
 		token := tokenizer.NextToken()
 		if token.Type == TokenEOF {
 			tokens = append(tokens, token)
 			break
 		}
-		
+
 		if token.Type == TokenNumber {
 			// Track the base of this number
 			numberBases = append(numberBases, token.Base)
@@ -505,7 +505,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					}
 					tokens = append(tokens, nextToken)
 				}
-				
+
 			case "hex", "bin", "oct":
 				// Set the format
 				switch token.Value {
@@ -518,7 +518,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 				}
 				hasDirective = true
 				hasExplicitDirective = true
-				
+
 				// Check if followed by a number (bit width)
 				nextToken := tokenizer.NextToken()
 				if nextToken.Type == TokenNumber {
@@ -538,7 +538,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					tokens = append(tokens, nextToken)
 				}
 				// Skip only the format directive token
-				
+
 			case "dec":
 				// Set format to decimal (explicit decimal output)
 				directive.Format = FormatDecimal
@@ -554,7 +554,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					tokens = append(tokens, nextToken)
 				}
 				// Skip only the "dec" directive token
-				
+
 			case "cs":
 				// Set format to comma-separated decimal (may be overridden later)
 				directive.Format = FormatComma
@@ -569,7 +569,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					tokens = append(tokens, nextToken)
 				}
 				// Skip only the "cs" directive token
-				
+
 			case "us":
 				// Set format to underscore-separated decimal (may be overridden later)
 				directive.Format = FormatUnderscore
@@ -584,7 +584,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					tokens = append(tokens, nextToken)
 				}
 				// Skip only the "us" directive token
-				
+
 			default:
 				// Unknown preprocessor, include it
 				tokens = append(tokens, token)
@@ -593,20 +593,20 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 			tokens = append(tokens, token)
 		}
 	}
-	
+
 	// Check if we need to override cs/us directives when hex/octal/binary is present
 	if (directive.Format == FormatComma || directive.Format == FormatUnderscore) && len(numberBases) > 0 {
 		// Check if any number has hex/octal/binary base
 		for _, base := range numberBases {
 			if base == BaseHex || base == BaseOctal || base == BaseBinary {
 				// Override cs/us with appropriate base format
-				directive.Format = FormatDecimal  // Reset to decimal first
-				hasExplicitDirective = false  // Allow auto-detection to take over
+				directive.Format = FormatDecimal // Reset to decimal first
+				hasExplicitDirective = false     // Allow auto-detection to take over
 				break
 			}
 		}
 	}
-	
+
 	// Apply automatic base detection if no explicit directive was given
 	if !hasExplicitDirective && len(numberBases) > 0 {
 		// First check for hex/octal/binary - these override separator formats
@@ -617,7 +617,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 				break
 			}
 		}
-		
+
 		// If we have hex/octal/binary, ignore separator formats and apply normal base detection
 		if hasHexOctBin {
 			// Collect all non-decimal bases (hex, octal, binary)
@@ -627,7 +627,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					nonDecimalBases = append(nonDecimalBases, base)
 				}
 			}
-			
+
 			// If all non-decimal numbers have the same base, use that base for output
 			if len(nonDecimalBases) > 0 {
 				firstNonDecimal := nonDecimalBases[0]
@@ -638,7 +638,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 						break
 					}
 				}
-				
+
 				if allSameBase {
 					switch firstNonDecimal {
 					case BaseHex:
@@ -662,7 +662,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 					separatorBases = append(separatorBases, base)
 				}
 			}
-			
+
 			// If all separator numbers have the same format, use that format for output
 			if len(separatorBases) > 0 {
 				firstSeparator := separatorBases[0]
@@ -673,7 +673,7 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 						break
 					}
 				}
-				
+
 				if allSameSeparator {
 					switch firstSeparator {
 					case BaseDecimalComma:
@@ -688,6 +688,6 @@ func TokenizeAndExtractPreprocessors(expr string, startPos int) ([]Token, *Prepr
 			}
 		}
 	}
-	
+
 	return tokens, directive, hasDirective
 }

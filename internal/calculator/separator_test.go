@@ -215,13 +215,13 @@ func TestMixedSeparatorBehavior(t *testing.T) {
 		{
 			name:     "hex in expression overrides comma input",
 			expr:     "1,000 + 0x10",
-			expected: "0x3f8",  // 1000 + 16 = 1016 = 0x3f8
+			expected: "0x3f8", // 1000 + 16 = 1016 = 0x3f8
 			desc:     "hex in expression outputs hex",
 		},
 		{
 			name:     "binary in expression overrides underscore input",
 			expr:     "1_000 + 0b1000",
-			expected: "0b1111110000",  // 1000 + 8 = 1008 = 0b1111110000
+			expected: "0b1111110000", // 1000 + 8 = 1008 = 0b1111110000
 			desc:     "binary in expression outputs binary",
 		},
 		// Mixed hex/octal/binary outputs decimal
@@ -405,7 +405,7 @@ func TestSeparatorParsing(t *testing.T) {
 		{
 			name:     "large power with comma separator",
 			expr:     "1,000,000 ** 2",
-			expected: 1000000000000,  // 1 trillion
+			expected: 1000000000000, // 1 trillion
 		},
 		{
 			name:     "power with underscore separator",

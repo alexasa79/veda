@@ -102,16 +102,16 @@ func TestCalculateAutoIndentWithBraces(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a buffer with test content
 			buffer := NewBuffer("", "test.go", tt.indentType, tt.indentWidth)
-			
+
 			// Calculate auto-indent
 			result := buffer.CalculateAutoIndent(tt.line, tt.cursorCol)
-			
+
 			// Check column
 			if result.Column != tt.expectedColumn {
 				t.Errorf("%s: Column mismatch\nExpected: %d\nGot: %d\nDescription: %s",
 					tt.name, tt.expectedColumn, result.Column, tt.description)
 			}
-			
+
 			// Check indent string
 			if result.IndentStr != tt.expectedIndent {
 				t.Errorf("%s: IndentStr mismatch\nExpected: %q\nGot: %q\nDescription: %s",

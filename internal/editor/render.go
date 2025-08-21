@@ -1,101 +1,103 @@
 package editor
 
 import (
-    "fmt"
-    "strings"
-    "veda/internal/buffer"
-    "veda/internal/commands"
-    "veda/internal/config"
-    "veda/internal/proxy"
-    "veda/internal/syntax"
-    "veda/internal/theme"
-    "veda/internal/ui"
+	"fmt"
+	"strings"
+	"veda/internal/buffer"
+	"veda/internal/commands"
+	"veda/internal/config"
+	"veda/internal/proxy"
+	"veda/internal/syntax"
+	"veda/internal/theme"
+	"veda/internal/ui"
 )
 
 // drawGutterGitIndicator renders git added/modified indicator in the gutter for a given wrapped line.
 // - Renders a space with background color corresponding to the change type
 // - Deleted indicators are intentionally not rendered
 func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
-    if e.buffer.GitChanges == nil {
-        return
-    }
+	if e.buffer.GitChanges == nil {
+		return
+	}
 
-    isAdded := false
-    isModified := false
+	isAdded := false
+	isModified := false
 
-    // Added/Modified are 1-based
-    for _, a := range e.buffer.GitChanges.Added {
-        if a == lineNum {
-            isAdded = true
-            break
-        }
-    }
-    if !isAdded {
-        for _, m := range e.buffer.GitChanges.Modified {
-            if m == lineNum {
-                isModified = true
-                break
-            }
-        }
-    }
+	// Added/Modified are 1-based
+	for _, a := range e.buffer.GitChanges.Added {
+		if a == lineNum {
+			isAdded = true
+			break
+		}
+	}
+	if !isAdded {
+		for _, m := range e.buffer.GitChanges.Modified {
+			if m == lineNum {
+				isModified = true
+				break
+			}
+		}
+	}
 
-    // Deleted lines: do not render any indicator
+	// Deleted lines: do not render any indicator
 
-    // Leftmost gutter column (immediately after digits) is used for git indicators
-    indicatorX := digitsWidth
-    if indicatorX >= lineNumberWidth {
-        return
-    }
+	// Leftmost gutter column (immediately after digits) is used for git indicators
+	indicatorX := digitsWidth
+	if indicatorX >= lineNumberWidth {
+		return
+	}
 
-    // Only draw when added or modified
-    if !(isAdded || isModified) {
-        return
-    }
+	// Only draw when added or modified
+	if !(isAdded || isModified) {
+		return
+	}
 
-    // Use distinct glyphs for added vs modified
-    var ch rune
-    indicatorStyle := lineNumberStyle
-    _, lnBg, _ := lineNumberStyle.Decompose()
-    if isAdded {
-        ch = '+'
-        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
-    } else {
-        ch = '≋'
-        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
-    }
-    // Make the indicator bold for visibility
-    indicatorStyle.Attrs |= ui.AttrBold
+	// Use distinct glyphs for added vs modified
+	var ch rune
+	indicatorStyle := lineNumberStyle
+	_, lnBg, _ := lineNumberStyle.Decompose()
+	if isAdded {
+		ch = '+'
+		indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
+	} else {
+		ch = '≋'
+		indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+	}
+	// Make the indicator bold for visibility
+	indicatorStyle.Attrs |= ui.AttrBold
 
-    e.screen.SetContent(indicatorX, screenY, ch, nil, indicatorStyle)
+	e.screen.SetContent(indicatorX, screenY, ch, nil, indicatorStyle)
 }
 
 // drawGutterDiagnosticsIndicator renders a diagnostics icon in the second gutter column
 func (e *Editor) drawGutterDiagnosticsIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
-    if e.buffer.Diagnostics == nil || len(e.buffer.Diagnostics) == 0 {
-        return
-    }
+	if e.buffer.Diagnostics == nil || len(e.buffer.Diagnostics) == 0 {
+		return
+	}
 
-    diag, ok := e.buffer.GetDiagnosticForLine(lineNum)
-    if !ok {
-        return
-    }
+	diag, ok := e.buffer.GetDiagnosticForLine(lineNum)
+	if !ok {
+		return
+	}
 
-    // Diagnostics in middle gutter column: digits + 1
-    diagX := digitsWidth + 1
-    if diagX >= lineNumberWidth { return }
+	// Diagnostics in middle gutter column: digits + 1
+	diagX := digitsWidth + 1
+	if diagX >= lineNumberWidth {
+		return
+	}
 
-    var style ui.Style
-    _, lnBg, _ := lineNumberStyle.Decompose()
-    switch diag.Severity {
-    case "error":
-        style = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError).Background(lnBg)
-    case "warning":
-        style = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning).Background(lnBg)
-    default:
-        // Skip info/hint for now
-        return
-    }
-    e.screen.SetContent(diagX, screenY, '●', nil, style)
+	var style ui.Style
+	_, lnBg, _ := lineNumberStyle.Decompose()
+	switch diag.Severity {
+	case "error":
+		style = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError).Background(lnBg)
+	case "warning":
+		style = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning).Background(lnBg)
+	default:
+		// Skip info/hint for now
+		return
+	}
+	e.screen.SetContent(diagX, screenY, '●', nil, style)
 }
 
 // drawText draws text with optional search highlighting, selection, and whitespace visualization
@@ -106,7 +108,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 	flashStyle := e.config.Theme.GetStyle(e.config.Theme.FlashHighlight)
-    whitespaceStyle := e.whitespaceStyle.style
+	whitespaceStyle := e.whitespaceStyle.style
 	screenX := x
 	charPos := textOffset
 
@@ -120,19 +122,19 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		lineStartPos = lineStartIter.Position()
 	}
 
-    // Convert to slice of runes for position tracking
+	// Convert to slice of runes for position tracking
 	runes := []rune(text)
-    // Fetch diagnostic for this line (1-based)
-    var diagForLine *proxy.Diagnostic
-    var hasDiag bool
-    if lineNum >= 0 && e.buffer != nil && len(e.buffer.Diagnostics) > 0 {
-        if d, ok := e.buffer.GetDiagnosticForLine(lineNum+1); ok {
-            diagForLine = d
-            hasDiag = true
-        }
-    }
+	// Fetch diagnostic for this line (1-based)
+	var diagForLine *proxy.Diagnostic
+	var hasDiag bool
+	if lineNum >= 0 && e.buffer != nil && len(e.buffer.Diagnostics) > 0 {
+		if d, ok := e.buffer.GetDiagnosticForLine(lineNum + 1); ok {
+			diagForLine = d
+			hasDiag = true
+		}
+	}
 
-    for i, r := range runes {
+	for i, r := range runes {
 		// Check if this character is part of a search match
 		// searchMatches contains positions relative to the line, not absolute positions
 		charPosInLine := segmentStart + i
@@ -140,7 +142,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		// Check if this character is part of the selection
 		// Only apply selection style if we're not drawing line numbers (x parameter is 0 for line numbers)
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd && x > 0
-        // Check if this character is part of the flash highlight
+		// Check if this character is part of the flash highlight
 		var inFlash bool
 		if lineNum >= 0 && e.hasFlashHighlight() {
 			charPosInLine := charPos - lineStartPos
@@ -149,26 +151,26 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 		currentStyle := style
 
-        // Determine if this position is within a diagnostic range for this line
-        useDiagStyle := false
-        var diagStyle ui.Style
-        if hasDiag && (diagForLine.Severity == "error" || diagForLine.Severity == "warning") {
-            // Compare with line-relative position
-            posInLine := segmentStart + i
-            startChar := diagForLine.StartChar
-            endChar := diagForLine.EndChar
-            if endChar <= startChar {
-                endChar = startChar + 1 // ensure at least one column highlighted
-            }
-            if posInLine >= startChar && posInLine < endChar {
-                useDiagStyle = true
-                if diagForLine.Severity == "error" {
-                    diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError)
-                } else {
-                    diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning)
-                }
-            }
-        }
+		// Determine if this position is within a diagnostic range for this line
+		useDiagStyle := false
+		var diagStyle ui.Style
+		if hasDiag && (diagForLine.Severity == "error" || diagForLine.Severity == "warning") {
+			// Compare with line-relative position
+			posInLine := segmentStart + i
+			startChar := diagForLine.StartChar
+			endChar := diagForLine.EndChar
+			if endChar <= startChar {
+				endChar = startChar + 1 // ensure at least one column highlighted
+			}
+			if posInLine >= startChar && posInLine < endChar {
+				useDiagStyle = true
+				if diagForLine.Severity == "error" {
+					diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError)
+				} else {
+					diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning)
+				}
+			}
+		}
 
 		// Check if this position has a virtual cursor
 		hasVirtualCursor := false
@@ -184,11 +186,11 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			}
 		}
 
-        // Note: Do not apply vertical ruler background on characters themselves.
-        // Ruler background is rendered in background fill phases to avoid per-character
-        // style variation within tokens (important for multi-window consistency tests).
+		// Note: Do not apply vertical ruler background on characters themselves.
+		// Ruler background is rendered in background fill phases to avoid per-character
+		// style variation within tokens (important for multi-window consistency tests).
 
-        if inFlash {
+		if inFlash {
 			// Flash takes highest precedence
 			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
 		} else if inSelection {
@@ -198,13 +200,13 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			// Virtual cursor gets a distinct background color
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 			currentStyle = theme.ApplyBackgroundStyle(style, virtualCursorStyle)
-        } else if useDiagStyle {
-            // Apply diagnostic background for error/warning range
-            currentStyle = theme.ApplyBackgroundStyle(style, diagStyle)
+		} else if useDiagStyle {
+			// Apply diagnostic background for error/warning range
+			currentStyle = theme.ApplyBackgroundStyle(style, diagStyle)
 		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
 			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
-        }
+		}
 
 		// Check if we should visualize this character
 		absolutePos := segmentStart + i
@@ -305,7 +307,7 @@ func (e *Editor) isInSearchMatchInLine(pos int, matches []int) bool {
 
 // drawLineInternal draws a single line using the iterator with an optional background color override
 func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, screenY int, bgOverride *ui.Color) {
-    originalLine := iter.Line()  // Keep the original line for whitespace detection
+	originalLine := iter.Line() // Keep the original line for whitespace detection
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 	isCurrentLine := e.buffer != nil && lineIndex == e.buffer.CursorIterator.LineNumber()
@@ -338,63 +340,65 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		trailingStart = detectTrailingSpaces(originalLine)
 	}
 
-    // If this is a terminal/internal buffer, render using terminal emulator styles (regardless of mode)
-    if e.buffer != nil && e.buffer.IsInternal {
-        // Determine terminal row corresponding to this buffer line
-        ts := e.terminalSessions[e.buffer.FilePath]
-        if ts != nil && ts.term != nil {
-            width, _ := e.screen.Size()
-            // Draw characters with per-cell styles; iterate runes to avoid breaking UTF-8
-            col := 0
-            for _, ch := range originalLine {
-                if startX+col >= width {
-                    break
-                }
-                // Adjust for banner occupying first buffer line
-                emuRow := lineIndex
-                if ts.Banner != "" { emuRow = lineIndex - 1 }
-                var fg, bg ui.Color
-                var attrs ui.AttrMask
-                if emuRow >= 0 {
-                    // emuRow indexes into combined scrollback + grid
-                    fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
-                } else {
-                    fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
-                }
-                // Replace any zero-width or control rendering remnants with spaces visually
-                if ch == 0 {
-                    ch = ' '
-                }
-                // Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
-                if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
-                    fg = ui.Color(int32(fg) + 8)
-                }
-                style := normalStyle
-                if fg != ui.ColorDefault {
-                    style = style.Foreground(fg)
-                }
-                if bg != ui.ColorDefault {
-                    style = style.Background(bg)
-                }
-                if attrs != ui.AttrNone {
-                    // Merge attributes into style
-                    fg0, bg0, _ := style.Decompose()
-                    style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
-                }
-                e.screen.SetContent(startX+col, screenY, ch, nil, style)
-                col++
-            }
-            // Fill remainder of line if needed
-            return
-        }
-    }
+	// If this is a terminal/internal buffer, render using terminal emulator styles (regardless of mode)
+	if e.buffer != nil && e.buffer.IsInternal {
+		// Determine terminal row corresponding to this buffer line
+		ts := e.terminalSessions[e.buffer.FilePath]
+		if ts != nil && ts.term != nil {
+			width, _ := e.screen.Size()
+			// Draw characters with per-cell styles; iterate runes to avoid breaking UTF-8
+			col := 0
+			for _, ch := range originalLine {
+				if startX+col >= width {
+					break
+				}
+				// Adjust for banner occupying first buffer line
+				emuRow := lineIndex
+				if ts.Banner != "" {
+					emuRow = lineIndex - 1
+				}
+				var fg, bg ui.Color
+				var attrs ui.AttrMask
+				if emuRow >= 0 {
+					// emuRow indexes into combined scrollback + grid
+					fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
+				} else {
+					fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
+				}
+				// Replace any zero-width or control rendering remnants with spaces visually
+				if ch == 0 {
+					ch = ' '
+				}
+				// Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
+				if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
+					fg = ui.Color(int32(fg) + 8)
+				}
+				style := normalStyle
+				if fg != ui.ColorDefault {
+					style = style.Foreground(fg)
+				}
+				if bg != ui.ColorDefault {
+					style = style.Background(bg)
+				}
+				if attrs != ui.AttrNone {
+					// Merge attributes into style
+					fg0, bg0, _ := style.Decompose()
+					style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
+				}
+				e.screen.SetContent(startX+col, screenY, ch, nil, style)
+				col++
+			}
+			// Fill remainder of line if needed
+			return
+		}
+	}
 
-    // Try to get syntax tokens first, even with background overrides
+	// Try to get syntax tokens first, even with background overrides
 	var x int
-	
+
 	// Get syntax tokens for this line using iterator position
 	tokens := e.getLineTokens(iter)
-	
+
 	// If we have syntax tokens and highlighter, use syntax highlighting path
 	// even with background overrides (like context lines)
 	if len(tokens) > 0 && e.highlighter != nil && e.buffer.HasFile() {
@@ -402,41 +406,41 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	} else if e.highlighter == nil || !e.buffer.HasFile() {
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
-        // Fill rest of line if we have background
-        if hasBg {
-            width, _ := e.screen.Size()
-            virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-            
-            for i := x; i < width; i++ {
-                fillStyle := normalStyle
-                
-                // Check if this position has a virtual cursor beyond the end of line
-                hasVirtualCursor := false
-                if lineIndex >= 0 {
-                    // Calculate the character position in the line for this screen position
-                    textColumn := i - e.buffer.LineNumberWidth
-                    charPosInLine := textColumn
-                    for _, vc := range e.virtualCursors {
-                        if vc.Y == lineIndex && vc.X == charPosInLine {
-                            hasVirtualCursor = true
-                            break
-                        }
-                    }
-                }
-                
-                // Apply virtual cursor style if needed
-                if hasVirtualCursor {
-                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-                }
-                
-                e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-            }
-        }
+		// Fill rest of line if we have background
+		if hasBg {
+			width, _ := e.screen.Size()
+			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+
+			for i := x; i < width; i++ {
+				fillStyle := normalStyle
+
+				// Check if this position has a virtual cursor beyond the end of line
+				hasVirtualCursor := false
+				if lineIndex >= 0 {
+					// Calculate the character position in the line for this screen position
+					textColumn := i - e.buffer.LineNumberWidth
+					charPosInLine := textColumn
+					for _, vc := range e.virtualCursors {
+						if vc.Y == lineIndex && vc.X == charPosInLine {
+							hasVirtualCursor = true
+							break
+						}
+					}
+				}
+
+				// Apply virtual cursor style if needed
+				if hasVirtualCursor {
+					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+				}
+
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			}
+		}
 	} else {
 		// Even if no background fill, we still need to render virtual cursors beyond end of line
 		width, _ := e.screen.Size()
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-		
+
 		for i := x; i < width; i++ {
 			// Check if this position has a virtual cursor beyond the end of line
 			hasVirtualCursor := false
@@ -450,7 +454,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 					}
 				}
 			}
-			
+
 			// Render virtual cursor if needed
 			if hasVirtualCursor {
 				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
@@ -473,7 +477,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 					endPos = len(originalLine)
 				}
 				prefix := originalLine[lastEnd:endPos]
-				x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
+				x += e.drawText(x, screenY, normalStyle, prefix, lineStartOffset+lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
 			}
 
 			// Draw the token with its style
@@ -493,7 +497,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 					tokenStyle = tokenStyle.Background(lineBg)
 				}
 
-				x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + token.Start, searchMatches, lineIndex, token.Start, trailingStart)
+				x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset+token.Start, searchMatches, lineIndex, token.Start, trailingStart)
 				lastEnd = endPos
 			}
 		}
@@ -501,7 +505,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		// Draw any remaining text with normal style
 		if lastEnd < len(originalLine) {
 			suffix := originalLine[lastEnd:]
-			x += e.drawText(x, screenY, normalStyle, suffix, lineStartOffset + lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
+			x += e.drawText(x, screenY, normalStyle, suffix, lineStartOffset+lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
 		}
 	} else {
 		// Use standard rendering for files without syntax highlighting
@@ -510,40 +514,40 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 	}
 
-    // Fill rest of line with background if needed
-    if hasBg {
-        width, _ := e.screen.Size()
-        virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-        
-        for i := x; i < width; i++ {
-            fillStyle := normalStyle
-            
-            // Check if this position has a virtual cursor beyond the end of line
-            hasVirtualCursor := false
-            if lineIndex >= 0 {
-                // Calculate the character position in the line for this screen position
-                textColumn := i - e.buffer.LineNumberWidth
-                charPosInLine := textColumn
-                for _, vc := range e.virtualCursors {
-                    if vc.Y == lineIndex && vc.X == charPosInLine {
-                        hasVirtualCursor = true
-                        break
-                    }
-                }
-            }
-            
-            // Apply virtual cursor style if needed
-            if hasVirtualCursor {
-                fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-            }
-            
-            e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-        }
-    } else {
+	// Fill rest of line with background if needed
+	if hasBg {
+		width, _ := e.screen.Size()
+		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+
+		for i := x; i < width; i++ {
+			fillStyle := normalStyle
+
+			// Check if this position has a virtual cursor beyond the end of line
+			hasVirtualCursor := false
+			if lineIndex >= 0 {
+				// Calculate the character position in the line for this screen position
+				textColumn := i - e.buffer.LineNumberWidth
+				charPosInLine := textColumn
+				for _, vc := range e.virtualCursors {
+					if vc.Y == lineIndex && vc.X == charPosInLine {
+						hasVirtualCursor = true
+						break
+					}
+				}
+			}
+
+			// Apply virtual cursor style if needed
+			if hasVirtualCursor {
+				fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+			}
+
+			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+		}
+	} else {
 		// Even if no background fill, we still need to render virtual cursors beyond end of line
 		width, _ := e.screen.Size()
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-		
+
 		for i := x; i < width; i++ {
 			// Check if this position has a virtual cursor beyond the end of line
 			hasVirtualCursor := false
@@ -557,7 +561,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 					}
 				}
 			}
-			
+
 			// Render virtual cursor if needed
 			if hasVirtualCursor {
 				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
@@ -569,7 +573,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 // drawWrappedLine draws a wrapped line segment with proper handling of syntax highlighting
 func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, startX int, screenY int) {
-    // Get the full line for syntax highlighting
+	// Get the full line for syntax highlighting
 	originalLine := iter.Line()
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
@@ -597,92 +601,100 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		trailingStart = detectTrailingSpaces(originalLine)
 	}
 
-    // Terminal/internal buffers: draw using terminal emulator per-cell styles (regardless of mode)
-    if e.buffer != nil && e.buffer.IsInternal {
-        if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
-            // Draw only the wrapped segment using terminal styles; iterate runes to preserve UTF-8
-            x := startX
-            col := 0
-            for _, ch := range wl.Text {
-                emuRow := lineIndex
-                if ts.Banner != "" { emuRow = lineIndex - 1 }
-                var fg, bg ui.Color
-                var attrs ui.AttrMask
-                if emuRow >= 0 {
-                    fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
-                } else {
-                    fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
-                }
-                if ch == 0 {
-                    ch = ' '
-                }
-                // Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
-                if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
-                    fg = ui.Color(int32(fg) + 8)
-                }
-                style := normalStyle
-                if fg != ui.ColorDefault { style = style.Foreground(fg) }
-                if bg != ui.ColorDefault { style = style.Background(bg) }
-                if attrs != ui.AttrNone {
-                    fg0, bg0, _ := style.Decompose()
-                    style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
-                }
-                // Determine display width to keep emulator columns aligned (e.g., emoji)
-                w := runeDisplayWidth(ch)
-                if w < 1 { w = 1 }
-                e.screen.SetContent(x, screenY, ch, nil, style)
-                if w == 2 {
-                    // Paint the trailing cell for double-width glyphs with same style
-                    e.screen.SetContent(x+1, screenY, ' ', nil, style)
-                }
-                x += w
-                col += w
-            }
-            return
-        }
-    }
+	// Terminal/internal buffers: draw using terminal emulator per-cell styles (regardless of mode)
+	if e.buffer != nil && e.buffer.IsInternal {
+		if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+			// Draw only the wrapped segment using terminal styles; iterate runes to preserve UTF-8
+			x := startX
+			col := 0
+			for _, ch := range wl.Text {
+				emuRow := lineIndex
+				if ts.Banner != "" {
+					emuRow = lineIndex - 1
+				}
+				var fg, bg ui.Color
+				var attrs ui.AttrMask
+				if emuRow >= 0 {
+					fg, bg, attrs = ts.term.StyleAtGlobal(col, emuRow)
+				} else {
+					fg, bg, attrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
+				}
+				if ch == 0 {
+					ch = ' '
+				}
+				// Upgrade basic 8-color foreground to bright when bold is set (common terminal behavior)
+				if attrs&ui.AttrBold != 0 && fg >= ui.ColorBlack && fg <= ui.ColorWhite {
+					fg = ui.Color(int32(fg) + 8)
+				}
+				style := normalStyle
+				if fg != ui.ColorDefault {
+					style = style.Foreground(fg)
+				}
+				if bg != ui.ColorDefault {
+					style = style.Background(bg)
+				}
+				if attrs != ui.AttrNone {
+					fg0, bg0, _ := style.Decompose()
+					style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
+				}
+				// Determine display width to keep emulator columns aligned (e.g., emoji)
+				w := runeDisplayWidth(ch)
+				if w < 1 {
+					w = 1
+				}
+				e.screen.SetContent(x, screenY, ch, nil, style)
+				if w == 2 {
+					// Paint the trailing cell for double-width glyphs with same style
+					e.screen.SetContent(x+1, screenY, ' ', nil, style)
+				}
+				x += w
+				col += w
+			}
+			return
+		}
+	}
 
-    // If no highlighter, draw without syntax highlighting
+	// If no highlighter, draw without syntax highlighting
 	if e.highlighter == nil || !e.buffer.HasFile() {
 		x := startX
 		// Draw the wrapped segment
 		segmentOffset := lineStartOffset + wl.StartChar
 		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
 
-        // Fill rest of line if we have background
-        if hasBg {
-            width, _ := e.screen.Size()
-            virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-            
-            for i := x; i < width; i++ {
-                fillStyle := normalStyle
-                
-                // Check if this position has a virtual cursor beyond the end of line
-                hasVirtualCursor := false
-                if lineIndex >= 0 {
-                    // Calculate the character position in the line for this screen position
-                    textColumn := i - e.buffer.LineNumberWidth
-                    charPosInLine := textColumn
-                    for _, vc := range e.virtualCursors {
-                        if vc.Y == lineIndex && vc.X == charPosInLine {
-                            hasVirtualCursor = true
-                            break
-                        }
-                    }
-                }
-                
-                // Apply virtual cursor style if needed
-                if hasVirtualCursor {
-                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-                }
-                
-                e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-            }
-        } else {
+		// Fill rest of line if we have background
+		if hasBg {
+			width, _ := e.screen.Size()
+			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+
+			for i := x; i < width; i++ {
+				fillStyle := normalStyle
+
+				// Check if this position has a virtual cursor beyond the end of line
+				hasVirtualCursor := false
+				if lineIndex >= 0 {
+					// Calculate the character position in the line for this screen position
+					textColumn := i - e.buffer.LineNumberWidth
+					charPosInLine := textColumn
+					for _, vc := range e.virtualCursors {
+						if vc.Y == lineIndex && vc.X == charPosInLine {
+							hasVirtualCursor = true
+							break
+						}
+					}
+				}
+
+				// Apply virtual cursor style if needed
+				if hasVirtualCursor {
+					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+				}
+
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			}
+		} else {
 			// Even if no background fill, we still need to render virtual cursors beyond end of line
 			width, _ := e.screen.Size()
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-			
+
 			for i := x; i < width; i++ {
 				// Check if this position has a virtual cursor beyond the end of line
 				hasVirtualCursor := false
@@ -696,7 +708,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 						}
 					}
 				}
-				
+
 				// Render virtual cursor if needed
 				if hasVirtualCursor {
 					fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
@@ -716,40 +728,40 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		segmentOffset := lineStartOffset + wl.StartChar
 		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
 
-        // Fill rest of line
-        if hasBg {
-            width, _ := e.screen.Size()
-            virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-            
-            for i := x; i < width; i++ {
-                fillStyle := normalStyle
-                
-                // Check if this position has a virtual cursor beyond the end of line
-                hasVirtualCursor := false
-                if lineIndex >= 0 {
-                    // Calculate the character position in the line for this screen position
-                    textColumn := i - e.buffer.LineNumberWidth
-                    charPosInLine := textColumn
-                    for _, vc := range e.virtualCursors {
-                        if vc.Y == lineIndex && vc.X == charPosInLine {
-                            hasVirtualCursor = true
-                            break
-                        }
-                    }
-                }
-                
-                // Apply virtual cursor style if needed
-                if hasVirtualCursor {
-                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-                }
-                
-                e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
-            }
-        } else {
+		// Fill rest of line
+		if hasBg {
+			width, _ := e.screen.Size()
+			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
+
+			for i := x; i < width; i++ {
+				fillStyle := normalStyle
+
+				// Check if this position has a virtual cursor beyond the end of line
+				hasVirtualCursor := false
+				if lineIndex >= 0 {
+					// Calculate the character position in the line for this screen position
+					textColumn := i - e.buffer.LineNumberWidth
+					charPosInLine := textColumn
+					for _, vc := range e.virtualCursors {
+						if vc.Y == lineIndex && vc.X == charPosInLine {
+							hasVirtualCursor = true
+							break
+						}
+					}
+				}
+
+				// Apply virtual cursor style if needed
+				if hasVirtualCursor {
+					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+				}
+
+				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			}
+		} else {
 			// Even if no background fill, we still need to render virtual cursors beyond end of line
 			width, _ := e.screen.Size()
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-			
+
 			for i := x; i < width; i++ {
 				// Check if this position has a virtual cursor beyond the end of line
 				hasVirtualCursor := false
@@ -763,7 +775,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 						}
 					}
 				}
-				
+
 				// Render virtual cursor if needed
 				if hasVirtualCursor {
 					fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
@@ -774,8 +786,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		return
 	}
 
-
-    // Draw with syntax highlighting, but only for the wrapped segment
+	// Draw with syntax highlighting, but only for the wrapped segment
 	x := startX
 	pos := wl.StartChar
 
@@ -798,7 +809,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			}
 			if endPos > pos {
 				text := originalLine[pos:endPos]
-				x += e.drawText(x, screenY, normalStyle, text, lineStartOffset + pos, searchMatches, lineIndex, pos, trailingStart)
+				x += e.drawText(x, screenY, normalStyle, text, lineStartOffset+pos, searchMatches, lineIndex, pos, trailingStart)
 				pos = endPos
 			}
 		}
@@ -821,7 +832,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 					tokenStyle = tokenStyle.Background(lineBg)
 				}
 
-				x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset + tokenStart, searchMatches, lineIndex, tokenStart, trailingStart)
+				x += e.drawText(x, screenY, tokenStyle, tokenText, lineStartOffset+tokenStart, searchMatches, lineIndex, tokenStart, trailingStart)
 				pos = tokenEnd
 			}
 		}
@@ -830,18 +841,18 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	// Draw any remaining text with normal style
 	if pos < wl.EndChar {
 		text := originalLine[pos:wl.EndChar]
-		x += e.drawText(x, screenY, normalStyle, text, lineStartOffset + pos, searchMatches, lineIndex, pos, trailingStart)
+		x += e.drawText(x, screenY, normalStyle, text, lineStartOffset+pos, searchMatches, lineIndex, pos, trailingStart)
 	}
 
-    // Fill rest of line if we have background
+	// Fill rest of line if we have background
 	if hasBg {
 		width, _ := e.screen.Size()
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-		
+
 		for i := x; i < width; i++ {
 			fillStyle := normalStyle
-			
+
 			// Check if this column is a ruler position
 			textColumn := i - e.buffer.LineNumberWidth
 			for _, rulerPos := range e.config.VerticalRulers {
@@ -850,7 +861,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 					break
 				}
 			}
-			
+
 			// Check if this position has a virtual cursor beyond the end of line
 			hasVirtualCursor := false
 			if lineIndex >= 0 {
@@ -863,41 +874,41 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 					}
 				}
 
-    // Special-case: zero-length diagnostic at end-of-line (e.g., missing semicolon)
-    // When a diagnostic range starts and ends at EOL, there are no characters to paint.
-    // Paint the single cell immediately after the last character of the final wrapped segment.
-    if e.buffer != nil && len(e.buffer.Diagnostics) > 0 && wl.EndChar == len(originalLine) {
-        if diag, ok := e.buffer.GetDiagnosticForLine(lineIndex + 1); ok {
-            if (diag.Severity == "error" || diag.Severity == "warning") && diag.EndChar <= diag.StartChar && diag.StartChar >= len(originalLine) {
-                // Use the current x position which is just after the drawn content of this segment
-                width, _ := e.screen.Size()
-                if x >= startX && x < width {
-                    var diagStyle ui.Style
-                    if diag.Severity == "error" {
-                        diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError)
-                    } else {
-                        diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning)
-                    }
-                    markerStyle := theme.ApplyBackgroundStyle(normalStyle, diagStyle)
-                    e.screen.SetContent(x, screenY, ' ', nil, markerStyle)
-                }
-            }
-        }
-    }
+				// Special-case: zero-length diagnostic at end-of-line (e.g., missing semicolon)
+				// When a diagnostic range starts and ends at EOL, there are no characters to paint.
+				// Paint the single cell immediately after the last character of the final wrapped segment.
+				if e.buffer != nil && len(e.buffer.Diagnostics) > 0 && wl.EndChar == len(originalLine) {
+					if diag, ok := e.buffer.GetDiagnosticForLine(lineIndex + 1); ok {
+						if (diag.Severity == "error" || diag.Severity == "warning") && diag.EndChar <= diag.StartChar && diag.StartChar >= len(originalLine) {
+							// Use the current x position which is just after the drawn content of this segment
+							width, _ := e.screen.Size()
+							if x >= startX && x < width {
+								var diagStyle ui.Style
+								if diag.Severity == "error" {
+									diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticError)
+								} else {
+									diagStyle = e.config.Theme.GetStyle(e.config.Theme.DiagnosticWarning)
+								}
+								markerStyle := theme.ApplyBackgroundStyle(normalStyle, diagStyle)
+								e.screen.SetContent(x, screenY, ' ', nil, markerStyle)
+							}
+						}
+					}
+				}
 			}
-			
+
 			// Apply virtual cursor style if needed
 			if hasVirtualCursor {
 				fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 			}
-			
+
 			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 		}
 	} else {
 		// Even if no background fill, we still need to render virtual cursors beyond end of line
 		width, _ := e.screen.Size()
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-		
+
 		for i := x; i < width; i++ {
 			// Check if this position has a virtual cursor beyond the end of line
 			hasVirtualCursor := false
@@ -911,7 +922,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 					}
 				}
 			}
-			
+
 			// Render virtual cursor if needed
 			if hasVirtualCursor {
 				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
@@ -930,8 +941,8 @@ func (e *Editor) drawContext() {
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
 
-    // Use cached line number width from buffer
-    lineNumberWidth := e.buffer.LineNumberWidth
+	// Use cached line number width from buffer
+	lineNumberWidth := e.buffer.LineNumberWidth
 
 	// Get screen width
 	width, _ := e.screen.Size()
@@ -971,118 +982,118 @@ func (e *Editor) drawEditor() {
 	// Use cached line number width from buffer
 	lineNumberWidth := e.buffer.LineNumberWidth
 
-    // Clear the entire screen once
-    e.screen.Clear()
+	// Clear the entire screen once
+	e.screen.Clear()
 
-    // Update context if needed
-    e.updateContext()
+	// Update context if needed
+	e.updateContext()
 
 	// Get screen dimensions
 	width, _ := e.screen.Size()
 	contentStartY := e.getContentStartY()
 
-    // Calculate wrapped lines
-    wrappedLines := e.CalculateWrappedLines()
+	// Calculate wrapped lines
+	wrappedLines := e.CalculateWrappedLines()
 
-    // Prepare iterator reuse across the entire visible region
-    var cachedIter *buffer.BufferIterator
-    cachedIterLine := -1
-    if len(wrappedLines) > 0 {
-        firstLogical := wrappedLines[0].LogicalLineNum
-        cachedIter = buffer.NewBufferIteratorAtLine(e.buffer, firstLogical)
-        cachedIterLine = cachedIter.LineNumber()
-    }
+	// Prepare iterator reuse across the entire visible region
+	var cachedIter *buffer.BufferIterator
+	cachedIterLine := -1
+	if len(wrappedLines) > 0 {
+		firstLogical := wrappedLines[0].LogicalLineNum
+		cachedIter = buffer.NewBufferIteratorAtLine(e.buffer, firstLogical)
+		cachedIterLine = cachedIter.LineNumber()
+	}
 
-    // Draw each wrapped line
-    for i, wl := range wrappedLines {
+	// Draw each wrapped line
+	for i, wl := range wrappedLines {
 		screenY := contentStartY + i
 
-        // First, fill the entire line with the normal background
-        rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
-        for x := 0; x < width; x++ {
-            fillStyle := normalStyle
-            textColumn := x - e.buffer.LineNumberWidth
-            for _, rulerPos := range e.config.VerticalRulers {
-                if textColumn == rulerPos {
-                    fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-                    break
-                }
-            }
-            e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
-        }
+		// First, fill the entire line with the normal background
+		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+		for x := 0; x < width; x++ {
+			fillStyle := normalStyle
+			textColumn := x - e.buffer.LineNumberWidth
+			for _, rulerPos := range e.config.VerticalRulers {
+				if textColumn == rulerPos {
+					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
+					break
+				}
+			}
+			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
+		}
 
-        // Draw line number only for first visual line
-        if wl.IsFirstLine {
+		// Draw line number only for first visual line
+		if wl.IsFirstLine {
 			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1
-            // Draw line number with standard line number style
+			// Draw line number with standard line number style
 			// Compute digit area width (exclude 2 indicator columns and 1 space padding)
 			digitsWidth := lineNumberWidth - 3
 			if digitsWidth < 1 {
 				digitsWidth = 1
 			}
 			lineNumStr := fmt.Sprintf("%*d", digitsWidth, lineNum)
-            // Fill entire line number area with the standard background
+			// Fill entire line number area with the standard background
 			for x := 0; x < lineNumberWidth; x++ {
-                e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
+				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
 			}
 			// Draw the line number text starting at column 0
-            e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
-            // Draw 1 space padding after digits
+			e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
+			// Draw 1 space padding after digits
 			padX := digitsWidth
 			if padX < lineNumberWidth {
-                e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
-            }
+				e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
+			}
 
-            // Draw git change indicators in the first gutter column
-            e.drawGutterGitIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
-            // Draw diagnostics in the second gutter column
-            e.drawGutterDiagnosticsIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
-        } else {
+			// Draw git change indicators in the first gutter column
+			e.drawGutterGitIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+			// Draw diagnostics in the second gutter column
+			e.drawGutterDiagnosticsIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+		} else {
 			// Fill line number area with spaces for wrapped lines
 			for x := 0; x < lineNumberWidth; x++ {
 				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
 			}
 		}
 
-        // Get iterator for this logical line (reuse, advance with Next when needed)
-        var iter *buffer.BufferIterator
-        if cachedIter == nil {
-            // No wrapped lines or initialization failed; fall back to direct creation
-            iter = buffer.NewBufferIteratorAtLine(e.buffer, wl.LogicalLineNum)
-            cachedIter = iter
-            cachedIterLine = wl.LogicalLineNum
-        } else {
-            // Advance cached iterator to requested logical line
-            for cachedIterLine < wl.LogicalLineNum {
-                cachedIter = cachedIter.Next()
-                cachedIterLine = cachedIter.LineNumber()
-            }
-            iter = cachedIter
-        }
+		// Get iterator for this logical line (reuse, advance with Next when needed)
+		var iter *buffer.BufferIterator
+		if cachedIter == nil {
+			// No wrapped lines or initialization failed; fall back to direct creation
+			iter = buffer.NewBufferIteratorAtLine(e.buffer, wl.LogicalLineNum)
+			cachedIter = iter
+			cachedIterLine = wl.LogicalLineNum
+		} else {
+			// Advance cached iterator to requested logical line
+			for cachedIterLine < wl.LogicalLineNum {
+				cachedIter = cachedIter.Next()
+				cachedIterLine = cachedIter.LineNumber()
+			}
+			iter = cachedIter
+		}
 		if !iter.IsEOF() {
-            // Draw the wrapped line segment
-            e.drawWrappedLine(iter, wl, lineNumberWidth, screenY)
+			// Draw the wrapped line segment
+			e.drawWrappedLine(iter, wl, lineNumberWidth, screenY)
 		}
 	}
 
-    // Fill remaining screen lines for this window region.
-    // Previously we only drew tildes in the gutter and left the content area
-    // untouched, which could leave stale cells when rendering into a sub-screen
-    // (right window) after a full-screen draw. Paint the entire line background
-    // first, then overlay the tildes in the gutter to match typical editor UX.
-    visibleHeight := e.getVisibleHeight()
-    // No vertical ruler application in this background pass to avoid token style skew
-    for i := len(wrappedLines); i < visibleHeight; i++ {
-        screenY := contentStartY + i
-        // Fill the whole line with normal background only (no per-column rulers here)
-        for x := 0; x < width; x++ {
-            e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
-        }
-        // Draw the tildes in the gutter area
-        for x := 0; x < lineNumberWidth; x++ {
-            e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
-        }
-    }
+	// Fill remaining screen lines for this window region.
+	// Previously we only drew tildes in the gutter and left the content area
+	// untouched, which could leave stale cells when rendering into a sub-screen
+	// (right window) after a full-screen draw. Paint the entire line background
+	// first, then overlay the tildes in the gutter to match typical editor UX.
+	visibleHeight := e.getVisibleHeight()
+	// No vertical ruler application in this background pass to avoid token style skew
+	for i := len(wrappedLines); i < visibleHeight; i++ {
+		screenY := contentStartY + i
+		// Fill the whole line with normal background only (no per-column rulers here)
+		for x := 0; x < width; x++ {
+			e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
+		}
+		// Draw the tildes in the gutter area
+		for x := 0; x < lineNumberWidth; x++ {
+			e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
+		}
+	}
 }
 
 func (e *Editor) drawStatusBar() {
@@ -1117,7 +1128,7 @@ func (e *Editor) drawStatusBar() {
 		modeStyle := statusBarStyle
 		modeStyle.Fg, modeStyle.Bg = modeStyle.Bg, modeStyle.Fg // Invert colors
 
-        modeText := " NORMAL "
+		modeText := " NORMAL "
 		if e.mode == commands.InsertMode {
 			modeText = " INSERT "
 		} else if e.mode == commands.VisualMode {
@@ -1126,8 +1137,8 @@ func (e *Editor) drawStatusBar() {
 			modeText = " VISUAL LINE "
 		} else if e.mode == commands.CursorMode {
 			modeText = " CURSOR "
-        } else if e.mode == commands.TerminalMode {
-            modeText = " TERMINAL "
+		} else if e.mode == commands.TerminalMode {
+			modeText = " TERMINAL "
 		} else if e.mode == commands.NormalMode && e.temporaryNormal {
 			modeText = " NORMAL (i) "
 		}
@@ -1147,7 +1158,7 @@ func (e *Editor) drawStatusBar() {
 			// Show empty window indicator
 			x += e.drawText(x, statusBarY, statusBarStyle, "[empty window]", 0, nil, -1, 0, -1)
 		}
-		
+
 		// Add git branch and change counts (only if buffer exists)
 		if e.buffer != nil && e.buffer.GitBranch != "" {
 			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  %s", e.buffer.GitBranch), 0, nil, -1, 0, -1)
@@ -1169,7 +1180,7 @@ func (e *Editor) drawStatusBar() {
 		if e.buffer != nil && e.buffer.Diagnostics != nil && len(e.buffer.Diagnostics) > 0 {
 			errorCount := 0
 			warningCount := 0
-			
+
 			// Count errors and warnings
 			for _, diag := range e.buffer.Diagnostics {
 				switch diag.Severity {
@@ -1179,11 +1190,11 @@ func (e *Editor) drawStatusBar() {
 					warningCount++
 				}
 			}
-			
+
 			// Show diagnostic counts with colored circles
 			if errorCount > 0 || warningCount > 0 {
 				x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space before diagnostics
-				
+
 				// Red circle for errors
 				if errorCount > 0 {
 					errorStyle := statusBarStyle
@@ -1191,7 +1202,7 @@ func (e *Editor) drawStatusBar() {
 					x += e.drawText(x, statusBarY, errorStyle, "●", 0, nil, -1, 0, -1)
 					x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", errorCount), 0, nil, -1, 0, -1)
 				}
-				
+
 				// Yellow circle for warnings (with space if we have both)
 				if warningCount > 0 {
 					if errorCount > 0 {
@@ -1241,15 +1252,15 @@ func (e *Editor) drawStatusBar() {
 		// Add count prefix indicator if building a numeric prefix
 		if e.countPrefix != "" {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
-			
+
 			// Use inverted colors for count prefix
 			countStyle := statusBarStyle
 			countStyle.Fg, countStyle.Bg = countStyle.Bg, countStyle.Fg
-			
+
 			countText := fmt.Sprintf(" %s ", e.countPrefix)
 			x += e.drawText(x, statusBarY, countStyle, countText, 0, nil, -1, 0, -1)
 		}
-		
+
 		// Add references indicator if there's an active references buffer
 		if e.currentReferencesBuffer != nil && len(e.currentReferencesBuffer.References) > 0 {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
@@ -1335,7 +1346,7 @@ func (e *Editor) drawStatusBar() {
 				} else {
 					indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
 				}
-				
+
 				lineIndent := e.getCurrentLineIndentInfo(e.buffer.CursorIterator)
 				lineIndentDisplay := ""
 				if lineIndent.Level > 0 {
@@ -1346,7 +1357,7 @@ func (e *Editor) drawStatusBar() {
 				} else {
 					lineIndentDisplay = "L0"
 				}
-				
+
 				x += e.drawText(x, statusBarY, statusBarStyle, indentInfo+"  ", 0, nil, -1, 0, -1)
 				x += e.drawText(x, statusBarY, statusBarStyle, lineIndentDisplay+"  ", 0, nil, -1, 0, -1)
 
@@ -1365,7 +1376,7 @@ func (e *Editor) drawStatusBar() {
 					currentLine = e.buffer.CursorIterator.Line()
 				}
 				lineLength := len(currentLine)
-				
+
 				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("%d", currentLineNum), 0, nil, -1, 0, -1)
 				x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", totalLines), 0, nil, -1, 0, -1)
 				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(":%d", visualCol), 0, nil, -1, 0, -1)
@@ -1378,97 +1389,97 @@ func (e *Editor) drawStatusBar() {
 
 // drawErrorLine renders the error message above the status bar
 func (e *Editor) drawErrorLine() {
-    width, _ := e.screen.Size()
+	width, _ := e.screen.Size()
 
-    // Transient info banner has highest priority and persists until next key press
-    if e.transientInfoActive && e.transientInfoMessage != "" {
-        bannerY := e.getStatusBarY() - 1
-        style := e.config.Theme.GetStyle(e.config.Theme.NotificationInfo)
-        for i := 0; i < width; i++ {
-            e.screen.SetContent(i, bannerY, ' ', nil, style)
-        }
-        e.drawText(0, bannerY, style, " "+e.transientInfoMessage+" ", 0, nil, -1, 0, -1)
-        return
-    }
+	// Transient info banner has highest priority and persists until next key press
+	if e.transientInfoActive && e.transientInfoMessage != "" {
+		bannerY := e.getStatusBarY() - 1
+		style := e.config.Theme.GetStyle(e.config.Theme.NotificationInfo)
+		for i := 0; i < width; i++ {
+			e.screen.SetContent(i, bannerY, ' ', nil, style)
+		}
+		e.drawText(0, bannerY, style, " "+e.transientInfoMessage+" ", 0, nil, -1, 0, -1)
+		return
+	}
 
-    // Show temporary banners on top (override diagnostics)
-    if currentMsg, severity := e.errorManager.GetCurrentBanner(); currentMsg != "" {
-        bannerY := e.getStatusBarY() - 1
-        var style ui.Style
-        switch severity {
-        case "info":
-            style = e.config.Theme.GetStyle(e.config.Theme.NotificationInfo)
-        default:
-            style = e.config.Theme.GetStyle(e.config.Theme.NotificationError)
-        }
-        for i := 0; i < width; i++ {
-            e.screen.SetContent(i, bannerY, ' ', nil, style)
-        }
-        e.drawText(0, bannerY, style, " "+currentMsg+" ", 0, nil, -1, 0, -1)
-        return
-    }
+	// Show temporary banners on top (override diagnostics)
+	if currentMsg, severity := e.errorManager.GetCurrentBanner(); currentMsg != "" {
+		bannerY := e.getStatusBarY() - 1
+		var style ui.Style
+		switch severity {
+		case "info":
+			style = e.config.Theme.GetStyle(e.config.Theme.NotificationInfo)
+		default:
+			style = e.config.Theme.GetStyle(e.config.Theme.NotificationError)
+		}
+		for i := 0; i < width; i++ {
+			e.screen.SetContent(i, bannerY, ' ', nil, style)
+		}
+		e.drawText(0, bannerY, style, " "+currentMsg+" ", 0, nil, -1, 0, -1)
+		return
+	}
 
-    // Otherwise, show diagnostic for cursor line persistently (only if buffer exists)
-    if e.buffer != nil {
-        cursorLine := e.buffer.CursorIterator.LineNumber() + 1
-        if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
-        var style ui.Style
-        switch diag.Severity {
-        case "error":
-            style = e.config.Theme.GetStyle(e.config.Theme.Normal)
-            style.Bg = ui.ColorRed
-            style.Fg = ui.ColorWhite
-        case "warning":
-            style = e.config.Theme.GetStyle(e.config.Theme.Normal)
-            style.Bg = ui.ColorYellow
-            style.Fg = ui.ColorBlack
-        default:
-            return
-        }
-        
-        // Split diagnostic message by newlines and render each line
-        message := strings.ReplaceAll(diag.Message, "\r", "") // Remove carriage returns
-        allLines := strings.Split(message, "\n")
-        
-        // Filter out empty lines
-        var lines []string
-        for _, line := range allLines {
-            cleanLine := strings.TrimSpace(line)
-            if cleanLine != "" {
-                lines = append(lines, cleanLine)
-            }
-        }
-        
-        // Limit to reasonable number of lines to avoid taking up too much screen space
-        maxLines := 3
-        if len(lines) > maxLines {
-            lines = lines[:maxLines]
-            // Add truncation indicator to last line
-            if len(lines) > 0 {
-                lines[len(lines)-1] = lines[len(lines)-1] + "..."
-            }
-        }
-        
-        // Render each line, starting from the bottom and working up
-        statusBarY := e.getStatusBarY()
-        for i, line := range lines {
-            bannerY := statusBarY - len(lines) + i
-            
-            // Fill the entire line with background
-            for j := 0; j < width; j++ {
-                e.screen.SetContent(j, bannerY, ' ', nil, style)
-            }
-            
-            // Clean the line by collapsing multiple spaces
-            cleanLine := line
-            for strings.Contains(cleanLine, "  ") {
-                cleanLine = strings.ReplaceAll(cleanLine, "  ", " ")
-            }
-            
-            e.drawText(0, bannerY, style, " "+cleanLine+" ", 0, nil, -1, 0, -1)
-        }
-        }
-    }
+	// Otherwise, show diagnostic for cursor line persistently (only if buffer exists)
+	if e.buffer != nil {
+		cursorLine := e.buffer.CursorIterator.LineNumber() + 1
+		if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+			var style ui.Style
+			switch diag.Severity {
+			case "error":
+				style = e.config.Theme.GetStyle(e.config.Theme.Normal)
+				style.Bg = ui.ColorRed
+				style.Fg = ui.ColorWhite
+			case "warning":
+				style = e.config.Theme.GetStyle(e.config.Theme.Normal)
+				style.Bg = ui.ColorYellow
+				style.Fg = ui.ColorBlack
+			default:
+				return
+			}
+
+			// Split diagnostic message by newlines and render each line
+			message := strings.ReplaceAll(diag.Message, "\r", "") // Remove carriage returns
+			allLines := strings.Split(message, "\n")
+
+			// Filter out empty lines
+			var lines []string
+			for _, line := range allLines {
+				cleanLine := strings.TrimSpace(line)
+				if cleanLine != "" {
+					lines = append(lines, cleanLine)
+				}
+			}
+
+			// Limit to reasonable number of lines to avoid taking up too much screen space
+			maxLines := 3
+			if len(lines) > maxLines {
+				lines = lines[:maxLines]
+				// Add truncation indicator to last line
+				if len(lines) > 0 {
+					lines[len(lines)-1] = lines[len(lines)-1] + "..."
+				}
+			}
+
+			// Render each line, starting from the bottom and working up
+			statusBarY := e.getStatusBarY()
+			for i, line := range lines {
+				bannerY := statusBarY - len(lines) + i
+
+				// Fill the entire line with background
+				for j := 0; j < width; j++ {
+					e.screen.SetContent(j, bannerY, ' ', nil, style)
+				}
+
+				// Clean the line by collapsing multiple spaces
+				cleanLine := line
+				for strings.Contains(cleanLine, "  ") {
+					cleanLine = strings.ReplaceAll(cleanLine, "  ", " ")
+				}
+
+				e.drawText(0, bannerY, style, " "+cleanLine+" ", 0, nil, -1, 0, -1)
+			}
+		}
+	}
 }
 
 // drawSignature renders the function signature above the status bar
@@ -1477,7 +1488,7 @@ func (e *Editor) drawSignature() {
 	if e.buffer == nil {
 		return
 	}
-	
+
 	LL.Trace("Drawing signature %v", e.buffer.CurrentSignature)
 	if e.buffer.CurrentSignature == nil {
 		return
@@ -1641,60 +1652,59 @@ func min(a, b int) int {
 }
 
 func max(a, b int) int {
-    if a > b {
-        return a
-    }
-    return b
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // drawEmptyWindow renders an empty window with visible boundaries
 func (e *Editor) drawEmptyWindow(screen Screen, isActive bool) {
-    width, height := screen.Size()
-    
-    // Get styles for empty window
-    normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-    borderStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
-    
-    // Fill the entire window area with normal background
-    for y := 0; y < height; y++ {
-        for x := 0; x < width; x++ {
-            screen.SetContent(x, y, ' ', nil, normalStyle)
-        }
-    }
-    
-    // Draw right border for window separation (vertical line)
-    if width > 0 {
-        for y := 0; y < height; y++ {
-            screen.SetContent(width-1, y, '│', nil, borderStyle)
-        }
-    }
-    
-    // Draw a subtle indicator in the middle for empty window
-    if width > 10 && height > 5 {
-        centerX := width / 2
-        centerY := height / 2
-        
-        // Draw a small empty window indicator
-        text := "[empty]"
-        startX := centerX - len(text)/2
-        if startX >= 0 && startX+len(text) < width {
-            for i, ch := range text {
-                if startX+i < width-1 { // Don't overwrite the border
-                    screen.SetContent(startX+i, centerY, ch, nil, borderStyle)
-                }
-            }
-        }
-    }
-    
-    // Show cursor in center of empty window if it's active
-    if isActive && width > 2 && height > 0 {
-        centerX := width / 2
-        centerY := height / 2
-        // Position cursor to not overlap with border
-        if centerX >= width-1 {
-            centerX = width - 2
-        }
-        screen.ShowCursor(centerX, centerY)
-    }
-}
+	width, height := screen.Size()
 
+	// Get styles for empty window
+	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+	borderStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
+
+	// Fill the entire window area with normal background
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			screen.SetContent(x, y, ' ', nil, normalStyle)
+		}
+	}
+
+	// Draw right border for window separation (vertical line)
+	if width > 0 {
+		for y := 0; y < height; y++ {
+			screen.SetContent(width-1, y, '│', nil, borderStyle)
+		}
+	}
+
+	// Draw a subtle indicator in the middle for empty window
+	if width > 10 && height > 5 {
+		centerX := width / 2
+		centerY := height / 2
+
+		// Draw a small empty window indicator
+		text := "[empty]"
+		startX := centerX - len(text)/2
+		if startX >= 0 && startX+len(text) < width {
+			for i, ch := range text {
+				if startX+i < width-1 { // Don't overwrite the border
+					screen.SetContent(startX+i, centerY, ch, nil, borderStyle)
+				}
+			}
+		}
+	}
+
+	// Show cursor in center of empty window if it's active
+	if isActive && width > 2 && height > 0 {
+		centerX := width / 2
+		centerY := height / 2
+		// Position cursor to not overlap with border
+		if centerX >= width-1 {
+			centerX = width - 2
+		}
+		screen.ShowCursor(centerX, centerY)
+	}
+}

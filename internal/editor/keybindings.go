@@ -94,47 +94,47 @@ func (e *Editor) setupDefaultBindings() {
 	// Paragraph rewrapping in insert mode
 	e.registerKeyBinding(commands.InsertMode, "alt+q", "rewrap-paragraph")
 
-    // File operations
-    e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
-    // Open terminal
-    e.registerKeyBinding(commands.NormalMode, "space t", "term")
-    // Open terminal in a new window (right split)
-    e.registerKeyBinding(commands.NormalMode, "space T", "term-new-window")
+	// File operations
+	e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
+	// Open terminal
+	e.registerKeyBinding(commands.NormalMode, "space t", "term")
+	// Open terminal in a new window (right split)
+	e.registerKeyBinding(commands.NormalMode, "space T", "term-new-window")
 
-    // Buffer operations
+	// Buffer operations
 	e.registerKeyBinding(commands.NormalMode, "s b", "show-buffers")
 	e.registerKeyBinding(commands.NormalMode, "space space", "switch-to-previous-buffer")
 	e.registerKeyBinding(commands.NormalMode, "space n", "new-buffer")
 	e.registerKeyBinding(commands.NormalMode, "space x", "q")
 
-    // Window operations
-    e.registerKeyBinding(commands.NormalMode, "space v", "vsplit")
-    // Window selection: space 1..9 -> window 1..9
-    e.registerKeyBinding(commands.NormalMode, "space 1", "window-1")
-    e.registerKeyBinding(commands.NormalMode, "space 2", "window-2")
-    e.registerKeyBinding(commands.NormalMode, "space 3", "window-3")
-    e.registerKeyBinding(commands.NormalMode, "space 4", "window-4")
-    e.registerKeyBinding(commands.NormalMode, "space 5", "window-5")
-    e.registerKeyBinding(commands.NormalMode, "space 6", "window-6")
-    e.registerKeyBinding(commands.NormalMode, "space 7", "window-7")
-    e.registerKeyBinding(commands.NormalMode, "space 8", "window-8")
-    e.registerKeyBinding(commands.NormalMode, "space 9", "window-9")
-    e.registerKeyBinding(commands.NormalMode, "space o", "window-last")
-    e.registerKeyBinding(commands.NormalMode, "space tab", "window-next")
+	// Window operations
+	e.registerKeyBinding(commands.NormalMode, "space v", "vsplit")
+	// Window selection: space 1..9 -> window 1..9
+	e.registerKeyBinding(commands.NormalMode, "space 1", "window-1")
+	e.registerKeyBinding(commands.NormalMode, "space 2", "window-2")
+	e.registerKeyBinding(commands.NormalMode, "space 3", "window-3")
+	e.registerKeyBinding(commands.NormalMode, "space 4", "window-4")
+	e.registerKeyBinding(commands.NormalMode, "space 5", "window-5")
+	e.registerKeyBinding(commands.NormalMode, "space 6", "window-6")
+	e.registerKeyBinding(commands.NormalMode, "space 7", "window-7")
+	e.registerKeyBinding(commands.NormalMode, "space 8", "window-8")
+	e.registerKeyBinding(commands.NormalMode, "space 9", "window-9")
+	e.registerKeyBinding(commands.NormalMode, "space o", "window-last")
+	e.registerKeyBinding(commands.NormalMode, "space tab", "window-next")
 
-    // Move buffer between windows
-    e.registerKeyBinding(commands.NormalMode, "space w left", "move-buffer-left")
-    e.registerKeyBinding(commands.NormalMode, "space w right", "move-buffer-right")
-    e.registerKeyBinding(commands.NormalMode, "space w c", "move-buffer-center")
-    e.registerKeyBinding(commands.NormalMode, "space w x", "close-window")
+	// Move buffer between windows
+	e.registerKeyBinding(commands.NormalMode, "space w left", "move-buffer-left")
+	e.registerKeyBinding(commands.NormalMode, "space w right", "move-buffer-right")
+	e.registerKeyBinding(commands.NormalMode, "space w c", "move-buffer-center")
+	e.registerKeyBinding(commands.NormalMode, "space w x", "close-window")
 
 	// Symbol operations
 	e.registerKeyBinding(commands.NormalMode, "s w", "list-project-symbols")
 	e.registerKeyBinding(commands.NormalMode, "s d", "list-document-symbols")
 
 	// LSP operations
-    e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
-    e.registerKeyBinding(commands.NormalMode, "g space d", "go-to-definition-new-window")
+	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
+	e.registerKeyBinding(commands.NormalMode, "g space d", "go-to-definition-new-window")
 	e.registerKeyBinding(commands.NormalMode, "s s", "show-signature")
 	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 	e.registerKeyBinding(commands.NormalMode, "g e", "diagnostics")
@@ -194,7 +194,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "escape", "clear-search")
 	e.registerKeyBinding(commands.NormalMode, "*", "search-word-under-cursor")
 
-    // Visual modes (both character and line) - shared keybindings
+	// Visual modes (both character and line) - shared keybindings
 	visualModes := []commands.Mode{commands.VisualMode, commands.VisualLineMode}
 
 	// Exit visual mode
@@ -227,10 +227,10 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBindingForModes(visualModes, "> >", "indent-selection")
 	e.registerKeyBindingForModes(visualModes, "< <", "unindent-selection")
 
-    // Shift+Arrow: enter visual mode and extend selection
-    shiftArrowModes := []commands.Mode{commands.NormalMode, commands.InsertMode, commands.VisualMode, commands.VisualLineMode}
-    e.registerKeyBindingForModes(shiftArrowModes, "shift+left", "start-visual-left")
-    e.registerKeyBindingForModes(shiftArrowModes, "shift+right", "start-visual-right")
-    e.registerKeyBindingForModes(shiftArrowModes, "shift+up", "start-visual-up")
-    e.registerKeyBindingForModes(shiftArrowModes, "shift+down", "start-visual-down")
+	// Shift+Arrow: enter visual mode and extend selection
+	shiftArrowModes := []commands.Mode{commands.NormalMode, commands.InsertMode, commands.VisualMode, commands.VisualLineMode}
+	e.registerKeyBindingForModes(shiftArrowModes, "shift+left", "start-visual-left")
+	e.registerKeyBindingForModes(shiftArrowModes, "shift+right", "start-visual-right")
+	e.registerKeyBindingForModes(shiftArrowModes, "shift+up", "start-visual-up")
+	e.registerKeyBindingForModes(shiftArrowModes, "shift+down", "start-visual-down")
 }

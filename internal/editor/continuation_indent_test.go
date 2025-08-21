@@ -63,29 +63,28 @@ func TestContinuationIndentForFunctionArguments(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test editor with the initial content
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
-			
+
 			// Set cursor position
 			te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, tt.cursorLine)
 			te.buffer.CursorX = tt.cursorX
-			
+
 			// Get the current line
 			currentLine := te.buffer.CursorIterator.Line()
-			
+
 			// Calculate auto-indent
 			autoIndent := te.buffer.CalculateAutoIndent(currentLine, te.buffer.CursorX)
-			
-			
+
 			// Check the indent column
 			if autoIndent.Column != tt.expectedIndentColumn {
-				t.Errorf("%s: Expected indent column %d, got %d", 
+				t.Errorf("%s: Expected indent column %d, got %d",
 					tt.description, tt.expectedIndentColumn, autoIndent.Column)
 			}
-			
+
 			// Also verify the indent string length matches expected column
 			// (for space indentation)
 			if te.buffer.Indentation.Type == config.IndentSpaces {
 				if len(autoIndent.IndentStr) != tt.expectedIndentColumn {
-					t.Errorf("%s: Expected indent string length %d, got %d (string: %q)", 
+					t.Errorf("%s: Expected indent string length %d, got %d (string: %q)",
 						tt.description, tt.expectedIndentColumn, len(autoIndent.IndentStr), autoIndent.IndentStr)
 				}
 			}
@@ -99,28 +98,28 @@ func TestContinuationIndentWithEnter(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, `int main() {
     func(1,
          2,`)
-	
+
 	// Position cursor after "2,"
 	te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 2)
 	te.buffer.CursorX = 11
-	
+
 	// Press Enter (insert newline)
 	err := te.ExecuteCommand("insert-newline")
 	if err != nil {
 		t.Fatalf("Failed to insert newline: %v", err)
 	}
-	
+
 	// Check cursor position - should be indented to column 9
 	if te.buffer.CursorX != 9 {
 		t.Errorf("After Enter, expected cursor at column 9, got %d", te.buffer.CursorX)
 	}
-	
+
 	// Verify the content
 	expectedContent := `int main() {
     func(1,
          2,
          `
-	
+
 	actualContent := te.buffer.Rope.String()
 	if actualContent != expectedContent {
 		t.Errorf("Content mismatch.\nExpected:\n%q\nGot:\n%q", expectedContent, actualContent)

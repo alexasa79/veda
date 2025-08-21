@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 	"veda/internal/buffer"
 	"veda/internal/clipboard"
 	"veda/internal/commands"
@@ -17,7 +18,6 @@ import (
 	"veda/internal/syntax"
 	"veda/internal/ui"
 	"veda/internal/widgets"
-    "unicode/utf8"
 )
 
 var LL *log.Logger = log.NewLogger("EDITOR")
@@ -49,19 +49,19 @@ type AutoIndentInfo struct {
 
 // Editor represents the state of the text editor.
 type Editor struct {
-	screen          Screen
-	buffer          *buffer.Buffer // Current buffer
-	config          *config.Config
-	mode            commands.Mode
-	temporaryNormal bool // True when in temporary normal mode (Ctrl+O from insert)
-	commandLine     *widgets.CommandLineWidget
-	searchLine      *widgets.CommandLineWidget // For search mode (/)
-	proxyManager    *proxy.ProxyManager
-	commandRegistry *commands.CommandRegistry
-	keyMapper       *commands.KeyMapper
-    highlighter     *syntax.Highlighter
-    bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
-	perfTracker     *perf.TimeTracker
+	screen             Screen
+	buffer             *buffer.Buffer // Current buffer
+	config             *config.Config
+	mode               commands.Mode
+	temporaryNormal    bool // True when in temporary normal mode (Ctrl+O from insert)
+	commandLine        *widgets.CommandLineWidget
+	searchLine         *widgets.CommandLineWidget // For search mode (/)
+	proxyManager       *proxy.ProxyManager
+	commandRegistry    *commands.CommandRegistry
+	keyMapper          *commands.KeyMapper
+	highlighter        *syntax.Highlighter
+	bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
+	perfTracker        *perf.TimeTracker
 
 	// Buffer management
 	buffers        map[string]*buffer.Buffer // Map of file path to buffer
@@ -143,9 +143,9 @@ type Editor struct {
 	// Multiple cursors
 	virtualCursors []VirtualCursor // Additional cursors for multi-cursor editing
 
-    // Transient info banner (persists until next key press)
-    transientInfoMessage string
-    transientInfoActive  bool
+	// Transient info banner (persists until next key press)
+	transientInfoMessage string
+	transientInfoActive  bool
 
 	// Desired column for vertical cursor movement
 	desiredColumn int // Desired column position when moving up/down (-1 means unset)
@@ -208,41 +208,41 @@ type Editor struct {
 	lastRewrapChar  int // Character position where last rewrap was performed
 	lastRewrapIndex int // Index into VerticalRulers for last rewrap
 
-    // Bracketed paste state
-    inPasteMode bool // True while receiving bracketed paste content
-    // When true, the next line-wise paste should not auto-rebase indentation
-    skipAutoIndentForNextPaste bool
+	// Bracketed paste state
+	inPasteMode bool // True while receiving bracketed paste content
+	// When true, the next line-wise paste should not auto-rebase indentation
+	skipAutoIndentForNextPaste bool
 
-    // Remote directory cache: maps normalized working directory to file list
-    dirCache map[string][]proxy.FileInfo
+	// Remote directory cache: maps normalized working directory to file list
+	dirCache map[string][]proxy.FileInfo
 
-    // Windows management
-    windows      []*Window // When empty, single-window mode using e.buffer
-    activeWindow int       // Index of active window in windows slice
-    lastWindow   int       // Index of previously active window (-1 if none)
+	// Windows management
+	windows      []*Window // When empty, single-window mode using e.buffer
+	activeWindow int       // Index of active window in windows slice
+	lastWindow   int       // Index of previously active window (-1 if none)
 
-    // Window sizing preferences
-    minActiveWindowWidth int // Minimum width (columns) for the active window
+	// Window sizing preferences
+	minActiveWindowWidth int // Minimum width (columns) for the active window
 
-    // Terminal sessions per buffer (PTY via proxy)
-    terminalSessions map[string]*TerminalSessionState
+	// Terminal sessions per buffer (PTY via proxy)
+	terminalSessions map[string]*TerminalSessionState
 }
 
 // TerminalSessionState tracks a PTY-backed terminal attached to a buffer
 type TerminalSessionState struct {
-    SessionID  string
-    WorkingDir string
-    Cols       int
-    Rows       int
-    Closed     bool
-    ExitCode   *int
-    // Minimal emulator state for this session
-    term *TerminalEmulator
-    // Optional banner displayed above emulator content, not sent to PTY
-    Banner string
-    // Saved terminal cursor when switching to browse (Normal) mode
-    SavedCurX int
-    SavedCurY int
+	SessionID  string
+	WorkingDir string
+	Cols       int
+	Rows       int
+	Closed     bool
+	ExitCode   *int
+	// Minimal emulator state for this session
+	term *TerminalEmulator
+	// Optional banner displayed above emulator content, not sent to PTY
+	Banner string
+	// Saved terminal cursor when switching to browse (Normal) mode
+	SavedCurX int
+	SavedCurY int
 }
 
 // NewWithScreen creates a new Editor with a custom screen implementation.
@@ -273,65 +273,65 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 
 	// LSP channels will be removed - using goroutines on demand instead
 
-    editor := &Editor{
-		screen:            screen,
-		buffer:            initialBuffer,
-		config:            config,
-		mode:              commands.NormalMode,
-		commandLine:       commandLine,
-		renderingState:    NewRenderingState(),
-		searchLine:        searchLine,
-		proxyManager:      proxyManager,
-		commandRegistry:   commands.NewCommandRegistry(),
-		keyMapper:         commands.NewKeyMapper(),
-        highlighter:       syntax.NewHighlighter(),
-        bufferHighlighters: make(map[*buffer.Buffer]*syntax.Highlighter),
-		perfTracker:       perf.New(true, 60*time.Second), // Report every 60 seconds
-		buffers:           make(map[string]*buffer.Buffer),
-		bufferOrder:       []string{},
-		navHistory:        []NavigationEntry{},
-		maxNavHistory:     50,   // Keep last 50 navigation entries
-		showContext:       true, // Show context by default
-		contextCache:      nil,
-		contextLine:       -1,
-		asyncEvents:       make(chan events.Event, 100), // Buffered channel for async events
-		flashStartLine:    -1,                           // -1 means no flash
-		flashStartChar:    -1,
-		flashEndLine:      -1,
-		desiredColumn:     -1, // -1 means unset
-		currentMatch:      -1, // -1 means no current match
-		flashEndChar:      -1,
-		flashEndTime:      0,
+	editor := &Editor{
+		screen:               screen,
+		buffer:               initialBuffer,
+		config:               config,
+		mode:                 commands.NormalMode,
+		commandLine:          commandLine,
+		renderingState:       NewRenderingState(),
+		searchLine:           searchLine,
+		proxyManager:         proxyManager,
+		commandRegistry:      commands.NewCommandRegistry(),
+		keyMapper:            commands.NewKeyMapper(),
+		highlighter:          syntax.NewHighlighter(),
+		bufferHighlighters:   make(map[*buffer.Buffer]*syntax.Highlighter),
+		perfTracker:          perf.New(true, 60*time.Second), // Report every 60 seconds
+		buffers:              make(map[string]*buffer.Buffer),
+		bufferOrder:          []string{},
+		navHistory:           []NavigationEntry{},
+		maxNavHistory:        50,   // Keep last 50 navigation entries
+		showContext:          true, // Show context by default
+		contextCache:         nil,
+		contextLine:          -1,
+		asyncEvents:          make(chan events.Event, 100), // Buffered channel for async events
+		flashStartLine:       -1,                           // -1 means no flash
+		flashStartChar:       -1,
+		flashEndLine:         -1,
+		desiredColumn:        -1, // -1 means unset
+		currentMatch:         -1, // -1 means no current match
+		flashEndChar:         -1,
+		flashEndTime:         0,
 		transientInfoMessage: "",
 		transientInfoActive:  false,
-		referencesBuffers: make(map[string]*ReferencesBuffer),
+		referencesBuffers:    make(map[string]*ReferencesBuffer),
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
-		whitespaceStyle:  newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
-		workingDirectory: ".", // Default to current directory
-		asyncOperations:  make(map[string]bool),
-		lastSpinnerTime:  time.Now(),
-		connectionStatus: "",
-		errorManager:     NewErrorManager(),
-		completionMenu:   widgets.NewCompletionMenu(config.Theme),
-		keyHintsPopup:    widgets.NewKeyHintsPopup(config.Theme),
-		lastRewrapLine:   -1, // -1 means no previous rewrap
-		lastRewrapChar:   -1,
-        lastRewrapIndex:  0,
-        inPasteMode:      false,
-        dirCache:         make(map[string][]proxy.FileInfo),
-        windows:              nil,
-        activeWindow:         0,
-        lastWindow:           0,
-        minActiveWindowWidth: 110,
-        terminalSessions:     make(map[string]*TerminalSessionState),
+		whitespaceStyle:      newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
+		workingDirectory:     ".", // Default to current directory
+		asyncOperations:      make(map[string]bool),
+		lastSpinnerTime:      time.Now(),
+		connectionStatus:     "",
+		errorManager:         NewErrorManager(),
+		completionMenu:       widgets.NewCompletionMenu(config.Theme),
+		keyHintsPopup:        widgets.NewKeyHintsPopup(config.Theme),
+		lastRewrapLine:       -1, // -1 means no previous rewrap
+		lastRewrapChar:       -1,
+		lastRewrapIndex:      0,
+		inPasteMode:          false,
+		dirCache:             make(map[string][]proxy.FileInfo),
+		windows:              nil,
+		activeWindow:         0,
+		lastWindow:           0,
+		minActiveWindowWidth: 110,
+		terminalSessions:     make(map[string]*TerminalSessionState),
 	}
 
-    // Initialize windows with a single window for the initial buffer (always have a window)
-    editor.windows = []*Window{newWindow(initialBuffer)}
-    editor.activeWindow = 0
-    editor.recomputeWindowsLayout()
+	// Initialize windows with a single window for the initial buffer (always have a window)
+	editor.windows = []*Window{newWindow(initialBuffer)}
+	editor.activeWindow = 0
+	editor.recomputeWindowsLayout()
 
-    // Initialize local history
+	// Initialize local history
 	localHistory, err := NewLocalHistory()
 	if err != nil {
 		LL.Error("Failed to initialize local history: %v", err)
@@ -416,7 +416,7 @@ func (e *Editor) Run() {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-    // Event loop
+	// Event loop
 	for !e.shouldExit {
 		var ev events.Event
 
@@ -430,76 +430,76 @@ func (e *Editor) Run() {
 			// Got an async event
 		}
 
-        // Handle overlay events first
+		// Handle overlay events first
 		if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
 			// Always check for content updates (even without events)
 			e.renderingState.GetOverlay().CheckContentUpdates()
 
-            if ev != nil {
-                done, result := e.renderingState.GetOverlay().HandleEvent(ev)
-                if result == "__REFRESH__" {
-                    // Refresh current fuzzy list content from remote (bypass cache)
-                    // We need to identify if the active overlay is the file list. If so, trigger refresh.
-                    // Here we simply re-issue the directory listing request with useCache=false.
-                    if overlay := e.renderingState.GetOverlay(); overlay != nil {
-                        // Only handle refresh for FuzzyListOverlay
-                        if fuzzyOverlay, ok := overlay.(*FuzzyListOverlay); ok {
-                            // Create a new update channel and swap it in by creating a new overlay
-                            contentUpdateChan := make(chan []string, 1)
-                            // Kick off fresh request
-                            _ = e.startFuzzyFileListRefresh(contentUpdateChan)
-                            // Replace overlay with a new one that uses the same widget and new channel
-                            // Keep same widget instance so selection and text persist
-                            newOverlay := NewFuzzyListOverlay(fuzzyOverlay.widget, fuzzyOverlay.onTextChanged, contentUpdateChan)
-                            e.renderingState.SetOverlay(newOverlay)
-                        }
-                    }
-                }
-                if done {
-                    e.renderingState.CompleteOverlay(result)
-                    // Clear screen to remove overlay artifacts
-                    e.screen.Clear()
-                }
-            }
+			if ev != nil {
+				done, result := e.renderingState.GetOverlay().HandleEvent(ev)
+				if result == "__REFRESH__" {
+					// Refresh current fuzzy list content from remote (bypass cache)
+					// We need to identify if the active overlay is the file list. If so, trigger refresh.
+					// Here we simply re-issue the directory listing request with useCache=false.
+					if overlay := e.renderingState.GetOverlay(); overlay != nil {
+						// Only handle refresh for FuzzyListOverlay
+						if fuzzyOverlay, ok := overlay.(*FuzzyListOverlay); ok {
+							// Create a new update channel and swap it in by creating a new overlay
+							contentUpdateChan := make(chan []string, 1)
+							// Kick off fresh request
+							_ = e.startFuzzyFileListRefresh(contentUpdateChan)
+							// Replace overlay with a new one that uses the same widget and new channel
+							// Keep same widget instance so selection and text persist
+							newOverlay := NewFuzzyListOverlay(fuzzyOverlay.widget, fuzzyOverlay.onTextChanged, contentUpdateChan)
+							e.renderingState.SetOverlay(newOverlay)
+						}
+					}
+				}
+				if done {
+					e.renderingState.CompleteOverlay(result)
+					// Clear screen to remove overlay artifacts
+					e.screen.Clear()
+				}
+			}
 		} else {
 			// Handle normal editor events
-            if ev != nil {
-                // Measure end-to-end latency from event creation to handling start
-                if e.perfTracker != nil {
-                    age := time.Since(ev.When())
-                    // Bucket event age to a histogram-like series
-                    // Keep metric names simple to avoid unbounded labels
-                    start := time.Now().Add(-age)
-                    if age < 2*time.Millisecond {
-                        e.perfTracker.ReportSince("event.age.<2ms", start)
-                    } else if age < 5*time.Millisecond {
-                        e.perfTracker.ReportSince("event.age.<5ms", start)
-                    } else if age < 10*time.Millisecond {
-                        e.perfTracker.ReportSince("event.age.<10ms", start)
-                    } else if age < 20*time.Millisecond {
-                        e.perfTracker.ReportSince("event.age.<20ms", start)
-                    } else {
-                        e.perfTracker.ReportSince("event.age.>=20ms", start)
-                    }
-                }
+			if ev != nil {
+				// Measure end-to-end latency from event creation to handling start
+				if e.perfTracker != nil {
+					age := time.Since(ev.When())
+					// Bucket event age to a histogram-like series
+					// Keep metric names simple to avoid unbounded labels
+					start := time.Now().Add(-age)
+					if age < 2*time.Millisecond {
+						e.perfTracker.ReportSince("event.age.<2ms", start)
+					} else if age < 5*time.Millisecond {
+						e.perfTracker.ReportSince("event.age.<5ms", start)
+					} else if age < 10*time.Millisecond {
+						e.perfTracker.ReportSince("event.age.<10ms", start)
+					} else if age < 20*time.Millisecond {
+						e.perfTracker.ReportSince("event.age.<20ms", start)
+					} else {
+						e.perfTracker.ReportSince("event.age.>=20ms", start)
+					}
+				}
 
-                tHandle := e.perfTracker.Start()
-                e.handleEvent(ev)
-                e.perfTracker.ReportSince("handleEvent", tHandle)
-            }
+				tHandle := e.perfTracker.Start()
+				e.handleEvent(ev)
+				e.perfTracker.ReportSince("handleEvent", tHandle)
+			}
 		}
 
-        // Check if scrolling occurred
-        if !e.inPasteMode {
-            tScroll := e.perfTracker.Start()
-            e.scroll()
-            e.perfTracker.ReportSince("scroll", tScroll)
-        }
+		// Check if scrolling occurred
+		if !e.inPasteMode {
+			tScroll := e.perfTracker.Start()
+			e.scroll()
+			e.perfTracker.ReportSince("scroll", tScroll)
+		}
 
-        // Render the entire screen unless in paste mode
-        if !e.inPasteMode {
-            e.render()
-        }
+		// Render the entire screen unless in paste mode
+		if !e.inPasteMode {
+			e.render()
+		}
 	}
 }
 
@@ -510,133 +510,133 @@ func (e *Editor) render() {
 	// Clear expired flash highlight
 	e.clearFlashHighlight()
 
-    // Unified rendering for any number of windows (including single-window)
-    // Ensure there is at least one window to render into
-    if len(e.windows) == 0 {
-        // Create a default window covering the content area and attach current buffer
-        w := &Window{Buffer: e.buffer}
-        e.windows = []*Window{w}
-        e.activeWindow = 0
-        e.recomputeWindowsLayout()
-    }
+	// Unified rendering for any number of windows (including single-window)
+	// Ensure there is at least one window to render into
+	if len(e.windows) == 0 {
+		// Create a default window covering the content area and attach current buffer
+		w := &Window{Buffer: e.buffer}
+		e.windows = []*Window{w}
+		e.activeWindow = 0
+		e.recomputeWindowsLayout()
+	}
 
-    // Persist active window's state from the live buffer before drawing windows,
-    // so any cursor/scroll changes made by event handlers are not lost.
-    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-        if w := e.windows[e.activeWindow]; w != nil && e.buffer != nil && w.Buffer == e.buffer {
-            w.ViewLine = e.buffer.ViewIterator.LineNumber()
-            w.CursorLine = e.buffer.CursorIterator.LineNumber()
-            w.CursorX = e.buffer.CursorX
-        }
-    }
+	// Persist active window's state from the live buffer before drawing windows,
+	// so any cursor/scroll changes made by event handlers are not lost.
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		if w := e.windows[e.activeWindow]; w != nil && e.buffer != nil && w.Buffer == e.buffer {
+			w.ViewLine = e.buffer.ViewIterator.LineNumber()
+			w.CursorLine = e.buffer.CursorIterator.LineNumber()
+			w.CursorX = e.buffer.CursorX
+		}
+	}
 
-    // Draw each window using a windowScreen. Inactive windows are dimmed.
-    for i, win := range e.windows {
-        if win == nil {
-            continue
-        }
-        
-        // Handle empty windows (Buffer == nil)
-        if win.Buffer == nil {
-            dim := i != e.activeWindow
-            sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
-            e.drawEmptyWindow(sub, i == e.activeWindow)
-            continue
-        }
-        // Prepare sub-screen
-        dim := i != e.activeWindow
-        sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
+	// Draw each window using a windowScreen. Inactive windows are dimmed.
+	for i, win := range e.windows {
+		if win == nil {
+			continue
+		}
 
-        // Temporarily swap screen, buffer, and highlighter per window
-        realScreen := e.screen
-        realBuffer := e.buffer
-        realHighlighter := e.highlighter
-        if h, ok := e.bufferHighlighters[win.Buffer]; ok {
-            e.highlighter = h
-        } else {
-            h := syntax.NewHighlighter()
-            if win.Buffer.HasFile() {
-                h.SetLanguageFromFile(win.Buffer.FilePath)
-                h.ParseFull([]byte(win.Buffer.Rope.String()))
-            }
-            e.bufferHighlighters[win.Buffer] = h
-            e.highlighter = h
-        }
-        // Ensure highlighter is initialized for this buffer
-        if e.highlighter != nil && e.highlighter.GetTree() == nil && win.Buffer.HasFile() {
-            _ = e.highlighter.SetLanguageFromFile(win.Buffer.FilePath)
-            e.highlighter.ParseFull([]byte(win.Buffer.Rope.String()))
-        }
-        e.screen = sub
-        // Temporarily map editor-wide iterators/state from window's own view/cursor
-        // Save buffer iterators/X
-        savedView := win.Buffer.ViewIterator
-        savedCursor := win.Buffer.CursorIterator
-        savedX := win.Buffer.CursorX
-        // Apply window state
-        win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
-        win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
-        if win.Buffer.CursorIterator.IsEOF() {
-            win.Buffer.CursorIterator = buffer.NewBufferIterator(win.Buffer)
-        }
-        win.Buffer.CursorX = win.CursorX
-        e.buffer = win.Buffer
-        // Draw editor content area then context (to match legacy order)
-        e.drawEditor()
-        e.drawContext()
+		// Handle empty windows (Buffer == nil)
+		if win.Buffer == nil {
+			dim := i != e.activeWindow
+			sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
+			e.drawEmptyWindow(sub, i == e.activeWindow)
+			continue
+		}
+		// Prepare sub-screen
+		dim := i != e.activeWindow
+		sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
 
-        // Restore
-        // Persist any scroll/cursor changes back into the window state
-        win.ViewLine = win.Buffer.ViewIterator.LineNumber()
-        win.CursorLine = win.Buffer.CursorIterator.LineNumber()
-        win.CursorX = win.Buffer.CursorX
-        // Restore buffer iterators/X
-        win.Buffer.ViewIterator = savedView
-        win.Buffer.CursorIterator = savedCursor
-        win.Buffer.CursorX = savedX
-        e.highlighter = realHighlighter
-        e.screen = realScreen
-        e.buffer = realBuffer
-    }
-    t0 = e.perfTracker.ReportSince("drawWindows", t0)
+		// Temporarily swap screen, buffer, and highlighter per window
+		realScreen := e.screen
+		realBuffer := e.buffer
+		realHighlighter := e.highlighter
+		if h, ok := e.bufferHighlighters[win.Buffer]; ok {
+			e.highlighter = h
+		} else {
+			h := syntax.NewHighlighter()
+			if win.Buffer.HasFile() {
+				h.SetLanguageFromFile(win.Buffer.FilePath)
+				h.ParseFull([]byte(win.Buffer.Rope.String()))
+			}
+			e.bufferHighlighters[win.Buffer] = h
+			e.highlighter = h
+		}
+		// Ensure highlighter is initialized for this buffer
+		if e.highlighter != nil && e.highlighter.GetTree() == nil && win.Buffer.HasFile() {
+			_ = e.highlighter.SetLanguageFromFile(win.Buffer.FilePath)
+			e.highlighter.ParseFull([]byte(win.Buffer.Rope.String()))
+		}
+		e.screen = sub
+		// Temporarily map editor-wide iterators/state from window's own view/cursor
+		// Save buffer iterators/X
+		savedView := win.Buffer.ViewIterator
+		savedCursor := win.Buffer.CursorIterator
+		savedX := win.Buffer.CursorX
+		// Apply window state
+		win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
+		win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
+		if win.Buffer.CursorIterator.IsEOF() {
+			win.Buffer.CursorIterator = buffer.NewBufferIterator(win.Buffer)
+		}
+		win.Buffer.CursorX = win.CursorX
+		e.buffer = win.Buffer
+		// Draw editor content area then context (to match legacy order)
+		e.drawEditor()
+		e.drawContext()
 
-    // Draw global UI once (signature, banners, status bar) for the active window/buffer.
-    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
-        activeBuf := e.windows[e.activeWindow].Buffer
-        if activeBuf != nil {
-            realBuf := e.buffer
-            // Temporarily sync active window's state to buffer to display correct line/col
-            w := e.windows[e.activeWindow]
-            savedView := activeBuf.ViewIterator
-            savedCursor := activeBuf.CursorIterator
-            savedX := activeBuf.CursorX
-            activeBuf.ViewIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.ViewLine))
-            activeBuf.CursorIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.CursorLine))
-            activeBuf.CursorX = w.CursorX
-            e.buffer = activeBuf
-            // Signature above status bar
-            e.drawSignature()
-            e.drawErrorLine()
-            e.drawStatusBar()
-            // restore
-            activeBuf.ViewIterator = savedView
-            activeBuf.CursorIterator = savedCursor
-            activeBuf.CursorX = savedX
-            e.buffer = realBuf
-        } else {
-            e.drawSignature()
-            e.drawErrorLine()
-            e.drawStatusBar()
-        }
-    } else {
-        e.drawSignature()
-        e.drawErrorLine()
-        e.drawStatusBar()
-    }
+		// Restore
+		// Persist any scroll/cursor changes back into the window state
+		win.ViewLine = win.Buffer.ViewIterator.LineNumber()
+		win.CursorLine = win.Buffer.CursorIterator.LineNumber()
+		win.CursorX = win.Buffer.CursorX
+		// Restore buffer iterators/X
+		win.Buffer.ViewIterator = savedView
+		win.Buffer.CursorIterator = savedCursor
+		win.Buffer.CursorX = savedX
+		e.highlighter = realHighlighter
+		e.screen = realScreen
+		e.buffer = realBuffer
+	}
+	t0 = e.perfTracker.ReportSince("drawWindows", t0)
+
+	// Draw global UI once (signature, banners, status bar) for the active window/buffer.
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+		activeBuf := e.windows[e.activeWindow].Buffer
+		if activeBuf != nil {
+			realBuf := e.buffer
+			// Temporarily sync active window's state to buffer to display correct line/col
+			w := e.windows[e.activeWindow]
+			savedView := activeBuf.ViewIterator
+			savedCursor := activeBuf.CursorIterator
+			savedX := activeBuf.CursorX
+			activeBuf.ViewIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.ViewLine))
+			activeBuf.CursorIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.CursorLine))
+			activeBuf.CursorX = w.CursorX
+			e.buffer = activeBuf
+			// Signature above status bar
+			e.drawSignature()
+			e.drawErrorLine()
+			e.drawStatusBar()
+			// restore
+			activeBuf.ViewIterator = savedView
+			activeBuf.CursorIterator = savedCursor
+			activeBuf.CursorX = savedX
+			e.buffer = realBuf
+		} else {
+			e.drawSignature()
+			e.drawErrorLine()
+			e.drawStatusBar()
+		}
+	} else {
+		e.drawSignature()
+		e.drawErrorLine()
+		e.drawStatusBar()
+	}
 	t0 = e.perfTracker.ReportSince("drawStatusBar", t0)
 
-    // Render overlay if active
-    if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
+	// Render overlay if active
+	if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
 		if widgetScreen, ok := e.screen.(widgets.Screen); ok {
 			e.renderingState.GetOverlay().Draw(widgetScreen)
 		}
@@ -662,73 +662,73 @@ func (e *Editor) render() {
 		// Get cursor from overlay
 		x, y := e.renderingState.GetOverlay().GetCursorPosition()
 		e.screen.ShowCursor(x, y)
-    } else {
-        // Normal cursor update
-        // Command/Search modes are global; always place cursor on the real screen
-        if e.mode == commands.CommandMode || e.mode == commands.SearchMode {
-            e.updateCursor()
-        } else if len(e.windows) > 1 {
-            // Compute and show cursor relative to the active window region
-            if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-                win := e.windows[e.activeWindow]
-                if win != nil && win.Buffer != nil {
-                    sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
-                    realScreen := e.screen
-                    realBuffer := e.buffer
-                    e.screen = sub
-                    // Temporarily sync buffer to window state for correct cursor draw
-                    savedView := win.Buffer.ViewIterator
-                    savedCursor := win.Buffer.CursorIterator
-                    savedX := win.Buffer.CursorX
-                    win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
-                    win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
-                    win.Buffer.CursorX = win.CursorX
-                    e.buffer = win.Buffer
-                    e.updateCursor()
-                    // Restore
-                    win.Buffer.ViewIterator = savedView
-                    win.Buffer.CursorIterator = savedCursor
-                    win.Buffer.CursorX = savedX
-                    e.screen = realScreen
-                    e.buffer = realBuffer
-                } else {
-                    e.updateCursor()
-                }
-            } else {
-                e.updateCursor()
-            }
-        } else {
-            // Single-window: compute and show cursor relative to the active window region
-            if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-                win := e.windows[e.activeWindow]
-                if win != nil && win.Buffer != nil {
-                    sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
-                    realScreen := e.screen
-                    realBuffer := e.buffer
-                    e.screen = sub
-                    // Temporarily sync buffer to window state for correct cursor draw
-                    savedView := win.Buffer.ViewIterator
-                    savedCursor := win.Buffer.CursorIterator
-                    savedX := win.Buffer.CursorX
-                    win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
-                    win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
-                    win.Buffer.CursorX = win.CursorX
-                    e.buffer = win.Buffer
-                    e.updateCursor()
-                    // Restore
-                    win.Buffer.ViewIterator = savedView
-                    win.Buffer.CursorIterator = savedCursor
-                    win.Buffer.CursorX = savedX
-                    e.screen = realScreen
-                    e.buffer = realBuffer
-                } else {
-                    e.updateCursor()
-                }
-            } else {
-                e.updateCursor()
-            }
-        }
-    }
+	} else {
+		// Normal cursor update
+		// Command/Search modes are global; always place cursor on the real screen
+		if e.mode == commands.CommandMode || e.mode == commands.SearchMode {
+			e.updateCursor()
+		} else if len(e.windows) > 1 {
+			// Compute and show cursor relative to the active window region
+			if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+				win := e.windows[e.activeWindow]
+				if win != nil && win.Buffer != nil {
+					sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+					realScreen := e.screen
+					realBuffer := e.buffer
+					e.screen = sub
+					// Temporarily sync buffer to window state for correct cursor draw
+					savedView := win.Buffer.ViewIterator
+					savedCursor := win.Buffer.CursorIterator
+					savedX := win.Buffer.CursorX
+					win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
+					win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
+					win.Buffer.CursorX = win.CursorX
+					e.buffer = win.Buffer
+					e.updateCursor()
+					// Restore
+					win.Buffer.ViewIterator = savedView
+					win.Buffer.CursorIterator = savedCursor
+					win.Buffer.CursorX = savedX
+					e.screen = realScreen
+					e.buffer = realBuffer
+				} else {
+					e.updateCursor()
+				}
+			} else {
+				e.updateCursor()
+			}
+		} else {
+			// Single-window: compute and show cursor relative to the active window region
+			if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+				win := e.windows[e.activeWindow]
+				if win != nil && win.Buffer != nil {
+					sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+					realScreen := e.screen
+					realBuffer := e.buffer
+					e.screen = sub
+					// Temporarily sync buffer to window state for correct cursor draw
+					savedView := win.Buffer.ViewIterator
+					savedCursor := win.Buffer.CursorIterator
+					savedX := win.Buffer.CursorX
+					win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
+					win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
+					win.Buffer.CursorX = win.CursorX
+					e.buffer = win.Buffer
+					e.updateCursor()
+					// Restore
+					win.Buffer.ViewIterator = savedView
+					win.Buffer.CursorIterator = savedCursor
+					win.Buffer.CursorX = savedX
+					e.screen = realScreen
+					e.buffer = realBuffer
+				} else {
+					e.updateCursor()
+				}
+			} else {
+				e.updateCursor()
+			}
+		}
+	}
 	t0 = e.perfTracker.ReportSince("updateCursor", t0)
 
 	e.screen.Show()
@@ -738,58 +738,68 @@ func (e *Editor) render() {
 // handleEvent processes a single event in normal (non-overlay) mode
 func (e *Editor) handleEvent(ev events.Event) {
 	switch ev := ev.(type) {
-    case *events.PasteEvent:
-        if ev.Start {
-            e.inPasteMode = true
-        } else {
-            // End paste: exit paste mode and perform a single flush
-            e.inPasteMode = false
-            // Re-parse syntax highlighting once
-            e.updateSyntaxHighlighting()
-            // Notify LSP once
-            e.notifyLSPFileChange()
-            // Render once
-            e.render()
-        }
-        return
-    case *events.KeyEvent:
-        // Terminal mode: forward all keys to terminal session; Esc switches to normal browse
-        if e.mode == commands.TerminalMode {
-            if ev.Key == events.KeyEscape {
-                // Leave terminal input mode to normal browsing
-                if e.buffer != nil {
-                    if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
-                        ts.SavedCurX, ts.SavedCurY = ts.term.Cursor()
-                        // Align buffer cursor to emulator cursor location for browsing
-                        bannerOffset := 0
-                        if ts.Banner != "" { bannerOffset = 1 }
-                        // Global row includes scrollback
-                        bufRow := len(ts.term.scrollback) + ts.SavedCurY + bannerOffset
-                        if bufRow < 0 { bufRow = 0 }
-                        if bufRow >= e.buffer.LineCount { bufRow = e.buffer.LineCount - 1 }
-                        it := buffer.NewBufferIteratorAtLine(e.buffer, bufRow)
-                        line := it.Line()
-                        bytePos := e.bytePositionFromVisualColumn(line, ts.SavedCurX)
-                        if bytePos < 0 { bytePos = 0 }
-                        if bytePos > len(line) { bytePos = len(line) }
-                        e.buffer.CursorIterator = it
-                        e.buffer.CursorX = bytePos
-                    }
-                }
-                e.mode = commands.NormalMode
-                return
-            }
-            // Forward key to active terminal session
-            if e.buffer != nil {
-                if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
-                    data := e.translateKeyToTerminal(ev)
-                    if len(data) > 0 {
-                        _ = e.proxyManager.WriteTerminal(ts.WorkingDir, ts.SessionID, data)
-                    }
-                }
-            }
-            return
-        }
+	case *events.PasteEvent:
+		if ev.Start {
+			e.inPasteMode = true
+		} else {
+			// End paste: exit paste mode and perform a single flush
+			e.inPasteMode = false
+			// Re-parse syntax highlighting once
+			e.updateSyntaxHighlighting()
+			// Notify LSP once
+			e.notifyLSPFileChange()
+			// Render once
+			e.render()
+		}
+		return
+	case *events.KeyEvent:
+		// Terminal mode: forward all keys to terminal session; Esc switches to normal browse
+		if e.mode == commands.TerminalMode {
+			if ev.Key == events.KeyEscape {
+				// Leave terminal input mode to normal browsing
+				if e.buffer != nil {
+					if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+						ts.SavedCurX, ts.SavedCurY = ts.term.Cursor()
+						// Align buffer cursor to emulator cursor location for browsing
+						bannerOffset := 0
+						if ts.Banner != "" {
+							bannerOffset = 1
+						}
+						// Global row includes scrollback
+						bufRow := len(ts.term.scrollback) + ts.SavedCurY + bannerOffset
+						if bufRow < 0 {
+							bufRow = 0
+						}
+						if bufRow >= e.buffer.LineCount {
+							bufRow = e.buffer.LineCount - 1
+						}
+						it := buffer.NewBufferIteratorAtLine(e.buffer, bufRow)
+						line := it.Line()
+						bytePos := e.bytePositionFromVisualColumn(line, ts.SavedCurX)
+						if bytePos < 0 {
+							bytePos = 0
+						}
+						if bytePos > len(line) {
+							bytePos = len(line)
+						}
+						e.buffer.CursorIterator = it
+						e.buffer.CursorX = bytePos
+					}
+				}
+				e.mode = commands.NormalMode
+				return
+			}
+			// Forward key to active terminal session
+			if e.buffer != nil {
+				if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
+					data := e.translateKeyToTerminal(ev)
+					if len(data) > 0 {
+						_ = e.proxyManager.WriteTerminal(ts.WorkingDir, ts.SessionID, data)
+					}
+				}
+			}
+			return
+		}
 		// Fast-path for paste mode: route runes/enter to the active input target
 		if e.inPasteMode {
 			if ev.Key == events.KeyRune {
@@ -830,7 +840,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 		// Handle completion menu navigation if visible
 		if e.mode == commands.InsertMode && e.completionMenu.IsVisible() {
 			handled := e.handleCompletionMenuKey(ev)
-            if handled {
+			if handled {
 				return
 			}
 		}
@@ -842,9 +852,9 @@ func (e *Editor) handleEvent(ev events.Event) {
 		} else if e.mode == commands.CursorMode {
 			e.handleCursorMode(ev)
 		} else {
-            // Normal and Visual modes: Handle numeric prefix for count operations
-            // Do not consume digits if a key sequence is pending (enables bindings like "space 1")
-            if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' && !e.keyMapper.HasPending() && !e.registerPrefixActive {
+			// Normal and Visual modes: Handle numeric prefix for count operations
+			// Do not consume digits if a key sequence is pending (enables bindings like "space 1")
+			if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && ev.Key == events.KeyRune && ev.Rune >= '0' && ev.Rune <= '9' && !e.keyMapper.HasPending() && !e.registerPrefixActive {
 				// Special case: '0' is a command if no prefix is being built
 				if ev.Rune == '0' && e.countPrefix == "" {
 					// Let it be processed as a normal command (beginning-of-line)
@@ -859,10 +869,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 			if e.mode == commands.NormalMode && ev.Key == events.KeyEscape {
 				// Always hide key hints popup when escape is pressed
 				e.keyHintsPopup.Hide()
-				
+
 				// Clear any pending keys in the key mapper
 				e.keyMapper.ResetPending()
-				
+
 				if e.hasPendingOperation() {
 					e.cancelPendingOperation()
 					e.countPrefix = "" // Clear count prefix on escape
@@ -871,20 +881,20 @@ func (e *Editor) handleEvent(ev events.Event) {
 					// Clear virtual cursors on escape in normal mode
 					e.clearVirtualCursors()
 				}
-            } else if e.mode == commands.NormalMode && e.hasPendingOperation() {
+			} else if e.mode == commands.NormalMode && e.hasPendingOperation() {
 				// Handle pending operations for both regular keys and special keys
 				keyStr := ""
 				if ev.Key == events.KeyRune {
-                    // When register prefix is active, handle register selection/yank target
-                    if e.registerPrefixActive {
-                        r := ev.Rune
-                        // First rune after '\'' is the register name
-                        e.pendingRegister = r
-                        e.registerReadyForAction = true
-                        // Do not forward this key to pending operator
-                        return
-                    }
-                    keyStr = string(ev.Rune)
+					// When register prefix is active, handle register selection/yank target
+					if e.registerPrefixActive {
+						r := ev.Rune
+						// First rune after '\'' is the register name
+						e.pendingRegister = r
+						e.registerReadyForAction = true
+						// Do not forward this key to pending operator
+						return
+					}
+					keyStr = string(ev.Rune)
 				} else {
 					// Convert special keys to their string names
 					switch ev.Key {
@@ -898,10 +908,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 						keyStr = "down"
 					default:
 						// For other special keys, let them be processed normally
-                tMap := e.perfTracker.Start()
-                command, found := e.keyMapper.ProcessKey(ev, e.mode)
-                e.perfTracker.ReportSince("keymap.ProcessKey", tMap)
-                if found {
+						tMap := e.perfTracker.Start()
+						command, found := e.keyMapper.ProcessKey(ev, e.mode)
+						e.perfTracker.ReportSince("keymap.ProcessKey", tMap)
+						if found {
 							LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
 							LL.Debug("Found command: %s", command)
 							// Execute the command (this might cancel the pending operation)
@@ -915,222 +925,248 @@ func (e *Editor) handleEvent(ev events.Event) {
 							} else {
 								e.repeatCount = 1
 							}
-                            tExec := e.perfTracker.Start()
-                            if err := e.executeWithRepeatCount(command); err != nil {
+							tExec := e.perfTracker.Start()
+							if err := e.executeWithRepeatCount(command); err != nil {
 								LL.Debug("Command execution error: %v", err)
-                            }
-                            e.perfTracker.ReportSince("executeWithRepeatCount", tExec)
+							}
+							e.perfTracker.ReportSince("executeWithRepeatCount", tExec)
 						}
 						return
 					}
 				}
 
-                if keyStr != "" {
+				if keyStr != "" {
 					if err := e.handlePendingOperation(keyStr); err != nil {
 						LL.Debug("Pending operation error: %v", err)
 					}
 				}
-            } else {
-                tMap := e.perfTracker.Start()
-                // If register prefix just typed a name, capture it BEFORE key mapping to avoid conflicts with bindings
-                if e.mode == commands.NormalMode && ev.Key == events.KeyRune && e.registerPrefixActive && !e.registerReadyForAction {
-                    e.pendingRegister = ev.Rune
-                    e.registerReadyForAction = true
-                    return
-                }
+			} else {
+				tMap := e.perfTracker.Start()
+				// If register prefix just typed a name, capture it BEFORE key mapping to avoid conflicts with bindings
+				if e.mode == commands.NormalMode && ev.Key == events.KeyRune && e.registerPrefixActive && !e.registerReadyForAction {
+					e.pendingRegister = ev.Rune
+					e.registerReadyForAction = true
+					return
+				}
 
-                // If a register has been selected ("'<reg>") and user presses an action key,
-                // handle it before key mapping: 'y' -> target register for yank; 'p'/'P' -> paste from register
-                if e.mode == commands.NormalMode && ev.Key == events.KeyRune && e.registerReadyForAction && e.pendingRegister != 0 {
-                    switch ev.Rune {
-                    case 'y':
-                        e.registerTargetForYank = e.pendingRegister
-                        e.registerPrefixActive = false
-                        e.registerReadyForAction = false
-                        e.pendingRegister = 0
-                    case 'p':
-                        // Paste-after from the specified register
-                        _ = e.commandRegistry.Execute("paste-after", nil)
-                        return
-                    case 'P':
-                        // Paste-before from the specified register
-                        _ = e.commandRegistry.Execute("paste-before", nil)
-                        return
-                    }
-                }
+				// If a register has been selected ("'<reg>") and user presses an action key,
+				// handle it before key mapping: 'y' -> target register for yank; 'p'/'P' -> paste from register
+				if e.mode == commands.NormalMode && ev.Key == events.KeyRune && e.registerReadyForAction && e.pendingRegister != 0 {
+					switch ev.Rune {
+					case 'y':
+						e.registerTargetForYank = e.pendingRegister
+						e.registerPrefixActive = false
+						e.registerReadyForAction = false
+						e.pendingRegister = 0
+					case 'p':
+						// Paste-after from the specified register
+						_ = e.commandRegistry.Execute("paste-after", nil)
+						return
+					case 'P':
+						// Paste-before from the specified register
+						_ = e.commandRegistry.Execute("paste-before", nil)
+						return
+					}
+				}
 
-                command, found := e.keyMapper.ProcessKey(ev, e.mode)
-                e.perfTracker.ReportSince("keymap.ProcessKey", tMap)
-                if found {
-				LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
-				LL.Debug("Found command: %s", command)
+				command, found := e.keyMapper.ProcessKey(ev, e.mode)
+				e.perfTracker.ReportSince("keymap.ProcessKey", tMap)
+				if found {
+					LL.Debug("Key event: Key=%v, Rune=%q, Modifiers=%v", ev.Key, ev.Rune, ev.Modifiers)
+					LL.Debug("Found command: %s", command)
 
-				// Hide key hints popup since a command was found
-				e.keyHintsPopup.Hide()
+					// Hide key hints popup since a command was found
+					e.keyHintsPopup.Hide()
 
-				// Parse the count prefix if we have one
-				if e.countPrefix != "" {
-					if count, err := strconv.Atoi(e.countPrefix); err == nil && count > 0 {
-						e.repeatCount = count
+					// Parse the count prefix if we have one
+					if e.countPrefix != "" {
+						if count, err := strconv.Atoi(e.countPrefix); err == nil && count > 0 {
+							e.repeatCount = count
+						} else {
+							e.repeatCount = 1
+						}
+						e.countPrefix = "" // Clear the prefix
 					} else {
 						e.repeatCount = 1
 					}
-					e.countPrefix = "" // Clear the prefix
+
+					// Execute the command with repetition
+					tExec := e.perfTracker.Start()
+					if err := e.executeWithRepeatCount(command); err != nil {
+						LL.Debug("Command execution error: %v", err)
+					}
+					e.perfTracker.ReportSince("executeWithRepeatCount", tExec)
+
+					// Clear repeat count after execution
+					e.repeatCount = 0
 				} else {
-					e.repeatCount = 1
-				}
-
-				// Execute the command with repetition
-                tExec := e.perfTracker.Start()
-                if err := e.executeWithRepeatCount(command); err != nil {
-					LL.Debug("Command execution error: %v", err)
-				}
-                e.perfTracker.ReportSince("executeWithRepeatCount", tExec)
-
-				// Clear repeat count after execution
-				e.repeatCount = 0
-            } else {
-				// Handle key hints for normal mode only
-				if e.mode == commands.NormalMode {
-					// Check if we have pending keys and should show key hints
-					if e.keyMapper.HasPending() {
-						e.showKeyHints()
+					// Handle key hints for normal mode only
+					if e.mode == commands.NormalMode {
+						// Check if we have pending keys and should show key hints
+						if e.keyMapper.HasPending() {
+							e.showKeyHints()
+						} else {
+							// Hide key hints if no pending keys (invalid sequence or no sequence)
+							e.keyHintsPopup.Hide()
+						}
 					} else {
-						// Hide key hints if no pending keys (invalid sequence or no sequence)
+						// Hide key hints in non-normal modes
 						e.keyHintsPopup.Hide()
 					}
-                } else {
-					// Hide key hints in non-normal modes
-					e.keyHintsPopup.Hide()
-				}
-                LL.Debug("No command found for key %+v", ev)
-                if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
-					// Handle insert char for multiple cursors
-					if len(e.virtualCursors) > 0 {
-						e.insertCharForAllCursors(ev.Rune)
-					} else {
-						e.insertChar(ev.Rune)
+					LL.Debug("No command found for key %+v", ev)
+					if e.mode == commands.InsertMode && ev.Key == events.KeyRune {
+						// Handle insert char for multiple cursors
+						if len(e.virtualCursors) > 0 {
+							e.insertCharForAllCursors(ev.Rune)
+						} else {
+							e.insertChar(ev.Rune)
+						}
 					}
-				}
-                // In normal mode, handle register prefix ''
-                if e.mode == commands.NormalMode && ev.Key == events.KeyRune {
-                    if ev.Rune == '\'' {
-                        e.registerPrefixActive = true
-                        e.pendingRegister = 0
-                        e.registerReadyForAction = false
-                        return
-                    }
-                    // If register name was just typed without an operator, capture it
-                    // and wait for the next action key (y/p/P).
-                    if e.registerPrefixActive && !e.registerReadyForAction {
-                        e.pendingRegister = ev.Rune
-                        e.registerReadyForAction = true
-                        return
-                    }
-                }
-				// Clear count prefix if no command was found
-				if e.mode == commands.NormalMode {
-					e.countPrefix = ""
-					e.repeatCount = 0
+					// In normal mode, handle register prefix ''
+					if e.mode == commands.NormalMode && ev.Key == events.KeyRune {
+						if ev.Rune == '\'' {
+							e.registerPrefixActive = true
+							e.pendingRegister = 0
+							e.registerReadyForAction = false
+							return
+						}
+						// If register name was just typed without an operator, capture it
+						// and wait for the next action key (y/p/P).
+						if e.registerPrefixActive && !e.registerReadyForAction {
+							e.pendingRegister = ev.Rune
+							e.registerReadyForAction = true
+							return
+						}
+					}
+					// Clear count prefix if no command was found
+					if e.mode == commands.NormalMode {
+						e.countPrefix = ""
+						e.repeatCount = 0
 
-					// If we're in temporary normal mode and no keys are pending,
-					// return to insert mode
-					if e.temporaryNormal && !e.keyMapper.HasPending() {
-						e.temporaryNormal = false
-						e.switchToInsertMode()
+						// If we're in temporary normal mode and no keys are pending,
+						// return to insert mode
+						if e.temporaryNormal && !e.keyMapper.HasPending() {
+							e.temporaryNormal = false
+							e.switchToInsertMode()
+						}
 					}
 				}
 			}
 		}
-	}
 	case *events.ResizeEvent:
 		e.handleResize()
 	case *events.CustomEvent:
 		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
 		switch ev.Type {
-        case "terminal-output":
-            // Data is map[string]interface{}{ "buffer": string, "data": string }
-            if m, ok := ev.Data.(map[string]interface{}); ok {
-                bufPath, _ := m["buffer"].(string)
-                text, _ := m["data"].(string)
-                if bufPath != "" {
-                    if b, ok := e.buffers[bufPath]; ok {
-                        // For terminal buffers with an emulator, replace screen content instead of appending
-                        wasRO := b.IsReadOnly
-                        if b.IsInternal && b.IsReadOnly { b.IsReadOnly = false }
-                        // Compose banner + emulator render if banner present
-                        textToShow := text
-                        if ts := e.terminalSessions[bufPath]; ts != nil && ts.Banner != "" {
-                            if textToShow == "" {
-                                textToShow = ts.Banner
-                            } else {
-                                textToShow = ts.Banner + "\n" + textToShow
-                            }
-                        }
-                        // Debug: log any occurrences of U+23CE (RETURN SYMBOL)
-                        if strings.ContainsRune(textToShow, '\u23CE') {
-                            LL.Debug("terminal.rx contains RETURN SYMBOL U+23CE")
-                        }
-                        // Replace entire buffer content with the composed snapshot
-                        if b.Length() > 0 { b.Delete(0, b.Length()) }
-                        if textToShow != "" { b.Insert(0, textToShow) }
-                        if wasRO { b.IsReadOnly = true }
-        // For terminal snapshots, align view to show the prompt row
-                        if e.buffer == b {
-                            if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
-                                curX, curY := ts.term.Cursor()
-                                // Account for banner occupying the first buffer line
-                                bannerOffset := 0
-                                if ts.Banner != "" { bannerOffset = 1 }
-                                // Place buffer view so that emulator grid bottom aligns with buffer bottom (scrollback included)
-                                // Cursor row within full content is scrollback + curY
-                                bufRow := len(ts.term.scrollback) + curY + bannerOffset
-                // If session was closed, move cursor to last non-empty line (exit banner line)
-                if ts.Closed {
-                    bufRow = b.LineCount - 1
-                    // Walk back over any trailing empty lines to land on the banner/content
-                    for bufRow > 0 {
-                        it := buffer.NewBufferIteratorAtLine(b, bufRow)
-                        line := it.Line()
-                        if len(line) > 0 { break }
-                        bufRow--
-                    }
-                    curX = 0
-                }
-                                if bufRow < 0 { bufRow = 0 }
-                                if bufRow >= b.LineCount { bufRow = b.LineCount - 1 }
-                                // Ensure iterators are valid after content replacement
-                                // Auto-follow: keep cursor visible near bottom
-                                visible := e.getVisibleHeight()
-                                if visible < 1 { visible = 1 }
-                                top := bufRow - (visible - 1)
-                                if top < 0 { top = 0 }
-                                if top >= b.LineCount { top = b.LineCount - 1 }
-                                b.ViewIterator = buffer.NewBufferIteratorAtLine(b, top)
-                                b.CursorIterator = buffer.NewBufferIteratorAtLine(b, bufRow)
-                                // Map terminal column to byte offset within the buffer line (UTF-8 aware)
-                                line := b.CursorIterator.Line()
-                                bytePos := e.bytePositionFromVisualColumn(line, curX)
-                                if bytePos < 0 { bytePos = 0 }
-                                if bytePos > len(line) { bytePos = len(line) }
-                                b.CursorX = bytePos
-                            } else {
-                                b.ViewIterator = buffer.NewBufferIteratorAtLine(b, 0)
-                                b.CursorIterator = buffer.NewBufferIteratorAtLine(b, 0)
-                            }
-                        }
-                        e.render()
-                    }
-                }
-            }
-        case "terminal-closed":
-            // Leave terminal mode when the session closes
-            if e.mode == commands.TerminalMode {
-                e.mode = commands.NormalMode
-            }
-            e.render()
-            return
-        case "show-fuzzy-list":
+		case "terminal-output":
+			// Data is map[string]interface{}{ "buffer": string, "data": string }
+			if m, ok := ev.Data.(map[string]interface{}); ok {
+				bufPath, _ := m["buffer"].(string)
+				text, _ := m["data"].(string)
+				if bufPath != "" {
+					if b, ok := e.buffers[bufPath]; ok {
+						// For terminal buffers with an emulator, replace screen content instead of appending
+						wasRO := b.IsReadOnly
+						if b.IsInternal && b.IsReadOnly {
+							b.IsReadOnly = false
+						}
+						// Compose banner + emulator render if banner present
+						textToShow := text
+						if ts := e.terminalSessions[bufPath]; ts != nil && ts.Banner != "" {
+							if textToShow == "" {
+								textToShow = ts.Banner
+							} else {
+								textToShow = ts.Banner + "\n" + textToShow
+							}
+						}
+						// Debug: log any occurrences of U+23CE (RETURN SYMBOL)
+						if strings.ContainsRune(textToShow, '\u23CE') {
+							LL.Debug("terminal.rx contains RETURN SYMBOL U+23CE")
+						}
+						// Replace entire buffer content with the composed snapshot
+						if b.Length() > 0 {
+							b.Delete(0, b.Length())
+						}
+						if textToShow != "" {
+							b.Insert(0, textToShow)
+						}
+						if wasRO {
+							b.IsReadOnly = true
+						}
+						// For terminal snapshots, align view to show the prompt row
+						if e.buffer == b {
+							if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
+								curX, curY := ts.term.Cursor()
+								// Account for banner occupying the first buffer line
+								bannerOffset := 0
+								if ts.Banner != "" {
+									bannerOffset = 1
+								}
+								// Place buffer view so that emulator grid bottom aligns with buffer bottom (scrollback included)
+								// Cursor row within full content is scrollback + curY
+								bufRow := len(ts.term.scrollback) + curY + bannerOffset
+								// If session was closed, move cursor to last non-empty line (exit banner line)
+								if ts.Closed {
+									bufRow = b.LineCount - 1
+									// Walk back over any trailing empty lines to land on the banner/content
+									for bufRow > 0 {
+										it := buffer.NewBufferIteratorAtLine(b, bufRow)
+										line := it.Line()
+										if len(line) > 0 {
+											break
+										}
+										bufRow--
+									}
+									curX = 0
+								}
+								if bufRow < 0 {
+									bufRow = 0
+								}
+								if bufRow >= b.LineCount {
+									bufRow = b.LineCount - 1
+								}
+								// Ensure iterators are valid after content replacement
+								// Auto-follow: keep cursor visible near bottom
+								visible := e.getVisibleHeight()
+								if visible < 1 {
+									visible = 1
+								}
+								top := bufRow - (visible - 1)
+								if top < 0 {
+									top = 0
+								}
+								if top >= b.LineCount {
+									top = b.LineCount - 1
+								}
+								b.ViewIterator = buffer.NewBufferIteratorAtLine(b, top)
+								b.CursorIterator = buffer.NewBufferIteratorAtLine(b, bufRow)
+								// Map terminal column to byte offset within the buffer line (UTF-8 aware)
+								line := b.CursorIterator.Line()
+								bytePos := e.bytePositionFromVisualColumn(line, curX)
+								if bytePos < 0 {
+									bytePos = 0
+								}
+								if bytePos > len(line) {
+									bytePos = len(line)
+								}
+								b.CursorX = bytePos
+							} else {
+								b.ViewIterator = buffer.NewBufferIteratorAtLine(b, 0)
+								b.CursorIterator = buffer.NewBufferIteratorAtLine(b, 0)
+							}
+						}
+						e.render()
+					}
+				}
+			}
+		case "terminal-closed":
+			// Leave terminal mode when the session closes
+			if e.mode == commands.TerminalMode {
+				e.mode = commands.NormalMode
+			}
+			e.render()
+			return
+		case "show-fuzzy-list":
 			e.ShowFuzzyListWidget()
 		case "open-file":
 			if path, ok := ev.Data.(string); ok {
@@ -1156,139 +1192,143 @@ func (e *Editor) handleEvent(ev events.Event) {
 // - Strips simple ANSI escape sequences (CSI ... letter)
 // - Leaves printable characters, tabs, and newlines intact
 func sanitizeTerminalText(input string) string {
-    // Fast path: if no ESC or CR or BEL, return as-is
-    if !strings.ContainsAny(input, "\x1b\r\a") {
-        return input
-    }
-    // Normalize newlines
-    s := strings.ReplaceAll(input, "\r\n", "\n")
-    s = strings.ReplaceAll(s, "\r", "\n")
+	// Fast path: if no ESC or CR or BEL, return as-is
+	if !strings.ContainsAny(input, "\x1b\r\a") {
+		return input
+	}
+	// Normalize newlines
+	s := strings.ReplaceAll(input, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
 
-    var b strings.Builder
-    b.Grow(len(s))
+	var b strings.Builder
+	b.Grow(len(s))
 
-    i := 0
-    for i < len(s) {
-        c := s[i]
-        // Drop all control chars except tab/newline
-        if c < 0x20 || c == 0x7f {
-            if c == '\n' || c == '\t' {
-                b.WriteByte(c)
-            }
-            i++
-            continue
-        }
+	i := 0
+	for i < len(s) {
+		c := s[i]
+		// Drop all control chars except tab/newline
+		if c < 0x20 || c == 0x7f {
+			if c == '\n' || c == '\t' {
+				b.WriteByte(c)
+			}
+			i++
+			continue
+		}
 
-        if c == 0x1b { // ESC
-            // Look ahead to classify sequence
-            if i+1 >= len(s) {
-                // Trailing ESC, drop
-                i++
-                continue
-            }
-            next := s[i+1]
+		if c == 0x1b { // ESC
+			// Look ahead to classify sequence
+			if i+1 >= len(s) {
+				// Trailing ESC, drop
+				i++
+				continue
+			}
+			next := s[i+1]
 
-            switch next {
-            case '[': // CSI: ESC [ ... final 0x40..0x7E
-                i += 2
-                for i < len(s) {
-                    fc := s[i]
-                    i++
-                    if fc >= 0x40 && fc <= 0x7e {
-                        break
-                    }
-                }
-                continue
-            case ']': // OSC: ESC ] ... BEL (0x07) or ST (ESC \\)
-                i += 2
-                for i < len(s) {
-                    if s[i] == 0x07 { // BEL terminator
-                        i++
-                        break
-                    }
-                    if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' { // ST terminator
-                        i += 2
-                        break
-                    }
-                    i++
-                }
-                continue
-            case 'P', 'X', '^', '_': // DCS/SOS/PM/APC: ESC <type> ... ST (ESC \\)
-                i += 2
-                for i < len(s) {
-                    if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' {
-                        i += 2
-                        break
-                    }
-                    i++
-                }
-                continue
-            case '(', ')', '*', '+', '-', '.', '/':
-                // Character set designation: ESC ( X or ESC ) X etc -> skip selector and one byte
-                i += 3
-                if i > len(s) { i = len(s) }
-                continue
-            default:
-                // Other single-char escapes (e.g., ESC c, ESC 7/8, etc.). Skip ESC and the next byte.
-                i += 2
-                continue
-            }
-        }
+			switch next {
+			case '[': // CSI: ESC [ ... final 0x40..0x7E
+				i += 2
+				for i < len(s) {
+					fc := s[i]
+					i++
+					if fc >= 0x40 && fc <= 0x7e {
+						break
+					}
+				}
+				continue
+			case ']': // OSC: ESC ] ... BEL (0x07) or ST (ESC \\)
+				i += 2
+				for i < len(s) {
+					if s[i] == 0x07 { // BEL terminator
+						i++
+						break
+					}
+					if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' { // ST terminator
+						i += 2
+						break
+					}
+					i++
+				}
+				continue
+			case 'P', 'X', '^', '_': // DCS/SOS/PM/APC: ESC <type> ... ST (ESC \\)
+				i += 2
+				for i < len(s) {
+					if s[i] == 0x1b && i+1 < len(s) && s[i+1] == '\\' {
+						i += 2
+						break
+					}
+					i++
+				}
+				continue
+			case '(', ')', '*', '+', '-', '.', '/':
+				// Character set designation: ESC ( X or ESC ) X etc -> skip selector and one byte
+				i += 3
+				if i > len(s) {
+					i = len(s)
+				}
+				continue
+			default:
+				// Other single-char escapes (e.g., ESC c, ESC 7/8, etc.). Skip ESC and the next byte.
+				i += 2
+				continue
+			}
+		}
 
-        // Printable
-        b.WriteByte(c)
-        i++
-    }
-    return b.String()
+		// Printable
+		b.WriteByte(c)
+		i++
+	}
+	return b.String()
 }
 
 // translateKeyToTerminal converts a key event to terminal bytes (UTF-8 / ANSI)
 // This function handles the translation of keyboard input into the appropriate
 // byte sequences that terminals expect, including control characters like Ctrl+C
 func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
-    // Basic mapping: runes, Enter, Backspace, Tab, arrows
-    switch ev.Key {
-    case events.KeyRune:
-        if ev.Rune == 0 { return nil }
-        buf := make([]byte, 4)
-        n := utf8.EncodeRune(buf, ev.Rune)
-        return buf[:n]
-    case events.KeyEnter:
-        LL.Trace("terminal.tx key=Enter -> CR (0x0d)")
-        return []byte{'\r'}
-    case events.KeyBackspace, events.KeyBackspace2:
-        return []byte{'\x7f'}
-    case events.KeyTab:
-        return []byte{'\t'}
-    // Common control keys to forward raw to the shell
-    case events.KeyCtrlC:
-        return []byte{0x03} // ETX (interrupt signal)
-    case events.KeyCtrlD:
-        return []byte{0x04} // EOT
-    case events.KeyCtrlL:
-        return []byte{0x0c} // FF (clear-screen in many shells)
-    case events.KeyCtrlN:
-        return []byte{0x0e} // SO (next-history/forward in readline/fish bindings)
-    case events.KeyHome:
-        return []byte{0x1b,'[','H'}
-    case events.KeyEnd:
-        return []byte{0x1b,'[','F'}
-    case events.KeyUp:
-        return []byte{'\x1b','[','A'}
-    case events.KeyDown:
-        return []byte{'\x1b','[','B'}
-    case events.KeyRight:
-        return []byte{'\x1b','[','C'}
-    case events.KeyLeft:
-        return []byte{'\x1b','[','D'}
-    default:
-        return nil
-    }
+	// Basic mapping: runes, Enter, Backspace, Tab, arrows
+	switch ev.Key {
+	case events.KeyRune:
+		if ev.Rune == 0 {
+			return nil
+		}
+		buf := make([]byte, 4)
+		n := utf8.EncodeRune(buf, ev.Rune)
+		return buf[:n]
+	case events.KeyEnter:
+		LL.Trace("terminal.tx key=Enter -> CR (0x0d)")
+		return []byte{'\r'}
+	case events.KeyBackspace, events.KeyBackspace2:
+		return []byte{'\x7f'}
+	case events.KeyTab:
+		return []byte{'\t'}
+	// Common control keys to forward raw to the shell
+	case events.KeyCtrlC:
+		return []byte{0x03} // ETX (interrupt signal)
+	case events.KeyCtrlD:
+		return []byte{0x04} // EOT
+	case events.KeyCtrlL:
+		return []byte{0x0c} // FF (clear-screen in many shells)
+	case events.KeyCtrlN:
+		return []byte{0x0e} // SO (next-history/forward in readline/fish bindings)
+	case events.KeyHome:
+		return []byte{0x1b, '[', 'H'}
+	case events.KeyEnd:
+		return []byte{0x1b, '[', 'F'}
+	case events.KeyUp:
+		return []byte{'\x1b', '[', 'A'}
+	case events.KeyDown:
+		return []byte{'\x1b', '[', 'B'}
+	case events.KeyRight:
+		return []byte{'\x1b', '[', 'C'}
+	case events.KeyLeft:
+		return []byte{'\x1b', '[', 'D'}
+	default:
+		return nil
+	}
 }
 
 // executeWithRepeatCount executes a command with the current repeat count
 func (e *Editor) executeWithRepeatCount(command string) error {
-    t0 := e.perfTracker.Start()
+	t0 := e.perfTracker.Start()
 	count := e.repeatCount
 	if count <= 0 {
 		count = 1
@@ -1362,8 +1402,8 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 			e.lastCommandCount = count
 		}
 
-        e.perfTracker.ReportSince("command.executeWithRepeatCount", t0)
-        return nil
+		e.perfTracker.ReportSince("command.executeWithRepeatCount", t0)
+		return nil
 	}
 }
 
@@ -1371,21 +1411,21 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 func (e *Editor) isTextModifyingCommand(command string) bool {
 	// Commands that modify text and should store count for repeat
 	textModifyingCommands := map[string]bool{
-		"delete-current-character":  true,
-		"delete-to-end-of-line":     true,
-		"delete-character-insert":   true,
-		"delete-word-forward":       true,
-		"delete-word-backward":      true,
-		"indent-line":               true,
-		"unindent-line":             true,
-		"yank-line":                 true,
-		"insert-tab":                true,
-		"enter-insert-mode":         true,
-		"append-after-cursor":       true,
-		"append-at-end-of-line":     true,
-		"start-delete":              true,
-		"start-change":              true,
-		"start-yank":                true,
+		"delete-current-character": true,
+		"delete-to-end-of-line":    true,
+		"delete-character-insert":  true,
+		"delete-word-forward":      true,
+		"delete-word-backward":     true,
+		"indent-line":              true,
+		"unindent-line":            true,
+		"yank-line":                true,
+		"insert-tab":               true,
+		"enter-insert-mode":        true,
+		"append-after-cursor":      true,
+		"append-at-end-of-line":    true,
+		"start-delete":             true,
+		"start-change":             true,
+		"start-yank":               true,
 	}
 
 	return textModifyingCommands[command]
@@ -1475,14 +1515,14 @@ func (e *Editor) insertCharForAllCursors(ch rune) error {
 
 // updateCursor updates the cursor position and style
 func (e *Editor) updateCursor() {
-    // Set cursor style based on mode
-    if e.mode == commands.InsertMode || e.mode == commands.TerminalMode {
-        // Use a bar cursor in insert and terminal modes
-        e.screen.SetCursorStyle(ui.CursorStyleSteadyBar)
-    } else {
-        // Use a block cursor in other modes
-        e.screen.SetCursorStyle(ui.CursorStyleSteadyBlock)
-    }
+	// Set cursor style based on mode
+	if e.mode == commands.InsertMode || e.mode == commands.TerminalMode {
+		// Use a bar cursor in insert and terminal modes
+		e.screen.SetCursorStyle(ui.CursorStyleSteadyBar)
+	} else {
+		// Use a block cursor in other modes
+		e.screen.SetCursorStyle(ui.CursorStyleSteadyBlock)
+	}
 
 	// Show cursor at appropriate position
 	if e.mode == commands.CommandMode {
@@ -1493,56 +1533,68 @@ func (e *Editor) updateCursor() {
 		// Show cursor in search line
 		cursorX, cursorY := e.searchLine.GetCursorPosition()
 		e.screen.ShowCursor(cursorX, cursorY)
-    } else if e.buffer == nil {
-        // Empty window - hide the cursor or show it at top-left
-        e.screen.ShowCursor(0, e.getContentStartY())
-    } else {
-        // Terminal/internal buffers: position cursor directly from emulator state
-        if e.buffer.IsInternal {
-            if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
-                if e.mode == commands.TerminalMode {
-                    // In terminal mode, show at terminal cursor, accounting for scrollback and view top
-                    curX, curY := ts.term.Cursor()
-                    bannerOffset := 0
-                    if ts.Banner != "" { bannerOffset = 1 }
-                    globalRow := bannerOffset + len(ts.term.scrollback) + curY
-                    viewTop := e.buffer.ViewIterator.LineNumber()
-                    relRow := globalRow - viewTop
-                    // Clamp to visible content area
-                    contentTop := e.getContentStartY()
-                    visible := e.getVisibleHeight()
-                    if relRow < 0 { relRow = 0 }
-                    if relRow >= visible { relRow = visible - 1 }
-                    screenY := contentTop + relRow
-                    if ts.Closed {
-                        // If closed, prefer to place cursor on last non-empty visible line
-                        row := e.buffer.LineCount - 1
-                        for row > 0 {
-                            it := buffer.NewBufferIteratorAtLine(e.buffer, row)
-                            line := it.Line()
-                            if len(line) > 0 { break }
-                            row--
-                        }
-                        relRow = row - viewTop
-                        if relRow < 0 { relRow = 0 }
-                        if relRow >= visible { relRow = visible - 1 }
-                        screenY = contentTop + relRow
-                        curX = 0
-                    }
-                    screenX := e.buffer.LineNumberWidth + curX
-                    e.screen.ShowCursor(screenX, screenY)
-                    return
-                }
-                // In normal mode on terminal buffer: position cursor using regular buffer logic
-            }
-        }
-        // Show cursor in editor (non-terminal)
-        visualLine, visualCol := e.GetCursorVisualPosition()
-        cursorY := visualLine + e.getContentStartY()
-        LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
-            e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
-        e.screen.ShowCursor(visualCol, cursorY)
-    }
+	} else if e.buffer == nil {
+		// Empty window - hide the cursor or show it at top-left
+		e.screen.ShowCursor(0, e.getContentStartY())
+	} else {
+		// Terminal/internal buffers: position cursor directly from emulator state
+		if e.buffer.IsInternal {
+			if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+				if e.mode == commands.TerminalMode {
+					// In terminal mode, show at terminal cursor, accounting for scrollback and view top
+					curX, curY := ts.term.Cursor()
+					bannerOffset := 0
+					if ts.Banner != "" {
+						bannerOffset = 1
+					}
+					globalRow := bannerOffset + len(ts.term.scrollback) + curY
+					viewTop := e.buffer.ViewIterator.LineNumber()
+					relRow := globalRow - viewTop
+					// Clamp to visible content area
+					contentTop := e.getContentStartY()
+					visible := e.getVisibleHeight()
+					if relRow < 0 {
+						relRow = 0
+					}
+					if relRow >= visible {
+						relRow = visible - 1
+					}
+					screenY := contentTop + relRow
+					if ts.Closed {
+						// If closed, prefer to place cursor on last non-empty visible line
+						row := e.buffer.LineCount - 1
+						for row > 0 {
+							it := buffer.NewBufferIteratorAtLine(e.buffer, row)
+							line := it.Line()
+							if len(line) > 0 {
+								break
+							}
+							row--
+						}
+						relRow = row - viewTop
+						if relRow < 0 {
+							relRow = 0
+						}
+						if relRow >= visible {
+							relRow = visible - 1
+						}
+						screenY = contentTop + relRow
+						curX = 0
+					}
+					screenX := e.buffer.LineNumberWidth + curX
+					e.screen.ShowCursor(screenX, screenY)
+					return
+				}
+				// In normal mode on terminal buffer: position cursor using regular buffer logic
+			}
+		}
+		// Show cursor in editor (non-terminal)
+		visualLine, visualCol := e.GetCursorVisualPosition()
+		cursorY := visualLine + e.getContentStartY()
+		LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
+			e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
+		e.screen.ShowCursor(visualCol, cursorY)
+	}
 }
 
 // enterCommandMode switches to command mode and initializes the command line
@@ -1641,26 +1693,28 @@ func (e *Editor) visualWidth(text string) int {
 // bytePositionFromVisualColumn converts a visual column (cell) to a byte index in the line.
 // Accounts for tabs and wide runes (emoji/CJK). If visualCol is beyond the line, returns len(line).
 func (e *Editor) bytePositionFromVisualColumn(line string, visualCol int) int {
-    if visualCol <= 0 {
-        return 0
-    }
-    current := 0
-    for i, r := range line {
-        var w int
-        if r == '\t' {
-            w = 4
-        } else {
-            w = runeDisplayWidth(r)
-            if w < 1 { w = 1 }
-        }
-        if current+w > visualCol {
-            // Desired column falls within this rune's cell span; place cursor at this rune
-            return i
-        }
-        current += w
-    }
-    // If we matched exactly the end of line width, place at EOL
-    return len(line)
+	if visualCol <= 0 {
+		return 0
+	}
+	current := 0
+	for i, r := range line {
+		var w int
+		if r == '\t' {
+			w = 4
+		} else {
+			w = runeDisplayWidth(r)
+			if w < 1 {
+				w = 1
+			}
+		}
+		if current+w > visualCol {
+			// Desired column falls within this rune's cell span; place cursor at this rune
+			return i
+		}
+		current += w
+	}
+	// If we matched exactly the end of line width, place at EOL
+	return len(line)
 }
 
 // getVisualCursorX calculates the visual cursor position accounting for tabs
@@ -1888,44 +1942,44 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 // requestDiagnosticsRefresh polls the proxy for diagnostics for a file and updates the buffer
 // This is used to bridge the gap between didOpen/didChange and when publishDiagnostics arrive
 func (e *Editor) requestDiagnosticsRefresh(filePath string) {
-    if filePath == "" {
-        return
-    }
+	if filePath == "" {
+		return
+	}
 
-    // If the current buffer has LSP, send a didChange with current content as a nudge
-    buf, exists := e.buffers[filePath]
-    if !exists || !buf.HasFile() {
-        return
-    }
+	// If the current buffer has LSP, send a didChange with current content as a nudge
+	buf, exists := e.buffers[filePath]
+	if !exists || !buf.HasFile() {
+		return
+	}
 
-    content := buf.Rope.String()
-    go func(target *buffer.Buffer) {
-        LL.Debug("requestDiagnosticsRefresh: starting for %s", filePath)
-        // Nudge
-        if err := e.proxyManager.NotifyFileChange(filePath, content); err != nil {
-            LL.Debug("requestDiagnosticsRefresh: notify failed for %s: %v", filePath, err)
-        } else {
-            LL.Debug("requestDiagnosticsRefresh: didChange nudge sent for %s", filePath)
-        }
+	content := buf.Rope.String()
+	go func(target *buffer.Buffer) {
+		LL.Debug("requestDiagnosticsRefresh: starting for %s", filePath)
+		// Nudge
+		if err := e.proxyManager.NotifyFileChange(filePath, content); err != nil {
+			LL.Debug("requestDiagnosticsRefresh: notify failed for %s: %v", filePath, err)
+		} else {
+			LL.Debug("requestDiagnosticsRefresh: didChange nudge sent for %s", filePath)
+		}
 
-        // Poll briefly for diagnostics (non-blocking to UI)
-        deadline := time.Now().Add(3 * time.Second)
-        for time.Now().Before(deadline) {
-            fc, err := e.proxyManager.GetFile(filePath)
-            if err == nil && fc != nil && len(fc.Diagnostics) > 0 {
-                if b, ok := e.buffers[filePath]; ok && b == target {
-                    b.Diagnostics = fc.Diagnostics
-                    LL.Info("requestDiagnosticsRefresh: received %d diagnostics for %s", len(fc.Diagnostics), filePath)
-                    if b == e.buffer {
-                        e.render()
-                    }
-                }
-                return
-            }
-            time.Sleep(150 * time.Millisecond)
-        }
-        LL.Debug("requestDiagnosticsRefresh: timeout waiting for diagnostics for %s", filePath)
-    }(buf)
+		// Poll briefly for diagnostics (non-blocking to UI)
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			fc, err := e.proxyManager.GetFile(filePath)
+			if err == nil && fc != nil && len(fc.Diagnostics) > 0 {
+				if b, ok := e.buffers[filePath]; ok && b == target {
+					b.Diagnostics = fc.Diagnostics
+					LL.Info("requestDiagnosticsRefresh: received %d diagnostics for %s", len(fc.Diagnostics), filePath)
+					if b == e.buffer {
+						e.render()
+					}
+				}
+				return
+			}
+			time.Sleep(150 * time.Millisecond)
+		}
+		LL.Debug("requestDiagnosticsRefresh: timeout waiting for diagnostics for %s", filePath)
+	}(buf)
 }
 
 // Insert mode commands
@@ -1996,16 +2050,16 @@ func (e *Editor) undo(args []string) error {
 		return nil
 	}
 
-    // Remember current position; also attempt to restore multi-cursor snapshot
-    lineNum := e.buffer.CursorIterator.LineNumber()
-    viewLineNum := e.buffer.ViewIterator.LineNumber()
+	// Remember current position; also attempt to restore multi-cursor snapshot
+	lineNum := e.buffer.CursorIterator.LineNumber()
+	viewLineNum := e.buffer.ViewIterator.LineNumber()
 
 	// Perform undo
 	if err := e.buffer.History.Undo(e.buffer); err != nil {
 		return err
 	}
 
-    // Ensure iterators are valid after undo
+	// Ensure iterators are valid after undo
 	// If cursor line is beyond buffer, move to last line
 	maxLine := e.buffer.LineCount - 1
 	if lineNum > maxLine {
@@ -2015,33 +2069,37 @@ func (e *Editor) undo(args []string) error {
 		viewLineNum = maxLine
 	}
 
-    // Recreate iterators
-    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-    e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	// Recreate iterators
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-    // If the redo stack top is a composite with a cursor snapshot, restore it
-    if e.buffer.History != nil {
-        if primary, virtual, ok := e.buffer.History.GetTopRedoCompositeCursors(); ok {
-            // Restore primary cursor
-            if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
-                e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
-                e.buffer.CursorX = primary.Char
-            }
-            // Restore virtual cursors
-            restored := make([]VirtualCursor, 0, len(virtual))
-            for _, c := range virtual {
-                if c.Line >= 0 && c.Line < e.buffer.LineCount {
-                    iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
-                    line := iter.Line()
-                    x := c.Char
-                    if x < 0 { x = 0 }
-                    if x > len(line) { x = len(line) }
-                    restored = append(restored, VirtualCursor{X: x, Y: c.Line})
-                }
-            }
-            e.virtualCursors = restored
-        }
-    }
+	// If the redo stack top is a composite with a cursor snapshot, restore it
+	if e.buffer.History != nil {
+		if primary, virtual, ok := e.buffer.History.GetTopRedoCompositeCursors(); ok {
+			// Restore primary cursor
+			if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
+				e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
+				e.buffer.CursorX = primary.Char
+			}
+			// Restore virtual cursors
+			restored := make([]VirtualCursor, 0, len(virtual))
+			for _, c := range virtual {
+				if c.Line >= 0 && c.Line < e.buffer.LineCount {
+					iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
+					line := iter.Line()
+					x := c.Char
+					if x < 0 {
+						x = 0
+					}
+					if x > len(line) {
+						x = len(line)
+					}
+					restored = append(restored, VirtualCursor{X: x, Y: c.Line})
+				}
+			}
+			e.virtualCursors = restored
+		}
+	}
 
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()
@@ -2082,31 +2140,35 @@ func (e *Editor) redo(args []string) error {
 		viewLineNum = maxLine
 	}
 
-    // Recreate iterators
-    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-    e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	// Recreate iterators
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
 
-    // If the undo stack top is a composite with a post-cursor snapshot, restore it
-    if e.buffer.History != nil {
-        if primary, virtual, ok := e.buffer.History.GetTopUndoCompositePostCursors(); ok {
-            if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
-                e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
-                e.buffer.CursorX = primary.Char
-            }
-            restored := make([]VirtualCursor, 0, len(virtual))
-            for _, c := range virtual {
-                if c.Line >= 0 && c.Line < e.buffer.LineCount {
-                    iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
-                    line := iter.Line()
-                    x := c.Char
-                    if x < 0 { x = 0 }
-                    if x > len(line) { x = len(line) }
-                    restored = append(restored, VirtualCursor{X: x, Y: c.Line})
-                }
-            }
-            e.virtualCursors = restored
-        }
-    }
+	// If the undo stack top is a composite with a post-cursor snapshot, restore it
+	if e.buffer.History != nil {
+		if primary, virtual, ok := e.buffer.History.GetTopUndoCompositePostCursors(); ok {
+			if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
+				e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
+				e.buffer.CursorX = primary.Char
+			}
+			restored := make([]VirtualCursor, 0, len(virtual))
+			for _, c := range virtual {
+				if c.Line >= 0 && c.Line < e.buffer.LineCount {
+					iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
+					line := iter.Line()
+					x := c.Char
+					if x < 0 {
+						x = 0
+					}
+					if x > len(line) {
+						x = len(line)
+					}
+					restored = append(restored, VirtualCursor{X: x, Y: c.Line})
+				}
+			}
+			e.virtualCursors = restored
+		}
+	}
 
 	// Ensure cursor X is within bounds
 	line := e.buffer.CursorIterator.Line()
@@ -2541,10 +2603,10 @@ func (e *Editor) notifyLSPFileChange() {
 
 	// Send the notification asynchronously to avoid blocking
 	go func() {
-        if err := e.proxyManager.NotifyFileChange(e.buffer.FilePath, content); err != nil {
+		if err := e.proxyManager.NotifyFileChange(e.buffer.FilePath, content); err != nil {
 			LL.Debug("Failed to notify LSP of file change: %v", err)
-        } else {
-            LL.Debug("notifyLSPFileChange: didChange sent for %s", e.buffer.FilePath)
+		} else {
+			LL.Debug("notifyLSPFileChange: didChange sent for %s", e.buffer.FilePath)
 		}
 	}()
 }
@@ -2636,50 +2698,50 @@ func (e *Editor) goToDefinition(args []string) error {
 
 // goToDefinitionNewWindow opens the definition in a new right-hand window
 func (e *Editor) goToDefinitionNewWindow(args []string) error {
-    // Use the same lookup as goToDefinition, but open in a new window if target differs
-    if !e.buffer.HasFile() {
-        e.errorManager.ShowError("No file open")
-        return fmt.Errorf("no file open")
-    }
-    line := e.buffer.CursorIterator.LineNumber()
-    character := e.buffer.CursorX
-    locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
-    if err != nil || len(locations) == 0 {
-        if err == nil {
-            e.errorManager.ShowError("No definition found")
-        } else {
-            e.errorManager.ShowError("LSP error: %v", err)
-        }
-        return err
-    }
-    loc := locations[0]
-    if !strings.HasPrefix(loc.URI, "file://") {
-        return fmt.Errorf("unsupported URI scheme: %s", loc.URI)
-    }
-    targetPath := strings.TrimPrefix(loc.URI, "file://")
-    if strings.Contains(e.buffer.FilePath, ":") {
-        parts := strings.SplitN(e.buffer.FilePath, ":", 2)
-        if len(parts) == 2 {
-            targetPath = parts[0] + ":" + targetPath
-        }
-    }
+	// Use the same lookup as goToDefinition, but open in a new window if target differs
+	if !e.buffer.HasFile() {
+		e.errorManager.ShowError("No file open")
+		return fmt.Errorf("no file open")
+	}
+	line := e.buffer.CursorIterator.LineNumber()
+	character := e.buffer.CursorX
+	locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
+	if err != nil || len(locations) == 0 {
+		if err == nil {
+			e.errorManager.ShowError("No definition found")
+		} else {
+			e.errorManager.ShowError("LSP error: %v", err)
+		}
+		return err
+	}
+	loc := locations[0]
+	if !strings.HasPrefix(loc.URI, "file://") {
+		return fmt.Errorf("unsupported URI scheme: %s", loc.URI)
+	}
+	targetPath := strings.TrimPrefix(loc.URI, "file://")
+	if strings.Contains(e.buffer.FilePath, ":") {
+		parts := strings.SplitN(e.buffer.FilePath, ":", 2)
+		if len(parts) == 2 {
+			targetPath = parts[0] + ":" + targetPath
+		}
+	}
 
-    // Create a new window to the right and open the file there
-    insertAt := e.activeWindow + 1
-    if insertAt >= len(e.windows) {
-        e.windows = append(e.windows, newWindow(e.buffer))
-    } else {
-        e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-        e.windows[insertAt] = newWindow(e.buffer)
-    }
-    e.activateWindow(insertAt)
+	// Create a new window to the right and open the file there
+	insertAt := e.activeWindow + 1
+	if insertAt >= len(e.windows) {
+		e.windows = append(e.windows, newWindow(e.buffer))
+	} else {
+		e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+		e.windows[insertAt] = newWindow(e.buffer)
+	}
+	e.activateWindow(insertAt)
 
-    // Open file and jump to location
-    e.openFile(targetPath)
-    e.buffer.CursorX = loc.Range.Start.Character
-    e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, loc.Range.Start.Line)
-    e.scrollToCenter()
-    return nil
+	// Open file and jump to location
+	e.openFile(targetPath)
+	e.buffer.CursorX = loc.Range.Start.Character
+	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, loc.Range.Start.Line)
+	e.scrollToCenter()
+	return nil
 }
 
 // getCommandCompletions returns possible completions for the given command prefix
@@ -2872,12 +2934,12 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 		return // Nothing to clean up
 	}
 
-    // Note: Do not invalidate cleanup based on buffer generation differences.
-    // Even if there have been many edits during the insert session, we can
-    // safely inspect the current line content and remove auto-inserted
-    // indentation when the line is whitespace-only. This ensures trailing
-    // spaces on empty auto-indented lines are cleaned up reliably on exit
-    // from insert mode.
+	// Note: Do not invalidate cleanup based on buffer generation differences.
+	// Even if there have been many edits during the insert session, we can
+	// safely inspect the current line content and remove auto-inserted
+	// indentation when the line is whitespace-only. This ensures trailing
+	// spaces on empty auto-indented lines are cleaned up reliably on exit
+	// from insert mode.
 
 	// Get the line content
 	iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNumber)
@@ -2942,7 +3004,7 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 		}
 	}
 
-    // Remove from tracking
+	// Remove from tracking
 	delete(e.autoIndentLines, key)
 }
 

@@ -60,10 +60,10 @@ func TestAutoDedentClosingBrace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test editor
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
-			
+
 			// Enter insert mode
 			te.ExecuteCommand("enter-insert-mode")
-			
+
 			// Type the characters
 			for _, ch := range tt.typedChars {
 				if ch == '\n' {
@@ -72,10 +72,10 @@ func TestAutoDedentClosingBrace(t *testing.T) {
 					te.InsertChar(ch)
 				}
 			}
-			
+
 			// Exit insert mode
 			te.ExecuteCommand("exit-insert-mode")
-			
+
 			// Check the result
 			actual := te.buffer.Rope.String()
 			if actual != tt.expectedContent {
@@ -89,14 +89,14 @@ func TestAutoDedentClosingBrace(t *testing.T) {
 func TestAutoDedentWithTabs(t *testing.T) {
 	// Create test editor with tab indentation
 	te := NewTestEditorWithContent(80, 24, "")
-	
+
 	// Set indentation to tabs
 	te.buffer.Indentation.Type = 1 // config.IndentTabs
 	te.buffer.Indentation.Width = 4
-	
+
 	// Enter insert mode
 	te.ExecuteCommand("enter-insert-mode")
-	
+
 	// Type code (auto-indent will add tabs)
 	text := "if (true) {\nreturn;\n}"
 	for _, ch := range text {
@@ -106,14 +106,14 @@ func TestAutoDedentWithTabs(t *testing.T) {
 			te.InsertChar(ch)
 		}
 	}
-	
+
 	// Exit insert mode
 	te.ExecuteCommand("exit-insert-mode")
-	
+
 	// Check the result - closing brace should be dedented
 	expected := "if (true) {\n\treturn;\n}"
 	actual := te.buffer.Rope.String()
-	
+
 	if actual != expected {
 		t.Errorf("Tab indentation test failed\nExpected:\n%q\nGot:\n%q", expected, actual)
 	}
@@ -122,10 +122,10 @@ func TestAutoDedentWithTabs(t *testing.T) {
 func TestAutoDedentComplexNesting(t *testing.T) {
 	// Create test editor
 	te := NewTestEditorWithContent(80, 24, "")
-	
+
 	// Enter insert mode
 	te.ExecuteCommand("enter-insert-mode")
-	
+
 	// Type complex nested structure (let auto-indent handle indentation)
 	text := "class Foo {\nvoid bar() {\nif (x) {\nwhile (y) {\nz++;\n}\n}\n}\n}"
 	for _, ch := range text {
@@ -135,14 +135,14 @@ func TestAutoDedentComplexNesting(t *testing.T) {
 			te.InsertChar(ch)
 		}
 	}
-	
+
 	// Exit insert mode
 	te.ExecuteCommand("exit-insert-mode")
-	
+
 	// Expected result with proper dedenting
 	expected := "class Foo {\n    void bar() {\n        if (x) {\n            while (y) {\n                z++;\n            }\n        }\n    }\n}"
 	actual := te.buffer.Rope.String()
-	
+
 	if actual != expected {
 		t.Errorf("Complex nesting test failed\nExpected:\n%s\nGot:\n%s", expected, actual)
 	}

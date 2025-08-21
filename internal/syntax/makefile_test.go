@@ -9,13 +9,13 @@ import (
 func TestMakefileSyntaxHighlighting(t *testing.T) {
 	// Create a highlighter
 	h := NewHighlighter()
-	
+
 	// Set language to make
 	err := h.SetLanguage("make")
 	if err != nil {
 		t.Fatalf("Failed to set language to make: %v", err)
 	}
-	
+
 	// Test makefile content
 	makefileCode := `# This is a comment
 CC = gcc
@@ -45,7 +45,7 @@ FILES = $(wildcard *.c)
 
 	// Parse the code
 	h.ParseFull([]byte(makefileCode))
-	
+
 	// Test cases for different node types that should be found
 	testCases := []struct {
 		text      string
@@ -54,34 +54,34 @@ FILES = $(wildcard *.c)
 	}{
 		{"# This is a comment", TokenTypeComment, false},
 		{"CC", TokenTypeConstant, false}, // CC is a built-in variable
-		{"=", TokenTypeOperator, false}, 
-		{"gcc", TokenTypeString, false}, // Variable value content in tree-sitter
+		{"=", TokenTypeOperator, false},
+		{"gcc", TokenTypeString, false},      // Variable value content in tree-sitter
 		{"CFLAGS", TokenTypeConstant, false}, // Built-in variable
 		{":=", TokenTypeOperator, false},
 		{"all", TokenTypeConstant, false}, // Standard target
 		{":", TokenTypeOperator, false},
 		{"program", TokenTypeFunction, false}, // Custom target
-		{"CC", TokenTypeConstant, false}, // Variable reference within $(CC) - just check for CC
-		{".PHONY", TokenTypeConstant, false}, // Built-in target
+		{"CC", TokenTypeConstant, false},      // Variable reference within $(CC) - just check for CC
+		{".PHONY", TokenTypeConstant, false},  // Built-in target
 	}
-	
+
 	// Check each test case
 	for _, tc := range testCases {
 		found := false
 		var foundToken *Token
-		
+
 		// Find the token containing our test text
 		lines := strings.Split(makefileCode, "\n")
 		lineStart := 0
-		
+
 		for _, line := range lines {
 			if strings.TrimSpace(line) == "" {
 				lineStart += len(line) + 1
 				continue
 			}
-			
+
 			lineEnd := lineStart + len(line)
-			
+
 			tokens := h.GetTokensForLine(lineStart, lineEnd)
 			for _, token := range tokens {
 				tokenText := string(makefileCode[lineStart+token.Start : lineStart+token.End])
@@ -104,23 +104,23 @@ FILES = $(wildcard *.c)
 			if found {
 				break
 			}
-			
+
 			lineStart = lineEnd + 1 // +1 for the newline character
 		}
-		
+
 		if !found {
 			t.Errorf("Token not found for text: %s", tc.text)
 			continue
 		}
-		
+
 		if foundToken.TokenType != tc.tokenType {
 			t.Errorf("Wrong token type for %s: got %v, want %v", tc.text, foundToken.TokenType, tc.tokenType)
 		}
-		
+
 		// Verify that GetStyleForToken returns the correct style
 		testTheme := theme.NewTheme()
 		style := GetStyleForToken(foundToken.TokenType, testTheme)
-		
+
 		// Verify that GetStyleForToken returns a valid style (we don't test exact mapping here)
 		if style == (theme.StyleDef{}) {
 			t.Errorf("Token %s (%v) should have a valid style", tc.text, tc.tokenType)
@@ -130,9 +130,9 @@ FILES = $(wildcard *.c)
 
 func TestMakefileFileDetection(t *testing.T) {
 	h := NewHighlighter()
-	
+
 	testCases := []struct {
-		filename      string
+		filename     string
 		shouldBeMake bool
 	}{
 		{"Makefile", true},
@@ -145,20 +145,20 @@ func TestMakefileFileDetection(t *testing.T) {
 		{"script.py", false},
 		{"README.md", false},
 	}
-	
+
 	for _, tc := range testCases {
 		err := h.SetLanguageFromFile(tc.filename)
-		
+
 		if tc.shouldBeMake {
 			if err != nil {
 				t.Errorf("Failed to set language for %s: %v", tc.filename, err)
 				continue
 			}
-			
+
 			if h.GetCurrentLanguage() != "make" {
 				t.Errorf("Wrong language set for %s: got %s, want make", tc.filename, h.GetCurrentLanguage())
 			}
-			
+
 			// Check that make language was loaded by verifying we can parse makefile code
 			h.ParseFull([]byte("all: test\n\techo done"))
 			// For make, we should use tree-sitter parsing
@@ -179,17 +179,17 @@ func TestMakefileFileDetection(t *testing.T) {
 func TestMakefileVariableReferences(t *testing.T) {
 	h := NewHighlighter()
 	h.SetLanguage("make")
-	
+
 	testCode := `$(VAR) ${VAR2} $@ $< $^`
 	h.ParseFull([]byte(testCode))
-	
+
 	tokens := h.GetTokensForLine(0, len(testCode))
-	
+
 	// Tree-sitter parses variable references as separate tokens: $ + ( + VAR + )
 	// So we look for $ operators and variable names within the tokens
 	foundDollarSigns := 0
 	foundVarNames := 0
-	
+
 	for _, token := range tokens {
 		tokenText := testCode[token.Start:token.End]
 		if token.TokenType == TokenTypeOperator && tokenText == "$" {
@@ -202,7 +202,7 @@ func TestMakefileVariableReferences(t *testing.T) {
 			foundVarNames++
 		}
 	}
-	
+
 	// We should find at least some $ signs and variable components
 	if foundDollarSigns == 0 {
 		t.Error("Expected to find $ operators in variable references")
@@ -212,16 +212,16 @@ func TestMakefileVariableReferences(t *testing.T) {
 func TestMakefileTargetAndDependencies(t *testing.T) {
 	h := NewHighlighter()
 	h.SetLanguage("make")
-	
+
 	testCode := `program: main.o utils.o`
 	h.ParseFull([]byte(testCode))
-	
+
 	tokens := h.GetTokensForLine(0, len(testCode))
-	
+
 	// Should find target and colon operator
 	hasTarget := false
 	hasColon := false
-	
+
 	for _, token := range tokens {
 		tokenText := testCode[token.Start:token.End]
 		if token.TokenType == TokenTypeFunction && tokenText == "program" {
@@ -231,7 +231,7 @@ func TestMakefileTargetAndDependencies(t *testing.T) {
 			hasColon = true
 		}
 	}
-	
+
 	if !hasTarget {
 		t.Error("Expected to find 'program' as a target")
 	}
