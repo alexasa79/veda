@@ -18,6 +18,9 @@ all: build
 build:
 	$(GOBUILD) -o $(BINARY) main.go
 
+rebuild:
+	$(GOBUILD) -a -o $(BINARY) main.go
+
 # Run all tests
 # -p sets the number of test packages to run in parallel (default is GOMAXPROCS)
 # -parallel sets the number of tests to run in parallel within each package
