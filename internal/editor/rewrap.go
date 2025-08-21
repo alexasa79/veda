@@ -435,6 +435,11 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 					trimmed = strings.TrimPrefix(trimmed, "/*")
 					trimmed = strings.TrimSpace(trimmed)
 				}
+				// Always check for and remove trailing */ (for any line in a C block comment)
+				if strings.HasSuffix(trimmed, "*/") {
+					trimmed = strings.TrimSuffix(trimmed, "*/")
+					trimmed = strings.TrimSpace(trimmed)
+				}
 			case wrapContextMarkdownList:
 				if i == startLine {
 					listPrefix := extractListPrefix(trimmed)
@@ -462,6 +467,17 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			if strings.HasPrefix(currentLineTrimmed, "#") {
 				prefixLen := strings.Index(lines[cursorLine], "#") + 1
 				// Skip spaces after #
+				for prefixLen < len(lines[cursorLine]) && lines[cursorLine][prefixLen] == ' ' {
+					prefixLen++
+				}
+				if cursorX > prefixLen {
+					cursorOffsetInParagraph += cursorX - prefixLen
+				}
+			}
+		case wrapContextCBlockComment:
+			if strings.Contains(lines[cursorLine], "/*") {
+				prefixLen := strings.Index(lines[cursorLine], "/*") + 2
+				// Skip spaces after /*
 				for prefixLen < len(lines[cursorLine]) && lines[cursorLine][prefixLen] == ' ' {
 					prefixLen++
 				}
@@ -512,6 +528,11 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 				trimmed = strings.TrimPrefix(trimmed, "/*")
 				trimmed = strings.TrimSpace(trimmed)
 			}
+			// Always check for and remove trailing */ (for any line in a C block comment)
+			if strings.HasSuffix(trimmed, "*/") {
+				trimmed = strings.TrimSuffix(trimmed, "*/")
+				trimmed = strings.TrimSpace(trimmed)
+			}
 		case wrapContextMarkdownList:
 			if i == startLine {
 				// First line - remove list marker
@@ -533,58 +554,101 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	// Now prepare wrapped output and replacement region based on context
 	wrappedLines := []string{}
 	if context == wrapContextCBlockComment {
-		// Handle only multi-line block comments with isolated markers in Stage 1.
+		// Handle C block comments
 		openIdx := strings.Index(lines[startLine], "/*")
 		closeIdx := strings.Index(lines[endLine], "*/")
 		if openIdx < 0 || closeIdx < 0 {
 			// Fallback: do nothing if malformed
 			return nil
 		}
-		openTail := strings.TrimSpace(lines[startLine][openIdx+2:])
-		closeTrim := strings.TrimSpace(lines[endLine])
-		// Only proceed if opener has nothing after /* and closer line is exactly */
-		if openTail != "" || closeTrim != "*/" {
-			// Stage 1: skip complex inline block comments to avoid breaking code
-			return nil
-		}
-
-		// Extract inner text between startLine+1 and endLine-1
-		var inner strings.Builder
-		for i := startLine + 1; i <= endLine-1 && i < len(lines); i++ {
-			t := strings.TrimSpace(lines[i])
-			if t == "" {
-				continue
+		
+		// Check if this is a single-line block comment
+		if startLine == endLine {
+			// Single-line block comment: /* text */
+			line := lines[startLine]
+			beforeComment := line[:openIdx]
+			afterComment := ""
+			if closeIdx+2 < len(line) {
+				afterComment = line[closeIdx+2:]
 			}
-			if strings.HasPrefix(t, "*") {
-				t = strings.TrimSpace(strings.TrimPrefix(t, "*"))
-			}
-			if t != "" {
-				if inner.Len() > 0 {
-					inner.WriteString(" ")
+			
+			// For inline C block comments, use a simpler approach:
+			// Use wrapText with appropriate prefix/indentation, then post-process to add /* */ formatting
+			indentStr := beforeComment
+			
+			// First, try to see if it fits on a single line
+			singleLine := indentStr + "/* " + paragraphText.String() + " */" + afterComment
+			if len(singleLine) <= width {
+				// Fits on single line - keep it as is
+				wrappedLines = []string{singleLine}
+			} else {
+				// Needs multiple lines - wrap the text content and add comment formatting
+				continuationIndent := indentStr + strings.Repeat(" ", len("/* "))
+				
+				// Wrap the text content with continuation indent
+				textLines := wrapText(paragraphText.String(), width, continuationIndent, "")
+				
+				// Post-process to add /* and */ formatting
+				wrappedLines = make([]string, len(textLines))
+				for i, line := range textLines {
+					if i == 0 {
+						// First line: replace continuation indent with "/* "
+						textPart := strings.TrimPrefix(line, continuationIndent)
+						wrappedLines[i] = indentStr + "/* " + textPart
+					} else if i == len(textLines)-1 {
+						// Last line: add " */" at the end
+						wrappedLines[i] = line + " */" + afterComment
+					} else {
+						// Middle lines: keep as is (they already have the right indentation)
+						wrappedLines[i] = line
+					}
 				}
-				inner.WriteString(t)
+			}
+		} else {
+			// Multi-line block comment
+			// Handle inline-style multi-line C comments (where /* has content after it)
+			// Extract the complete comment text and rewrap it as inline style
+			beforeComment := lines[startLine][:openIdx]
+			afterComment := ""
+			
+			// Check if there's content after */ on the closing line
+			closeIdx := strings.Index(lines[endLine], "*/")
+			if closeIdx >= 0 && closeIdx+2 < len(lines[endLine]) {
+				afterComment = lines[endLine][closeIdx+2:]
+			}
+			
+			// Use the same inline wrapping logic as single-line comments
+			indentStr := beforeComment
+			
+			// First, try to see if it fits on a single line
+			singleLine := indentStr + "/* " + paragraphText.String() + " */" + afterComment
+			if len(singleLine) <= width {
+				// Fits on single line - collapse to single line
+				wrappedLines = []string{singleLine}
+			} else {
+				// Needs multiple lines - wrap the text content and add comment formatting
+				continuationIndent := indentStr + strings.Repeat(" ", len("/* "))
+				
+				// Wrap the text content with continuation indent
+				textLines := wrapText(paragraphText.String(), width, continuationIndent, "")
+				
+				// Post-process to add /* and */ formatting
+				wrappedLines = make([]string, len(textLines))
+				for i, line := range textLines {
+					if i == 0 {
+						// First line: replace continuation indent with "/* "
+						textPart := strings.TrimPrefix(line, continuationIndent)
+						wrappedLines[i] = indentStr + "/* " + textPart
+					} else if i == len(textLines)-1 {
+						// Last line: add " */" at the end
+						wrappedLines[i] = line + " */" + afterComment
+					} else {
+						// Middle lines: keep as is (they already have the right indentation)
+						wrappedLines[i] = line
+					}
+				}
 			}
 		}
-
-		// Determine indentation where stars should align: one space after opener indent
-		indent := lines[startLine][:openIdx]
-		starIndent := indent + " "
-		// Wrap with "* " prefix
-		wrapped := wrapText(inner.String(), width, starIndent, "* ")
-		wrappedLines = wrapped
-
-		// Compute replacement region (whole lines from startLine to endLine)
-		// Build new content lines including markers
-		newBlock := make([]string, 0, len(wrapped)+2)
-		newBlock = append(newBlock, indent+"/*")
-		newBlock = append(newBlock, wrapped...)
-		newBlock = append(newBlock, indent+"*/")
-
-		// Overwrite wrappedLines with full block for downstream insertion
-		wrappedLines = newBlock
-		// Reset indentation/prefix since wrappedLines already include them
-		indentation = ""
-		prefix = ""
 	} else {
 		// Non-block contexts use existing wrap behavior
 		wrappedLines = wrapText(paragraphText.String(), width, indentation, prefix)
