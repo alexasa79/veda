@@ -698,7 +698,35 @@ func (e *Editor) render() {
                 e.updateCursor()
             }
         } else {
-            e.updateCursor()
+            // Single-window: compute and show cursor relative to the active window region
+            if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+                win := e.windows[e.activeWindow]
+                if win != nil && win.Buffer != nil {
+                    sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+                    realScreen := e.screen
+                    realBuffer := e.buffer
+                    e.screen = sub
+                    // Temporarily sync buffer to window state for correct cursor draw
+                    savedView := win.Buffer.ViewIterator
+                    savedCursor := win.Buffer.CursorIterator
+                    savedX := win.Buffer.CursorX
+                    win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
+                    win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
+                    win.Buffer.CursorX = win.CursorX
+                    e.buffer = win.Buffer
+                    e.updateCursor()
+                    // Restore
+                    win.Buffer.ViewIterator = savedView
+                    win.Buffer.CursorIterator = savedCursor
+                    win.Buffer.CursorX = savedX
+                    e.screen = realScreen
+                    e.buffer = realBuffer
+                } else {
+                    e.updateCursor()
+                }
+            } else {
+                e.updateCursor()
+            }
         }
     }
 	t0 = e.perfTracker.ReportSince("updateCursor", t0)
