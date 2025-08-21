@@ -650,3 +650,71 @@ func TestRewrapThirdNumberedItemPreservesAlignment(t *testing.T) {
         t.Fatalf("third item continuation lines not properly indented: %q | %q", lines[5], lines[6])
     }
 }
+
+// TestRewrapRulerCycling tests that repeated rewrapping cycles through different ruler widths
+func TestRewrapRulerCycling(t *testing.T) {
+	// Use a very long comment that will definitely need wrapping at all ruler widths
+	content := `    /* This is a very long comment that contains many words and should definitely be wrapped when we run the rewrap command because it exceeds even the largest default wrap width of one hundred twenty characters and continues on with more text to make it really quite long indeed for testing purposes and even more text beyond that */`
+
+	te := NewTestEditorWithContent(200, 24, content)
+	
+	// Set the default vertical rulers (80, 100, 120)
+	te.Editor.config.VerticalRulers = []int{80, 100, 120}
+	
+	// Position cursor in the comment text
+	te.SetCursorPosition(10, 0)
+	
+	// Expected behavior specification:
+	expectedBehavior := []struct {
+		rewrapNumber int
+		rulerWidth   int
+		description  string
+	}{
+		{1, 80, "First rewrap should use 80-char ruler"},
+		{2, 100, "Second rewrap should use 100-char ruler"},  
+		{3, 120, "Third rewrap should use 120-char ruler"},
+		{4, 80, "Fourth rewrap should cycle back to 80-char ruler"},
+	}
+	
+	results := make([]string, len(expectedBehavior))
+	
+	for i, expected := range expectedBehavior {
+		t.Logf("=== Rewrap %d (expecting %d-char ruler) ===", expected.rewrapNumber, expected.rulerWidth)
+		
+		err := te.ExecuteCommand("rewrap-paragraph")
+		if err != nil {
+			t.Fatalf("Rewrap %d failed: %v", expected.rewrapNumber, err)
+		}
+		
+		result := te.GetBufferContent()
+		results[i] = result
+		lines := strings.Split(result, "\n")
+		
+		t.Logf("%s", expected.description)
+		
+		// Check that lines respect the expected width (with some tolerance for comment syntax)
+		maxExpectedLength := expected.rulerWidth + 5 // Allow some buffer for comment formatting
+		for j, line := range lines {
+			if len(line) > maxExpectedLength {
+				t.Errorf("Rewrap %d, Line %d exceeds expected max length %d: %d chars", 
+					expected.rewrapNumber, j+1, maxExpectedLength, len(line))
+			}
+		}
+		
+		// For wider rulers, we should generally get fewer lines (more text per line)
+		if i > 0 && expected.rulerWidth > expectedBehavior[i-1].rulerWidth {
+			prevLines := strings.Split(results[i-1], "\n")
+			if len(lines) >= len(prevLines) {
+				t.Logf("Note: Expected fewer lines with %d-char ruler (%d lines) than with %d-char ruler (%d lines)",
+					expected.rulerWidth, len(lines), expectedBehavior[i-1].rulerWidth, len(prevLines))
+			}
+		}
+	}
+	
+	// Check that results are different (ruler cycling is working)
+	for i := 1; i < len(results); i++ {
+		if results[i] == results[i-1] {
+			t.Errorf("Rewrap %d produced identical results to rewrap %d - ruler cycling may not be working correctly", i+1, i)
+		}
+	}
+}

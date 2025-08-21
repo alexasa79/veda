@@ -408,8 +408,9 @@ func (e *Editor) openFile(filePath string) {
 		branch = fileContent.Branch
 		diagnostics = fileContent.Diagnostics
 
-		// Check for auto-save recovery if we have a file
-		if e.autoSaveManager != nil {
+		// Check for auto-save recovery if we have a file that actually exists
+		// If the file doesn't exist (proxy returned empty content), skip auto-save recovery
+		if e.autoSaveManager != nil && content != "" {
 			// For now, check if auto-save exists without time comparison
 			// TODO: Get file modification time from proxy for better recovery detection
 			if exists, _, _ := e.autoSaveManager.GetAutoSaveInfo(resolvedPath); exists {
