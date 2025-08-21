@@ -196,3 +196,4 @@ Some tests require LSP servers to be installed and available on the test machine
 
 ## Debugging difficult problems
 When debugging difficult problems, the user can run tests for you. Ask the user to test things for you. The editor has debug log (/tmp/veda.log by default), that you can check.
+- Do not create temporary files. If you need an artifact to be used in tests, create it in artifacts directory. If you need a temporary test, create a unit test.
