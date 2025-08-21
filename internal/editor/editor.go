@@ -268,14 +268,11 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		return nil, fmt.Errorf("failed to start proxy manager: %v", err)
 	}
 
-	// Create initial empty buffer
-	initialBuffer := buffer.NewBuffer("", "", config.DefaultIndentType, config.DefaultIndentWidth)
-
 	// LSP channels will be removed - using goroutines on demand instead
 
 	editor := &Editor{
 		screen:               screen,
-		buffer:               initialBuffer,
+		buffer:               nil, // No initial buffer - will show "[empty]" until file is opened
 		config:               config,
 		mode:                 commands.NormalMode,
 		commandLine:          commandLine,
@@ -326,8 +323,8 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		terminalSessions:     make(map[string]*TerminalSessionState),
 	}
 
-	// Initialize windows with a single window for the initial buffer (always have a window)
-	editor.windows = []*Window{newWindow(initialBuffer)}
+	// Initialize windows with a single empty window (always have a window)
+	editor.windows = []*Window{newWindow(nil)} // nil buffer shows "[empty]"
 	editor.activeWindow = 0
 	editor.recomputeWindowsLayout()
 
@@ -348,16 +345,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	editor.autoIndentLines = make(map[string]AutoIndentInfo)
 	editor.lastCursorLine = -1
 
-	// Add the initial empty buffer to the buffers map
-	// Use consistent naming for unnamed buffers
-	editor.buffers["[No Name]"] = initialBuffer
-	editor.bufferOrder = append(editor.bufferOrder, "[No Name]")
+	// No initial buffer - buffers map starts empty
+	// When no file arguments are provided, user can create new buffer with :new or by typing
 
-	// Set up LSP notification callback for the initial buffer
-	initialBuffer.OnContentChange = func() {
-		editor.notifyLSPFileChange()
-		editor.updateSearchMatchesOnContentChange()
-	}
+	// LSP callbacks will be set up when buffers are created
 
 	// Set up proxy status callback to update connection status
 	proxyManager.SetStatusCallback(func(status string) {
@@ -1434,6 +1425,11 @@ func (e *Editor) isTextModifyingCommand(command string) bool {
 
 // executeCommandForAllCursors executes a command for all cursors
 func (e *Editor) executeCommandForAllCursors(command string, args []string) error {
+	// Check if we have a buffer to work with
+	if e.buffer == nil {
+		return nil // No buffer, no cursors to execute command on
+	}
+	
 	// Save view position and primary cursor position
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
 	primaryLineNum := e.buffer.CursorIterator.LineNumber()
@@ -2614,7 +2610,7 @@ func (e *Editor) notifyLSPFileChange() {
 
 func (e *Editor) goToDefinition(args []string) error {
 	// Only works if we have a file open
-	if !e.buffer.HasFile() {
+	if e.buffer == nil || !e.buffer.HasFile() {
 		e.errorManager.ShowError("No file open")
 		return fmt.Errorf("no file open")
 	}

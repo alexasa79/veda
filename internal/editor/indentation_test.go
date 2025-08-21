@@ -389,7 +389,7 @@ func TestIndentationDetection(t *testing.T) {
 
 func TestIndentationCommands(t *testing.T) {
 	t.Run("set noexpandtab", func(t *testing.T) {
-		te := NewTestEditor(80, 24)
+		te := NewTestEditorWithContent(80, 24, "test content")
 
 		// Start with default (4 spaces)
 		if te.buffer.Indentation.Type != config.IndentSpaces || te.buffer.Indentation.Width != 4 {
@@ -407,7 +407,7 @@ func TestIndentationCommands(t *testing.T) {
 	})
 
 	t.Run("set tabstop", func(t *testing.T) {
-		te := NewTestEditor(80, 24)
+		te := NewTestEditorWithContent(80, 24, "test content")
 
 		// Test :tabstop=2
 		te.enterCommandMode()
@@ -423,7 +423,7 @@ func TestIndentationCommands(t *testing.T) {
 	})
 
 	t.Run("set tabstop with equals", func(t *testing.T) {
-		te := NewTestEditor(80, 24)
+		te := NewTestEditorWithContent(80, 24, "test content")
 
 		// Test :tabstop=8
 		te.enterCommandMode()
@@ -436,7 +436,7 @@ func TestIndentationCommands(t *testing.T) {
 	})
 
 	t.Run("set expandtab", func(t *testing.T) {
-		te := NewTestEditor(80, 24)
+		te := NewTestEditorWithContent(80, 24, "test content")
 
 		// First set to tabs
 		te.buffer.SetIndentationType(config.IndentTabs)
