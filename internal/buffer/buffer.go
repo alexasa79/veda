@@ -11,12 +11,12 @@ const (
 // It can be either a leaf node (containing text) or an internal node (with children).
 type Node struct {
 	// Common fields for all nodes
-	parent      *Node // Parent node (nil for root)
-	weight      int   // Total length of text in this subtree
+	parent *Node // Parent node (nil for root)
+	weight int   // Total length of text in this subtree
 
 	offset int // Offset of the node relative to the beginning of the buffer
 
-	newlineCount int  // Total number of newline characters in this subtree
+	newlineCount int // Total number of newline characters in this subtree
 
 	// For internal nodes
 	left  *Node // Left child
@@ -51,11 +51,11 @@ func NewLeaf(text string) *Node {
 // NewConcatNode creates a new internal concatenation node.
 func NewConcatNode(left, right *Node) *Node {
 	node := &Node{
-		left:   left,
-		right:  right,
-		weight: 0,
+		left:         left,
+		right:        right,
+		weight:       0,
 		newlineCount: 0,
-		offset: 0, // Will be set when added to rope
+		offset:       0, // Will be set when added to rope
 	}
 	// Calculate total weight, newline count, and set child offsets
 	if left != nil {
@@ -149,7 +149,7 @@ func (r *Rope) findNodeAtLineRecursive(node *Node, targetLine int) (*Node, int) 
 
 	// Target line is in the right subtree
 	// Adjust target line by subtracting lines in left subtree
-	return r.findNodeAtLineRecursive(node.right, targetLine - leftNewlineCount)
+	return r.findNodeAtLineRecursive(node.right, targetLine-leftNewlineCount)
 }
 
 // findLineStartInLeaf finds the start position of the specified line within a leaf node
@@ -207,7 +207,6 @@ func (n *Node) String() string {
 	sb.WriteString(n.right.String())
 	return sb.String()
 }
-
 
 // Rope is the main data structure for the editor's text content.
 // It implements a rope data structure for efficient text manipulation.

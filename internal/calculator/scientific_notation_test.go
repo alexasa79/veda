@@ -8,28 +8,28 @@ import (
 
 func TestScientificNotationPrevention(t *testing.T) {
 	tests := []struct {
-		name      string
-		expr      string
+		name             string
+		expr             string
 		shouldNotContain []string // These should NOT be in the output
 	}{
 		{
-			name:      "very large number multiplication",
-			expr:      "123456789012345678901234567890 * 987654321098765432109876543210",
+			name:             "very large number multiplication",
+			expr:             "123456789012345678901234567890 * 987654321098765432109876543210",
 			shouldNotContain: []string{"e+", "E+", "e-", "E-"}, // Should not contain scientific notation
 		},
 		{
-			name:      "very small number division",
-			expr:      "1 / 123456789012345678901234567890123456789012345678901234567890",
+			name:             "very small number division",
+			expr:             "1 / 123456789012345678901234567890123456789012345678901234567890",
 			shouldNotContain: []string{"e+", "E+", "e-", "E-"}, // Should not contain scientific notation
 		},
 		{
-			name:      "very large factorial-like calculation",
-			expr:      "1000000000000000000000 * 1000000000000000000000",
+			name:             "very large factorial-like calculation",
+			expr:             "1000000000000000000000 * 1000000000000000000000",
 			shouldNotContain: []string{"e+", "E+", "e-", "E-"}, // Should not contain scientific notation
 		},
 		{
-			name:      "huge number with many digits",
-			expr:      "999999999999999999999999999999999999999999999999999999999999",
+			name:             "huge number with many digits",
+			expr:             "999999999999999999999999999999999999999999999999999999999999",
 			shouldNotContain: []string{"e+", "E+", "e-", "E-"}, // Should not contain scientific notation
 		},
 	}
@@ -66,16 +66,16 @@ func TestScientificNotationPrevention(t *testing.T) {
 
 func TestFormatDefaultWithLargeNumbers(t *testing.T) {
 	tests := []struct {
-		name     string
-		value    string // String representation of big number
+		name  string
+		value string // String representation of big number
 	}{
 		{
-			name:     "large integer",
-			value:    "123456789012345678901234567890",
+			name:  "large integer",
+			value: "123456789012345678901234567890",
 		},
 		{
-			name:     "result of 2^100",
-			value:    "1267650600228229401496703205376", // 2^100
+			name:  "result of 2^100",
+			value: "1267650600228229401496703205376", // 2^100
 		},
 	}
 
@@ -95,7 +95,7 @@ func TestFormatDefaultWithLargeNumbers(t *testing.T) {
 			if strings.Contains(output, "e") || strings.Contains(output, "E") {
 				t.Errorf("Output %q contains scientific notation", output)
 			}
-			
+
 			// Ensure the output is a valid decimal number
 			validChars := "0123456789.-"
 			for _, char := range output {
@@ -110,7 +110,7 @@ func TestFormatDefaultWithLargeNumbers(t *testing.T) {
 func TestBigFloatTextGFormatProducesScientificNotation(t *testing.T) {
 	// This test demonstrates that big.Float.Text('g', 10) produces scientific notation
 	// for very large numbers, which is the problem we need to fix
-	
+
 	tests := []struct {
 		name  string
 		value string
@@ -124,19 +124,19 @@ func TestBigFloatTextGFormatProducesScientificNotation(t *testing.T) {
 			value: "0.000000000000000000000000000000000000000000000001",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bigFloat := new(big.Float)
 			bigFloat.SetString(tt.value)
-			
+
 			// Test the current behavior of big.Float.Text('g', 10)
 			gFormat := bigFloat.Text('g', 10)
 			t.Logf("big.Float.Text('g', 10) for %s: %s", tt.value, gFormat)
-			
+
 			// Check if it contains scientific notation
 			hasScientific := strings.Contains(gFormat, "e") || strings.Contains(gFormat, "E")
-			
+
 			if hasScientific {
 				t.Logf("CONFIRMED: big.Float.Text('g', 10) produces scientific notation: %s", gFormat)
 			} else {

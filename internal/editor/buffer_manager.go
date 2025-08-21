@@ -23,30 +23,30 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 		e.previousBuffer = e.buffer
 	}
 
-    // Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
-    e.buffer = buf
+	// Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
+	e.buffer = buf
 
-    // Ensure iterators are valid w.r.t. current buffer generation
-    // Iterators become invalid whenever the buffer content changes off-screen (e.g., messages buffer appends)
-    if e.buffer != nil {
-        // Validate and recreate ViewIterator if needed
-        if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
-            // Preserve previous desired line without triggering validation
-            desiredLine := 0
-            if e.buffer.ViewIterator != nil {
-                desiredLine = e.buffer.ViewIterator.LineNum
-            }
-            e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredLine)
-        }
-        // Validate and recreate CursorIterator if needed
-        if e.buffer.CursorIterator == nil || e.buffer.CursorIterator.Generation != e.buffer.Generation {
-            desiredCursorLine := 0
-            if e.buffer.CursorIterator != nil {
-                desiredCursorLine = e.buffer.CursorIterator.LineNum
-            }
-            e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredCursorLine)
-        }
-    }
+	// Ensure iterators are valid w.r.t. current buffer generation
+	// Iterators become invalid whenever the buffer content changes off-screen (e.g., messages buffer appends)
+	if e.buffer != nil {
+		// Validate and recreate ViewIterator if needed
+		if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
+			// Preserve previous desired line without triggering validation
+			desiredLine := 0
+			if e.buffer.ViewIterator != nil {
+				desiredLine = e.buffer.ViewIterator.LineNum
+			}
+			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredLine)
+		}
+		// Validate and recreate CursorIterator if needed
+		if e.buffer.CursorIterator == nil || e.buffer.CursorIterator.Generation != e.buffer.Generation {
+			desiredCursorLine := 0
+			if e.buffer.CursorIterator != nil {
+				desiredCursorLine = e.buffer.CursorIterator.LineNum
+			}
+			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredCursorLine)
+		}
+	}
 
 	// Set up LSP notification callback
 	e.buffer.OnContentChange = func() {
@@ -74,18 +74,18 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 			e.highlighter = syntax.NewHighlighter()
 		}
 
-    // If windowing is enabled, ensure the active window shows this buffer
-    if len(e.windows) > 0 {
-        if e.activeWindow < 0 {
-            e.activeWindow = 0
-        }
-        if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-            if e.windows[e.activeWindow] != nil {
-                // Add buffer to the current window if not already present
-                e.windows[e.activeWindow].addBuffer(buf)
-            }
-        }
-    }
+		// If windowing is enabled, ensure the active window shows this buffer
+		if len(e.windows) > 0 {
+			if e.activeWindow < 0 {
+				e.activeWindow = 0
+			}
+			if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+				if e.windows[e.activeWindow] != nil {
+					// Add buffer to the current window if not already present
+					e.windows[e.activeWindow].addBuffer(buf)
+				}
+			}
+		}
 	}
 }
 
@@ -135,10 +135,10 @@ func (e *Editor) showBuffers(args []string) error {
 			if buf, exists := window.Buffers[path]; exists && !seenBuffers[path] {
 				seenBuffers[path] = true
 				pathToWindow[path] = windowIdx
-				
+
 				displayName := buf.DisplayName()
 				windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
-				
+
 				var fullDisplayName string
 				if path == e.buffer.FilePath {
 					// Mark current buffer
@@ -146,7 +146,7 @@ func (e *Editor) showBuffers(args []string) error {
 				} else {
 					fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
 				}
-				
+
 				bufferDisplays = append(bufferDisplays, fullDisplayName)
 				pathToDisplay[fullDisplayName] = path
 			}
@@ -161,52 +161,52 @@ func (e *Editor) showBuffers(args []string) error {
 
 	// Wait for result in a goroutine
 	go func() {
-        selection := <-resultChan
+		selection := <-resultChan
 
 		// If a buffer was selected, switch to it
-        if selection != "" {
-            openInNewWin := false
-            if strings.HasPrefix(selection, "__SHIFT__\n") {
-                openInNewWin = true
-                selection = strings.TrimPrefix(selection, "__SHIFT__\n")
-            }
+		if selection != "" {
+			openInNewWin := false
+			if strings.HasPrefix(selection, "__SHIFT__\n") {
+				openInNewWin = true
+				selection = strings.TrimPrefix(selection, "__SHIFT__\n")
+			}
 
 			// Save current buffer state before switching
 			e.saveCurrentBufferState()
 
 			// Look up the actual path from the display name
 			if path, ok := pathToDisplay[selection]; ok {
-                // Find which window contains this buffer
-                targetWindowIdx := pathToWindow[path]
-                
-                if openInNewWin {
-                    // Create a new window to the right and assign buffer
-                    insertAt := e.activeWindow + 1
-                    if buf, exists := e.buffers[path]; exists {
-                        newWin := newWindow(buf)
-                        if insertAt >= len(e.windows) {
-                            e.windows = append(e.windows, newWin)
-                        } else {
-                            e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-                            e.windows[insertAt] = newWin
-                        }
-                        e.activateWindow(insertAt)
-                        e.switchToBuffer(buf)
-                    }
-                } else {
-                    // Switch to the window containing the buffer and then to the buffer
-                    if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
-                        targetWindow := e.windows[targetWindowIdx]
-                        if targetWindow != nil {
-                            if buf, exists := targetWindow.Buffers[path]; exists {
-                                // Activate the target window (this will call switchToBuffer automatically)
-                                e.activateWindow(targetWindowIdx)
-                                // Make sure we're on the right buffer within that window
-                                e.switchToBuffer(buf)
-                            }
-                        }
-                    }
-                }
+				// Find which window contains this buffer
+				targetWindowIdx := pathToWindow[path]
+
+				if openInNewWin {
+					// Create a new window to the right and assign buffer
+					insertAt := e.activeWindow + 1
+					if buf, exists := e.buffers[path]; exists {
+						newWin := newWindow(buf)
+						if insertAt >= len(e.windows) {
+							e.windows = append(e.windows, newWin)
+						} else {
+							e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+							e.windows[insertAt] = newWin
+						}
+						e.activateWindow(insertAt)
+						e.switchToBuffer(buf)
+					}
+				} else {
+					// Switch to the window containing the buffer and then to the buffer
+					if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
+						targetWindow := e.windows[targetWindowIdx]
+						if targetWindow != nil {
+							if buf, exists := targetWindow.Buffers[path]; exists {
+								// Activate the target window (this will call switchToBuffer automatically)
+								e.activateWindow(targetWindowIdx)
+								// Make sure we're on the right buffer within that window
+								e.switchToBuffer(buf)
+							}
+						}
+					}
+				}
 			}
 		}
 	}()
@@ -217,12 +217,12 @@ func (e *Editor) showBuffers(args []string) error {
 // closeBuffer closes the current buffer
 func (e *Editor) closeBuffer(args []string) error {
 	currentPath := e.buffer.FilePath
-	
+
 	// Remove buffer from current window
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
 		window := e.windows[e.activeWindow]
 		shouldCloseWindow := window.removeBuffer(currentPath)
-		
+
 		if shouldCloseWindow {
 			// No more buffers in this window - close the window
 			if len(e.windows) <= 1 {
@@ -249,7 +249,7 @@ func (e *Editor) closeBuffer(args []string) error {
 		if len(e.buffers) <= 1 {
 			return e.actuallyQuit(args)
 		}
-		
+
 		// Find another buffer to switch to
 		for path, buf := range e.buffers {
 			if path != currentPath {
@@ -264,27 +264,27 @@ func (e *Editor) closeBuffer(args []string) error {
 		e.autoSaveManager.CleanupAutoSave(currentPath)
 	}
 
-    // If terminal session is attached, close it via proxy
-    if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
-        _ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
-        delete(e.terminalSessions, currentPath)
-    }
-    
-    // Remove buffer from global buffers (only if no other window has it)
-    bufferStillInUse := false
-    for _, window := range e.windows {
-        if window != nil {
-            if _, exists := window.Buffers[currentPath]; exists {
-                bufferStillInUse = true
-                break
-            }
-        }
-    }
-    
-    if !bufferStillInUse {
-        delete(e.buffers, currentPath)
-        e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
-    }
+	// If terminal session is attached, close it via proxy
+	if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
+		_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
+		delete(e.terminalSessions, currentPath)
+	}
+
+	// Remove buffer from global buffers (only if no other window has it)
+	bufferStillInUse := false
+	for _, window := range e.windows {
+		if window != nil {
+			if _, exists := window.Buffers[currentPath]; exists {
+				bufferStillInUse = true
+				break
+			}
+		}
+	}
+
+	if !bufferStillInUse {
+		delete(e.buffers, currentPath)
+		e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
+	}
 
 	return nil
 }
@@ -349,10 +349,10 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 			if buf, exists := window.Buffers[path]; exists && !seenBuffers[path] {
 				seenBuffers[path] = true
 				pathToWindow[path] = windowIdx
-				
+
 				displayName := buf.DisplayName()
 				windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
-				
+
 				var fullDisplayName string
 				if path == e.buffer.FilePath {
 					// Mark current buffer
@@ -364,7 +364,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 						previousBufferIndex = len(bufferDisplays)
 					}
 				}
-				
+
 				bufferDisplays = append(bufferDisplays, fullDisplayName)
 				pathToDisplay[fullDisplayName] = path
 			}
@@ -404,7 +404,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 			if path, ok := pathToDisplay[selection]; ok {
 				// Find which window contains this buffer
 				targetWindowIdx := pathToWindow[path]
-				
+
 				if openInNewWin {
 					// Create a new window to the right and assign buffer
 					insertAt := e.activeWindow + 1

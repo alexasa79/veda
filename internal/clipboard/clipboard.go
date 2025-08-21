@@ -38,7 +38,7 @@ func Copy(text string) error {
 // Paste reads text from the system clipboard
 func Paste() (string, error) {
 	var cmd *exec.Cmd
-	
+
 	switch runtime.GOOS {
 	case "darwin":
 		// macOS: use pbpaste
@@ -57,11 +57,11 @@ func Paste() (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
-	
+
 	return string(output), nil
 }

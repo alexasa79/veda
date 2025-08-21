@@ -17,17 +17,17 @@ func getTreeSitterContext(buf *buffer.Buffer, highlighter *syntax.Highlighter, c
 
 	// Get the root node
 	root := tree.RootNode()
-	
+
 	// Find nodes that contain the cursor line and should be shown as context
 	contextNodes := findContextNodes(root, cursorLine, viewStartLine, viewEndLine)
-	
+
 	// Convert nodes to line numbers
 	var lineNumbers []int
 	lineMap := make(map[int]bool)
-	
+
 	for _, node := range contextNodes {
 		startLine := int(node.StartPoint().Row)
-		
+
 		// For function definitions, we want to show the complete signature
 		if isFunctionNode(node) {
 			// Get the line that contains the function name and parameters
@@ -44,29 +44,29 @@ func getTreeSitterContext(buf *buffer.Buffer, highlighter *syntax.Highlighter, c
 			}
 		}
 	}
-	
+
 	// Limit to maxLines
 	if len(lineNumbers) > maxLines {
 		lineNumbers = lineNumbers[len(lineNumbers)-maxLines:]
 	}
-	
+
 	return lineNumbers
 }
 
 // findContextNodes finds all nodes that contain the cursor line and are context-worthy
 func findContextNodes(node *sitter.Node, cursorLine int, viewStartLine int, viewEndLine int) []*sitter.Node {
 	var result []*sitter.Node
-	
+
 	nodeStartLine := int(node.StartPoint().Row)
 	nodeEndLine := int(node.EndPoint().Row)
-	
+
 	// Check if this node contains the cursor line
 	if cursorLine >= nodeStartLine && cursorLine <= nodeEndLine {
 		// Check if this is a context-worthy node type
 		if isContextNode(node) {
 			result = append(result, node)
 		}
-		
+
 		// Recursively check children
 		childCount := int(node.ChildCount())
 		for i := 0; i < childCount; i++ {
@@ -75,34 +75,34 @@ func findContextNodes(node *sitter.Node, cursorLine int, viewStartLine int, view
 			result = append(result, childNodes...)
 		}
 	}
-	
+
 	return result
 }
 
 // isContextNode checks if a node type should be shown as context
 func isContextNode(node *sitter.Node) bool {
 	nodeType := node.Type()
-	
+
 	// Context-worthy node types for different languages
 	contextTypes := map[string]bool{
 		// C/C++ context nodes
-		"function_definition":     true,
-		"struct_specifier":        true,
-		"enum_specifier":          true,
-		"if_statement":            true,
-		"for_statement":           true,
-		"while_statement":         true,
-		"do_statement":            true,
-		"switch_statement":        true,
-		"compound_statement":      false, // Skip compound statements to avoid braces
-		
+		"function_definition": true,
+		"struct_specifier":    true,
+		"enum_specifier":      true,
+		"if_statement":        true,
+		"for_statement":       true,
+		"while_statement":     true,
+		"do_statement":        true,
+		"switch_statement":    true,
+		"compound_statement":  false, // Skip compound statements to avoid braces
+
 		// Go context nodes
-		"function_declaration":    true,
-		"method_declaration":      true,
-		"type_declaration":        true,
-		"select_statement":        true,
+		"function_declaration": true,
+		"method_declaration":   true,
+		"type_declaration":     true,
+		"select_statement":     true,
 	}
-	
+
 	return contextTypes[nodeType]
 }
 
@@ -118,13 +118,13 @@ func findFunctionDeclarationLine(buf *buffer.Buffer, node *sitter.Node) int {
 	// For function definitions, we need to find the declarator node
 	// which contains the function name and parameters
 	childCount := int(node.ChildCount())
-	
+
 	// First, try to find the function declarator directly
 	var declaratorNode *sitter.Node
 	for i := 0; i < childCount; i++ {
 		child := node.Child(i)
 		childType := child.Type()
-		
+
 		// Look for the declarator that contains the function name
 		if childType == "function_declarator" {
 			declaratorNode = child
@@ -136,13 +136,13 @@ func findFunctionDeclarationLine(buf *buffer.Buffer, node *sitter.Node) int {
 				break
 			}
 		}
-		
+
 		// For Go, the function name is usually an identifier at the top level
 		if node.Type() == "function_declaration" && childType == "identifier" {
 			return int(child.StartPoint().Row)
 		}
 	}
-	
+
 	// If we found a function declarator, find the line with the function name
 	if declaratorNode != nil {
 		// The function name is usually in an identifier node within the declarator
@@ -153,7 +153,7 @@ func findFunctionDeclarationLine(buf *buffer.Buffer, node *sitter.Node) int {
 		// Fallback to declarator start line
 		return int(declaratorNode.StartPoint().Row)
 	}
-	
+
 	// Fallback: scan lines to find the one with the function name
 	// This handles cases where tree-sitter structure might be different
 	return findFunctionNameByScanning(buf, node)
@@ -164,7 +164,7 @@ func findFunctionDeclaratorInNode(node *sitter.Node) *sitter.Node {
 	if node.Type() == "function_declarator" {
 		return node
 	}
-	
+
 	childCount := int(node.ChildCount())
 	for i := 0; i < childCount; i++ {
 		child := node.Child(i)
@@ -172,7 +172,7 @@ func findFunctionDeclaratorInNode(node *sitter.Node) *sitter.Node {
 			return result
 		}
 	}
-	
+
 	return nil
 }
 
@@ -199,7 +199,7 @@ func findFunctionNameLine(declaratorNode *sitter.Node) int {
 func findFunctionNameByScanning(buf *buffer.Buffer, node *sitter.Node) int {
 	startLine := int(node.StartPoint().Row)
 	endLine := int(node.EndPoint().Row)
-	
+
 	// Scan lines looking for the function name
 	// In C/C++, the function name line typically has:
 	// - An identifier followed by '('
@@ -209,14 +209,14 @@ func findFunctionNameByScanning(buf *buffer.Buffer, node *sitter.Node) int {
 		if iter.IsEOF() {
 			continue
 		}
-		
+
 		lineText := strings.TrimSpace(iter.Line())
-		
+
 		// Skip empty lines and lines that are just type specifiers
 		if lineText == "" || lineText == "{" {
 			continue
 		}
-		
+
 		// Check if this line contains a function name pattern
 		// Look for identifier followed by '(' either on same line or next line
 		if strings.Contains(lineText, "(") {
@@ -239,7 +239,7 @@ func findFunctionNameByScanning(buf *buffer.Buffer, node *sitter.Node) int {
 			}
 		}
 	}
-	
+
 	// Fallback to node start line
 	return startLine
 }
@@ -252,17 +252,17 @@ func isJustTypeDeclaration(line string) bool {
 		"void", "char", "int", "long", "short", "float", "double",
 		"unsigned", "signed", "struct", "union", "enum", "*",
 	}
-	
+
 	// Remove pointer symbols for checking
 	checkLine := strings.ReplaceAll(line, "*", " ")
 	checkLine = strings.ReplaceAll(checkLine, "const", " ")
-	
+
 	// If line only contains type keywords and whitespace, it's just a type
 	words := strings.Fields(checkLine)
 	if len(words) == 0 {
 		return true
 	}
-	
+
 	// Check if all words are type keywords
 	allTypeKeywords := true
 	for _, word := range words {
@@ -278,6 +278,6 @@ func isJustTypeDeclaration(line string) bool {
 			break
 		}
 	}
-	
+
 	return allTypeKeywords
 }

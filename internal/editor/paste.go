@@ -1,10 +1,10 @@
 package editor
 
 import (
-    "fmt"
-    "strings"
-    "veda/internal/buffer"
-    "veda/internal/clipboard"
+	"fmt"
+	"strings"
+	"veda/internal/buffer"
+	"veda/internal/clipboard"
 )
 
 // pasteAfter pastes clipboard content after the cursor (p command)
@@ -14,7 +14,7 @@ func (e *Editor) pasteAfter(args []string) error {
 		return e.pasteForAllCursors(func(content string) error {
 			// Determine if this is a line-wise paste
 			isLinewise := strings.HasSuffix(content, "\n")
-			
+
 			if isLinewise {
 				return e.pasteAfterLine(content)
 			} else {
@@ -22,52 +22,52 @@ func (e *Editor) pasteAfter(args []string) error {
 			}
 		}, true)
 	}
-	
-    // Single cursor paste - support registers prefix ' and general paste from register
-    var content string
-    fromRegister := false
-    regName := rune(0)
-    var err error
-    if e.registerReadyForAction && e.pendingRegister != 0 {
-        // Paste from named register
-        if text, ok := e.registers[e.pendingRegister]; ok {
-            content = text
-        }
-        fromRegister = true
-        regName = e.pendingRegister
-        // Clear prefix state after use
-        e.registerPrefixActive = false
-        e.registerReadyForAction = false
-        e.pendingRegister = 0
-    } else {
-        // Default: Get clipboard content
-        content, err = clipboard.Paste()
-    }
+
+	// Single cursor paste - support registers prefix ' and general paste from register
+	var content string
+	fromRegister := false
+	regName := rune(0)
+	var err error
+	if e.registerReadyForAction && e.pendingRegister != 0 {
+		// Paste from named register
+		if text, ok := e.registers[e.pendingRegister]; ok {
+			content = text
+		}
+		fromRegister = true
+		regName = e.pendingRegister
+		// Clear prefix state after use
+		e.registerPrefixActive = false
+		e.registerReadyForAction = false
+		e.pendingRegister = 0
+	} else {
+		// Default: Get clipboard content
+		content, err = clipboard.Paste()
+	}
 	if err != nil {
 		LL.Error("Failed to paste from clipboard: %v", err)
 		return nil // Don't return error to avoid showing error to user
 	}
-	
+
 	if content == "" {
 		return nil
 	}
-	
-    // Determine if this is a line-wise paste (content ends with newline)
-    isLinewise := strings.HasSuffix(content, "\n")
-    if isLinewise {
-        // Special case: when pasting from delete register with 'p', restore deleted
-        // lines before the current line to preserve original ordering.
-        if fromRegister && regName == 'd' {
-            return e.pasteBeforeLine(content)
-        }
-        return e.pasteAfterLine(content)
-    }
-    // Character-wise paste
-    if fromRegister && regName == 'd' {
-        // For delete register, paste before to restore original order at deletion start
-        return e.pasteBeforeCursor(content)
-    }
-    return e.pasteAfterCursor(content)
+
+	// Determine if this is a line-wise paste (content ends with newline)
+	isLinewise := strings.HasSuffix(content, "\n")
+	if isLinewise {
+		// Special case: when pasting from delete register with 'p', restore deleted
+		// lines before the current line to preserve original ordering.
+		if fromRegister && regName == 'd' {
+			return e.pasteBeforeLine(content)
+		}
+		return e.pasteAfterLine(content)
+	}
+	// Character-wise paste
+	if fromRegister && regName == 'd' {
+		// For delete register, paste before to restore original order at deletion start
+		return e.pasteBeforeCursor(content)
+	}
+	return e.pasteAfterCursor(content)
 }
 
 // pasteBefore pastes clipboard content before the cursor (P command)
@@ -77,7 +77,7 @@ func (e *Editor) pasteBefore(args []string) error {
 		return e.pasteForAllCursors(func(content string) error {
 			// Determine if this is a line-wise paste
 			isLinewise := strings.HasSuffix(content, "\n")
-			
+
 			if isLinewise {
 				return e.pasteBeforeLine(content)
 			} else {
@@ -85,32 +85,32 @@ func (e *Editor) pasteBefore(args []string) error {
 			}
 		}, false)
 	}
-	
-    // Single cursor paste with registers
-    var content string
-    var err error
-    if e.registerReadyForAction && e.pendingRegister != 0 {
-        if text, ok := e.registers[e.pendingRegister]; ok {
-            content = text
-        }
-        e.registerPrefixActive = false
-        e.registerReadyForAction = false
-        e.pendingRegister = 0
-    } else {
-        content, err = clipboard.Paste()
-    }
+
+	// Single cursor paste with registers
+	var content string
+	var err error
+	if e.registerReadyForAction && e.pendingRegister != 0 {
+		if text, ok := e.registers[e.pendingRegister]; ok {
+			content = text
+		}
+		e.registerPrefixActive = false
+		e.registerReadyForAction = false
+		e.pendingRegister = 0
+	} else {
+		content, err = clipboard.Paste()
+	}
 	if err != nil {
 		LL.Error("Failed to paste from clipboard: %v", err)
 		return nil // Don't return error to avoid showing error to user
 	}
-	
+
 	if content == "" {
 		return nil
 	}
-	
+
 	// Determine if this is a line-wise paste (content ends with newline)
 	isLinewise := strings.HasSuffix(content, "\n")
-	
+
 	if isLinewise {
 		// Line-wise paste: insert before current line
 		return e.pasteBeforeLine(content)
@@ -124,27 +124,27 @@ func (e *Editor) pasteBefore(args []string) error {
 func (e *Editor) pasteAfterCursor(content string) error {
 	// Save ViewIterator line number before buffer modification
 	viewLine := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Get current position
 	// The CursorIterator points to the beginning of the line, so we need to add CursorX
 	pos := e.buffer.CursorIterator.Position() + e.buffer.CursorX
 	line := e.buffer.CursorIterator.Line()
-	
+
 	// Always move one character right to paste after cursor (unless line is empty)
 	if len(line) > 0 {
 		pos++
 	}
-	
+
 	// Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
-		buffer:      e.buffer,
-		position:    pos,
-		content:     content,
-		isLinewise:  false,
-		oldCursorX:  e.buffer.CursorX,
-		oldCursorY:  e.buffer.CursorIterator.LineNumber(),
+		buffer:     e.buffer,
+		position:   pos,
+		content:    content,
+		isLinewise: false,
+		oldCursorX: e.buffer.CursorX,
+		oldCursorY: e.buffer.CursorIterator.LineNumber(),
 	}
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
@@ -155,16 +155,16 @@ func (e *Editor) pasteAfterCursor(content string) error {
 	} else {
 		pasteCmd.Execute(e.buffer)
 	}
-	
+
 	// Recreate ViewIterator after buffer modification
 	if viewLine >= e.buffer.LineCount {
 		viewLine = e.buffer.LineCount - 1
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -172,21 +172,21 @@ func (e *Editor) pasteAfterCursor(content string) error {
 func (e *Editor) pasteBeforeCursor(content string) error {
 	// Save ViewIterator line number before buffer modification
 	viewLine := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Get current position
 	// The CursorIterator points to the beginning of the line, so we need to add CursorX
 	pos := e.buffer.CursorIterator.Position() + e.buffer.CursorX
-	
+
 	// Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
-		buffer:      e.buffer,
-		position:    pos,
-		content:     content,
-		isLinewise:  false,
-		oldCursorX:  e.buffer.CursorX,
-		oldCursorY:  e.buffer.CursorIterator.LineNumber(),
+		buffer:     e.buffer,
+		position:   pos,
+		content:    content,
+		isLinewise: false,
+		oldCursorX: e.buffer.CursorX,
+		oldCursorY: e.buffer.CursorIterator.LineNumber(),
 	}
-	
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
@@ -197,16 +197,16 @@ func (e *Editor) pasteBeforeCursor(content string) error {
 	} else {
 		pasteCmd.Execute(e.buffer)
 	}
-	
+
 	// Recreate ViewIterator after buffer modification
 	if viewLine >= e.buffer.LineCount {
 		viewLine = e.buffer.LineCount - 1
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -214,15 +214,15 @@ func (e *Editor) pasteBeforeCursor(content string) error {
 func (e *Editor) pasteAfterLine(content string) error {
 	// Save ViewIterator line number before buffer modification
 	viewLine := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Get current line number
 	lineNum := e.buffer.CursorIterator.LineNumber()
-	
+
 	// Find the start of the next line
 	var pos int
-	if lineNum < e.buffer.LineCount - 1 {
+	if lineNum < e.buffer.LineCount-1 {
 		// Not the last line, insert at start of next line
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum + 1)
+		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum+1)
 		pos = iter.Position()
 	} else {
 		// Last line, insert at end of buffer
@@ -233,25 +233,25 @@ func (e *Editor) pasteAfterLine(content string) error {
 			content = "\n" + content
 		}
 	}
-	
-    // Optionally auto-adjust indentation for code blocks when conditions are clear
-    if e.skipAutoIndentForNextPaste {
-        // Consume the flag and skip adjustment
-        e.skipAutoIndentForNextPaste = false
-    } else {
-        content = e.autoIndentPasteIfApplicable(content, lineNum, true)
-    }
 
-    // Create paste command for undo/redo
-	pasteCmd := &PasteCommand{
-		buffer:      e.buffer,
-		position:    pos,
-		content:     content,
-		isLinewise:  true,
-		oldCursorX:  e.buffer.CursorX,
-		oldCursorY:  e.buffer.CursorIterator.LineNumber(),
+	// Optionally auto-adjust indentation for code blocks when conditions are clear
+	if e.skipAutoIndentForNextPaste {
+		// Consume the flag and skip adjustment
+		e.skipAutoIndentForNextPaste = false
+	} else {
+		content = e.autoIndentPasteIfApplicable(content, lineNum, true)
 	}
-	
+
+	// Create paste command for undo/redo
+	pasteCmd := &PasteCommand{
+		buffer:     e.buffer,
+		position:   pos,
+		content:    content,
+		isLinewise: true,
+		oldCursorX: e.buffer.CursorX,
+		oldCursorY: e.buffer.CursorIterator.LineNumber(),
+	}
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
@@ -262,7 +262,7 @@ func (e *Editor) pasteAfterLine(content string) error {
 	} else {
 		pasteCmd.Execute(e.buffer)
 	}
-	
+
 	// Recreate ViewIterator after buffer modification
 	// Adjust view line if we added lines
 	newLineCount := strings.Count(content, "\n")
@@ -273,10 +273,10 @@ func (e *Editor) pasteAfterLine(content string) error {
 		viewLine = e.buffer.LineCount - 1
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
@@ -284,32 +284,32 @@ func (e *Editor) pasteAfterLine(content string) error {
 func (e *Editor) pasteBeforeLine(content string) error {
 	// Save ViewIterator line number before buffer modification
 	viewLine := e.buffer.ViewIterator.LineNumber()
-	
+
 	// Get current line number
 	lineNum := e.buffer.CursorIterator.LineNumber()
-	
+
 	// Find the start of the current line
 	iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	pos := iter.Position()
-	
-    // Optionally auto-adjust indentation for code blocks when conditions are clear
-    if e.skipAutoIndentForNextPaste {
-        // Consume the flag and skip adjustment
-        e.skipAutoIndentForNextPaste = false
-    } else {
-        content = e.autoIndentPasteIfApplicable(content, lineNum, false)
-    }
 
-    // Create paste command for undo/redo
-	pasteCmd := &PasteCommand{
-		buffer:      e.buffer,
-		position:    pos,
-		content:     content,
-		isLinewise:  true,
-		oldCursorX:  e.buffer.CursorX,
-		oldCursorY:  e.buffer.CursorIterator.LineNumber(),
+	// Optionally auto-adjust indentation for code blocks when conditions are clear
+	if e.skipAutoIndentForNextPaste {
+		// Consume the flag and skip adjustment
+		e.skipAutoIndentForNextPaste = false
+	} else {
+		content = e.autoIndentPasteIfApplicable(content, lineNum, false)
 	}
-	
+
+	// Create paste command for undo/redo
+	pasteCmd := &PasteCommand{
+		buffer:     e.buffer,
+		position:   pos,
+		content:    content,
+		isLinewise: true,
+		oldCursorX: e.buffer.CursorX,
+		oldCursorY: e.buffer.CursorIterator.LineNumber(),
+	}
+
 	// Execute through history
 	if e.buffer.History != nil {
 		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
@@ -320,7 +320,7 @@ func (e *Editor) pasteBeforeLine(content string) error {
 	} else {
 		pasteCmd.Execute(e.buffer)
 	}
-	
+
 	// Recreate ViewIterator after buffer modification
 	// Adjust view line if we added lines before the view
 	newLineCount := strings.Count(content, "\n")
@@ -331,32 +331,32 @@ func (e *Editor) pasteBeforeLine(content string) error {
 		viewLine = e.buffer.LineCount - 1
 	}
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-	
+
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	return nil
 }
 
 // PasteCommand represents a paste operation for undo/redo
 type PasteCommand struct {
-	buffer      *buffer.Buffer
-	position    int
-	content     string
-	isLinewise  bool
-	oldCursorX  int
-	oldCursorY  int
+	buffer     *buffer.Buffer
+	position   int
+	content    string
+	isLinewise bool
+	oldCursorX int
+	oldCursorY int
 }
 
 func (p *PasteCommand) Execute(buf *buffer.Buffer) error {
 	// Insert the content
 	buf.Insert(p.position, p.content)
-	
+
 	// Update cursor position
 	if p.isLinewise {
 		// For line-wise paste, move cursor to first non-whitespace character of pasted line
 		lineNum := p.oldCursorY
-		
+
 		// Determine if we need to adjust line number based on paste position
 		// We need to convert position to line number to compare
 		posLineNum := 0
@@ -368,14 +368,14 @@ func (p *PasteCommand) Execute(buf *buffer.Buffer) error {
 				break
 			}
 		}
-		
+
 		if posLineNum <= p.oldCursorY {
 			// Pasted at or before current line, adjust line number
 			lineNum += strings.Count(p.content, "\n")
 		}
-		
+
 		buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, lineNum)
-		
+
 		// Move to first non-whitespace character
 		line := buf.CursorIterator.Line()
 		buf.CursorX = 0
@@ -391,12 +391,12 @@ func (p *PasteCommand) Execute(buf *buffer.Buffer) error {
 		if newPos < 0 {
 			newPos = 0
 		}
-		
+
 		// Find the line and column for the new position
 		iter := buffer.NewBufferIterator(buf)
 		lineNum := 0
 		lineStart := 0
-		
+
 		for !iter.IsEOF() {
 			lineEnd := iter.LineEnd()
 			if newPos <= lineEnd {
@@ -407,7 +407,7 @@ func (p *PasteCommand) Execute(buf *buffer.Buffer) error {
 			lineNum++
 			iter = iter.Next()
 		}
-		
+
 		// Set cursor position
 		buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, lineNum)
 		buf.CursorX = newPos - lineStart
@@ -415,18 +415,18 @@ func (p *PasteCommand) Execute(buf *buffer.Buffer) error {
 			buf.CursorX = 0
 		}
 	}
-	
+
 	return nil
 }
 
 func (p *PasteCommand) Undo(buf *buffer.Buffer) error {
 	// Delete the pasted content
-	buf.Delete(p.position, p.position + len(p.content))
-	
+	buf.Delete(p.position, p.position+len(p.content))
+
 	// Restore cursor position
 	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, p.oldCursorY)
 	buf.CursorX = p.oldCursorX
-	
+
 	return nil
 }
 
@@ -449,147 +449,147 @@ func (p *PasteCommand) Description() string {
 // - currentLineNum: the cursor's current line number at the time of paste
 // - after: whether this is an after-line paste (inserts at next line when possible)
 func (e *Editor) autoIndentPasteIfApplicable(content string, currentLineNum int, after bool) string {
-    // Only attempt for multi-line content
-    if !strings.Contains(content, "\n") {
-        return content
-    }
+	// Only attempt for multi-line content
+	if !strings.Contains(content, "\n") {
+		return content
+	}
 
-    // Only when we have a code language highlighter that's not markdown
-    if e.highlighter == nil {
-        return content
-    }
-    lang := e.highlighter.GetCurrentLanguage()
-    if lang == "" || lang == "markdown" {
-        return content
-    }
+	// Only when we have a code language highlighter that's not markdown
+	if e.highlighter == nil {
+		return content
+	}
+	lang := e.highlighter.GetCurrentLanguage()
+	if lang == "" || lang == "markdown" {
+		return content
+	}
 
-    // Determine the target line for indentation reference.
-    // We align to the indentation of the current line where the user invoked paste,
-    // not to the following line which may be a closing brace with smaller indent.
-    targetLine := currentLineNum
+	// Determine the target line for indentation reference.
+	// We align to the indentation of the current line where the user invoked paste,
+	// not to the following line which may be a closing brace with smaller indent.
+	targetLine := currentLineNum
 
-    // Get indentation info for the target line; require non-continuation
-    if targetLine < 0 || targetLine >= e.buffer.LineCount {
-        return content
-    }
-    targetIter := buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
-    // Extract actual leading whitespace of the target line without relying on file indent settings
-    lineText := targetIter.Line()
-    j := 0
-    for j < len(lineText) {
-        ch := lineText[j]
-        if ch == ' ' || ch == '\t' {
-            j++
-        } else {
-            break
-        }
-    }
-    targetIndent := lineText[:j]
-    if targetIndent != "" {
-        hasSpace := strings.Contains(targetIndent, " ")
-        hasTab := strings.Contains(targetIndent, "\t")
-        if hasSpace && hasTab {
-            return content
-        }
-    }
+	// Get indentation info for the target line; require non-continuation
+	if targetLine < 0 || targetLine >= e.buffer.LineCount {
+		return content
+	}
+	targetIter := buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
+	// Extract actual leading whitespace of the target line without relying on file indent settings
+	lineText := targetIter.Line()
+	j := 0
+	for j < len(lineText) {
+		ch := lineText[j]
+		if ch == ' ' || ch == '\t' {
+			j++
+		} else {
+			break
+		}
+	}
+	targetIndent := lineText[:j]
+	if targetIndent != "" {
+		hasSpace := strings.Contains(targetIndent, " ")
+		hasTab := strings.Contains(targetIndent, "\t")
+		if hasSpace && hasTab {
+			return content
+		}
+	}
 
-    // Detect a common leading whitespace prefix across non-empty lines in the pasted block
-    lines := strings.Split(content, "\n")
-    // Exclude a possible trailing empty line from trailing newline
-    if len(lines) > 0 && lines[len(lines)-1] == "" {
-        lines = lines[:len(lines)-1]
-    }
-    if len(lines) == 0 {
-        return content
-    }
+	// Detect a common leading whitespace prefix across non-empty lines in the pasted block
+	lines := strings.Split(content, "\n")
+	// Exclude a possible trailing empty line from trailing newline
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return content
+	}
 
-    common, ok := detectCommonLeadingWhitespace(lines)
-    if !ok {
-        return content
-    }
+	common, ok := detectCommonLeadingWhitespace(lines)
+	if !ok {
+		return content
+	}
 
-    // If target indent equals common, nothing to do
-    if common == targetIndent {
-        return content
-    }
+	// If target indent equals common, nothing to do
+	if common == targetIndent {
+		return content
+	}
 
-    // Rebase: for each non-empty line, replace the common prefix with target indent
-    rebased := make([]string, len(lines))
-    for i, line := range lines {
-        trimmed := strings.TrimSpace(line)
-        if trimmed == "" {
-            rebased[i] = line // keep whitespace-only or empty lines as-is
-            continue
-        }
-        if strings.HasPrefix(line, common) {
-            rebased[i] = targetIndent + strings.TrimPrefix(line, common)
-        } else {
-            // If a non-empty line does not have the common prefix, abort adjustment
-            return content
-        }
-    }
+	// Rebase: for each non-empty line, replace the common prefix with target indent
+	rebased := make([]string, len(lines))
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			rebased[i] = line // keep whitespace-only or empty lines as-is
+			continue
+		}
+		if strings.HasPrefix(line, common) {
+			rebased[i] = targetIndent + strings.TrimPrefix(line, common)
+		} else {
+			// If a non-empty line does not have the common prefix, abort adjustment
+			return content
+		}
+	}
 
-    // Preserve trailing newline if original had it
-    adjusted := strings.Join(rebased, "\n")
-    if strings.HasSuffix(content, "\n") {
-        adjusted += "\n"
-    }
-    return adjusted
+	// Preserve trailing newline if original had it
+	adjusted := strings.Join(rebased, "\n")
+	if strings.HasSuffix(content, "\n") {
+		adjusted += "\n"
+	}
+	return adjusted
 }
 
 // detectCommonLeadingWhitespace returns the common leading whitespace prefix shared by all
 // non-empty lines. Returns ok=false if no non-empty lines, if the common prefix is empty,
 // or if it mixes tabs and spaces (not obvious).
 func detectCommonLeadingWhitespace(lines []string) (prefix string, ok bool) {
-    first := true
-    for _, line := range lines {
-        // Consider only lines that have non-whitespace content
-        if strings.TrimSpace(line) == "" {
-            continue
-        }
-        // Extract this line's leading whitespace
-        i := 0
-        for i < len(line) {
-            ch := line[i]
-            if ch == ' ' || ch == '\t' {
-                i++
-            } else {
-                break
-            }
-        }
-        lw := line[:i]
-        if first {
-            prefix = lw
-            first = false
-        } else {
-            // Reduce prefix to the common part
-            max := len(prefix)
-            if len(lw) < max {
-                max = len(lw)
-            }
-            j := 0
-            for j < max && prefix[j] == lw[j] {
-                j++
-            }
-            prefix = prefix[:j]
-            if prefix == "" {
-                break
-            }
-        }
-    }
+	first := true
+	for _, line := range lines {
+		// Consider only lines that have non-whitespace content
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		// Extract this line's leading whitespace
+		i := 0
+		for i < len(line) {
+			ch := line[i]
+			if ch == ' ' || ch == '\t' {
+				i++
+			} else {
+				break
+			}
+		}
+		lw := line[:i]
+		if first {
+			prefix = lw
+			first = false
+		} else {
+			// Reduce prefix to the common part
+			max := len(prefix)
+			if len(lw) < max {
+				max = len(lw)
+			}
+			j := 0
+			for j < max && prefix[j] == lw[j] {
+				j++
+			}
+			prefix = prefix[:j]
+			if prefix == "" {
+				break
+			}
+		}
+	}
 
-    if first {
-        // No non-empty lines
-        return "", false
-    }
-    if prefix == "" {
-        return "", false
-    }
-    // Require prefix to be all spaces or all tabs to be considered obvious
-    hasSpace := strings.Contains(prefix, " ")
-    hasTab := strings.Contains(prefix, "\t")
-    if hasSpace && hasTab {
-        return "", false
-    }
-    return prefix, true
+	if first {
+		// No non-empty lines
+		return "", false
+	}
+	if prefix == "" {
+		return "", false
+	}
+	// Require prefix to be all spaces or all tabs to be considered obvious
+	hasSpace := strings.Contains(prefix, " ")
+	hasTab := strings.Contains(prefix, "\t")
+	if hasSpace && hasTab {
+		return "", false
+	}
+	return prefix, true
 }

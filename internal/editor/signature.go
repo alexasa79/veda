@@ -2,7 +2,6 @@ package editor
 
 import "veda/internal/commands"
 
-
 // getSignatureY returns the Y position where signature should be drawn
 func (e *Editor) getSignatureY() int {
 	y := e.getStatusBarY() - e.getSignatureLines()
@@ -39,7 +38,7 @@ func (e *Editor) requestSignatureHelpAsync() {
 	// Launch goroutine to fetch signature help
 	go func(generation uint64) {
 		sigHelp, err := e.proxyManager.GetSignatureHelp(e.buffer.FilePath, line, col)
-		
+
 		// Only apply response if generation matches current state
 		if generation == e.buffer.SignatureGeneration {
 			if err != nil {
@@ -61,19 +60,19 @@ func (e *Editor) requestSignatureHelpAsync() {
 func (e *Editor) showSignature(args []string) error {
 	// Increment generation for this new request
 	e.buffer.SignatureGeneration++
-	
+
 	// Request signature help from LSP
 	e.requestSignatureHelpAsync()
-	
+
 	return nil
 }
 
 // checkSignatureUpdate checks if we should re-request signature help based on cursor position
 func (e *Editor) checkSignatureUpdate() {
-    if e.inPasteMode {
-        return
-    }
-	
+	if e.inPasteMode {
+		return
+	}
+
 	// In insert mode, check if we should show signature help automatically
 	if e.mode == commands.InsertMode {
 		if e.isLikelyInsideCallOnCurrentLine() {
@@ -104,20 +103,20 @@ func (e *Editor) checkSignatureUpdate() {
 		}
 		return
 	}
-	
+
 	// In non-insert modes, only check if we have an active signature
 	if e.buffer.CurrentSignature == nil {
 		return
 	}
 
-    // If we've moved away from a likely function call context, clear the signature.
-    // Heuristic: on the current line, there should be an unmatched '(' to the left
-    // of the cursor (accounting for immediate ')' balancing on the same line).
-    if !e.isLikelyInsideCallOnCurrentLine() {
-        e.buffer.CurrentSignature = nil
-        return
-    }
-	
+	// If we've moved away from a likely function call context, clear the signature.
+	// Heuristic: on the current line, there should be an unmatched '(' to the left
+	// of the cursor (accounting for immediate ')' balancing on the same line).
+	if !e.isLikelyInsideCallOnCurrentLine() {
+		e.buffer.CurrentSignature = nil
+		return
+	}
+
 	// Check if current character is comma or closing paren
 	if !e.buffer.CursorIterator.IsEOF() {
 		line := e.buffer.CursorIterator.Line()
@@ -136,39 +135,39 @@ func (e *Editor) checkSignatureUpdate() {
 // cursor on the current line, accounting for same-line paren balancing.
 // This is a lightweight heuristic to decide whether signature help should remain visible.
 func (e *Editor) isLikelyInsideCallOnCurrentLine() bool {
-    if e.buffer == nil || e.buffer.CursorIterator.IsEOF() {
-        return false
-    }
+	if e.buffer == nil || e.buffer.CursorIterator.IsEOF() {
+		return false
+	}
 
-    line := e.buffer.CursorIterator.Line()
-    if len(line) == 0 {
-        return false
-    }
+	line := e.buffer.CursorIterator.Line()
+	if len(line) == 0 {
+		return false
+	}
 
-    // Clamp cursor position within the line bounds (treat positions beyond end as end)
-    cursorX := e.buffer.CursorX
-    if cursorX < 0 {
-        cursorX = 0
-    }
-    if cursorX >= len(line) {
-        cursorX = len(line)
-    }
+	// Clamp cursor position within the line bounds (treat positions beyond end as end)
+	cursorX := e.buffer.CursorX
+	if cursorX < 0 {
+		cursorX = 0
+	}
+	if cursorX >= len(line) {
+		cursorX = len(line)
+	}
 
-    // Walk left from cursor, tracking paren depth on this line.
-    // depth counts unmatched ')' we've seen while scanning left.
-    depth := 0
-    for i := cursorX - 1; i >= 0; i-- {
-        switch line[i] {
-        case ')':
-            depth++
-        case '(':
-            if depth > 0 {
-                depth--
-            } else {
-                // Found an unmatched '('
-                return true
-            }
-        }
-    }
-    return false
+	// Walk left from cursor, tracking paren depth on this line.
+	// depth counts unmatched ')' we've seen while scanning left.
+	depth := 0
+	for i := cursorX - 1; i >= 0; i-- {
+		switch line[i] {
+		case ')':
+			depth++
+		case '(':
+			if depth > 0 {
+				depth--
+			} else {
+				// Found an unmatched '('
+				return true
+			}
+		}
+	}
+	return false
 }

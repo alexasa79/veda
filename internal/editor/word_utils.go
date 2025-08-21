@@ -47,10 +47,10 @@ func FindNextWordBoundary(buf *buffer.Buffer, startLine, startChar int) *WordBou
 	if iter.IsEOF() {
 		return nil
 	}
-	
+
 	x := startChar
 	line := iter.Line()
-	
+
 	// First, skip the current word/character
 	if x < len(line) {
 		currentChar := rune(line[x])
@@ -67,16 +67,16 @@ func FindNextWordBoundary(buf *buffer.Buffer, startLine, startChar int) *WordBou
 			x++
 		}
 	}
-	
+
 	// Now skip any whitespace to find the next word
 	for !iter.IsEOF() {
 		line = iter.Line()
-		
+
 		// Skip whitespace on current line
 		for x < len(line) && unicode.IsSpace(rune(line[x])) {
 			x++
 		}
-		
+
 		// If we found a non-space character, we're at the next word
 		if x < len(line) {
 			return &WordBoundary{
@@ -86,14 +86,14 @@ func FindNextWordBoundary(buf *buffer.Buffer, startLine, startChar int) *WordBou
 				EndChar:   x,
 			}
 		}
-		
+
 		// Move to next line
 		iter = iter.Next()
 		if !iter.IsEOF() {
 			x = 0
 		}
 	}
-	
+
 	return nil
 }
 
@@ -107,15 +107,15 @@ func FindPreviousWordBoundary(buf *buffer.Buffer, startLine, startChar int) *Wor
 	if iter.IsEOF() {
 		return nil
 	}
-	
+
 	x := startChar
 	line := iter.Line()
-	
+
 	// If we're at the beginning of the buffer, nothing to do
 	if startLine == 0 && x <= 0 {
 		return nil
 	}
-	
+
 	// Move back one character first to start the search
 	if x > 0 {
 		x--
@@ -130,21 +130,21 @@ func FindPreviousWordBoundary(buf *buffer.Buffer, startLine, startChar int) *Wor
 		x = len(prevLine) - 1
 		line = prevLine
 	}
-	
+
 	// Skip whitespace backwards
 	for !iter.IsEOF() {
 		line = iter.Line()
-		
+
 		// Skip whitespace on current line
 		for x >= 0 && x < len(line) && unicode.IsSpace(rune(line[x])) {
 			x--
 		}
-		
+
 		// If we found a non-space character, we're at a word or punctuation
 		if x >= 0 && x < len(line) {
 			break
 		}
-		
+
 		// Move to previous line
 		iter = iter.Previous()
 		if iter.LineNumber() == startLine {
@@ -158,15 +158,15 @@ func FindPreviousWordBoundary(buf *buffer.Buffer, startLine, startChar int) *Wor
 			x = 0
 		}
 	}
-	
+
 	// If we're at EOF or couldn't find anything, return nil
 	if iter.IsEOF() || x < 0 || x >= len(line) {
 		return nil
 	}
-	
+
 	// Now we're on a non-whitespace character
 	currentChar := rune(line[x])
-	
+
 	if isWordChar(currentChar) {
 		// We're on a word character, find the start of this word
 		for x > 0 && isWordChar(rune(line[x-1])) {
@@ -186,7 +186,7 @@ func FindPreviousWordBoundary(buf *buffer.Buffer, startLine, startChar int) *Wor
 			}
 		}
 	}
-	
+
 	return &WordBoundary{
 		StartLine: iter.LineNumber(),
 		StartChar: x,
@@ -203,25 +203,25 @@ func FindCurrentWordBoundary(buf *buffer.Buffer, cursorLine, cursorChar int, inc
 	if iter.IsEOF() {
 		return nil
 	}
-	
+
 	line := iter.Line()
 	if cursorChar >= len(line) {
 		return nil
 	}
-	
+
 	start := cursorChar
 	end := cursorChar
-	
+
 	if cursorChar < len(line) {
 		currentChar := line[cursorChar]
-		
+
 		if isWordCharByte(currentChar) {
 			// On a word character - find the entire word
 			// Find start of word
 			for start > 0 && isWordCharByte(line[start-1]) {
 				start--
 			}
-			// Find end of word  
+			// Find end of word
 			for end < len(line) && isWordCharByte(line[end]) {
 				end++
 			}
@@ -249,7 +249,7 @@ func FindCurrentWordBoundary(buf *buffer.Buffer, cursorLine, cursorChar int, inc
 			}
 		}
 	}
-	
+
 	return &WordBoundary{
 		StartLine: cursorLine,
 		StartChar: start,
@@ -265,14 +265,14 @@ func shouldStopAtEndOfLine(buf *buffer.Buffer, startLine, startChar int) bool {
 	if iter.IsEOF() {
 		return false
 	}
-	
+
 	line := iter.Line()
-	
+
 	// Special case: if we're already at or near the end of line, don't stop
-	if startChar >= len(line) - 1 || len(line) == 0 {
+	if startChar >= len(line)-1 || len(line) == 0 {
 		return false
 	}
-	
+
 	// Find where the current word ends
 	wordEndPos := startChar
 	if wordEndPos < len(line) {
@@ -290,19 +290,19 @@ func shouldStopAtEndOfLine(buf *buffer.Buffer, startLine, startChar int) bool {
 			return false
 		}
 	}
-	
+
 	// Only stop at end of line if the word extends to the very end of the line
 	if wordEndPos < len(line) {
 		return false
 	}
-	
+
 	// Check if there's a next line and what it contains
 	nextIter := iter.Next()
 	if nextIter.IsEOF() {
 		// End of file - always apply end-of-line logic when word extends to end
 		return true
 	}
-	
+
 	// Check if the next line has actual content (not just whitespace)
 	nextLine := nextIter.Line()
 	nextLineHasContent := false
@@ -312,13 +312,13 @@ func shouldStopAtEndOfLine(buf *buffer.Buffer, startLine, startChar int) bool {
 			break
 		}
 	}
-	
+
 	// Only apply end-of-line stopping if the next line has content
 	// (skip over empty lines with original vim behavior)
 	if !nextLineHasContent {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -329,14 +329,14 @@ func shouldStopAtEndOfLineWithOptions(buf *buffer.Buffer, startLine, startChar i
 	if iter.IsEOF() {
 		return false
 	}
-	
+
 	line := iter.Line()
-	
+
 	// Special case: if we're already at or near the end of line, don't stop
-	if startChar >= len(line) - 1 || len(line) == 0 {
+	if startChar >= len(line)-1 || len(line) == 0 {
 		return false
 	}
-	
+
 	// Find where the current word ends
 	wordEndPos := startChar
 	if wordEndPos < len(line) {
@@ -354,19 +354,19 @@ func shouldStopAtEndOfLineWithOptions(buf *buffer.Buffer, startLine, startChar i
 			return false
 		}
 	}
-	
+
 	// Only stop at end of line if the word extends to the very end of the line
 	if wordEndPos < len(line) {
 		return false
 	}
-	
+
 	// Check if there's a next line and what it contains
 	nextIter := iter.Next()
 	if nextIter.IsEOF() {
 		// End of file - always apply end-of-line logic when word extends to end
 		return true
 	}
-	
+
 	// Check if the next line has actual content (not just whitespace)
 	nextLine := nextIter.Line()
 	nextLineHasContent := false
@@ -376,13 +376,13 @@ func shouldStopAtEndOfLineWithOptions(buf *buffer.Buffer, startLine, startChar i
 			break
 		}
 	}
-	
+
 	// Only apply end-of-line stopping if the next line has content
 	// (skip over empty lines with original vim behavior)
 	if !nextLineHasContent {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -393,10 +393,10 @@ func FindNextWordBoundaryWithOptions(buf *buffer.Buffer, startLine, startChar in
 	if iter.IsEOF() {
 		return nil
 	}
-	
+
 	x := startChar
 	line := iter.Line()
-	
+
 	// First, skip the current word/character
 	if x < len(line) {
 		currentChar := rune(line[x])
@@ -413,16 +413,16 @@ func FindNextWordBoundaryWithOptions(buf *buffer.Buffer, startLine, startChar in
 			x++
 		}
 	}
-	
+
 	// Now skip any whitespace to find the next word
 	for !iter.IsEOF() {
 		line = iter.Line()
-		
+
 		// Skip whitespace on current line
 		for x < len(line) && unicode.IsSpace(rune(line[x])) {
 			x++
 		}
-		
+
 		// If we found a non-space character, we're at the next word
 		if x < len(line) {
 			return &WordBoundary{
@@ -432,14 +432,14 @@ func FindNextWordBoundaryWithOptions(buf *buffer.Buffer, startLine, startChar in
 				EndChar:   x,
 			}
 		}
-		
+
 		// Move to next line
 		iter = iter.Next()
 		if !iter.IsEOF() {
 			x = 0
 		}
 	}
-	
+
 	return nil
 }
 
@@ -450,15 +450,15 @@ func FindPreviousWordBoundaryWithOptions(buf *buffer.Buffer, startLine, startCha
 	if iter.IsEOF() {
 		return nil
 	}
-	
+
 	x := startChar
 	line := iter.Line()
-	
+
 	// If we're at the beginning of the buffer, nothing to do
 	if startLine == 0 && x <= 0 {
 		return nil
 	}
-	
+
 	// Move back one character first to start the search
 	if x > 0 {
 		x--
@@ -473,21 +473,21 @@ func FindPreviousWordBoundaryWithOptions(buf *buffer.Buffer, startLine, startCha
 		x = len(prevLine) - 1
 		line = prevLine
 	}
-	
+
 	// Skip whitespace backwards
 	for !iter.IsEOF() {
 		line = iter.Line()
-		
+
 		// Skip whitespace on current line
 		for x >= 0 && x < len(line) && unicode.IsSpace(rune(line[x])) {
 			x--
 		}
-		
+
 		// If we found a non-space character, we're at a word or punctuation
 		if x >= 0 && x < len(line) {
 			break
 		}
-		
+
 		// Move to previous line
 		iter = iter.Previous()
 		if iter.LineNumber() == startLine {
@@ -501,15 +501,15 @@ func FindPreviousWordBoundaryWithOptions(buf *buffer.Buffer, startLine, startCha
 			x = 0
 		}
 	}
-	
+
 	// If we're at EOF or couldn't find anything, return nil
 	if iter.IsEOF() || x < 0 || x >= len(line) {
 		return nil
 	}
-	
+
 	// Now we're on a non-whitespace character
 	currentChar := rune(line[x])
-	
+
 	if isWordCharWithOptions(currentChar, includeUnderscore) {
 		// We're on a word character, find the start of this word
 		for x > 0 && isWordCharWithOptions(rune(line[x-1]), includeUnderscore) {
@@ -535,7 +535,7 @@ func FindPreviousWordBoundaryWithOptions(buf *buffer.Buffer, startLine, startCha
 			}
 		}
 	}
-	
+
 	return &WordBoundary{
 		StartLine: iter.LineNumber(),
 		StartChar: x,

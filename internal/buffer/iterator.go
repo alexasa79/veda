@@ -109,10 +109,10 @@ func NewBufferIteratorAtEnd(buffer *Buffer) *BufferIterator {
 	if buffer.Rope.root != nil {
 		it.Node = getRightmostLeaf(buffer.Rope.root)
 
-    // Calculate the line number at EOF using newline-as-boundary semantics:
-    // lineNum at EOF is total newlines + 1 (empty buffer -> 1 line)
-    totalNewlines := buffer.Rope.root.newlineCount
-    it.LineNum = totalNewlines + 1
+		// Calculate the line number at EOF using newline-as-boundary semantics:
+		// lineNum at EOF is total newlines + 1 (empty buffer -> 1 line)
+		totalNewlines := buffer.Rope.root.newlineCount
+		it.LineNum = totalNewlines + 1
 	} else {
 		// Empty buffer
 		it.LineNum = 0
@@ -246,7 +246,7 @@ func (it *BufferIterator) nextChar() (BufferIterator, bool) {
 	newOffset := it.Offset + 1
 
 	// If the new offset is beyond the current node, move to next node
-	if newOffset >= it.Node.offset + len(it.Node.text) {
+	if newOffset >= it.Node.offset+len(it.Node.text) {
 		nextNode := getNextLeafNode(it.Node)
 		if nextNode == nil {
 			// At end of nodes but maybe not at end of buffer
@@ -431,7 +431,7 @@ func (it *BufferIterator) Previous() *BufferIterator {
 
 		workingIter = prevCharIterator
 	} else {
-			// Step 2: Not at EOF, previous character must be \n
+		// Step 2: Not at EOF, previous character must be \n
 		workingIter, ok = workingIter.previousChar()
 		if !ok {
 			// At beginning of buffer

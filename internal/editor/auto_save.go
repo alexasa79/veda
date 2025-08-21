@@ -19,7 +19,7 @@ type AutoSaveManager struct {
 	mutex         sync.RWMutex
 	stopChan      chan struct{}
 	done          chan struct{}
-	saveCallback  func(string)         // Callback to request editor to save a file
+	saveCallback  func(string) // Callback to request editor to save a file
 }
 
 // NewAutoSaveManager creates a new auto-save manager
@@ -29,9 +29,9 @@ func NewAutoSaveManager() *AutoSaveManager {
 		LL.Error("Failed to get user home directory: %v", err)
 		homeDir = "/tmp"
 	}
-	
+
 	autoSaveDir := filepath.Join(homeDir, ".cache", "veda", "auto-save")
-	
+
 	// Create auto-save directory if it doesn't exist
 	if err := os.MkdirAll(autoSaveDir, 0755); err != nil {
 		LL.Error("Failed to create auto-save directory: %v", err)
@@ -59,10 +59,10 @@ func (asm *AutoSaveManager) getAutoSavePath(filePath string) string {
 	if filePath == "" {
 		return ""
 	}
-	
+
 	// Parse the file path to determine if it's remote (same logic as local history)
 	host, actualPath, isRemote := parsePathComponents(filePath)
-	
+
 	// Build the auto-save filename using the same logic as local history
 	var autoSaveFileName string
 	if isRemote {
@@ -75,7 +75,7 @@ func (asm *AutoSaveManager) getAutoSavePath(filePath string) string {
 		escapedPath := escapePathForFilename(filePath)
 		autoSaveFileName = fmt.Sprintf("%s.auto-save", escapedPath)
 	}
-	
+
 	return filepath.Join(asm.autoSaveDir, autoSaveFileName)
 }
 
@@ -87,10 +87,10 @@ func (asm *AutoSaveManager) MarkDirty(filePath string) {
 	if filePath == "" {
 		return
 	}
-	
+
 	asm.mutex.Lock()
 	defer asm.mutex.Unlock()
-	
+
 	asm.pendingSaves[filePath] = time.Now()
 	LL.Debug("Marked file as dirty for auto-save: %s", filePath)
 }
@@ -100,17 +100,17 @@ func (asm *AutoSaveManager) HasAutoSave(filePath string, originalModTime time.Ti
 	if filePath == "" {
 		return false
 	}
-	
+
 	autoSavePath := asm.getAutoSavePath(filePath)
 	if autoSavePath == "" {
 		return false
 	}
-	
+
 	info, err := os.Stat(autoSavePath)
 	if err != nil {
 		return false
 	}
-	
+
 	// Check if auto-save is newer than original file
 	return info.ModTime().After(originalModTime)
 }
@@ -121,12 +121,12 @@ func (asm *AutoSaveManager) GetAutoSaveContent(filePath string) (string, error) 
 	if autoSavePath == "" {
 		return "", fmt.Errorf("invalid file path")
 	}
-	
+
 	content, err := os.ReadFile(autoSavePath)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return string(content), nil
 }
 
@@ -136,19 +136,19 @@ func (asm *AutoSaveManager) saveFile(filePath, content string) error {
 	if autoSavePath == "" {
 		return fmt.Errorf("invalid file path")
 	}
-	
+
 	// Write to a temporary file first, then rename for atomic operation
 	tempPath := autoSavePath + ".tmp"
-	
+
 	if err := os.WriteFile(tempPath, []byte(content), 0644); err != nil {
 		return err
 	}
-	
+
 	if err := os.Rename(tempPath, autoSavePath); err != nil {
 		os.Remove(tempPath) // Clean up temp file
 		return err
 	}
-	
+
 	LL.Debug("Auto-saved file: %s -> %s", filePath, autoSavePath)
 	return nil
 }
@@ -158,14 +158,14 @@ func (asm *AutoSaveManager) CleanupAutoSave(filePath string) {
 	if filePath == "" {
 		return
 	}
-	
+
 	asm.mutex.Lock()
 	defer asm.mutex.Unlock()
-	
+
 	// Remove from pending saves
 	delete(asm.pendingSaves, filePath)
 	delete(asm.lastSaveTimes, filePath)
-	
+
 	// Remove auto-save file
 	autoSavePath := asm.getAutoSavePath(filePath)
 	if autoSavePath != "" {
@@ -180,10 +180,10 @@ func (asm *AutoSaveManager) CleanupAutoSave(filePath string) {
 // saveLoop runs the auto-save background process
 func (asm *AutoSaveManager) saveLoop() {
 	defer close(asm.done)
-	
+
 	ticker := time.NewTicker(asm.saveInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-asm.stopChan:
@@ -199,7 +199,7 @@ func (asm *AutoSaveManager) processPendingSaves() {
 	asm.mutex.Lock()
 	now := time.Now()
 	filesToSave := make([]string, 0)
-	
+
 	// Find files that are ready to be saved
 	for filePath, dirtyTime := range asm.pendingSaves {
 		if lastSave, exists := asm.lastSaveTimes[filePath]; exists {
@@ -208,14 +208,14 @@ func (asm *AutoSaveManager) processPendingSaves() {
 				continue
 			}
 		}
-		
+
 		// Wait for minimum delay since last edit
 		if now.Sub(dirtyTime) >= asm.minEditDelay {
 			filesToSave = append(filesToSave, filePath)
 		}
 	}
 	asm.mutex.Unlock()
-	
+
 	// Save the files (outside of lock to avoid blocking)
 	for _, filePath := range filesToSave {
 		asm.requestAutoSave(filePath)
@@ -247,7 +247,7 @@ func (asm *AutoSaveManager) GetAutoSaveInfo(filePath string) (exists bool, modTi
 	if autoSavePath == "" {
 		return false, time.Time{}, nil
 	}
-	
+
 	info, err := os.Stat(autoSavePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -255,6 +255,6 @@ func (asm *AutoSaveManager) GetAutoSaveInfo(filePath string) (exists bool, modTi
 		}
 		return false, time.Time{}, err
 	}
-	
+
 	return true, info.ModTime(), nil
 }

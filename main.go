@@ -42,20 +42,20 @@ func main() {
 			fmt.Fprintf(os.Stderr, "failed to create CPU profile: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		if err := pprof.StartCPUProfile(f); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to start CPU profile: %v\n", err)
 			f.Close()
 			os.Exit(1)
 		}
-		
+
 		// Ensure profile is written on exit
 		defer func() {
 			pprof.StopCPUProfile()
 			f.Close()
 			fmt.Fprintf(os.Stderr, "CPU profile written to %s\n", *cpuprofile)
 		}()
-		
+
 		fmt.Fprintf(os.Stderr, "CPU profiling enabled, writing to %s\n", *cpuprofile)
 	}
 

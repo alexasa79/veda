@@ -31,7 +31,7 @@ var (
 		".ttf": true, ".otf": true, ".woff": true, ".woff2": true, ".eot": true,
 		".sqlite": true, ".db": true, ".mdb": true, ".accdb": true,
 	}
-	
+
 	binaryNames = map[string]bool{
 		"a.out": true, "core": true, "vgcore": true, "vd": true,
 	}
@@ -48,7 +48,7 @@ func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 	width, height := e.screen.Size()
 
 	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListWidth := width * 4 / 5    // 80% of screen width
 	fuzzyListHeight := height * 7 / 10 // 70% of screen height
 	fuzzyListX := (width - fuzzyListWidth) / 2
 	fuzzyListY := (height - fuzzyListHeight) / 2
@@ -79,30 +79,30 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 	// Create a channel for the result
 	resultChan := make(chan fileListingResult, 1)
 
-    // If we can satisfy from cache, do so synchronously
-    if files, ok := e.getCachedDirectoryListing(e.workingDirectory); ok && useCache {
-        LL.Debug("Using cached directory listing for %s", e.workingDirectory)
-        result := e.processFileList(files)
-        if len(result.paths) == 0 {
-            contentUpdateChan <- []string{"No files found"}
-        } else {
-            contentUpdateChan <- result.paths
-        }
-        // End the async operation since we're serving from cache
-        e.endAsyncOperation(operationID)
-        e.connectionStatus = "" // Clear status when done
-        // Return result immediately
-        resultChan <- result
-        return resultChan
-    }
+	// If we can satisfy from cache, do so synchronously
+	if files, ok := e.getCachedDirectoryListing(e.workingDirectory); ok && useCache {
+		LL.Debug("Using cached directory listing for %s", e.workingDirectory)
+		result := e.processFileList(files)
+		if len(result.paths) == 0 {
+			contentUpdateChan <- []string{"No files found"}
+		} else {
+			contentUpdateChan <- result.paths
+		}
+		// End the async operation since we're serving from cache
+		e.endAsyncOperation(operationID)
+		e.connectionStatus = "" // Clear status when done
+		// Return result immediately
+		resultChan <- result
+		return resultChan
+	}
 
-    // Start goroutine to fetch directory listing (and populate cache)
-    go func() {
+	// Start goroutine to fetch directory listing (and populate cache)
+	go func() {
 		defer e.endAsyncOperation(operationID)
 		defer func() { e.connectionStatus = "" }() // Clear status when done
 
 		LL.Debug("Fetching directory listing for %s", e.workingDirectory)
-        files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
+		files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
 
 		if err != nil {
 			LL.Debug("Directory listing error: %v", err)
@@ -112,8 +112,8 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 		}
 
 		LL.Debug("Got %d files from proxy", len(files))
-        // Store in cache
-        e.setCachedDirectoryListing(e.workingDirectory, files)
+		// Store in cache
+		e.setCachedDirectoryListing(e.workingDirectory, files)
 		result := e.processFileList(files)
 
 		if len(result.paths) == 0 {
@@ -145,12 +145,12 @@ func shouldSkipFile(file proxy.FileInfo) bool {
 
 	// Get the filename for extension checking
 	filename := pathComponents[len(pathComponents)-1]
-	
+
 	// Filter out .d files (dependency files)
 	if strings.HasSuffix(filename, ".d") {
 		return true
 	}
-	
+
 	// Check for binary file extensions
 	dotIndex := strings.LastIndex(filename, ".")
 	if dotIndex >= 0 {
@@ -159,20 +159,20 @@ func shouldSkipFile(file proxy.FileInfo) bool {
 			return true
 		}
 	}
-	
+
 	// Filter out files without extensions that are commonly binaries
 	if !strings.Contains(filename, ".") {
 		if binaryNames[filename] {
 			return true
 		}
-		
+
 		// Check if it might be an executable by looking at the name
 		// Many compiled binaries don't have extensions
 		// But we don't want to filter out all files without extensions
 		// (like README, LICENSE, Makefile, etc.)
 		// So we'll be conservative here
 	}
-	
+
 	return false
 }
 
@@ -231,29 +231,28 @@ func (e *Editor) processFileList(files []proxy.FileInfo) fileListingResult {
 
 // getCachedDirectoryListing returns cached list if available for a path
 func (e *Editor) getCachedDirectoryListing(path string) ([]proxy.FileInfo, bool) {
-    if e == nil || e.dirCache == nil {
-        return nil, false
-    }
-    if files, ok := e.dirCache[path]; ok {
-        return files, true
-    }
-    return nil, false
+	if e == nil || e.dirCache == nil {
+		return nil, false
+	}
+	if files, ok := e.dirCache[path]; ok {
+		return files, true
+	}
+	return nil, false
 }
 
 // setCachedDirectoryListing stores a directory listing in cache
 func (e *Editor) setCachedDirectoryListing(path string, files []proxy.FileInfo) {
-    if e == nil {
-        return
-    }
-    if e.dirCache == nil {
-        e.dirCache = make(map[string][]proxy.FileInfo)
-    }
-    // Copy slice to avoid external mutation
-    copied := make([]proxy.FileInfo, len(files))
-    copy(copied, files)
-    e.dirCache[path] = copied
+	if e == nil {
+		return
+	}
+	if e.dirCache == nil {
+		e.dirCache = make(map[string][]proxy.FileInfo)
+	}
+	// Copy slice to avoid external mutation
+	copied := make([]proxy.FileInfo, len(files))
+	copy(copied, files)
+	e.dirCache[path] = copied
 }
-
 
 // resolveSelectedPath converts the selected display path back to full path
 func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]string) string {
@@ -292,13 +291,13 @@ func (e *Editor) resolveSelectedPath(selectedPath string, filePaths map[string]s
 
 // ShowFuzzyListWidget displays a fuzzy search widget for file selection
 func (e *Editor) ShowFuzzyListWidget() {
-    fuzzyListWidget := e.createFuzzyListWidget()
+	fuzzyListWidget := e.createFuzzyListWidget()
 
 	// Create a channel for content updates
 	contentUpdateChan := make(chan []string, 1)
 
-    // Send async request for directory listing and get result channel
-    resultChan := e.sendDirectoryListingRequest(contentUpdateChan, true)
+	// Send async request for directory listing and get result channel
+	resultChan := e.sendDirectoryListingRequest(contentUpdateChan, true)
 
 	// Store file paths for mapping back from display names
 	var filePaths map[string]string
@@ -310,36 +309,36 @@ func (e *Editor) ShowFuzzyListWidget() {
 		close(resultChan)
 	}()
 
-    // Create overlay and get result channel
-    overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
-    overlayResultChan := e.renderingState.SetOverlay(overlay)
+	// Create overlay and get result channel
+	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
+	overlayResultChan := e.renderingState.SetOverlay(overlay)
 
 	// Wait for result in a goroutine
 	go func() {
-        selectedPath := <-overlayResultChan
-        if selectedPath != "" {
-            openInNewWin := false
-            if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
-                openInNewWin = true
-                selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
-            }
-            fullPath := e.resolveSelectedPath(selectedPath, filePaths)
+		selectedPath := <-overlayResultChan
+		if selectedPath != "" {
+			openInNewWin := false
+			if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
+				openInNewWin = true
+				selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
+			}
+			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
-            if openInNewWin {
-                // Create a new window and open file into it
-                insertAt := e.activeWindow + 1
-                // Temporarily switch active window to new one for openFile side effects
-                if insertAt >= len(e.windows) {
-                    e.windows = append(e.windows, newWindow(e.buffer))
-                } else {
-                    e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-                    e.windows[insertAt] = newWindow(e.buffer)
-                }
-                e.activateWindow(insertAt)
-                e.openFile(fullPath)
-            } else {
-                e.openFile(fullPath)
-            }
+			if openInNewWin {
+				// Create a new window and open file into it
+				insertAt := e.activeWindow + 1
+				// Temporarily switch active window to new one for openFile side effects
+				if insertAt >= len(e.windows) {
+					e.windows = append(e.windows, newWindow(e.buffer))
+				} else {
+					e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+					e.windows[insertAt] = newWindow(e.buffer)
+				}
+				e.activateWindow(insertAt)
+				e.openFile(fullPath)
+			} else {
+				e.openFile(fullPath)
+			}
 		}
 		// Don't close contentUpdateChan - the sending goroutine might still be running
 		// The channel will be garbage collected when no longer referenced
@@ -348,11 +347,11 @@ func (e *Editor) ShowFuzzyListWidget() {
 
 // startFuzzyFileListRefresh issues a fresh directory request bypassing cache
 func (e *Editor) startFuzzyFileListRefresh(contentUpdateChan chan []string) chan fileListingResult {
-    // Clear any cached entry for this directory to force fetch
-    if e.dirCache != nil {
-        delete(e.dirCache, e.workingDirectory)
-    }
-    return e.sendDirectoryListingRequest(contentUpdateChan, false)
+	// Clear any cached entry for this directory to force fetch
+	if e.dirCache != nil {
+		delete(e.dirCache, e.workingDirectory)
+	}
+	return e.sendDirectoryListingRequest(contentUpdateChan, false)
 }
 
 // OpenFile loads a file's content into the editor buffer (exported for main.go)
@@ -388,9 +387,9 @@ func (e *Editor) openFile(filePath string) {
 	fileContent, err := e.proxyManager.GetFile(resolvedPath)
 	var content string
 	var changes *proxy.FileChanges
-    var branch string
-    var diagnostics []proxy.Diagnostic
-	
+	var branch string
+	var diagnostics []proxy.Diagnostic
+
 	if err != nil {
 		// Check if it's a file not found error
 		if strings.Contains(err.Error(), "File does not exist") || strings.Contains(err.Error(), "file does not exist") {
@@ -405,107 +404,107 @@ func (e *Editor) openFile(filePath string) {
 			// TODO: Show error to user
 			return
 		}
-    } else {
+	} else {
 		content = fileContent.Content
 		changes = &fileContent.Changes
 		branch = fileContent.Branch
-        diagnostics = fileContent.Diagnostics
-		
+		diagnostics = fileContent.Diagnostics
+
 		// Check for auto-save recovery if we have a file
 		if e.autoSaveManager != nil {
 			// For now, check if auto-save exists without time comparison
 			// TODO: Get file modification time from proxy for better recovery detection
 			if exists, _, _ := e.autoSaveManager.GetAutoSaveInfo(resolvedPath); exists {
-                // Present non-blocking recovery dialog using overlay, then finish open based on result
-                width, height := e.screen.Size()
-                dialogWidth := 60
-                dialogHeight := 8
-                dialogX := (width - dialogWidth) / 2
-                dialogY := (height - dialogHeight) / 2
+				// Present non-blocking recovery dialog using overlay, then finish open based on result
+				width, height := e.screen.Size()
+				dialogWidth := 60
+				dialogHeight := 8
+				dialogX := (width - dialogWidth) / 2
+				dialogY := (height - dialogHeight) / 2
 
-                message := fmt.Sprintf("Auto-save found for %s. Recover unsaved changes?", filepath.Base(resolvedPath))
-                dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, "Recovery", message, e.config.Theme)
+				message := fmt.Sprintf("Auto-save found for %s. Recover unsaved changes?", filepath.Base(resolvedPath))
+				dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, "Recovery", message, e.config.Theme)
 
-                overlay := NewYesNoDialogOverlay(dialog)
-                resultChan := e.renderingState.SetOverlay(overlay)
+				overlay := NewYesNoDialogOverlay(dialog)
+				resultChan := e.renderingState.SetOverlay(overlay)
 
-                // Defer finishing the open based on user's choice, then return immediately
-                go func(origContent string, origChanges *proxy.FileChanges, origBranch string, origDiagnostics []proxy.Diagnostic) {
-                    res := <-resultChan
-                    // Close overlay handled by renderingState when result arrives
-                    finalContent := origContent
-                    if res == string(widgets.DialogResultYes) {
-                        if recoveredContent, err := e.autoSaveManager.GetAutoSaveContent(resolvedPath); err == nil {
-                            finalContent = recoveredContent
-                            LL.Info("Recovered content from auto-save for: %s", resolvedPath)
-                        } else {
-                            LL.Error("Failed to read auto-save content: %v", err)
-                        }
-                    } else if res == string(widgets.DialogResultNo) {
-                        // Clean up auto-save on explicit No
-                        e.autoSaveManager.CleanupAutoSave(resolvedPath)
-                    }
-                    e.finishOpenFile(resolvedPath, finalContent, origChanges, origBranch, origDiagnostics)
-                }(content, changes, branch, diagnostics)
+				// Defer finishing the open based on user's choice, then return immediately
+				go func(origContent string, origChanges *proxy.FileChanges, origBranch string, origDiagnostics []proxy.Diagnostic) {
+					res := <-resultChan
+					// Close overlay handled by renderingState when result arrives
+					finalContent := origContent
+					if res == string(widgets.DialogResultYes) {
+						if recoveredContent, err := e.autoSaveManager.GetAutoSaveContent(resolvedPath); err == nil {
+							finalContent = recoveredContent
+							LL.Info("Recovered content from auto-save for: %s", resolvedPath)
+						} else {
+							LL.Error("Failed to read auto-save content: %v", err)
+						}
+					} else if res == string(widgets.DialogResultNo) {
+						// Clean up auto-save on explicit No
+						e.autoSaveManager.CleanupAutoSave(resolvedPath)
+					}
+					e.finishOpenFile(resolvedPath, finalContent, origChanges, origBranch, origDiagnostics)
+				}(content, changes, branch, diagnostics)
 
-                return
+				return
 			}
 		}
 	}
 
-    // Finish opening immediately (no recovery dialog shown)
-    e.finishOpenFile(resolvedPath, content, changes, branch, diagnostics)
+	// Finish opening immediately (no recovery dialog shown)
+	e.finishOpenFile(resolvedPath, content, changes, branch, diagnostics)
 }
 
 // finishOpenFile finalizes opening a file into a buffer and switching to it
 func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *proxy.FileChanges, branch string, diagnostics []proxy.Diagnostic) {
-    // Create a new buffer with the file content (empty for new files)
-    newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+	// Create a new buffer with the file content (empty for new files)
+	newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 
-    LL.Debug("Setting buffer changes to %+v", changes)
+	LL.Debug("Setting buffer changes to %+v", changes)
 
-    // Store the git changes, branch, and diagnostics in the buffer
-    newBuffer.GitChanges = changes
-    newBuffer.GitBranch = branch
-    newBuffer.Diagnostics = diagnostics
+	// Store the git changes, branch, and diagnostics in the buffer
+	newBuffer.GitChanges = changes
+	newBuffer.GitBranch = branch
+	newBuffer.Diagnostics = diagnostics
 
-    // Add to buffers map and order
-    e.buffers[resolvedPath] = newBuffer
+	// Add to buffers map and order
+	e.buffers[resolvedPath] = newBuffer
 
-    // If this is replacing the empty buffer AND it's still empty, remove it
-    // We should keep the unnamed buffer if the user has typed anything into it
-    if !e.buffer.HasFile() {
-        if unnamedBuffer, exists := e.buffers["[No Name]"]; exists {
-            // Only remove if the buffer is truly empty
-            if unnamedBuffer.Rope.String() == "" {
-                delete(e.buffers, "[No Name]")
-                for i, path := range e.bufferOrder {
-                    if path == "[No Name]" {
-                        e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
-                        break
-                    }
-                }
-            }
-        }
-    }
+	// If this is replacing the empty buffer AND it's still empty, remove it
+	// We should keep the unnamed buffer if the user has typed anything into it
+	if !e.buffer.HasFile() {
+		if unnamedBuffer, exists := e.buffers["[No Name]"]; exists {
+			// Only remove if the buffer is truly empty
+			if unnamedBuffer.Rope.String() == "" {
+				delete(e.buffers, "[No Name]")
+				for i, path := range e.bufferOrder {
+					if path == "[No Name]" {
+						e.bufferOrder = append(e.bufferOrder[:i], e.bufferOrder[i+1:]...)
+						break
+					}
+				}
+			}
+		}
+	}
 
-    // Add new buffer to order
-    e.bufferOrder = append(e.bufferOrder, resolvedPath)
+	// Add new buffer to order
+	e.bufferOrder = append(e.bufferOrder, resolvedPath)
 
-    // Switch to the new buffer
-    e.switchToBuffer(newBuffer)
+	// Switch to the new buffer
+	e.switchToBuffer(newBuffer)
 
-    // Detect indentation for the new file
-    newBuffer.Indentation = e.detectIndentation()
+	// Detect indentation for the new file
+	newBuffer.Indentation = e.detectIndentation()
 
-    // Request folding ranges from LSP worker thread
-    e.requestFoldingRanges(resolvedPath)
+	// Request folding ranges from LSP worker thread
+	e.requestFoldingRanges(resolvedPath)
 
-    // Enable LSP support and request a non-blocking diagnostics refresh
-    if newBuffer.HasFile() {
-        newBuffer.HasLSP = true
-        e.requestDiagnosticsRefresh(resolvedPath)
-    }
+	// Enable LSP support and request a non-blocking diagnostics refresh
+	if newBuffer.HasFile() {
+		newBuffer.HasLSP = true
+		e.requestDiagnosticsRefresh(resolvedPath)
+	}
 }
 
 // openFileCmd implements the open-file command
@@ -520,7 +519,7 @@ func (e *Editor) showProjectSymbolsList() {
 	width, height := e.screen.Size()
 
 	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListWidth := width * 4 / 5    // 80% of screen width
 	fuzzyListHeight := height * 7 / 10 // 70% of screen height
 	fuzzyListX := (width - fuzzyListWidth) / 2
 	fuzzyListY := (height - fuzzyListHeight) / 2
@@ -532,8 +531,8 @@ func (e *Editor) showProjectSymbolsList() {
 	// Start with empty content
 	fuzzyListWidget.SetContent([]string{})
 
-	var pendingQuery string // Query that is currently being processed
-	var symbols []proxy.ProjectSymbol // Store the actual symbol objects
+	var pendingQuery string              // Query that is currently being processed
+	var symbols []proxy.ProjectSymbol    // Store the actual symbol objects
 	var symbolMap = make(map[string]int) // Map display name to index
 
 	// Create a channel to receive LSP responses for this widget
@@ -544,7 +543,7 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Create a channel to pass symbol data back from the goroutine
 	type symbolUpdate struct {
-		symbols []proxy.ProjectSymbol
+		symbols   []proxy.ProjectSymbol
 		symbolMap map[string]int
 	}
 	symbolUpdateChan := make(chan symbolUpdate, 1)
@@ -612,7 +611,7 @@ func (e *Editor) showProjectSymbolsList() {
 		// Start async operation tracking
 		operationID := fmt.Sprintf("project-symbols-%s", newText)
 		e.startAsyncOperation(operationID, "searching project symbols: "+newText)
-		
+
 		// Set connection status
 		if len(newText) > 0 {
 			e.connectionStatus = fmt.Sprintf("Searching for \"%s\"", newText)
@@ -720,7 +719,7 @@ func (e *Editor) showDocumentSymbolsList() {
 	width, height := e.screen.Size()
 
 	// Create fuzzy list widget (centered overlay)
-	fuzzyListWidth := width * 4 / 5  // 80% of screen width
+	fuzzyListWidth := width * 4 / 5    // 80% of screen width
 	fuzzyListHeight := height * 7 / 10 // 70% of screen height
 	fuzzyListX := (width - fuzzyListWidth) / 2
 	fuzzyListY := (height - fuzzyListHeight) / 2
@@ -732,7 +731,7 @@ func (e *Editor) showDocumentSymbolsList() {
 	// Start with loading message
 	fuzzyListWidget.SetContent([]string{"Loading symbols..."})
 
-	var symbols []proxy.DocumentSymbol // Store the actual symbol objects
+	var symbols []proxy.DocumentSymbol   // Store the actual symbol objects
 	var symbolMap = make(map[string]int) // Map display name to index
 
 	// Create a channel to receive LSP responses for this widget
@@ -744,7 +743,7 @@ func (e *Editor) showDocumentSymbolsList() {
 	// Send async LSP request for document symbols
 	operationID := fmt.Sprintf("doc-symbols-%s", e.buffer.FilePath)
 	e.startAsyncOperation(operationID, "loading document symbols for: "+e.buffer.FilePath)
-	
+
 	// Set connection status
 	e.connectionStatus = "Loading document symbols"
 
@@ -903,7 +902,7 @@ func (e *Editor) writeFile(args []string) error {
 			e.ShowError("Failed to save file: %v", err)
 			return
 		}
-		
+
 		// Update buffer diagnostics with the returned diagnostics
 		e.buffer.Diagnostics = diagnostics
 
@@ -929,10 +928,10 @@ func (e *Editor) writeFile(args []string) error {
 					}
 				}
 			}
-			
+
 			// Update buffer's file path
 			e.buffer.FilePath = filePath
-			
+
 			// Add buffer with new path
 			e.buffers[filePath] = e.buffer
 		}
@@ -958,7 +957,7 @@ func (e *Editor) writeAndQuit(args []string) error {
 	if err := e.writeFile(args); err != nil {
 		return err
 	}
-	
+
 	// Then close the buffer (which will quit if it's the last buffer)
 	return e.closeBuffer(args)
 }
@@ -989,30 +988,30 @@ func (e *Editor) editFile(args []string) error {
 // showRecoveryDialog displays a dialog asking the user whether to recover from auto-save
 func (e *Editor) showRecoveryDialog(filePath string) bool {
 	width, height := e.screen.Size()
-	
+
 	// Create a centered dialog
 	dialogWidth := 60
 	dialogHeight := 8
 	dialogX := (width - dialogWidth) / 2
 	dialogY := (height - dialogHeight) / 2
-	
+
 	message := fmt.Sprintf("Auto-save found for %s. Recover unsaved changes?", filepath.Base(filePath))
-	
-	dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, 
+
+	dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight,
 		"Recovery", message, e.config.Theme)
-	
+
 	// Show the dialog and wait for user input
 	for !dialog.IsClosed() {
 		// Clear screen and render dialog
 		e.screen.Clear()
 		dialog.Render(e.screen)
 		e.screen.Show()
-		
+
 		// Handle events
 		event := e.screen.PollEvent()
 		dialog.HandleEvent(event)
 	}
-	
+
 	result := dialog.GetResult()
 	return result == widgets.DialogResultYes
 }

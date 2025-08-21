@@ -7,14 +7,14 @@ import (
 
 // Movement commands
 func (e *Editor) moveUp(args []string) error {
-    t0 := e.perfTracker.Start()
-    defer e.perfTracker.ReportSince("moveUp", t0)
+	t0 := e.perfTracker.Start()
+	defer e.perfTracker.ReportSince("moveUp", t0)
 	// Check for auto-indent cleanup before moving
 	e.checkAndCleanupAutoIndent()
-	
+
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
-	
+
 	// Set desired column if not already set
 	if e.desiredColumn == -1 {
 		e.desiredColumn = visualCol
@@ -43,14 +43,14 @@ func (e *Editor) moveUp(args []string) error {
 }
 
 func (e *Editor) moveDown(args []string) error {
-    t0 := e.perfTracker.Start()
-    defer e.perfTracker.ReportSince("moveDown", t0)
+	t0 := e.perfTracker.Start()
+	defer e.perfTracker.ReportSince("moveDown", t0)
 	// Check for auto-indent cleanup before moving
 	e.checkAndCleanupAutoIndent()
-	
+
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
-	
+
 	// Set desired column if not already set
 	if e.desiredColumn == -1 {
 		e.desiredColumn = visualCol
@@ -114,7 +114,7 @@ func (e *Editor) wordForward(args []string) error {
 	currentLine := e.buffer.CursorIterator.LineNumber()
 	startX := e.buffer.CursorX
 	line := e.buffer.CursorIterator.Line()
-	
+
 	// Check if we should stop at end of line first
 	if shouldStopAtEndOfLine(e.buffer, currentLine, startX) {
 		// Move to end of current line
@@ -123,7 +123,7 @@ func (e *Editor) wordForward(args []string) error {
 		e.updateCursorState()
 		return nil
 	}
-	
+
 	// Use normal word boundary logic
 	nextWord := FindNextWordBoundary(e.buffer, currentLine, startX)
 
@@ -162,7 +162,7 @@ func (e *Editor) wordForwardNoUnderscore(args []string) error {
 	currentLine := e.buffer.CursorIterator.LineNumber()
 	startX := e.buffer.CursorX
 	line := e.buffer.CursorIterator.Line()
-	
+
 	// Check if we should stop at end of line first (using underscore-aware logic)
 	if shouldStopAtEndOfLineWithOptions(e.buffer, currentLine, startX, false) {
 		// Move to end of current line
@@ -171,7 +171,7 @@ func (e *Editor) wordForwardNoUnderscore(args []string) error {
 		e.updateCursorState()
 		return nil
 	}
-	
+
 	// Use word boundary logic with underscores as boundaries
 	nextWord := FindNextWordBoundaryWithOptions(e.buffer, currentLine, startX, false)
 
@@ -230,7 +230,7 @@ func (e *Editor) endOfLine(args []string) error {
 			return nil
 		})
 	}
-	
+
 	// Single cursor movement (or in cursor mode)
 	line := e.buffer.CursorIterator.Line()
 	lineLen := len(line)
@@ -246,8 +246,8 @@ func (e *Editor) endOfLine(args []string) error {
 }
 
 func (e *Editor) pageUp(args []string) error {
-    t0 := e.perfTracker.Start()
-    defer e.perfTracker.ReportSince("pageUp", t0)
+	t0 := e.perfTracker.Start()
+	defer e.perfTracker.ReportSince("pageUp", t0)
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor up by visible lines
@@ -267,8 +267,8 @@ func (e *Editor) pageUp(args []string) error {
 }
 
 func (e *Editor) pageDown(args []string) error {
-    t0 := e.perfTracker.Start()
-    defer e.perfTracker.ReportSince("pageDown", t0)
+	t0 := e.perfTracker.Start()
+	defer e.perfTracker.ReportSince("pageDown", t0)
 	visibleLines := e.getVisibleLines()
 
 	// Move cursor down by visible lines
@@ -299,32 +299,32 @@ func (e *Editor) goToBeginning(args []string) error {
 
 // goToEnd moves the cursor to the end of the file
 func (e *Editor) goToEnd(args []string) error {
-    // Robust, iterator-independent logic under newline-as-boundary semantics
-    // Determine target logical line index
-    lineCount := e.buffer.LineCount
-    if lineCount <= 0 {
-        // Defensive: fall back to origin
-        e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
-        e.buffer.CursorX = 0
-    } else {
-        lastIndex := lineCount - 1
-        targetLine := lastIndex
-        // If buffer ends with a newline, the last line is empty; pick previous line when possible
-        if e.buffer.Rope.Length() > 0 {
-            if e.buffer.Rope.ByteAt(e.buffer.Rope.Length()-1) == '\n' && lastIndex > 0 {
-                targetLine = lastIndex - 1
-            }
-        }
+	// Robust, iterator-independent logic under newline-as-boundary semantics
+	// Determine target logical line index
+	lineCount := e.buffer.LineCount
+	if lineCount <= 0 {
+		// Defensive: fall back to origin
+		e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
+		e.buffer.CursorX = 0
+	} else {
+		lastIndex := lineCount - 1
+		targetLine := lastIndex
+		// If buffer ends with a newline, the last line is empty; pick previous line when possible
+		if e.buffer.Rope.Length() > 0 {
+			if e.buffer.Rope.ByteAt(e.buffer.Rope.Length()-1) == '\n' && lastIndex > 0 {
+				targetLine = lastIndex - 1
+			}
+		}
 
-        // Move cursor to target line
-        e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
-        // Move to end of line (normal mode: last character)
-        lastLine := e.buffer.CursorIterator.Line()
-        e.buffer.CursorX = len(lastLine)
-        if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-            e.buffer.CursorX--
-        }
-    }
+		// Move cursor to target line
+		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
+		// Move to end of line (normal mode: last character)
+		lastLine := e.buffer.CursorIterator.Line()
+		e.buffer.CursorX = len(lastLine)
+		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+			e.buffer.CursorX--
+		}
+	}
 
 	// Scroll to show the cursor
 	e.ScrollToShowAtBottom()
@@ -355,15 +355,15 @@ func (e *Editor) findCharacter(args []string) error {
 	if len(args) == 0 {
 		return nil
 	}
-	
+
 	char := args[0]
 	if len(char) == 0 {
 		return nil
 	}
-	
+
 	line := e.buffer.CursorIterator.Line()
 	currentX := e.buffer.CursorX
-	
+
 	// Search for the character starting from the position after the cursor
 	for i := currentX + 1; i < len(line); i++ {
 		if string(line[i]) == char {
@@ -373,7 +373,7 @@ func (e *Editor) findCharacter(args []string) error {
 			return nil
 		}
 	}
-	
+
 	// Character not found
 	return nil
 }
@@ -383,15 +383,15 @@ func (e *Editor) tillCharacter(args []string) error {
 	if len(args) == 0 {
 		return nil
 	}
-	
+
 	char := args[0]
 	if len(char) == 0 {
 		return nil
 	}
-	
+
 	line := e.buffer.CursorIterator.Line()
 	currentX := e.buffer.CursorX
-	
+
 	// Search for the character starting from the position after the cursor
 	for i := currentX + 1; i < len(line); i++ {
 		if string(line[i]) == char {
@@ -404,7 +404,7 @@ func (e *Editor) tillCharacter(args []string) error {
 			return nil
 		}
 	}
-	
+
 	// Character not found
 	return nil
 }

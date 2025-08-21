@@ -9,15 +9,15 @@ import (
 type Mode string
 
 const (
-	NormalMode      Mode = "NORMAL"
-	CommandMode     Mode = "COMMAND"
-	InsertMode      Mode = "INSERT"
-	SearchMode      Mode = "SEARCH"
-	VisualMode      Mode = "VISUAL"
-	VisualLineMode  Mode = "VISUAL LINE"
-	CursorMode      Mode = "CURSOR"
-    // TerminalMode routes all keys to a PTY-backed terminal session
-    TerminalMode    Mode = "TERMINAL"
+	NormalMode     Mode = "NORMAL"
+	CommandMode    Mode = "COMMAND"
+	InsertMode     Mode = "INSERT"
+	SearchMode     Mode = "SEARCH"
+	VisualMode     Mode = "VISUAL"
+	VisualLineMode Mode = "VISUAL LINE"
+	CursorMode     Mode = "CURSOR"
+	// TerminalMode routes all keys to a PTY-backed terminal session
+	TerminalMode Mode = "TERMINAL"
 )
 
 // Key represents a key with modifiers
@@ -42,7 +42,7 @@ type HandlerFunc func(args []string) error
 
 // CommandInfo contains metadata about a command
 type CommandInfo struct {
-	Handler HandlerFunc
+	Handler           HandlerFunc
 	ApplyToAllCursors bool // Whether this command should be applied to all cursors
 }
 
@@ -61,7 +61,7 @@ func NewCommandRegistry() *CommandRegistry {
 // Register registers a command handler
 func (cr *CommandRegistry) Register(command string, handler HandlerFunc, applyToAllCursors bool) {
 	cr.commands[command] = CommandInfo{
-		Handler: handler,
+		Handler:           handler,
 		ApplyToAllCursors: applyToAllCursors,
 	}
 }

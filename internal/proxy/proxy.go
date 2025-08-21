@@ -3,12 +3,12 @@ package proxy
 import (
 	"bufio"
 	_ "embed"
-	"encoding/json"
 	"encoding/base64"
-    "fmt"
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
-    "strings"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -43,14 +43,14 @@ func NewProxyManager() (*ProxyManager, error) {
 	pm := &ProxyManager{
 		clients: make(map[string]*Client),
 	}
-	
+
 	// Start local proxy
 	localClient, err := NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start local proxy: %w", err)
 	}
 	pm.clients[""] = localClient
-	
+
 	return pm, nil
 }
 
@@ -69,24 +69,24 @@ func (pm *ProxyManager) reportStatus(status string) {
 // getClient returns the appropriate client for the given path
 func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 	host, actualPath, isRemote := parseRemotePath(path)
-	
+
 	LL.Debug("getClient: path=%s, host=%s, actualPath=%s, isRemote=%v", path, host, actualPath, isRemote)
-	
+
 	if !isRemote {
 		return pm.clients[""], path, nil
 	}
-	
+
 	// Check if we already have a client for this host
 	if client, exists := pm.clients[host]; exists {
 		return client, actualPath, nil
 	}
-	
+
 	// Create a new remote proxy for this host
 	client, err := pm.createRemoteClient(host)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create remote proxy for %s: %w", host, err)
 	}
-	
+
 	pm.clients[host] = client
 	return client, actualPath, nil
 }
@@ -95,20 +95,20 @@ func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	startTime := time.Now()
 	LL.Info("Creating remote proxy connection to %s", host)
-	
+
 	// Report initial connection status
 	pm.reportStatus(fmt.Sprintf("Connecting to %s...", host))
 
 	// Helper to start a remote proxy instance and perform version handshake
 	startRemote := func() (*Client, *exec.Cmd, error) {
 		pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
-        sshArgs := []string{
-            "-T",
-            "-o", "ControlMaster=no",
-            "-o", "ControlPath=none",
-            host,
-            "python3", "/tmp/veda-proxy.py",
-        }
+		sshArgs := []string{
+			"-T",
+			"-o", "ControlMaster=no",
+			"-o", "ControlPath=none",
+			host,
+			"python3", "/tmp/veda-proxy.py",
+		}
 		cmd := exec.Command("ssh", sshArgs...)
 
 		stdinPipe, err := cmd.StdinPipe()
@@ -141,7 +141,7 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		stdin := bufio.NewWriter(stdinPipe)
 		stdout := bufio.NewScanner(stdoutPipe)
 
-        // Increase scanner buffer size to handle large responses
+		// Increase scanner buffer size to handle large responses
 		buf := make([]byte, 0, maxScanTokenSize)
 		stdout.Buffer(buf, maxScanTokenSize)
 
@@ -156,16 +156,16 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 			return nil, cmd, fmt.Errorf("version mismatch: got=%s, want=%s", version, ProxyVersion)
 		}
 
-        client := &Client{
-            cmd:       cmd,
-            stdin:     stdin,
-            stdout:    stdout,
-            requestID: 0,
-            pending:   make(map[int]chan map[string]interface{}),
-            readerErr: make(chan error, 1),
-        }
-        client.readerOnce.Do(func() { go client.readerLoop() })
-        return client, cmd, nil
+		client := &Client{
+			cmd:       cmd,
+			stdin:     stdin,
+			stdout:    stdout,
+			requestID: 0,
+			pending:   make(map[int]chan map[string]interface{}),
+			readerErr: make(chan error, 1),
+		}
+		client.readerOnce.Do(func() { go client.readerLoop() })
+		return client, cmd, nil
 	}
 
 	// First try without copying (assume proxy exists on remote). If it fails or
@@ -200,47 +200,47 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 // copyProxyToRemote copies the embedded proxy script to the remote host
 func (pm *ProxyManager) copyProxyToRemote(host string) error {
 	startTime := time.Now()
-	
+
 	// Create a temporary file with the proxy script
 	tmpFile, err := os.CreateTemp("", "veda-proxy-*.py")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmpFile.Name())
-	
+
 	// Write the embedded proxy script to the temp file
 	if _, err := tmpFile.Write([]byte(embeddedProxy)); err != nil {
 		tmpFile.Close()
 		return err
 	}
 	tmpFile.Close()
-	
+
 	// Use scp to copy the file to remote /tmp/
-	scpCmd := exec.Command("scp", 
+	scpCmd := exec.Command("scp",
 		"-o", "ControlMaster=no",
 		"-o", "ControlPath=none",
-		tmpFile.Name(), 
+		tmpFile.Name(),
 		fmt.Sprintf("%s:/tmp/veda-proxy.py", host))
-	
+
 	// Capture output for debugging
 	output, err := scpCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("scp failed: %w, output: %s", err, output)
 	}
-	
+
 	// Make the script executable on the remote host
 	pm.reportStatus(fmt.Sprintf("Setting up proxy on %s...", host))
 	chmodCmd := exec.Command("ssh",
 		host,
-		"-o", "ControlMaster=no", 
+		"-o", "ControlMaster=no",
 		"-o", "ControlPath=none",
 		"chmod", "+x", "/tmp/veda-proxy.py")
-	
+
 	output, err = chmodCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("chmod failed: %w, output: %s", err, output)
 	}
-	
+
 	duration := time.Since(startTime)
 	LL.Info("Copied proxy script to %s:/tmp/veda-proxy.py in %v", host, duration)
 	return nil
@@ -262,23 +262,23 @@ func (pm *ProxyManager) Close() error {
 func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	startTime := time.Now()
-	
+
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	LL.Debug("ProxyManager.GetFile: path=%s, actualPath=%s", path, actualPath)
-	
+
 	// Call the original GetFile with the actual path (without HOST: prefix)
 	fileContent, err := client.GetFile(actualPath)
 	if err == nil {
 		duration := time.Since(startTime)
 		LL.Info("Read file %s (%d bytes) in %v", path, len(fileContent.Content), duration)
 	}
-	
+
 	return fileContent, err
 }
 
@@ -286,16 +286,16 @@ func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
 func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	startTime := time.Now()
-	
+
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	LL.Debug("ProxyManager.WriteFile: path=%s, actualPath=%s", path, actualPath)
-	
+
 	// Call the client's WriteFile with the actual path (without HOST: prefix)
 	diagnostics, err := client.WriteFile(actualPath, content)
 	if err == nil {
@@ -309,20 +309,20 @@ func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, er
 func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	startTime := time.Now()
-	
+
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	files, err := client.ListDirectory(actualPath)
 	if err == nil {
 		duration := time.Since(startTime)
 		LL.Info("Listed directory %s (%d files) in %v", path, len(files), duration)
 	}
-	
+
 	return files, err
 }
 
@@ -330,59 +330,59 @@ func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
 func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	startTime := time.Now()
-	
+
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	files, err := client.ListDirectoryRecursive(actualPath)
 	if err == nil {
 		duration := time.Since(startTime)
 		LL.Info("Listed directory recursively %s (%d files) in %v", path, len(files), duration)
 	}
-	
+
 	return files, err
 }
 
 // GoToDefinition gets the definition location for a symbol (supports HOST:PATH format)
 func (pm *ProxyManager) GoToDefinition(filePath string, line int, character int) ([]Location, error) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-    client, actualPath, err := pm.getClient(filePath)
+	client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.GoToDefinition(actualPath, line, character)
 }
 
 // FindReferences finds all references to a symbol (supports HOST:PATH format)
 func (pm *ProxyManager) FindReferences(filePath string, line int, character int, includeDeclaration bool) ([]Location, error) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-    client, actualPath, err := pm.getClient(filePath)
+	client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.FindReferences(actualPath, line, character, includeDeclaration)
 }
 
 // GetCompletions gets completion suggestions at the given position (supports HOST:PATH format)
 func (pm *ProxyManager) GetCompletions(filePath string, line int, character int) (interface{}, error) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-    client, actualPath, err := pm.getClient(filePath)
+	client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.GetCompletions(actualPath, line, character)
 }
 
@@ -390,25 +390,25 @@ func (pm *ProxyManager) GetCompletions(filePath string, line int, character int)
 func (pm *ProxyManager) GetDiagnostics(path string) (map[string][]interface{}, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	client, _, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.GetDiagnostics()
 }
 
 // GetDocumentSymbols gets document symbols for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-    client, actualPath, err := pm.getClient(filePath)
+	client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.GetDocumentSymbols(actualPath)
 }
 
@@ -416,25 +416,25 @@ func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, e
 func (pm *ProxyManager) GetLSPMessages(path string, language string) ([]interface{}, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	client, _, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.GetLSPMessages(language)
 }
 
 // GetFoldingRanges gets folding ranges for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-    client, actualPath, err := pm.getClient(filePath)
+	client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.GetFoldingRanges(actualPath)
 }
 
@@ -442,25 +442,25 @@ func (pm *ProxyManager) GetFoldingRanges(filePath string) ([]FoldingRange, error
 func (pm *ProxyManager) NotifyFileChange(filePath string, content string) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return err
 	}
-	
+
 	return client.NotifyFileChange(actualPath, content)
 }
 
 // GetSignatureHelp gets signature help for a function (supports HOST:PATH format)
 func (pm *ProxyManager) GetSignatureHelp(filePath string, line int, character int) (interface{}, error) {
-    pm.mu.Lock()
-    defer pm.mu.Unlock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
-    client, actualPath, err := pm.getClient(filePath)
+	client, actualPath, err := pm.getClient(filePath)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.GetSignatureHelp(actualPath, line, character)
 }
 
@@ -468,12 +468,12 @@ func (pm *ProxyManager) GetSignatureHelp(filePath string, line int, character in
 func (pm *ProxyManager) ListProjectSymbols(path string, query string) ([]ProjectSymbol, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	client, _, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.ListProjectSymbols(query)
 }
 
@@ -481,19 +481,19 @@ func (pm *ProxyManager) ListProjectSymbols(path string, query string) ([]Project
 func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// For project changes, we need to pass the directory path
 	// If actualPath is empty (local proxy), use the original path
 	workingDir := actualPath
 	if actualPath == "" || actualPath == "." {
 		workingDir = path
 	}
-	
+
 	return client.GetProjectChanges(workingDir)
 }
 
@@ -539,10 +539,10 @@ type FileInfo struct {
 
 // FileContent represents file content with change information
 type FileContent struct {
-	Content string      `json:"content"`
-	Changes FileChanges `json:"changes"`
-	Branch  string      `json:"branch"`
-    Diagnostics []Diagnostic `json:"diagnostics"`
+	Content     string       `json:"content"`
+	Changes     FileChanges  `json:"changes"`
+	Branch      string       `json:"branch"`
+	Diagnostics []Diagnostic `json:"diagnostics"`
 }
 
 // FileChanges represents git changes in a file
@@ -554,11 +554,11 @@ type FileChanges struct {
 
 // Diagnostic represents a single diagnostic item from LSP normalized for the editor
 type Diagnostic struct {
-    Line     int    `json:"line"`     // 1-based line number
-    Severity string `json:"severity"` // "error", "warning", "info", "hint"
-    Message  string `json:"message"`
-    StartChar int   `json:"start_char"` // 0-based start character in line
-    EndChar   int   `json:"end_char"`   // 0-based end character (exclusive)
+	Line      int    `json:"line"`     // 1-based line number
+	Severity  string `json:"severity"` // "error", "warning", "info", "hint"
+	Message   string `json:"message"`
+	StartChar int    `json:"start_char"` // 0-based start character in line
+	EndChar   int    `json:"end_char"`   // 0-based end character (exclusive)
 }
 
 // ProjectChange represents a changed file in the project
@@ -598,16 +598,16 @@ type Position struct {
 
 // DocumentSymbol represents a symbol in a document (LSP DocumentSymbol)
 type DocumentSymbol struct {
-	Name           string            `json:"name"`
-	Detail         string            `json:"detail,omitempty"`
-	Kind           int               `json:"kind"`
-	Tags           []int             `json:"tags,omitempty"`
-	Deprecated     bool              `json:"deprecated,omitempty"`
-	Range          Range             `json:"range"`
-	SelectionRange Range             `json:"selectionRange"`
-	Children       []DocumentSymbol  `json:"children,omitempty"`
+	Name           string           `json:"name"`
+	Detail         string           `json:"detail,omitempty"`
+	Kind           int              `json:"kind"`
+	Tags           []int            `json:"tags,omitempty"`
+	Deprecated     bool             `json:"deprecated,omitempty"`
+	Range          Range            `json:"range"`
+	SelectionRange Range            `json:"selectionRange"`
+	Children       []DocumentSymbol `json:"children,omitempty"`
 	// For SymbolInformation format (older LSP)
-	Location       *Location         `json:"location,omitempty"`
+	Location *Location `json:"location,omitempty"`
 }
 
 // FoldingRange represents a folding range in a document
@@ -636,11 +636,11 @@ type Client struct {
 	stdin     *bufio.Writer
 	stdout    *bufio.Scanner
 	requestID int
-    // concurrent routing
-    pendingMu  sync.Mutex
-    pending    map[int]chan map[string]interface{}
-    readerErr  chan error
-    readerOnce sync.Once
+	// concurrent routing
+	pendingMu  sync.Mutex
+	pending    map[int]chan map[string]interface{}
+	readerErr  chan error
+	readerOnce sync.Once
 }
 
 // ---- Terminal (PTY) session RPCs ----
@@ -648,256 +648,304 @@ type Client struct {
 // StartTerminal starts a PTY-backed terminal session on the proxy host.
 // workingDir decides locality via existing client selection.
 func (pm *ProxyManager) StartTerminal(workingDir string, command []string, env map[string]string, cols, rows int) (string, int, error) {
-    pm.mu.Lock()
-    client, actualPath, err := pm.getClient(workingDir)
-    pm.mu.Unlock()
-    if err != nil {
-        return "", 0, err
-    }
-    return client.startTerminal(actualPath, command, env, cols, rows)
+	pm.mu.Lock()
+	client, actualPath, err := pm.getClient(workingDir)
+	pm.mu.Unlock()
+	if err != nil {
+		return "", 0, err
+	}
+	return client.startTerminal(actualPath, command, env, cols, rows)
 }
 
 func (pm *ProxyManager) WriteTerminal(workingDir, sessionID string, data []byte) error {
-    pm.mu.Lock()
-    client, _, err := pm.getClient(workingDir)
-    pm.mu.Unlock()
-    if err != nil { return err }
-    return client.writeTerminal(sessionID, data)
+	pm.mu.Lock()
+	client, _, err := pm.getClient(workingDir)
+	pm.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return client.writeTerminal(sessionID, data)
 }
 
 func (pm *ProxyManager) ReadTerminal(workingDir, sessionID string, maxBytes int) ([]byte, bool, *int, error) {
-    pm.mu.Lock()
-    client, _, err := pm.getClient(workingDir)
-    pm.mu.Unlock()
-    if err != nil { return nil, false, nil, err }
-    return client.readTerminal(sessionID, maxBytes)
+	pm.mu.Lock()
+	client, _, err := pm.getClient(workingDir)
+	pm.mu.Unlock()
+	if err != nil {
+		return nil, false, nil, err
+	}
+	return client.readTerminal(sessionID, maxBytes)
 }
 
 func (pm *ProxyManager) ResizeTerminal(workingDir, sessionID string, cols, rows int) error {
-    pm.mu.Lock()
-    client, _, err := pm.getClient(workingDir)
-    pm.mu.Unlock()
-    if err != nil { return err }
-    return client.resizeTerminal(sessionID, cols, rows)
+	pm.mu.Lock()
+	client, _, err := pm.getClient(workingDir)
+	pm.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return client.resizeTerminal(sessionID, cols, rows)
 }
 
 func (pm *ProxyManager) CloseTerminal(workingDir, sessionID string) error {
-    pm.mu.Lock()
-    client, _, err := pm.getClient(workingDir)
-    pm.mu.Unlock()
-    if err != nil { return err }
-    return client.closeTerminal(sessionID)
+	pm.mu.Lock()
+	client, _, err := pm.getClient(workingDir)
+	pm.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return client.closeTerminal(sessionID)
 }
 
 // Client-side request helpers
 func (c *Client) startTerminal(workingDir string, command []string, env map[string]string, cols, rows int) (string, int, error) {
-    c.requestID++
-    params := map[string]interface{}{ "working_dir": workingDir, "cols": cols, "rows": rows }
-    if len(command) > 0 { params["command"] = command }
-    if len(env) > 0 { params["env"] = env }
-    req := JSONRPCRequest{ Method: "start_terminal", Params: params, ID: c.requestID }
-    resp, err := c.sendRequestWithTimeout(req)
-    if err != nil { return "", 0, err }
-    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return "", 0, fmt.Errorf("proxy error: %s", errMsg) }
-    if result, ok := resp["result"].(map[string]interface{}); ok {
-        sid, _ := result["session_id"].(string)
-        pid := 0
-        if p, ok := result["pid"].(float64); ok { pid = int(p) }
-        if sid != "" { return sid, pid, nil }
-    }
-    return "", 0, fmt.Errorf("invalid start_terminal response")
+	c.requestID++
+	params := map[string]interface{}{"working_dir": workingDir, "cols": cols, "rows": rows}
+	if len(command) > 0 {
+		params["command"] = command
+	}
+	if len(env) > 0 {
+		params["env"] = env
+	}
+	req := JSONRPCRequest{Method: "start_terminal", Params: params, ID: c.requestID}
+	resp, err := c.sendRequestWithTimeout(req)
+	if err != nil {
+		return "", 0, err
+	}
+	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
+		return "", 0, fmt.Errorf("proxy error: %s", errMsg)
+	}
+	if result, ok := resp["result"].(map[string]interface{}); ok {
+		sid, _ := result["session_id"].(string)
+		pid := 0
+		if p, ok := result["pid"].(float64); ok {
+			pid = int(p)
+		}
+		if sid != "" {
+			return sid, pid, nil
+		}
+	}
+	return "", 0, fmt.Errorf("invalid start_terminal response")
 }
 
 func (c *Client) writeTerminal(sessionID string, data []byte) error {
-    c.requestID++
-    b64 := base64StdEncode(data)
-    req := JSONRPCRequest{ Method: "write_terminal", Params: map[string]interface{}{ "session_id": sessionID, "data_b64": b64 }, ID: c.requestID }
-    resp, err := c.sendRequestWithTimeout(req)
-    if err != nil { return err }
-    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return fmt.Errorf("proxy error: %s", errMsg) }
-    return nil
+	c.requestID++
+	b64 := base64StdEncode(data)
+	req := JSONRPCRequest{Method: "write_terminal", Params: map[string]interface{}{"session_id": sessionID, "data_b64": b64}, ID: c.requestID}
+	resp, err := c.sendRequestWithTimeout(req)
+	if err != nil {
+		return err
+	}
+	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
+		return fmt.Errorf("proxy error: %s", errMsg)
+	}
+	return nil
 }
 
 func (c *Client) readTerminal(sessionID string, maxBytes int) ([]byte, bool, *int, error) {
-    c.requestID++
-    if maxBytes <= 0 { maxBytes = 65536 }
-    req := JSONRPCRequest{ Method: "read_terminal", Params: map[string]interface{}{ "session_id": sessionID, "max_bytes": maxBytes }, ID: c.requestID }
-    resp, err := c.sendRequestWithTimeout(req)
-    if err != nil { return nil, false, nil, err }
-    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return nil, false, nil, fmt.Errorf("proxy error: %s", errMsg) }
-    result, ok := resp["result"].(map[string]interface{})
-    if !ok { return nil, false, nil, fmt.Errorf("invalid read_terminal response") }
-    dataB64, _ := result["data_b64"].(string)
-    data, decErr := base64StdDecode(dataB64)
-    if decErr != nil { return nil, false, nil, decErr }
-    closed, _ := result["closed"].(bool)
-    var exitCodePtr *int
-    if ec, ok := result["exit_code"].(float64); ok {
-        ecInt := int(ec)
-        exitCodePtr = &ecInt
-    }
-    return data, closed, exitCodePtr, nil
+	c.requestID++
+	if maxBytes <= 0 {
+		maxBytes = 65536
+	}
+	req := JSONRPCRequest{Method: "read_terminal", Params: map[string]interface{}{"session_id": sessionID, "max_bytes": maxBytes}, ID: c.requestID}
+	resp, err := c.sendRequestWithTimeout(req)
+	if err != nil {
+		return nil, false, nil, err
+	}
+	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
+		return nil, false, nil, fmt.Errorf("proxy error: %s", errMsg)
+	}
+	result, ok := resp["result"].(map[string]interface{})
+	if !ok {
+		return nil, false, nil, fmt.Errorf("invalid read_terminal response")
+	}
+	dataB64, _ := result["data_b64"].(string)
+	data, decErr := base64StdDecode(dataB64)
+	if decErr != nil {
+		return nil, false, nil, decErr
+	}
+	closed, _ := result["closed"].(bool)
+	var exitCodePtr *int
+	if ec, ok := result["exit_code"].(float64); ok {
+		ecInt := int(ec)
+		exitCodePtr = &ecInt
+	}
+	return data, closed, exitCodePtr, nil
 }
 
 func (c *Client) resizeTerminal(sessionID string, cols, rows int) error {
-    c.requestID++
-    req := JSONRPCRequest{ Method: "resize_terminal", Params: map[string]interface{}{ "session_id": sessionID, "cols": cols, "rows": rows }, ID: c.requestID }
-    resp, err := c.sendRequestWithTimeout(req)
-    if err != nil { return err }
-    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return fmt.Errorf("proxy error: %s", errMsg) }
-    return nil
+	c.requestID++
+	req := JSONRPCRequest{Method: "resize_terminal", Params: map[string]interface{}{"session_id": sessionID, "cols": cols, "rows": rows}, ID: c.requestID}
+	resp, err := c.sendRequestWithTimeout(req)
+	if err != nil {
+		return err
+	}
+	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
+		return fmt.Errorf("proxy error: %s", errMsg)
+	}
+	return nil
 }
 
 func (c *Client) closeTerminal(sessionID string) error {
-    c.requestID++
-    req := JSONRPCRequest{ Method: "close_terminal", Params: map[string]interface{}{ "session_id": sessionID }, ID: c.requestID }
-    resp, err := c.sendRequestWithTimeout(req)
-    if err != nil { return err }
-    if errMsg, ok := resp["error"].(string); ok && errMsg != "" { return fmt.Errorf("proxy error: %s", errMsg) }
-    return nil
+	c.requestID++
+	req := JSONRPCRequest{Method: "close_terminal", Params: map[string]interface{}{"session_id": sessionID}, ID: c.requestID}
+	resp, err := c.sendRequestWithTimeout(req)
+	if err != nil {
+		return err
+	}
+	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
+		return fmt.Errorf("proxy error: %s", errMsg)
+	}
+	return nil
 }
 
 // base64 helpers isolated for clarity; stdlib functions are used under the hood
-func base64StdEncode(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+func base64StdEncode(b []byte) string          { return base64.StdEncoding.EncodeToString(b) }
 func base64StdDecode(s string) ([]byte, error) { return base64.StdEncoding.DecodeString(s) }
 
 // sendRequestWithTimeout sends a JSON RPC request and waits for response with timeout
 func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]interface{}, error) {
-    // Ensure reader is running exactly once
-    c.readerOnce.Do(func() {
-        if c.pending == nil {
-            c.pending = make(map[int]chan map[string]interface{})
-        }
-        if c.readerErr == nil {
-            c.readerErr = make(chan error, 1)
-        }
-        go c.readerLoop()
-    })
+	// Ensure reader is running exactly once
+	c.readerOnce.Do(func() {
+		if c.pending == nil {
+			c.pending = make(map[int]chan map[string]interface{})
+		}
+		if c.readerErr == nil {
+			c.readerErr = make(chan error, 1)
+		}
+		go c.readerLoop()
+	})
 
-    requestBytes, err := json.Marshal(request)
-    if err != nil {
-        return nil, fmt.Errorf("failed to marshal request: %w", err)
-    }
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
 
-    // Register waiter
-    respCh := make(chan map[string]interface{}, 1)
-    c.pendingMu.Lock()
-    c.pending[request.ID] = respCh
-    c.pendingMu.Unlock()
+	// Register waiter
+	respCh := make(chan map[string]interface{}, 1)
+	c.pendingMu.Lock()
+	c.pending[request.ID] = respCh
+	c.pendingMu.Unlock()
 
-    // Send the request
-    if _, err := c.stdin.WriteString(string(requestBytes) + "\n"); err != nil {
-        c.pendingMu.Lock()
-        delete(c.pending, request.ID)
-        c.pendingMu.Unlock()
-        return nil, fmt.Errorf("failed to write request: %w", err)
-    }
-    if err := c.stdin.Flush(); err != nil {
-        c.pendingMu.Lock()
-        delete(c.pending, request.ID)
-        c.pendingMu.Unlock()
-        return nil, fmt.Errorf("failed to flush request: %w", err)
-    }
+	// Send the request
+	if _, err := c.stdin.WriteString(string(requestBytes) + "\n"); err != nil {
+		c.pendingMu.Lock()
+		delete(c.pending, request.ID)
+		c.pendingMu.Unlock()
+		return nil, fmt.Errorf("failed to write request: %w", err)
+	}
+	if err := c.stdin.Flush(); err != nil {
+		c.pendingMu.Lock()
+		delete(c.pending, request.ID)
+		c.pendingMu.Unlock()
+		return nil, fmt.Errorf("failed to flush request: %w", err)
+	}
 
-    timer := time.NewTimer(ProxyRequestTimeout)
-    defer timer.Stop()
+	timer := time.NewTimer(ProxyRequestTimeout)
+	defer timer.Stop()
 
-    select {
-    case resp := <-respCh:
-        c.pendingMu.Lock()
-        delete(c.pending, request.ID)
-        c.pendingMu.Unlock()
-        return resp, nil
-    case err := <-c.readerErr:
-        c.pendingMu.Lock()
-        delete(c.pending, request.ID)
-        c.pendingMu.Unlock()
-        return nil, fmt.Errorf("proxy reader error: %v", err)
-    case <-timer.C:
-        c.pendingMu.Lock()
-        delete(c.pending, request.ID)
-        c.pendingMu.Unlock()
-        return nil, fmt.Errorf("proxy request timeout after %v", ProxyRequestTimeout)
-    }
+	select {
+	case resp := <-respCh:
+		c.pendingMu.Lock()
+		delete(c.pending, request.ID)
+		c.pendingMu.Unlock()
+		return resp, nil
+	case err := <-c.readerErr:
+		c.pendingMu.Lock()
+		delete(c.pending, request.ID)
+		c.pendingMu.Unlock()
+		return nil, fmt.Errorf("proxy reader error: %v", err)
+	case <-timer.C:
+		c.pendingMu.Lock()
+		delete(c.pending, request.ID)
+		c.pendingMu.Unlock()
+		return nil, fmt.Errorf("proxy request timeout after %v", ProxyRequestTimeout)
+	}
 }
 
 func (c *Client) readerLoop() {
-    for {
-        if !c.stdout.Scan() {
-            if err := c.stdout.Err(); err != nil {
-                LL.Debug("Proxy reader scanner error: %v", err)
-                select { case c.readerErr <- err: default: }
-            } else {
-                LL.Debug("Proxy reader: no data received (EOF)")
-                select { case c.readerErr <- fmt.Errorf("proxy EOF"): default: }
-            }
-            return
-        }
+	for {
+		if !c.stdout.Scan() {
+			if err := c.stdout.Err(); err != nil {
+				LL.Debug("Proxy reader scanner error: %v", err)
+				select {
+				case c.readerErr <- err:
+				default:
+				}
+			} else {
+				LL.Debug("Proxy reader: no data received (EOF)")
+				select {
+				case c.readerErr <- fmt.Errorf("proxy EOF"):
+				default:
+				}
+			}
+			return
+		}
 
-        raw := c.stdout.Text()
-        trimmed := strings.TrimLeft(raw, "\x00\r\n \t")
-        if idx := strings.IndexByte(trimmed, '{'); idx > 0 {
-            trimmed = trimmed[idx:]
-        }
-        if trimmed == "" {
-            continue
-        }
+		raw := c.stdout.Text()
+		trimmed := strings.TrimLeft(raw, "\x00\r\n \t")
+		if idx := strings.IndexByte(trimmed, '{'); idx > 0 {
+			trimmed = trimmed[idx:]
+		}
+		if trimmed == "" {
+			continue
+		}
 
-        logText := trimmed
-        if len(logText) > 500 {
-            logText = logText[:500] + "... (truncated)"
-        }
-        LL.Trace("Proxy response: %s", logText)
+		logText := trimmed
+		if len(logText) > 500 {
+			logText = logText[:500] + "... (truncated)"
+		}
+		LL.Trace("Proxy response: %s", logText)
 
-        var msg map[string]interface{}
-        if err := json.Unmarshal([]byte(trimmed), &msg); err != nil {
-            LL.Debug("Failed to unmarshal proxy response: %v, response length: %d", err, len(trimmed))
-            if len(trimmed) > 200 {
-                LL.Debug("Raw response (first 200 chars): %q", trimmed[:200])
-            } else {
-                LL.Debug("Raw response: %q", trimmed)
-            }
-            continue
-        }
+		var msg map[string]interface{}
+		if err := json.Unmarshal([]byte(trimmed), &msg); err != nil {
+			LL.Debug("Failed to unmarshal proxy response: %v, response length: %d", err, len(trimmed))
+			if len(trimmed) > 200 {
+				LL.Debug("Raw response (first 200 chars): %q", trimmed[:200])
+			} else {
+				LL.Debug("Raw response: %q", trimmed)
+			}
+			continue
+		}
 
-        idVal, ok := msg["id"]
-        if !ok {
-            LL.Debug("Dropping proxy message without id")
-            continue
-        }
+		idVal, ok := msg["id"]
+		if !ok {
+			LL.Debug("Dropping proxy message without id")
+			continue
+		}
 
-        var id int
-        switch v := idVal.(type) {
-        case float64:
-            id = int(v)
-        case int:
-            id = v
-        case string:
-            var x int
-            if _, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &x); err != nil {
-                LL.Debug("Dropping proxy message with non-integer id: %q", v)
-                continue
-            }
-            id = x
-        default:
-            LL.Debug("Dropping proxy message with unsupported id type %T", v)
-            continue
-        }
+		var id int
+		switch v := idVal.(type) {
+		case float64:
+			id = int(v)
+		case int:
+			id = v
+		case string:
+			var x int
+			if _, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &x); err != nil {
+				LL.Debug("Dropping proxy message with non-integer id: %q", v)
+				continue
+			}
+			id = x
+		default:
+			LL.Debug("Dropping proxy message with unsupported id type %T", v)
+			continue
+		}
 
-        c.pendingMu.Lock()
-        ch, exists := c.pending[id]
-        c.pendingMu.Unlock()
-        if !exists {
-            LL.Debug("Dropping out-of-band proxy response for id=%d (no waiter)", id)
-            continue
-        }
+		c.pendingMu.Lock()
+		ch, exists := c.pending[id]
+		c.pendingMu.Unlock()
+		if !exists {
+			LL.Debug("Dropping out-of-band proxy response for id=%d (no waiter)", id)
+			continue
+		}
 
-        select {
-        case ch <- msg:
-        default:
-            LL.Debug("Response channel full for id=%d; dropping", id)
-        }
-    }
+		select {
+		case ch <- msg:
+		default:
+			LL.Debug("Response channel full for id=%d; dropping", id)
+		}
+	}
 }
 
 // NewClient creates a new proxy client and starts the proxy process
@@ -942,23 +990,23 @@ func NewClient() (*Client, error) {
 	buf := make([]byte, 0, maxScanTokenSize)
 	stdout.Buffer(buf, maxScanTokenSize)
 
-    // Perform version handshake
-    if version, err := readProxyHello(stdout, 2*time.Second); err != nil {
+	// Perform version handshake
+	if version, err := readProxyHello(stdout, 2*time.Second); err != nil {
 		LL.Debug("Failed to read local proxy hello: %v", err)
 	} else if version != ProxyVersion {
 		LL.Error("Local proxy version mismatch: got %s, want %s", version, ProxyVersion)
 	}
 
-    client := &Client{
-        cmd:       cmd,
-        stdin:     stdin,
-        stdout:    stdout,
-        requestID: 0,
-        pending:   make(map[int]chan map[string]interface{}),
-        readerErr: make(chan error, 1),
-    }
-    client.readerOnce.Do(func() { go client.readerLoop() })
-    return client, nil
+	client := &Client{
+		cmd:       cmd,
+		stdin:     stdin,
+		stdout:    stdout,
+		requestID: 0,
+		pending:   make(map[int]chan map[string]interface{}),
+		readerErr: make(chan error, 1),
+	}
+	client.readerOnce.Do(func() { go client.readerLoop() })
+	return client, nil
 }
 
 // ListDirectory sends a JSON RPC request to get directory listing
@@ -1059,7 +1107,8 @@ func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
 
 // parseRemotePath parses a path and returns (host, path, isRemote)
 // Examples: "host:path/to/file" -> ("host", "path/to/file", true)
-//           "/local/path" -> ("", "/local/path", false)
+//
+//	"/local/path" -> ("", "/local/path", false)
 func parseRemotePath(path string) (string, string, bool) {
 	// Check if path contains a colon that's not part of a Windows drive (C:)
 	colonIdx := strings.Index(path, ":")
@@ -1080,7 +1129,7 @@ func parseRemotePath(path string) (string, string, bool) {
 // GetFile reads the contents of a file and returns git change information
 func (c *Client) GetFile(path string) (*FileContent, error) {
 	LL.Debug("Client.GetFile: path=%s", path)
-	
+
 	c.requestID++
 	request := JSONRPCRequest{
 		Method: "get_file",
@@ -1113,7 +1162,7 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 		} else {
 			return nil, fmt.Errorf("missing content in response")
 		}
-		
+
 		// Parse branch if present
 		if branch, ok := result["branch"].(string); ok {
 			fileContent.Branch = branch
@@ -1151,11 +1200,21 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 			for _, item := range diags {
 				if dm, ok := item.(map[string]interface{}); ok {
 					d := Diagnostic{}
-					if ln, ok := dm["line"].(float64); ok { d.Line = int(ln) }
-					if sev, ok := dm["severity"].(string); ok { d.Severity = sev }
-					if msg, ok := dm["message"].(string); ok { d.Message = msg }
-					if sc, ok := dm["start_char"].(float64); ok { d.StartChar = int(sc) }
-					if ec, ok := dm["end_char"].(float64); ok { d.EndChar = int(ec) }
+					if ln, ok := dm["line"].(float64); ok {
+						d.Line = int(ln)
+					}
+					if sev, ok := dm["severity"].(string); ok {
+						d.Severity = sev
+					}
+					if msg, ok := dm["message"].(string); ok {
+						d.Message = msg
+					}
+					if sc, ok := dm["start_char"].(float64); ok {
+						d.StartChar = int(sc)
+					}
+					if ec, ok := dm["end_char"].(float64); ok {
+						d.EndChar = int(ec)
+					}
 					if d.Line > 0 && d.Severity != "" {
 						fileContent.Diagnostics = append(fileContent.Diagnostics, d)
 					}
@@ -1586,7 +1645,7 @@ func (c *Client) NotifyFileChange(filePath string, content string) error {
 			return fmt.Errorf("%s", errorMsg)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -1683,18 +1742,18 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
 		},
 		ID: c.requestID,
 	}
-	
+
 	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
 		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
-	
+
 	var diagnostics []Diagnostic
-	
+
 	if result, ok := response["result"].(map[string]interface{}); ok {
 		if success, ok := result["success"].(bool); ok && success {
 			// Parse diagnostics if present
@@ -1702,11 +1761,21 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
 				for _, item := range diags {
 					if dm, ok := item.(map[string]interface{}); ok {
 						d := Diagnostic{}
-						if ln, ok := dm["line"].(float64); ok { d.Line = int(ln) }
-						if sev, ok := dm["severity"].(string); ok { d.Severity = sev }
-						if msg, ok := dm["message"].(string); ok { d.Message = msg }
-						if sc, ok := dm["start_char"].(float64); ok { d.StartChar = int(sc) }
-						if ec, ok := dm["end_char"].(float64); ok { d.EndChar = int(ec) }
+						if ln, ok := dm["line"].(float64); ok {
+							d.Line = int(ln)
+						}
+						if sev, ok := dm["severity"].(string); ok {
+							d.Severity = sev
+						}
+						if msg, ok := dm["message"].(string); ok {
+							d.Message = msg
+						}
+						if sc, ok := dm["start_char"].(float64); ok {
+							d.StartChar = int(sc)
+						}
+						if ec, ok := dm["end_char"].(float64); ok {
+							d.EndChar = int(ec)
+						}
 						if d.Line > 0 && d.Severity != "" {
 							diagnostics = append(diagnostics, d)
 						}
@@ -1716,7 +1785,7 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
 			return diagnostics, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("failed to write file")
 }
 
@@ -1732,16 +1801,16 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 		},
 		ID: c.requestID,
 	}
-	
+
 	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
 		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
-	
+
 	if result, ok := response["result"].(map[string]interface{}); ok {
 		if success, ok := result["success"].(bool); ok && success {
 			if lspResult, ok := result["result"]; ok {
@@ -1749,7 +1818,7 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 			}
 		}
 	}
-	
+
 	return nil, fmt.Errorf("no completions found")
 }
 
@@ -1761,16 +1830,16 @@ func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
 		Params: map[string]interface{}{},
 		ID:     c.requestID,
 	}
-	
+
 	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
 		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
-	
+
 	if result, ok := response["result"].(map[string]interface{}); ok {
 		if success, ok := result["success"].(bool); ok && success {
 			if diagnostics, ok := result["diagnostics"].(map[string]interface{}); ok {
@@ -1785,7 +1854,7 @@ func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
 			}
 		}
 	}
-	
+
 	return nil, fmt.Errorf("no diagnostics found")
 }
 
@@ -1797,18 +1866,18 @@ func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
 		Params: map[string]interface{}{
 			"working_dir": workingDir,
 		},
-		ID:     c.requestID,
+		ID: c.requestID,
 	}
-	
+
 	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
 		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
-	
+
 	if result, ok := response["result"].(map[string]interface{}); ok {
 		if success, ok := result["success"].(bool); ok && success {
 			if changes, ok := result["changes"].([]interface{}); ok {
@@ -1842,7 +1911,7 @@ func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
 			}
 		}
 	}
-	
+
 	return nil, fmt.Errorf("no changes found")
 }
 
@@ -1910,14 +1979,14 @@ func readProxyHello(scanner *bufio.Scanner, timeout time.Duration) (string, erro
 	}()
 
 	select {
-    case line := <-lineCh:
-        // sanitize leading NULs/whitespace and start from first '{'
-        line = strings.TrimLeft(line, "\x00\r\n \t")
-        if idx := strings.IndexByte(line, '{'); idx > 0 {
-            line = line[idx:]
-        }
-        var h helloMsg
-        if err := json.Unmarshal([]byte(line), &h); err != nil {
+	case line := <-lineCh:
+		// sanitize leading NULs/whitespace and start from first '{'
+		line = strings.TrimLeft(line, "\x00\r\n \t")
+		if idx := strings.IndexByte(line, '{'); idx > 0 {
+			line = line[idx:]
+		}
+		var h helloMsg
+		if err := json.Unmarshal([]byte(line), &h); err != nil {
 			return "", fmt.Errorf("invalid hello: %w", err)
 		}
 		if h.Version == "" {

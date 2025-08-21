@@ -95,17 +95,17 @@ func (p *Parser) Parse() (*big.Float, error) {
 	if p.current.Type == TokenEOF {
 		return nil, fmt.Errorf("empty expression")
 	}
-	
+
 	result, err := p.parseExpression(0)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// We should be at EOF if the entire expression was parsed
 	if p.current.Type != TokenEOF {
 		return nil, fmt.Errorf("unexpected token at position %d: %s", p.current.Pos, p.current.Value)
 	}
-	
+
 	return result, nil
 }
 
@@ -117,7 +117,7 @@ func (p *Parser) parseExpression(minPrec int) (*big.Float, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Process binary operators
 	for {
 		// Check if current token is a binary operator
@@ -126,11 +126,11 @@ func (p *Parser) parseExpression(minPrec int) (*big.Float, error) {
 			// Not a binary operator or precedence too low
 			break
 		}
-		
+
 		// Save the operator
 		op := p.current.Type
 		p.advance()
-		
+
 		// Check for invalid consecutive operators like ++
 		if op == TokenPlus && p.current.Type == TokenPlus {
 			return nil, fmt.Errorf("unexpected + after +")
@@ -138,26 +138,26 @@ func (p *Parser) parseExpression(minPrec int) (*big.Float, error) {
 		if op == TokenMinus && p.current.Type == TokenPlus {
 			return nil, fmt.Errorf("unexpected + after -")
 		}
-		
+
 		// Calculate the minimum precedence for the right side
 		nextMinPrec := opInfo.Precedence
 		if opInfo.Associativity == leftAssoc {
 			nextMinPrec++ // For left-associative operators, use higher precedence
 		}
-		
+
 		// Parse the right-hand side
 		right, err := p.parseExpression(nextMinPrec)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Apply the operator
 		left, err = p.applyBinaryOp(op, left, right)
 		if err != nil {
 			return nil, err
 		}
 	}
-	
+
 	return left, nil
 }
 
@@ -177,7 +177,7 @@ func (p *Parser) parsePrimary() (*big.Float, error) {
 		}
 		return new(big.Float).Neg(value), nil
 	}
-	
+
 	// Handle unary plus
 	if p.current.Type == TokenPlus {
 		p.advance()
@@ -186,14 +186,14 @@ func (p *Parser) parsePrimary() (*big.Float, error) {
 			return nil, fmt.Errorf("unexpected end after unary plus")
 		}
 		// Check for invalid consecutive operators
-		if p.current.Type == TokenPlus || p.current.Type == TokenMultiply || 
-		   p.current.Type == TokenDivide || p.current.Type == TokenPower {
+		if p.current.Type == TokenPlus || p.current.Type == TokenMultiply ||
+			p.current.Type == TokenDivide || p.current.Type == TokenPower {
 			return nil, fmt.Errorf("unexpected operator after unary plus")
 		}
 		// Parse with high precedence to bind tightly
 		return p.parseExpression(precUnary)
 	}
-	
+
 	// Handle parentheses
 	if p.current.Type == TokenLeftParen {
 		p.advance()
@@ -207,7 +207,7 @@ func (p *Parser) parsePrimary() (*big.Float, error) {
 		p.advance()
 		return value, nil
 	}
-	
+
 	// Handle numbers
 	if p.current.Type == TokenNumber {
 		value, err := ParseNumberBig(p.current.Value)
@@ -217,7 +217,7 @@ func (p *Parser) parsePrimary() (*big.Float, error) {
 		p.advance()
 		return value, nil
 	}
-	
+
 	// Handle variables
 	if p.current.Type == TokenVariable {
 		varRef := p.current.Value
@@ -228,7 +228,7 @@ func (p *Parser) parsePrimary() (*big.Float, error) {
 		p.advance()
 		return value, nil
 	}
-	
+
 	// Invalid token
 	if p.current.Type == TokenEOF {
 		return nil, fmt.Errorf("unexpected end of expression")
@@ -272,33 +272,33 @@ func bigPow(base, exp *big.Float) (*big.Float, error) {
 		}
 		return new(big.Float).SetInt64(0), nil // 0^positive = 0
 	}
-	
+
 	// Check if exponent is an integer
 	expInt, acc := exp.Int64()
 	if acc == big.Exact && expInt >= 0 && expInt < 1000 { // Reasonable limit for integer exponents
 		// Integer exponent case - use simple multiplication
 		result := new(big.Float).SetInt64(1)
 		result.SetPrec(256)
-		
+
 		baseCopy := new(big.Float).Copy(base)
 		baseCopy.SetPrec(256)
-		
+
 		for i := int64(0); i < expInt; i++ {
 			result.Mul(result, baseCopy)
 		}
 		return result, nil
 	}
-	
+
 	// For non-integer or large exponents, use exp(ln(base) * exp)
 	// This requires more complex math that big.Float doesn't provide directly
 	// For now, fall back to float64 for these cases
 	baseF64, _ := base.Float64()
 	expF64, _ := exp.Float64()
-	
+
 	if baseF64 <= 0 && expF64 != float64(int64(expF64)) {
 		return nil, fmt.Errorf("complex result: negative base with non-integer exponent")
 	}
-	
+
 	// Use standard library math for complex cases
 	result64 := bigPowFloat64(baseF64, expF64)
 	return new(big.Float).SetFloat64(result64), nil

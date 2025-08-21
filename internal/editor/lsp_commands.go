@@ -21,9 +21,9 @@ func (e *Editor) findReferences(args []string) error {
 
 	LL.Debug("findReferences: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
 
-    // We'll reuse a single references buffer if it already exists
+	// We'll reuse a single references buffer if it already exists
 
-    // Get references from LSP
+	// Get references from LSP
 	locations, err := e.proxyManager.FindReferences(e.buffer.FilePath, line, character, true)
 	if err != nil {
 		LL.Debug("findReferences failed: %v", err)
@@ -40,18 +40,18 @@ func (e *Editor) findReferences(args []string) error {
 
 	// Get the symbol name under cursor
 	symbolName := e.getSymbolAtCursor()
-	
+
 	// Save source file path before switching buffers
 	sourceFilePath := e.buffer.FilePath
-	
+
 	// Create references buffer content in markdown format
 	content := e.formatReferencesAsMarkdown(locations, sourceFilePath, line, character)
 
-    // Use a single fixed buffer name for references
-    bufferName := "*References:*"
+	// Use a single fixed buffer name for references
+	bufferName := "*References:*"
 
-    // Check if the references buffer already exists; if so, reuse it
-    if existingBuffer, exists := e.buffers[bufferName]; exists {
+	// Check if the references buffer already exists; if so, reuse it
+	if existingBuffer, exists := e.buffers[bufferName]; exists {
 		// Update existing buffer's content
 		existingBuffer.Rope = buffer.NewRopeFromString(content)
 		existingBuffer.CursorX = 0
@@ -78,13 +78,13 @@ func (e *Editor) findReferences(args []string) error {
 		BufferName:   bufferName,
 		SymbolName:   symbolName,
 	}
-    // Ensure only one references buffer is tracked
-    for name := range e.referencesBuffers {
-        if strings.HasPrefix(name, "*References:") {
-            delete(e.referencesBuffers, name)
-        }
-    }
-    e.referencesBuffers[bufferName] = refsBuffer
+	// Ensure only one references buffer is tracked
+	for name := range e.referencesBuffers {
+		if strings.HasPrefix(name, "*References:") {
+			delete(e.referencesBuffers, name)
+		}
+	}
+	e.referencesBuffers[bufferName] = refsBuffer
 	e.currentReferencesBuffer = refsBuffer
 
 	// Position cursor on the current reference (where find-references was invoked)
@@ -129,11 +129,11 @@ func (e *Editor) findReferences(args []string) error {
 				pathMatch = true
 				LL.Debug("Matched by suffix: %s ends with %s", locFilePath, sourceAbsPath)
 			}
-			
+
 			if pathMatch &&
-			   loc.Range.Start.Line == line &&
-			   loc.Range.Start.Character <= character &&
-			   loc.Range.End.Character > character {
+				loc.Range.Start.Line == line &&
+				loc.Range.Start.Character <= character &&
+				loc.Range.End.Character > character {
 				currentRefIndex = i
 				LL.Debug("Found current reference at index %d", i)
 				break
@@ -206,7 +206,7 @@ func (e *Editor) formatReferencesAsMarkdown(locations []proxy.Location, sourceFi
 		content.WriteString(fmt.Sprintf("%d. [%s:%d](%s#L%d)",
 			i+1,
 			filename,
-			loc.Range.Start.Line+1,    // Convert to 1-based for display
+			loc.Range.Start.Line+1, // Convert to 1-based for display
 			filePath,
 			loc.Range.Start.Line+1))
 
@@ -245,7 +245,6 @@ func (e *Editor) getSymbolAtCursor() string {
 	}
 	return ""
 }
-
 
 // getLineContent reads a specific line from a file (with caching if the file is already open)
 func (e *Editor) getLineContent(filePath string, lineNum int) string {

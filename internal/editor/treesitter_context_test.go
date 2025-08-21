@@ -32,35 +32,35 @@ int main() {
 
 	// Create buffer with the test code
 	buf := buffer.NewBuffer(testCode, "test.c", config.IndentSpaces, 4)
-	
+
 	// Create syntax highlighter for C
 	highlighter := syntax.NewHighlighter()
 	if highlighter == nil {
 		t.Skip("Syntax highlighter not available")
 	}
-	
+
 	// Set language to C
 	err := highlighter.SetLanguageFromFile("test.c")
 	if err != nil {
 		t.Skipf("C language not available: %v", err)
 	}
-	
+
 	// Parse the code
 	highlighter.ParseFull([]byte(testCode))
-	
+
 	tests := []struct {
-		name           string
-		cursorLine     int
-		viewStartLine  int
-		viewEndLine    int
-		expectedLines  []int // Expected context lines
-		expectedNotIn  []int // Lines that should NOT be in context
+		name          string
+		cursorLine    int
+		viewStartLine int
+		viewEndLine   int
+		expectedLines []int // Expected context lines
+		expectedNotIn []int // Lines that should NOT be in context
 	}{
 		{
 			name:          "cursor inside multiline function",
-			cursorLine:    7,  // Inside the if statement
-			viewStartLine: 6,  // View starts at line 6
-			viewEndLine:   10, // View ends at line 10
+			cursorLine:    7,        // Inside the if statement
+			viewStartLine: 6,        // View starts at line 6
+			viewEndLine:   10,       // View ends at line 10
 			expectedLines: []int{3}, // Should show line 3 which has "function_name"
 			expectedNotIn: []int{2}, // Should NOT show line 2 with "static const void *"
 		},
@@ -80,11 +80,11 @@ int main() {
 			expectedNotIn: []int{2},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			contextLines := getTreeSitterContext(buf, highlighter, tt.cursorLine, tt.viewStartLine, tt.viewEndLine, 5)
-			
+
 			// Check that expected lines are present
 			for _, expectedLine := range tt.expectedLines {
 				found := false
@@ -98,7 +98,7 @@ int main() {
 					t.Errorf("Expected context to include line %d, but it didn't. Got: %v", expectedLine, contextLines)
 				}
 			}
-			
+
 			// Check that lines that should NOT be present are indeed not present
 			for _, notExpectedLine := range tt.expectedNotIn {
 				for _, line := range contextLines {
@@ -146,28 +146,28 @@ get_string_constant(int index)
 
 	// Create buffer with the test code
 	buf := buffer.NewBuffer(testCode, "test.c", config.IndentSpaces, 4)
-	
+
 	// Create syntax highlighter for C
 	highlighter := syntax.NewHighlighter()
 	if highlighter == nil {
 		t.Skip("Syntax highlighter not available")
 	}
-	
+
 	// Set language to C
 	err := highlighter.SetLanguageFromFile("test.c")
 	if err != nil {
 		t.Skipf("C language not available: %v", err)
 	}
-	
+
 	// Parse the code
 	highlighter.ParseFull([]byte(testCode))
-	
+
 	tests := []struct {
 		name          string
 		cursorLine    int
 		viewStartLine int
 		viewEndLine   int
-		expectedLine  int  // The line we expect to see in context
+		expectedLine  int // The line we expect to see in context
 		description   string
 	}{
 		{
@@ -187,11 +187,11 @@ get_string_constant(int index)
 			description:   "Should show function name for const char * const function",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			contextLines := getTreeSitterContext(buf, highlighter, tt.cursorLine, tt.viewStartLine, tt.viewEndLine, 5)
-			
+
 			found := false
 			for _, line := range contextLines {
 				if line == tt.expectedLine {
@@ -199,7 +199,7 @@ get_string_constant(int index)
 					break
 				}
 			}
-			
+
 			if !found {
 				// Get the actual line content for debugging
 				iter := buffer.NewBufferIteratorAtLine(buf, tt.expectedLine)
@@ -207,8 +207,8 @@ get_string_constant(int index)
 				if !iter.IsEOF() {
 					expectedContent = iter.Line()
 				}
-				
-				t.Errorf("%s: Expected to see line %d (%q) in context, got: %v", 
+
+				t.Errorf("%s: Expected to see line %d (%q) in context, got: %v",
 					tt.description, tt.expectedLine, expectedContent, contextLines)
 			}
 		})

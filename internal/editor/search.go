@@ -163,42 +163,42 @@ func (e *Editor) searchWordUnderCursor() {
 	// Get the current cursor position
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 	cursorChar := e.buffer.CursorX
-	
+
 	// Find the word boundary at the cursor
 	wordBoundary := FindCurrentWordBoundary(e.buffer, cursorLine, cursorChar, false)
 	if wordBoundary == nil {
 		return
 	}
-	
+
 	// Get the line content
 	iter := buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
 	if iter.IsEOF() {
 		return
 	}
 	line := iter.Line()
-	
+
 	// Extract the word
 	if wordBoundary.StartChar >= len(line) || wordBoundary.EndChar > len(line) {
 		return
 	}
 	word := string(line[wordBoundary.StartChar:wordBoundary.EndChar])
-	
+
 	// Don't search for empty strings
 	if word == "" {
 		return
 	}
-	
+
 	// Set the search pattern
 	e.searchPattern = word
 	e.searchDirection = true // Forward search
-	
+
 	// Update search matches
 	e.updateSearchMatches()
-	
+
 	// Find which match we're currently on (or closest to)
 	if len(e.searchMatches) > 0 {
 		currentPos := e.getAbsolutePosition()
-		
+
 		// Check if we're already on a match
 		currentMatchIndex := -1
 		for i, matchPos := range e.searchMatches {
@@ -208,7 +208,7 @@ func (e *Editor) searchWordUnderCursor() {
 				break
 			}
 		}
-		
+
 		if currentMatchIndex >= 0 {
 			// Stay on the current match
 			e.currentMatch = currentMatchIndex
@@ -221,12 +221,12 @@ func (e *Editor) searchWordUnderCursor() {
 					break
 				}
 			}
-			
+
 			// If no match found after cursor, wrap to beginning
 			if nextIndex == -1 {
 				nextIndex = 0
 			}
-			
+
 			e.currentMatch = nextIndex
 			e.moveCursorToPosition(e.searchMatches[nextIndex])
 		}
@@ -279,17 +279,17 @@ func (e *Editor) moveCursorToPosition(pos int) {
 
 	// Check if the cursor is already visible
 	visibleHeight := e.getVisibleHeight()
-	
+
 	// Ensure ViewIterator is valid
 	if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
 		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, oldViewLine)
 	}
-	
+
 	viewLine := e.buffer.ViewIterator.LineNumber()
 	cursorLine := e.buffer.CursorIterator.LineNumber()
 
 	// Check if cursor is within visible range
-	if cursorLine >= viewLine && cursorLine < viewLine + visibleHeight {
+	if cursorLine >= viewLine && cursorLine < viewLine+visibleHeight {
 		// Cursor is already visible, no need to scroll
 		return
 	}
@@ -355,16 +355,16 @@ func (e *Editor) getCurrentMatchIndex(pos int) int {
 // clearSearchCmd is the command handler for clearing the search
 func (e *Editor) clearSearchCmd(args []string) error {
 	e.clearSearch()
-	
+
 	// If we're in temporary normal mode, return to insert mode
 	if e.temporaryNormal {
 		e.temporaryNormal = false
 		e.switchToInsertMode()
 	}
-	
+
 	// Also reset any pending key sequences
 	e.keyMapper.ResetPending()
-	
+
 	return nil
 }
 
@@ -374,13 +374,13 @@ func (e *Editor) updateSearchMatchesOnContentChange() {
 	if e.searchPattern == "" || len(e.searchMatches) == 0 {
 		return
 	}
-	
+
 	// Note: We can't safely get cursor position here because iterators are invalid during buffer changes
 	// Instead, we'll just recalculate matches and reset the current match to a safe value
-	
+
 	// Recalculate all search matches
 	e.updateSearchMatches()
-	
+
 	// Reset current match to a safe value
 	if len(e.searchMatches) > 0 {
 		// Set to first match as a fallback - not ideal UX but safe

@@ -106,7 +106,7 @@ func TestChainedCalculationsUpdateVariable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("First calculation failed: %v", err)
 	}
-	
+
 	expectedResult1 := "100 + 50 → 150"
 	if result1 != expectedResult1 {
 		t.Errorf("First calc: expected %q, got %q", expectedResult1, result1)

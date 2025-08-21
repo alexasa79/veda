@@ -61,26 +61,26 @@ func main() {
 		if err != nil {
 			t.Fatalf("Failed to write block test file: %v", err)
 		}
-		
+
 		// Notify proxy of file change
 		pm.NotifyFileChange(blockTestFile, blockContent)
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Open file via proxy to get LSP data
 		fileContent, err := pm.GetFile(blockTestFile)
 		if err != nil {
 			t.Fatalf("Failed to open block test file: %v", err)
 		}
-		
+
 		te := NewTestEditorWithContent(80, 24, fileContent.Content)
-		
+
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
 		te.buffer.FilePath = blockTestFile
-		
+
 		// Wait for LSP to populate folding ranges
 		time.Sleep(1 * time.Second)
-		
+
 		// Get folding ranges via proxy
 		foldingRanges, err := pm.GetFoldingRanges(blockTestFile)
 		if err == nil {
@@ -92,18 +92,18 @@ func main() {
 		} else {
 			t.Logf("Failed to get folding ranges: %v", err)
 		}
-		
+
 		// Move cursor inside the if block (line 4, inside the if statement)
 		te.ExecuteCommand("down")
 		te.ExecuteCommand("down")
 		te.ExecuteCommand("down")
 		te.ExecuteCommand("down")
-		
+
 		t.Logf("Cursor position: line %d, char %d", te.buffer.CursorIterator.LineNumber(), te.buffer.CursorX)
-		
+
 		// Execute dab
 		te.TypeKeys("dab")
-		
+
 		// The if block should be deleted
 		expected := `package main
 
@@ -111,10 +111,10 @@ func main() {
 }`
 		AssertBufferEquals(t, te, expected)
 	})
-	
-    t.Run("dib deletes inside block", func(t *testing.T) {
-        // Update block_test.go to have content for this test
-        blockContent := `package main
+
+	t.Run("dib deletes inside block", func(t *testing.T) {
+		// Update block_test.go to have content for this test
+		blockContent := `package main
 
 func main() {
     if x > 0 {
@@ -127,39 +127,39 @@ func main() {
 		if err != nil {
 			t.Fatalf("Failed to write block test file: %v", err)
 		}
-		
+
 		// Notify proxy of file change
 		pm.NotifyFileChange(blockTestFile, blockContent)
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Open file via proxy to get LSP data
 		fileContent, err := pm.GetFile(blockTestFile)
 		if err != nil {
 			t.Fatalf("Failed to open block test file: %v", err)
 		}
-		
+
 		te := NewTestEditorWithContent(80, 24, fileContent.Content)
-		
+
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
 		te.buffer.FilePath = blockTestFile
-		
+
 		// Get folding ranges via proxy
 		foldingRanges, err := pm.GetFoldingRanges(blockTestFile)
 		if err == nil {
 			te.buffer.FoldingRanges = foldingRanges
 		}
-		
-        // Move cursor inside the if block (accounting for package line)
-        te.ExecuteCommand("down")
-        te.ExecuteCommand("down")
-        te.ExecuteCommand("down")
-		
+
+		// Move cursor inside the if block (accounting for package line)
+		te.ExecuteCommand("down")
+		te.ExecuteCommand("down")
+		te.ExecuteCommand("down")
+
 		// Execute dib
 		te.TypeKeys("dib")
-		
-        // The content inside the if block should be deleted
-        expected := `package main
+
+		// The content inside the if block should be deleted
+		expected := `package main
 
 func main() {
     if x > 0 {
@@ -167,25 +167,25 @@ func main() {
 }`
 		AssertBufferEquals(t, te, expected)
 	})
-	
-    t.Run("daf deletes around function", func(t *testing.T) {
+
+	t.Run("daf deletes around function", func(t *testing.T) {
 		functionTestFile := filepath.Join(cwd, "../../artifacts/go_test_project/function_test.go")
-		
+
 		// Open file via proxy to get LSP data
 		fileContent, err := pm.GetFile(functionTestFile)
 		if err != nil {
 			t.Fatalf("Failed to open function test file: %v", err)
 		}
-		
+
 		te := NewTestEditorWithContent(80, 24, fileContent.Content)
-		
+
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
 		te.buffer.FilePath = functionTestFile
-		
+
 		// Wait for LSP to populate document symbols
 		time.Sleep(1 * time.Second)
-		
+
 		// Get document symbols via proxy for debugging
 		symbols, err := pm.GetDocumentSymbols(functionTestFile)
 		if err == nil {
@@ -193,25 +193,25 @@ func main() {
 		} else {
 			t.Logf("Failed to get document symbols: %v", err)
 		}
-		
+
 		// Move cursor inside helper function (line 3, around "return 42")
 		te.ExecuteCommand("down")
 		te.ExecuteCommand("down")
 		te.ExecuteCommand("down")
-		
+
 		// Execute daf
 		te.TypeKeys("daf")
-		
-        // The calculate function should be deleted from this file
-        expected := `package main
+
+		// The calculate function should be deleted from this file
+		expected := `package main
 
 `
 		AssertBufferEquals(t, te, expected)
 	})
-	
-    t.Run("dif deletes inside function", func(t *testing.T) {
-        // Create a function with body for this test
-        functionContent := `package main
+
+	t.Run("dif deletes inside function", func(t *testing.T) {
+		// Create a function with body for this test
+		functionContent := `package main
 
 func calculate(x, y int) int {
     sum := x + y
@@ -223,73 +223,73 @@ func calculate(x, y int) int {
 		if err != nil {
 			t.Fatalf("Failed to write function test file: %v", err)
 		}
-		
+
 		// Notify proxy of file change
 		pm.NotifyFileChange(functionTestFile, functionContent)
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Open file via proxy to get LSP data
 		fileContent, err := pm.GetFile(functionTestFile)
 		if err != nil {
 			t.Fatalf("Failed to open function test file: %v", err)
 		}
-		
+
 		te := NewTestEditorWithContent(80, 24, fileContent.Content)
-		
+
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
 		te.buffer.FilePath = functionTestFile
-		
+
 		// Wait for LSP to populate document symbols
 		time.Sleep(1 * time.Second)
-		
-        // Move cursor inside function body (accounting for package line)
-        te.ExecuteCommand("down")
-        te.ExecuteCommand("down")
-        te.ExecuteCommand("down")
-		
+
+		// Move cursor inside function body (accounting for package line)
+		te.ExecuteCommand("down")
+		te.ExecuteCommand("down")
+		te.ExecuteCommand("down")
+
 		// Execute dif
 		te.TypeKeys("dif")
-		
-        // The function body should be deleted
-        expected := `package main
+
+		// The function body should be deleted
+		expected := `package main
 
 func calculate(x, y int) int {
 }`
 		AssertBufferEquals(t, te, expected)
 	})
-	
+
 	t.Run("daa deletes around argument", func(t *testing.T) {
-		
+
 		content := `result := calculate(10, 20, 30)`
 		te := NewTestEditorWithContent(80, 24, content)
-		
+
 		// Move cursor to second argument
 		for i := 0; i < 24; i++ {
 			te.ExecuteCommand("right")
 		}
-		
+
 		// Execute daa - this should use the simple parsing (no proxy needed)
 		te.TypeKeys("daa")
-		
+
 		// The second argument and surrounding commas should be deleted
 		expected := `result := calculate(10, 30)`
 		AssertBufferEquals(t, te, expected)
 	})
-	
+
 	t.Run("dia deletes inside argument", func(t *testing.T) {
-		
+
 		content := `result := calculate(firstValue, secondValue, thirdValue)`
 		te := NewTestEditorWithContent(80, 24, content)
-		
+
 		// Move cursor to second argument
 		for i := 0; i < 32; i++ {
 			te.ExecuteCommand("right")
 		}
-		
+
 		// Execute dia - this should use the simple parsing (no proxy needed)
 		te.TypeKeys("dia")
-		
+
 		// Only the argument text should be deleted, not the commas
 		expected := `result := calculate(firstValue, , thirdValue)`
 		AssertBufferEquals(t, te, expected)

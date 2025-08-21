@@ -7,8 +7,8 @@ import (
 
 // CompletionItem represents a single completion option
 type CompletionItem struct {
-	Label  string // Text to display in the menu
-	Detail string // Additional detail (for future use)
+	Label      string // Text to display in the menu
+	Detail     string // Additional detail (for future use)
 	InsertText string // Text to insert when selected
 }
 
@@ -19,16 +19,16 @@ type CompletionMenu struct {
 	width, height int  // Dimensions of the menu
 	maxHeight     int  // Maximum height before scrolling
 	visible       bool // Whether the menu is currently visible
-	
+
 	// Content
 	allItems      []CompletionItem // All completion items (unfiltered)
 	items         []CompletionItem // Filtered completion items
 	selectedIndex int              // Currently selected item
 	scrollOffset  int              // Scroll offset for long lists
 	filterText    string           // Current filter text
-	
+
 	// Styling
-	theme         *theme.Theme
+	theme *theme.Theme
 }
 
 // NewCompletionMenu creates a new completion menu widget
@@ -108,11 +108,11 @@ func (c *CompletionMenu) Draw(screen Screen) {
 	if !c.visible || len(c.items) == 0 {
 		return
 	}
-	
+
 	// Get styles
 	normalStyle := c.theme.GetStyle(c.theme.CompletionMenu)
 	selectedStyle := c.theme.GetStyle(c.theme.CompletionMenuSelected)
-	
+
 	// Draw items without borders
 	visibleItems := c.getVisibleItemCount()
 	for i := 0; i < visibleItems; i++ {
@@ -120,21 +120,21 @@ func (c *CompletionMenu) Draw(screen Screen) {
 		if itemIndex >= len(c.items) {
 			break
 		}
-		
+
 		item := c.items[itemIndex]
 		lineY := c.y + i
-		
+
 		// Draw item content
 		style := normalStyle
 		if itemIndex == c.selectedIndex {
 			style = selectedStyle
 		}
-		
+
 		// Clear the line first
 		for j := 0; j < c.width; j++ {
 			screen.SetContent(c.x+j, lineY, ' ', nil, style)
 		}
-		
+
 		// Draw the label with padding
 		label := item.Label
 		if len(label) > c.width-2 { // Leave space for padding
@@ -145,13 +145,13 @@ func (c *CompletionMenu) Draw(screen Screen) {
 				screen.SetContent(c.x+j, lineY, ch, nil, style)
 			}
 		}
-		
+
 		// Draw scroll indicators if needed
-		if (c.scrollOffset > 0 && i == 0) {
+		if c.scrollOffset > 0 && i == 0 {
 			// Up arrow on first line
 			screen.SetContent(c.x+c.width-1, lineY, '▲', nil, style)
 		}
-		if (c.scrollOffset + visibleItems < len(c.items) && i == visibleItems-1) {
+		if c.scrollOffset+visibleItems < len(c.items) && i == visibleItems-1 {
 			// Down arrow on last line
 			screen.SetContent(c.x+c.width-1, lineY, '▼', nil, style)
 		}
@@ -165,7 +165,7 @@ func (c *CompletionMenu) updateDimensions() {
 		c.height = 0
 		return
 	}
-	
+
 	// Find the longest item
 	maxLen := 0
 	for _, item := range c.items {
@@ -173,7 +173,7 @@ func (c *CompletionMenu) updateDimensions() {
 			maxLen = len(item.Label)
 		}
 	}
-	
+
 	// Width: padding (2) + content
 	c.width = maxLen + 2
 	if c.width < 20 { // Minimum width
@@ -182,7 +182,7 @@ func (c *CompletionMenu) updateDimensions() {
 	if c.width > 60 { // Maximum width
 		c.width = 60
 	}
-	
+
 	// Height: just items (no borders)
 	itemCount := len(c.items)
 	if itemCount > c.maxHeight {
@@ -222,12 +222,12 @@ func (c *CompletionMenu) applyFilter() {
 			}
 		}
 	}
-	
+
 	// Reset selection and scroll
 	c.selectedIndex = 0
 	c.scrollOffset = 0
 	c.updateDimensions()
-	
+
 	// Hide menu if no items match
 	if len(c.items) == 0 {
 		c.visible = false

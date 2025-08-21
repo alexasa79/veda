@@ -1,7 +1,7 @@
 package editor
 
 import (
-    "veda/internal/buffer"
+	"veda/internal/buffer"
 )
 
 // WrappedLine represents a single visual line that may be part of a wrapped logical line
@@ -64,7 +64,7 @@ func (wc *WrapCalculator) WrapLine(line string, logicalLineNum int) []WrappedLin
 	for pos < len(line) {
 		// Find wrap point
 		wrapPoint := wc.findWrapPoint(line, pos)
-		
+
 		// Create wrapped line
 		wrappedLine := WrappedLine{
 			LogicalLineNum: logicalLineNum,
@@ -74,11 +74,11 @@ func (wc *WrapCalculator) WrapLine(line string, logicalLineNum int) []WrappedLin
 			IsFirstLine:    visualLineNum == 0,
 			Text:           line[pos:wrapPoint],
 		}
-		
+
 		wrapped = append(wrapped, wrappedLine)
 		pos = wrapPoint
 		visualLineNum++
-		
+
 		// Skip any single space at wrap point to avoid leading space on wrapped line
 		if pos < len(line) && line[pos] == ' ' {
 			pos++
@@ -123,7 +123,7 @@ func (wc *WrapCalculator) findWrapPoint(line string, start int) int {
 			foundSpace = true
 			break
 		}
-		
+
 		// Check if we're at a word boundary (transition between word and non-word)
 		if pos > start && pos < len(line) {
 			prevIsWord := isWordChar(rune(line[pos-1]))
@@ -145,50 +145,50 @@ func (wc *WrapCalculator) findWrapPoint(line string, start int) int {
 
 // CalculateWrappedLines calculates all wrapped lines for the visible portion of the buffer
 func (e *Editor) CalculateWrappedLines() []WrappedLine {
-    t0 := e.perfTracker.Start()
-    
-    // Handle empty windows
-    if e.buffer == nil {
-        e.perfTracker.ReportSince("CalculateWrappedLines", t0)
-        return []WrappedLine{}
-    }
-    
-    width, _ := e.screen.Size()
+	t0 := e.perfTracker.Start()
+
+	// Handle empty windows
+	if e.buffer == nil {
+		e.perfTracker.ReportSince("CalculateWrappedLines", t0)
+		return []WrappedLine{}
+	}
+
+	width, _ := e.screen.Size()
 	gutterWidth := e.buffer.LineNumberWidth
-	
+
 	wc := NewWrapCalculator(width, gutterWidth)
-	
+
 	var wrappedLines []WrappedLine
 	visibleHeight := e.getVisibleHeight()
-	
+
 	// Start from the view iterator
 	iter := buffer.NewBufferIteratorAtLine(e.buffer, e.buffer.ViewIterator.LineNumber())
 	visualLineCount := 0
-	
-    startViewLine := e.buffer.ViewIterator.LineNumber()
-    lastLogical := startViewLine - 1
-    // Process lines until we fill the visible area
-    for !iter.IsEOF() && visualLineCount < visibleHeight {
+
+	startViewLine := e.buffer.ViewIterator.LineNumber()
+	lastLogical := startViewLine - 1
+	// Process lines until we fill the visible area
+	for !iter.IsEOF() && visualLineCount < visibleHeight {
 		logicalLineNum := iter.LineNumber()
-        lastLogical = logicalLineNum
+		lastLogical = logicalLineNum
 		line := iter.Line()
-		
-        // For terminal/internal buffers, avoid editor-side wrapping to preserve UTF-8
-        var wrapped []WrappedLine
-        if e.buffer != nil && e.buffer.IsInternal {
-            wrapped = []WrappedLine{{
-                LogicalLineNum: logicalLineNum,
-                VisualLineNum:  visualLineCount,
-                StartChar:      0,
-                EndChar:        len(line),
-                IsFirstLine:    true,
-                Text:           line,
-            }}
-        } else {
-            // Wrap this line normally
-            wrapped = wc.WrapLine(line, logicalLineNum)
-        }
-		
+
+		// For terminal/internal buffers, avoid editor-side wrapping to preserve UTF-8
+		var wrapped []WrappedLine
+		if e.buffer != nil && e.buffer.IsInternal {
+			wrapped = []WrappedLine{{
+				LogicalLineNum: logicalLineNum,
+				VisualLineNum:  visualLineCount,
+				StartChar:      0,
+				EndChar:        len(line),
+				IsFirstLine:    true,
+				Text:           line,
+			}}
+		} else {
+			// Wrap this line normally
+			wrapped = wc.WrapLine(line, logicalLineNum)
+		}
+
 		// Add wrapped lines up to visible height
 		for _, wl := range wrapped {
 			if visualLineCount >= visibleHeight {
@@ -197,11 +197,11 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 			wrappedLines = append(wrappedLines, wl)
 			visualLineCount++
 		}
-		
-        iter = iter.Next()
+
+		iter = iter.Next()
 	}
-	
-    // Handle empty buffer case
+
+	// Handle empty buffer case
 	if len(wrappedLines) == 0 && e.buffer.Rope.Length() == 0 {
 		wrappedLines = append(wrappedLines, WrappedLine{
 			LogicalLineNum: 0,
@@ -213,52 +213,52 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		})
 	}
 
-    // Render final empty line when buffer ends with a newline
-    // Using newline-as-boundary semantics: "hello\n" has two lines, second is empty
-    if visualLineCount < visibleHeight && e.buffer.Rope.Length() > 0 {
-        lastByte := e.buffer.Rope.ByteAt(e.buffer.Rope.Length() - 1)
-        if lastByte == '\n' {
-            // The empty line immediately after the last logical line
-            // Its logical line number is lastLogical+1, but if we didn't render any lines
-            // and view starts at 0, then lastLogical may be -1; handle that.
-            emptyLineNum := lastLogical + 1
-            if emptyLineNum >= startViewLine && visualLineCount < visibleHeight {
-                wrappedLines = append(wrappedLines, WrappedLine{
-                    LogicalLineNum: emptyLineNum,
-                    VisualLineNum:  visualLineCount,
-                    StartChar:      0,
-                    EndChar:        0,
-                    IsFirstLine:    true,
-                    Text:           "",
-                })
-            }
-        }
-    }
-	
-    	res := wrappedLines
-    e.perfTracker.ReportSince("wrapping.CalculateWrappedLines", t0)
-    return res
+	// Render final empty line when buffer ends with a newline
+	// Using newline-as-boundary semantics: "hello\n" has two lines, second is empty
+	if visualLineCount < visibleHeight && e.buffer.Rope.Length() > 0 {
+		lastByte := e.buffer.Rope.ByteAt(e.buffer.Rope.Length() - 1)
+		if lastByte == '\n' {
+			// The empty line immediately after the last logical line
+			// Its logical line number is lastLogical+1, but if we didn't render any lines
+			// and view starts at 0, then lastLogical may be -1; handle that.
+			emptyLineNum := lastLogical + 1
+			if emptyLineNum >= startViewLine && visualLineCount < visibleHeight {
+				wrappedLines = append(wrappedLines, WrappedLine{
+					LogicalLineNum: emptyLineNum,
+					VisualLineNum:  visualLineCount,
+					StartChar:      0,
+					EndChar:        0,
+					IsFirstLine:    true,
+					Text:           "",
+				})
+			}
+		}
+	}
+
+	res := wrappedLines
+	e.perfTracker.ReportSince("wrapping.CalculateWrappedLines", t0)
+	return res
 }
 
 // GetCursorVisualPosition calculates the visual position of the cursor with line wrapping
 // Returns the visual line and column position relative to the current view
 func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
-    t0 := e.perfTracker.Start()
-    
-    // Handle empty windows
-    if e.buffer == nil {
-        e.perfTracker.ReportSince("GetCursorVisualPosition", t0)
-        return 0, 0
-    }
-    
+	t0 := e.perfTracker.Start()
+
+	// Handle empty windows
+	if e.buffer == nil {
+		e.perfTracker.ReportSince("GetCursorVisualPosition", t0)
+		return 0, 0
+	}
+
 	// Calculate all visible wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
-    LL.Trace("GetCursorVisualPosition: viewTop=%d visibleWrapped=%d cursor(line=%d,x=%d)",
-        e.buffer.ViewIterator.LineNumber(), len(wrappedLines), e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX)
-	
+	LL.Trace("GetCursorVisualPosition: viewTop=%d visibleWrapped=%d cursor(line=%d,x=%d)",
+		e.buffer.ViewIterator.LineNumber(), len(wrappedLines), e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX)
+
 	cursorLogicalLine := e.buffer.CursorIterator.LineNumber()
 	cursorX := e.buffer.CursorX
-	
+
 	// Find which wrapped line contains the cursor
 	for i, wl := range wrappedLines {
 		if wl.LogicalLineNum == cursorLogicalLine {
@@ -266,12 +266,12 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			if cursorX >= wl.StartChar && cursorX < wl.EndChar {
 				visualLine = i
 				// Calculate visual column accounting for tabs
-				lineSegment := wl.Text[:cursorX - wl.StartChar]
+				lineSegment := wl.Text[:cursorX-wl.StartChar]
 				visualCol = e.visualWidth(lineSegment) + e.buffer.LineNumberWidth
 				return
 			}
 			// Special case for cursor exactly at the end of a wrapped segment
-            if cursorX == wl.EndChar {
+			if cursorX == wl.EndChar {
 				// Check if this is the last segment of this logical line
 				isLastSegment := i == len(wrappedLines)-1 || wrappedLines[i+1].LogicalLineNum != cursorLogicalLine
 				if isLastSegment {
@@ -284,24 +284,24 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			}
 		}
 	}
-	
-    // If cursor wasn't found in wrapped lines, it might be beyond the visible area
-    // or at the end of a line
-    // Special handling: cursor sitting on the empty logical line after a trailing newline.
-    // In that case, place the cursor on the next visual row after the last visible segment
-    // of the previous logical line, at the start of content.
-    for i := len(wrappedLines) - 1; i >= 0; i-- {
-        wl := wrappedLines[i]
-        if wl.LogicalLineNum+1 == cursorLogicalLine && cursorX == 0 {
-            // Cursor is on the empty line following wl.LogicalLineNum
-            visualLine = i + 1
-            visualCol = e.buffer.LineNumberWidth
-            LL.Trace("GetCursorVisualPosition: placing cursor on synthetic empty line after logical %d -> visualLine=%d, visualCol=%d", wl.LogicalLineNum, visualLine, visualCol)
-            return
-        }
-    }
 
-    // Fallbacks
+	// If cursor wasn't found in wrapped lines, it might be beyond the visible area
+	// or at the end of a line
+	// Special handling: cursor sitting on the empty logical line after a trailing newline.
+	// In that case, place the cursor on the next visual row after the last visible segment
+	// of the previous logical line, at the start of content.
+	for i := len(wrappedLines) - 1; i >= 0; i-- {
+		wl := wrappedLines[i]
+		if wl.LogicalLineNum+1 == cursorLogicalLine && cursorX == 0 {
+			// Cursor is on the empty line following wl.LogicalLineNum
+			visualLine = i + 1
+			visualCol = e.buffer.LineNumberWidth
+			LL.Trace("GetCursorVisualPosition: placing cursor on synthetic empty line after logical %d -> visualLine=%d, visualCol=%d", wl.LogicalLineNum, visualLine, visualCol)
+			return
+		}
+	}
+
+	// Fallbacks
 	for i := len(wrappedLines) - 1; i >= 0; i-- {
 		wl := wrappedLines[i]
 		if wl.LogicalLineNum == cursorLogicalLine {
@@ -309,30 +309,30 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			visualLine = i
 			// Calculate visual column accounting for tabs
 			visualCol = e.visualWidth(wl.Text) + e.buffer.LineNumberWidth
-            LL.Trace("GetCursorVisualPosition: found logical line at i=%d, placing at EOL visualCol=%d", i, visualCol)
+			LL.Trace("GetCursorVisualPosition: found logical line at i=%d, placing at EOL visualCol=%d", i, visualCol)
 			return
 		}
 	}
-	
-    // Default case - cursor is beyond visible area
-    // Clamp to the last visible wrapped line to avoid placing cursor past window height
-    if len(wrappedLines) == 0 {
-        LL.Trace("GetCursorVisualPosition: no wrapped lines; default to top start-of-content")
-        return 0, e.buffer.LineNumberWidth
-    }
-    LL.Trace("GetCursorVisualPosition: cursor line not visible; default to last visible line start-of-content (i=%d)", len(wrappedLines)-1)
-    v := len(wrappedLines)-1
-    c := e.buffer.LineNumberWidth
-    e.perfTracker.ReportSince("wrapping.GetCursorVisualPosition", t0)
-    return v, c
+
+	// Default case - cursor is beyond visible area
+	// Clamp to the last visible wrapped line to avoid placing cursor past window height
+	if len(wrappedLines) == 0 {
+		LL.Trace("GetCursorVisualPosition: no wrapped lines; default to top start-of-content")
+		return 0, e.buffer.LineNumberWidth
+	}
+	LL.Trace("GetCursorVisualPosition: cursor line not visible; default to last visible line start-of-content (i=%d)", len(wrappedLines)-1)
+	v := len(wrappedLines) - 1
+	c := e.buffer.LineNumberWidth
+	e.perfTracker.ReportSince("wrapping.GetCursorVisualPosition", t0)
+	return v, c
 }
 
 // MapVisualToLogical maps a visual line position to logical line and character position
 func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, charPos int) {
-    t0 := e.perfTracker.Start()
+	t0 := e.perfTracker.Start()
 	// Calculate wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
-	
+
 	if visualLine >= len(wrappedLines) {
 		// Beyond visible lines
 		if len(wrappedLines) > 0 {
@@ -341,28 +341,28 @@ func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, cha
 		}
 		return 0, 0
 	}
-	
+
 	wl := wrappedLines[visualLine]
 	logicalLine = wl.LogicalLineNum
-	
+
 	// Convert visual column to character position
 	textCol := visualCol - e.buffer.LineNumberWidth
 	if textCol < 0 {
 		textCol = 0
 	}
-	
+
 	// Get the text segment for this wrapped line
 	lineText := wl.Text
-	
+
 	// Convert visual column to byte position within the line segment
 	byteOffsetInSegment := e.bytePositionFromVisualColumn(lineText, textCol)
-	
+
 	// Add to the start position to get absolute position
 	charPos = wl.StartChar + byteOffsetInSegment
 	if charPos > wl.EndChar {
 		charPos = wl.EndChar
 	}
-	
-    e.perfTracker.ReportSince("wrapping.MapVisualToLogical", t0)
+
+	e.perfTracker.ReportSince("wrapping.MapVisualToLogical", t0)
 	return
 }

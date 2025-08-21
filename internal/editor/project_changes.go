@@ -25,12 +25,12 @@ func (e *Editor) showProjectChanges(args []string) error {
 		totalFiles := len(changes)
 		totalAdded := 0
 		totalDeleted := 0
-		
+
 		for _, change := range changes {
 			totalAdded += len(change.AddedLines)
 			totalDeleted += len(change.DeletedLines)
 		}
-		
+
 		content.WriteString(fmt.Sprintf("Found changes in %d files: +%d -%d\n\n", totalFiles, totalAdded, totalDeleted))
 
 		// Process each file's changes
@@ -42,17 +42,17 @@ func (e *Editor) showProjectChanges(args []string) error {
 				statusChar = "M"
 			case "added", "A":
 				statusChar = "A"
-			case "deleted", "D":  
+			case "deleted", "D":
 				statusChar = "D"
 			case "renamed", "R":
 				statusChar = "R"
 			}
-			
+
 			stagedMark := ""
 			if change.Staged {
 				stagedMark = "●"
 			}
-			
+
 			// Create clickable file link with clear status indicator
 			statusIndicator := statusChar
 			if stagedMark != "" {
@@ -64,24 +64,24 @@ func (e *Editor) showProjectChanges(args []string) error {
 				parts := strings.Split(filename, "/")
 				filename = parts[len(parts)-1]
 			}
-			content.WriteString(fmt.Sprintf("[%s] [%s](%s) (+%d -%d)\n", 
+			content.WriteString(fmt.Sprintf("[%s] [%s](%s) (+%d -%d)\n",
 				statusIndicator, filename, change.File,
 				len(change.AddedLines), len(change.DeletedLines)))
-			
+
 			// Show hunks with better formatting
 			for _, hunk := range change.Hunks {
 				// Parse the hunk header to get line counts
 				var oldCount, newCount int
 				fmt.Sscanf(hunk.Header, "@@ -%d,%d +%d,%d @@", &hunk.OldStart, &oldCount, &hunk.NewStart, &newCount)
-				
+
 				// Create a more descriptive hunk link
 				hunkDesc := fmt.Sprintf("Lines %d-%d", hunk.NewStart, hunk.NewStart+newCount-1)
 				if newCount == 1 {
 					hunkDesc = fmt.Sprintf("Line %d", hunk.NewStart)
 				}
-				
+
 				content.WriteString(fmt.Sprintf("  • [%s](%s#L%d)", hunkDesc, change.File, hunk.NewStart))
-				
+
 				// Count additions and deletions in this hunk
 				hunkAdded := 0
 				hunkDeleted := 0
@@ -95,23 +95,23 @@ func (e *Editor) showProjectChanges(args []string) error {
 						hunkDeleted++
 					}
 				}
-				
+
 				if hunkAdded > 0 || hunkDeleted > 0 {
 					content.WriteString(fmt.Sprintf(" (+%d -%d)", hunkAdded, hunkDeleted))
 				}
 				content.WriteString("\n")
 			}
-			
+
 			content.WriteString("\n")
 		}
 	}
 
 	// Save current buffer state
 	e.saveCurrentBufferState()
-	
+
 	// Create or update changes buffer
 	bufferName := "*Project Changes*"
-	
+
 	if buf, exists := e.buffers[bufferName]; exists {
 		// Update existing buffer's content
 		buf.Rope = buffer.NewRopeFromString(content.String())

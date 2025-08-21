@@ -1,11 +1,11 @@
 package terminal
 
 import (
-    "fmt"
-    "hash/fnv"
-    "strings"
-    "veda/internal/events"
-    "veda/internal/ui"
+	"fmt"
+	"hash/fnv"
+	"strings"
+	"veda/internal/events"
+	"veda/internal/ui"
 )
 
 // ScreenAdapter adapts our Terminal to match the editor's Screen interface
@@ -19,15 +19,15 @@ type ScreenAdapter struct {
 	needsFullRedraw bool // Track if we need a full redraw
 
 	// Line rendering cache
-	renderedLines   []string  // Cache of rendered ANSI strings
-	lineHashes      []uint64  // Hash of cell content for change detection
+	renderedLines []string // Cache of rendered ANSI strings
+	lineHashes    []uint64 // Hash of cell content for change detection
 }
 
 // shouldLogANSI returns true if we want to emit TRACE logs for this style
 // We narrowly scope to bright blue (94) to minimize log volume while debugging
 func (s *ScreenAdapter) shouldLogANSI(style ui.Style) bool {
-    fg, _, _ := style.Decompose()
-    return fg == ui.ColorBrightBlue
+	fg, _, _ := style.Decompose()
+	return fg == ui.ColorBrightBlue
 }
 
 type cell struct {
@@ -46,14 +46,14 @@ func NewScreenAdapter(term *Terminal) *ScreenAdapter {
 		}
 	}
 
-    sa := &ScreenAdapter{
+	sa := &ScreenAdapter{
 		term:          term,
 		cells:         cells,
 		defaultStyle:  ui.StyleDefault,
 		renderedLines: make([]string, height),
 		lineHashes:    make([]uint64, height),
-    }
-    return sa
+	}
+	return sa
 }
 
 // Init initializes the screen
@@ -81,12 +81,12 @@ func (s *ScreenAdapter) Clear() {
 
 	// Clear cell buffer and cache
 	width, height := s.term.Size()
-	
+
 	// Check if terminal size has changed and resize cell buffer if needed
 	if len(s.cells) != height || (len(s.cells) > 0 && len(s.cells[0]) != width) {
 		s.resizeCells(width, height)
 	}
-	
+
 	for y := 0; y < height && y < len(s.cells); y++ {
 		for x := 0; x < width && x < len(s.cells[y]); x++ {
 			s.cells[y][x] = cell{ch: ' ', style: ui.StyleDefault}
@@ -103,7 +103,7 @@ func (s *ScreenAdapter) Clear() {
 func (s *ScreenAdapter) Show() {
 	// Convert cell buffer to lines with ANSI escape sequences
 	width, height := s.term.Size()
-	
+
 	// Check if terminal size has changed and resize cell buffer if needed
 	if len(s.cells) != height || (len(s.cells) > 0 && len(s.cells[0]) != width) {
 		LL.Debug("ScreenAdapter.Show: Terminal size changed to %dx%d, resizing cell buffer", width, height)
@@ -137,11 +137,11 @@ func (s *ScreenAdapter) Show() {
 			}
 		}
 
-        s.term.SetLine(y, line)
-        // Only log lines that include bright-blue SGR to reduce volume
-        if strings.Contains(line, "\x1b[94m") {
-            LL.Trace("ANSI.Show y=%d line=%q", y, line)
-        }
+		s.term.SetLine(y, line)
+		// Only log lines that include bright-blue SGR to reduce volume
+		if strings.Contains(line, "\x1b[94m") {
+			LL.Trace("ANSI.Show y=%d line=%q", y, line)
+		}
 
 		// Check if line has any non-space content
 		hasContent := false
@@ -186,11 +186,11 @@ func (s *ScreenAdapter) SetContent(x, y int, mainc rune, combc []rune, style ui.
 		return
 	}
 
-    s.cells[y][x] = cell{ch: mainc, style: style}
-    if s.shouldLogANSI(style) {
-        fg, bg, attrs := style.Decompose()
-        LL.Trace("ANSI.SetContent x=%d y=%d ch=%q fg=%v bg=%v attrs=%v", x, y, mainc, fg, bg, attrs)
-    }
+	s.cells[y][x] = cell{ch: mainc, style: style}
+	if s.shouldLogANSI(style) {
+		fg, bg, attrs := style.Decompose()
+		LL.Trace("ANSI.SetContent x=%d y=%d ch=%q fg=%v bg=%v attrs=%v", x, y, mainc, fg, bg, attrs)
+	}
 }
 
 // ShowCursor shows the cursor at the specified position
@@ -220,7 +220,6 @@ func (s *ScreenAdapter) PollEvent() events.Event {
 func (s *ScreenAdapter) EventChannel() <-chan events.Event {
 	return s.term.EventChannel()
 }
-
 
 // Helper methods
 
@@ -281,95 +280,96 @@ func (s *ScreenAdapter) renderLine(y int, width int) string {
 
 // buildStyleSequence creates ANSI escape sequences for editor style
 func (s *ScreenAdapter) buildStyleSequence(fg, bg ui.Color, attrs ui.AttrMask) []string {
-    var styles []string
+	var styles []string
 
-    // Palette helpers: emit raw SGR when available, otherwise 8/16 palette or truecolor
-    toPalette := func(c ui.Color, isFg bool) string {
-        // Default
-        if c == ui.ColorDefault {
-            return ""
-        }
-        // Raw SGR code stored
-        if (int32(c) & (1 << 26)) != 0 {
-            code := int32(c) & 0xff
-            if isFg { return fmt.Sprintf("\033[%dm", code) }
-            return fmt.Sprintf("\033[%dm", code) // bg codes already in 40–47/100–107
-        }
-        // 256-color index
-        if (int32(c) & (1 << 25)) != 0 {
-            idx := int32(c) & 0xff
-            if isFg {
-                return fmt.Sprintf("\033[38;5;%dm", idx)
-            }
-            return fmt.Sprintf("\033[48;5;%dm", idx)
-        }
-        // RGB colors (created via NewRGBColor) have the RGB tag bit set; use truecolor
-        if (int32(c) & (1 << 24)) != 0 {
-            r, g, b := c.RGB()
-            if isFg {
-                return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
-            }
-            return fmt.Sprintf("\033[48;2;%d;%d;%dm", r, g, b)
-        }
-        // Named palette 0..15
-        val := int32(c)
-        if val >= 0 && val <= 15 {
-            if isFg {
-                if val < 8 {
-                    return fmt.Sprintf("\033[%dm", 30+val)
-                }
-                return fmt.Sprintf("\033[%dm", 90+(val-8))
-            }
-            if val < 8 {
-                return fmt.Sprintf("\033[%dm", 40+val)
-            }
-            return fmt.Sprintf("\033[%dm", 100+(val-8))
-        }
-        // Fallback to truecolor
-        r, g, b := c.RGB()
-        if isFg {
-            return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
-        }
-        return fmt.Sprintf("\033[48;2;%d;%d;%dm", r, g, b)
-    }
+	// Palette helpers: emit raw SGR when available, otherwise 8/16 palette or truecolor
+	toPalette := func(c ui.Color, isFg bool) string {
+		// Default
+		if c == ui.ColorDefault {
+			return ""
+		}
+		// Raw SGR code stored
+		if (int32(c) & (1 << 26)) != 0 {
+			code := int32(c) & 0xff
+			if isFg {
+				return fmt.Sprintf("\033[%dm", code)
+			}
+			return fmt.Sprintf("\033[%dm", code) // bg codes already in 40–47/100–107
+		}
+		// 256-color index
+		if (int32(c) & (1 << 25)) != 0 {
+			idx := int32(c) & 0xff
+			if isFg {
+				return fmt.Sprintf("\033[38;5;%dm", idx)
+			}
+			return fmt.Sprintf("\033[48;5;%dm", idx)
+		}
+		// RGB colors (created via NewRGBColor) have the RGB tag bit set; use truecolor
+		if (int32(c) & (1 << 24)) != 0 {
+			r, g, b := c.RGB()
+			if isFg {
+				return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
+			}
+			return fmt.Sprintf("\033[48;2;%d;%d;%dm", r, g, b)
+		}
+		// Named palette 0..15
+		val := int32(c)
+		if val >= 0 && val <= 15 {
+			if isFg {
+				if val < 8 {
+					return fmt.Sprintf("\033[%dm", 30+val)
+				}
+				return fmt.Sprintf("\033[%dm", 90+(val-8))
+			}
+			if val < 8 {
+				return fmt.Sprintf("\033[%dm", 40+val)
+			}
+			return fmt.Sprintf("\033[%dm", 100+(val-8))
+		}
+		// Fallback to truecolor
+		r, g, b := c.RGB()
+		if isFg {
+			return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
+		}
+		return fmt.Sprintf("\033[48;2;%d;%d;%dm", r, g, b)
+	}
 
-    var fgSeq, bgSeq string
-    if fgSeq = toPalette(fg, true); fgSeq != "" {
-        styles = append(styles, fgSeq)
-    }
-    if bgSeq = toPalette(bg, false); bgSeq != "" {
-        styles = append(styles, bgSeq)
-    }
+	var fgSeq, bgSeq string
+	if fgSeq = toPalette(fg, true); fgSeq != "" {
+		styles = append(styles, fgSeq)
+	}
+	if bgSeq = toPalette(bg, false); bgSeq != "" {
+		styles = append(styles, bgSeq)
+	}
 
-    // Add attributes (let terminal handle bold as palette-bright if applicable)
-    if attrs&ui.AttrBold != 0 {
-        styles = append(styles, Bold)
-    }
-    if attrs&ui.AttrBlink != 0 {
-        styles = append(styles, Blink)
-    }
-    if attrs&ui.AttrReverse != 0 {
-        styles = append(styles, Reverse)
-    }
-    if attrs&ui.AttrUnderline != 0 {
-        styles = append(styles, Underline)
-    }
-    if attrs&ui.AttrDim != 0 {
-        styles = append(styles, Dim)
-    }
-    if attrs&ui.AttrItalic != 0 {
-        styles = append(styles, Italic)
-    }
-    if attrs&ui.AttrStrikeThrough != 0 {
-        styles = append(styles, Strikethrough)
-    }
+	// Add attributes (let terminal handle bold as palette-bright if applicable)
+	if attrs&ui.AttrBold != 0 {
+		styles = append(styles, Bold)
+	}
+	if attrs&ui.AttrBlink != 0 {
+		styles = append(styles, Blink)
+	}
+	if attrs&ui.AttrReverse != 0 {
+		styles = append(styles, Reverse)
+	}
+	if attrs&ui.AttrUnderline != 0 {
+		styles = append(styles, Underline)
+	}
+	if attrs&ui.AttrDim != 0 {
+		styles = append(styles, Dim)
+	}
+	if attrs&ui.AttrItalic != 0 {
+		styles = append(styles, Italic)
+	}
+	if attrs&ui.AttrStrikeThrough != 0 {
+		styles = append(styles, Strikethrough)
+	}
 
-    if fg == ui.ColorBrightBlue || strings.Contains(strings.Join(styles, ""), "\x1b[94m") {
-        LL.Trace("ANSI.Style fg=%v bg=%v attrs=%v -> %q", fg, bg, attrs, strings.Join(styles, ""))
-    }
-    return styles
+	if fg == ui.ColorBrightBlue || strings.Contains(strings.Join(styles, ""), "\x1b[94m") {
+		LL.Trace("ANSI.Style fg=%v bg=%v attrs=%v -> %q", fg, bg, attrs, strings.Join(styles, ""))
+	}
+	return styles
 }
-
 
 // convertKeyEvent converts our key event to editor format
 func (s *ScreenAdapter) convertKeyEvent(e *events.KeyEvent) ui.Event {

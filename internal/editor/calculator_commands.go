@@ -13,12 +13,12 @@ func (e *Editor) calculateAppend(args []string) error {
 	cursorX := e.buffer.CursorX
 	// Save view position before any buffer modifications
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// If cursor is past the end of the line, adjust to the end
 	if cursorX > len(line) {
 		cursorX = len(line)
 	}
-	
+
 	// Process the line to find and evaluate the expression
 	newLine, err := calculator.ProcessLineAppend(line, cursorX)
 	if err != nil {
@@ -26,7 +26,7 @@ func (e *Editor) calculateAppend(args []string) error {
 		e.ShowError("No valid expression found")
 		return nil
 	}
-	
+
 	// Replace the current line with the new line containing the result
 	// First, delete the current line content
 	if len(line) > 0 {
@@ -37,7 +37,7 @@ func (e *Editor) calculateAppend(args []string) error {
 			}
 		}
 	}
-	
+
 	// Then insert the new line content
 	insertEntry := buffer.NewInsertTextEntry(lineNum, 0, newLine)
 	if e.buffer.History != nil {
@@ -47,19 +47,19 @@ func (e *Editor) calculateAppend(args []string) error {
 			e.setLastChange(executed)
 		}
 	}
-	
+
 	// Move cursor to the end of the new line
 	e.buffer.CursorX = len(newLine)
-	
+
 	// Recreate iterators after buffer modifications
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
-    // Update syntax highlighting (skip during paste mode)
-    if !e.inPasteMode {
-        e.updateSyntaxHighlighting()
-    }
-	
+
+	// Update syntax highlighting (skip during paste mode)
+	if !e.inPasteMode {
+		e.updateSyntaxHighlighting()
+	}
+
 	return nil
 }
 
@@ -71,12 +71,12 @@ func (e *Editor) calculateReplace(args []string) error {
 	cursorX := e.buffer.CursorX
 	// Save view position before any buffer modifications
 	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	
+
 	// If cursor is past the end of the line, adjust to the end
 	if cursorX > len(line) {
 		cursorX = len(line)
 	}
-	
+
 	// Process the line to find and evaluate the expression
 	newLine, newCursorX, err := calculator.ProcessLineReplace(line, cursorX)
 	if err != nil {
@@ -84,7 +84,7 @@ func (e *Editor) calculateReplace(args []string) error {
 		e.ShowError("No valid expression found")
 		return nil
 	}
-	
+
 	// Replace the current line with the new line containing the result
 	// First, delete the current line content
 	if len(line) > 0 {
@@ -95,7 +95,7 @@ func (e *Editor) calculateReplace(args []string) error {
 			}
 		}
 	}
-	
+
 	// Then insert the new line content
 	insertEntry := buffer.NewInsertTextEntry(lineNum, 0, newLine)
 	if e.buffer.History != nil {
@@ -105,18 +105,18 @@ func (e *Editor) calculateReplace(args []string) error {
 			e.setLastChange(executed)
 		}
 	}
-	
+
 	// Move cursor to the new position
 	e.buffer.CursorX = newCursorX
-	
+
 	// Recreate iterators after buffer modifications
 	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	
-    // Update syntax highlighting (skip during paste mode)
-    if !e.inPasteMode {
-        e.updateSyntaxHighlighting()
-    }
-	
+
+	// Update syntax highlighting (skip during paste mode)
+	if !e.inPasteMode {
+		e.updateSyntaxHighlighting()
+	}
+
 	return nil
 }

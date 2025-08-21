@@ -43,7 +43,7 @@ func (khp *KeyHintsPopup) SetPosition(x, y int) {
 func (khp *KeyHintsPopup) SetHints(hints []KeyHint) {
 	khp.hints = make([]KeyHint, len(hints))
 	copy(khp.hints, hints)
-	
+
 	// Calculate optimal size based on content
 	khp.calculateSize()
 }
@@ -64,7 +64,7 @@ func (khp *KeyHintsPopup) calculateSize() {
 			maxWidth = hintWidth
 		}
 	}
-	
+
 	// Add borders and padding
 	khp.width = maxWidth + 4 // 2 for borders + 2 for padding
 	if khp.width < 20 {
@@ -73,13 +73,13 @@ func (khp *KeyHintsPopup) calculateSize() {
 	if khp.width > 50 {
 		khp.width = 50 // Cap maximum width
 	}
-	
-    // Height: number of hints + borders
-    khp.height = len(khp.hints) + 2 // +2 for top and bottom borders
-    // Increase cap to allow more entries before truncation
-    if khp.height > 30 {
-        khp.height = 30 // Cap maximum height
-    }
+
+	// Height: number of hints + borders
+	khp.height = len(khp.hints) + 2 // +2 for top and bottom borders
+	// Increase cap to allow more entries before truncation
+	if khp.height > 30 {
+		khp.height = 30 // Cap maximum height
+	}
 }
 
 // Show makes the popup visible
@@ -111,19 +111,19 @@ func (khp *KeyHintsPopup) Draw(screen Screen) {
 
 	// Get screen dimensions to ensure popup fits
 	screenWidth, screenHeight := screen.Size()
-	
+
 	// Adjust position if popup would go off screen
 	adjustedX := khp.x
 	adjustedY := khp.y
-	
-	if adjustedX + khp.width > screenWidth {
+
+	if adjustedX+khp.width > screenWidth {
 		adjustedX = screenWidth - khp.width
 	}
 	if adjustedX < 0 {
 		adjustedX = 0
 	}
-	
-	if adjustedY + khp.height > screenHeight {
+
+	if adjustedY+khp.height > screenHeight {
 		adjustedY = screenHeight - khp.height
 	}
 	if adjustedY < 0 {
@@ -132,7 +132,7 @@ func (khp *KeyHintsPopup) Draw(screen Screen) {
 
 	// Draw popup background and borders
 	khp.drawBackground(screen, adjustedX, adjustedY)
-	
+
 	// Draw hints
 	khp.drawHints(screen, adjustedX, adjustedY)
 }
@@ -153,12 +153,12 @@ func (khp *KeyHintsPopup) drawBackground(screen Screen, x, y int) {
 	for row := 1; row < khp.height-1; row++ {
 		// Left border
 		screen.SetContent(x, y+row, '│', nil, borderStyle)
-		
+
 		// Content area
 		for col := 1; col < khp.width-1; col++ {
 			screen.SetContent(x+col, y+row, ' ', nil, contentStyle)
 		}
-		
+
 		// Right border
 		screen.SetContent(x+khp.width-1, y+row, '│', nil, borderStyle)
 	}
@@ -175,7 +175,7 @@ func (khp *KeyHintsPopup) drawBackground(screen Screen, x, y int) {
 func (khp *KeyHintsPopup) drawHints(screen Screen, x, y int) {
 	contentStyle := khp.theme.GetStyle(khp.theme.FuzzyListContent)
 	contentWidth := khp.width - 2 // Exclude borders
-	
+
 	// Limit to visible hints
 	maxHints := khp.height - 2 // Exclude borders
 	visibleHints := khp.hints
@@ -186,16 +186,16 @@ func (khp *KeyHintsPopup) drawHints(screen Screen, x, y int) {
 	for i, hint := range visibleHints {
 		row := y + 1 + i
 		col := x + 1
-		
+
 		// Format hint as "key - description"
 		hintText := fmt.Sprintf("%s - %s", hint.Key, hint.Description)
-		
+
 		// Truncate if too long
 		runes := []rune(hintText)
 		if len(runes) > contentWidth {
 			runes = runes[:contentWidth]
 		}
-		
+
 		// Draw hint text
 		for j, r := range runes {
 			if j < contentWidth {
@@ -244,24 +244,24 @@ func GetAvailableKeyHints(keyMapper *commands.KeyMapper, partialSequence command
 				break
 			}
 		}
-		
+
 		if matches {
 			// Get the next key in the sequence
 			nextKey := binding.Keys[len(partialSequence)]
 			nextKeyStr := formatKey(nextKey)
-			
+
 			// Avoid duplicates
 			if seen[nextKeyStr] {
 				continue
 			}
 			seen[nextKeyStr] = true
-			
+
 			// Get description for the command
 			description := binding.Command
 			if desc, exists := commandDescriptions[binding.Command]; exists {
 				description = desc
 			}
-			
+
 			hints = append(hints, KeyHint{
 				Key:         nextKeyStr,
 				Description: description,
@@ -273,7 +273,7 @@ func GetAvailableKeyHints(keyMapper *commands.KeyMapper, partialSequence command
 	for i, hint := range hints {
 		partialWithNext := make(commands.KeySequence, len(partialSequence)+1)
 		copy(partialWithNext, partialSequence)
-		
+
 		// Parse the hint key back to a Key object
 		hintKey, err := parseKeyFromString(hint.Key)
 		if err == nil {
@@ -296,7 +296,7 @@ func GetAvailableKeyHints(keyMapper *commands.KeyMapper, partialSequence command
 // formatKey formats a key for display
 func formatKey(key commands.Key) string {
 	var parts []string
-	
+
 	// Add modifiers
 	if key.Mod&events.ModAlt != 0 {
 		parts = append(parts, "alt")
@@ -307,7 +307,7 @@ func formatKey(key commands.Key) string {
 	if key.Mod&events.ModShift != 0 {
 		parts = append(parts, "shift")
 	}
-	
+
 	// Add key name
 	if key.Key == events.KeyRune {
 		if key.Rune == ' ' {
@@ -318,7 +318,7 @@ func formatKey(key commands.Key) string {
 	} else {
 		parts = append(parts, formatSpecialKey(key.Key))
 	}
-	
+
 	return strings.Join(parts, "+")
 }
 
@@ -359,13 +359,13 @@ func formatSpecialKey(key events.Key) string {
 }
 
 // parseKeyFromString parses a formatted key string back to a Key object
-// This is a reverse of formatKey function  
+// This is a reverse of formatKey function
 func parseKeyFromString(keyStr string) (commands.Key, error) {
 	// Handle simple rune keys
 	if len(keyStr) == 1 {
 		return commands.Key{Key: events.KeyRune, Rune: rune(keyStr[0])}, nil
 	}
-	
+
 	// Handle special keys
 	switch keyStr {
 	case "space":

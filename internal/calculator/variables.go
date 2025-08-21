@@ -23,7 +23,7 @@ func NewVariables() *Variables {
 func (v *Variables) Set(name string, value *big.Float) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	
+
 	// Clone the value to avoid mutations
 	cloned := new(big.Float).Set(value)
 	v.values[name] = cloned
@@ -33,12 +33,12 @@ func (v *Variables) Set(name string, value *big.Float) {
 func (v *Variables) Get(name string) (*big.Float, bool) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
-	
+
 	val, ok := v.values[name]
 	if !ok {
 		return nil, false
 	}
-	
+
 	// Return a clone to avoid mutations
 	return new(big.Float).Set(val), true
 }
@@ -69,11 +69,11 @@ var globalVarMu sync.RWMutex
 func GetVariablesForBuffer(bufferID string) *Variables {
 	globalVarMu.Lock()
 	defer globalVarMu.Unlock()
-	
+
 	if vars, ok := globalVariables[bufferID]; ok {
 		return vars
 	}
-	
+
 	vars := NewVariables()
 	globalVariables[bufferID] = vars
 	return vars
@@ -93,12 +93,12 @@ func ParseVariableName(s string) (string, bool) {
 	if len(s) < 2 || s[0] != '$' {
 		return "", false
 	}
-	
+
 	varName := s[1:]
 	if varName == "" {
 		return "", false
 	}
-	
+
 	// For now, accept any non-empty variable name
 	// Special case: $? is the last result
 	return varName, true
@@ -116,11 +116,11 @@ func EvaluateVariable(varRef string, vars *Variables) (*big.Float, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid variable reference: %s", varRef)
 	}
-	
+
 	value, exists := vars.Get(varName)
 	if !exists {
 		return nil, fmt.Errorf("undefined variable: $%s", varName)
 	}
-	
+
 	return value, nil
 }

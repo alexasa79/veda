@@ -12,37 +12,37 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 		content := "# TODO List\nFirst item\nSecond item\nThird item"
 		te := NewTestEditorWithContent(80, 24, content)
 		te.buffer.FilePath = "TODO.md"
-		
+
 		// Initialize markdown highlighter
 		if te.highlighter != nil {
 			te.highlighter.SetLanguageFromFile(te.buffer.FilePath)
 		}
-		
+
 		// Get theme styles
 		lineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.LineNumber)
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
 		_, lineNumBg, _ := lineNumberStyle.Decompose()
 		_, selBg, _ := selectionStyle.Decompose()
-		
+
 		// Ensure cursor is at position 0,0 (first character)
 		te.SetCursorPosition(0, 0)
-		
+
 		// Enter visual mode from the very first character
 		te.ExecuteCommand("enter-visual-mode")
-		
+
 		// Select a few characters
 		for i := 0; i < 5; i++ {
 			te.ExecuteCommand("right")
 		}
-		
+
 		// Force render
 		te.drawEditor()
-		
+
 		// Check each visible line
 		for lineIdx := 0; lineIdx < 4; lineIdx++ {
 			screenLine := te.mockScreen.GetLine(lineIdx)
 			t.Logf("Line %d: %q", lineIdx, screenLine)
-			
+
 			// Find where the line number ends (look for space after number)
 			lineNumEnd := -1
 			for i := 0; i < len(screenLine) && i < 10; i++ {
@@ -60,7 +60,7 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 					break
 				}
 			}
-			
+
 			if lineNumEnd > 0 {
 				// Check background color of line number characters
 				for i := 0; i < lineNumEnd; i++ {
@@ -74,7 +74,7 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 				}
 			}
 		}
-		
+
 		// Additionally check that the actual selected text has selection background
 		// First line should have "# TOD" selected (positions after line number)
 		firstLine := te.mockScreen.GetLine(0)
@@ -89,26 +89,26 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 			}
 		}
 	})
-	
+
 	t.Run("visual mode line numbers across multiple lines", func(t *testing.T) {
 		// Test with visual mode spanning multiple lines
 		content := "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
 		te := NewTestEditorWithContent(80, 24, content)
-		
+
 		// Get styles
 		lineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.LineNumber)
 		_, lineNumBg, _ := lineNumberStyle.Decompose()
-		
+
 		// Start visual mode from line 1
 		te.ExecuteCommand("enter-visual-mode")
-		
+
 		// Select down to line 3
 		te.ExecuteCommand("down")
 		te.ExecuteCommand("down")
-		
+
 		// Render
 		te.drawEditor()
-		
+
 		// Check that line numbers for all lines retain their style
 		for lineIdx := 0; lineIdx < 5; lineIdx++ {
 			line := te.mockScreen.GetLine(lineIdx)
@@ -121,29 +121,29 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 			}
 		}
 	})
-	
+
 	t.Run("visual line mode should not affect line numbers", func(t *testing.T) {
 		content := "First line\nSecond line\nThird line"
 		te := NewTestEditorWithContent(80, 24, content)
-		
+
 		// Get styles
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
 		_, selBg, _ := selectionStyle.Decompose()
-		
+
 		// Enter visual line mode
 		te.ExecuteCommand("enter-visual-line-mode")
-		
+
 		// Select down one line
 		te.ExecuteCommand("down")
-		
+
 		// Render
 		te.drawEditor()
-		
+
 		// Check first 3 lines
 		for lineIdx := 0; lineIdx < 3; lineIdx++ {
 			line := te.mockScreen.GetLine(lineIdx)
 			t.Logf("Visual line mode - Line %d: %q", lineIdx, line)
-			
+
 			// Check line number background
 			if len(line) > 0 {
 				_, bg, _ := te.mockScreen.GetCellStyle(0, lineIdx)
@@ -160,28 +160,28 @@ func TestDebugLineNumberArea(t *testing.T) {
 	t.Run("debug line number rendering", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "# Header\nLine 2\nLine 3")
 		te.buffer.FilePath = "test.md"
-		
+
 		// Set up markdown
 		if te.highlighter != nil {
 			te.highlighter.SetLanguageFromFile(te.buffer.FilePath)
 		}
-		
+
 		// Enter visual mode at start
 		te.ExecuteCommand("enter-visual-mode")
 		te.ExecuteCommand("right")
 		te.ExecuteCommand("right")
-		
+
 		// Render
 		te.drawEditor()
-		
+
 		// Debug output
 		t.Logf("Line number width: %d", te.buffer.LineNumberWidth)
-		
+
 		// Print first 10 characters of each line with their backgrounds
 		for lineIdx := 0; lineIdx < 3; lineIdx++ {
 			line := te.mockScreen.GetLine(lineIdx)
 			t.Logf("Line %d content: %q", lineIdx, line[:min(20, len(line))])
-			
+
 			// Show background colors for first 10 positions
 			bgInfo := ""
 			for x := 0; x < 10 && x < len(line); x++ {
@@ -198,42 +198,41 @@ func TestLineNumberSelectionBug(t *testing.T) {
 		// This test specifically reproduces the bug where selecting from
 		// the very first character causes line numbers to get selection background
 		te := NewTestEditorWithContent(80, 24, "First line\nSecond line")
-		
+
 		// Verify we're at position 0,0
 		x, y := te.GetCursorPosition()
 		if x != 0 || y != 0 {
 			t.Fatalf("Expected cursor at (0,0), got (%d,%d)", x, y)
 		}
-		
+
 		// Enter visual mode from position 0,0
 		te.ExecuteCommand("enter-visual-mode")
-		
+
 		// Select just one character
 		te.ExecuteCommand("right")
-		
+
 		// Get selection range
 		start, end, hasSelection := te.getSelectionRange()
 		t.Logf("Selection range: start=%d, end=%d, hasSelection=%v", start, end, hasSelection)
-		
+
 		// The selection should be from byte 0 to byte 2
 		if start != 0 {
 			t.Errorf("Selection should start at byte 0, got %d", start)
 		}
-		
+
 		// Render
 		te.drawEditor()
-		
+
 		// Get line number style
 		lineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.LineNumber)
 		_, lineNumBg, _ := lineNumberStyle.Decompose()
-		
+
 		// Check first character (should be '1' for line number)
 		r, bg, _ := te.mockScreen.GetCellStyle(0, 0)
 		t.Logf("First character: '%c' with background %v", r, bg)
-		
+
 		if r == '1' && bg != lineNumBg {
 			t.Errorf("Line number '1' has wrong background. Got %v, want %v", bg, lineNumBg)
 		}
 	})
 }
-

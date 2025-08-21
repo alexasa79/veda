@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
 	"veda/internal/events"
 	"veda/internal/log"
-    "veda/internal/buffer"
 	"veda/internal/widgets"
 )
 
@@ -77,7 +77,7 @@ func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
 			return
 		}
 	}
-	
+
 	// For all other keys, check if it's a movement command
 	if command, found := e.keyMapper.ProcessKey(ev, commands.NormalMode); found {
 		if isMovementCommand(command) {
@@ -99,18 +99,18 @@ func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
 
 // enterCursorMode switches to cursor mode
 func (e *Editor) enterCursorMode() {
-    // Start a composite history unit to group all virtual-cursor additions
-    if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
-        e.buffer.History.StartComposite("Add virtual cursors")
-        // Record pre-cursor snapshot so undo restores to this state
-        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
-        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-        for _, vc := range e.virtualCursors {
-            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
-        }
-        e.buffer.History.SetActiveCompositeCursors(primary, v)
-    }
-    e.mode = commands.CursorMode
+	// Start a composite history unit to group all virtual-cursor additions
+	if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
+		e.buffer.History.StartComposite("Add virtual cursors")
+		// Record pre-cursor snapshot so undo restores to this state
+		primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+		for _, vc := range e.virtualCursors {
+			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+		}
+		e.buffer.History.SetActiveCompositeCursors(primary, v)
+	}
+	e.mode = commands.CursorMode
 }
 
 // enterCursorModeCmd is the command handler for entering cursor mode
@@ -121,42 +121,42 @@ func (e *Editor) enterCursorModeCmd(args []string) error {
 
 // exitCursorMode switches back to normal mode
 func (e *Editor) exitCursorMode() {
-    // If a composite for cursor mode is active, finalize it by storing the
-    // post-operation cursor snapshot and pushing to history.
-    if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
-        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
-        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-        for _, vc := range e.virtualCursors {
-            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
-        }
-        e.buffer.History.SetActiveCompositePostCursors(primary, v)
-        e.buffer.History.EndComposite()
-    }
-    e.mode = commands.NormalMode
+	// If a composite for cursor mode is active, finalize it by storing the
+	// post-operation cursor snapshot and pushing to history.
+	if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
+		primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+		for _, vc := range e.virtualCursors {
+			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+		}
+		e.buffer.History.SetActiveCompositePostCursors(primary, v)
+		e.buffer.History.EndComposite()
+	}
+	e.mode = commands.NormalMode
 }
 
 // clearVirtualCursors removes all virtual cursors
 func (e *Editor) clearVirtualCursors() {
-    // Clearing cursors should be undoable as a single unit. Start a composite
-    // that transitions from current cursor set to none.
-    if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
-        e.buffer.History.StartComposite("Clear virtual cursors")
-        // Pre-state: current cursors
-        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
-        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-        for _, vc := range e.virtualCursors {
-            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
-        }
-        e.buffer.History.SetActiveCompositeCursors(primary, v)
-    }
-    // Apply the state change
-    e.virtualCursors = []VirtualCursor{}
-    // Post-state: no virtual cursors
-    if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
-        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
-        e.buffer.History.SetActiveCompositePostCursors(primary, nil)
-        e.buffer.History.EndComposite()
-    }
+	// Clearing cursors should be undoable as a single unit. Start a composite
+	// that transitions from current cursor set to none.
+	if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
+		e.buffer.History.StartComposite("Clear virtual cursors")
+		// Pre-state: current cursors
+		primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+		for _, vc := range e.virtualCursors {
+			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+		}
+		e.buffer.History.SetActiveCompositeCursors(primary, v)
+	}
+	// Apply the state change
+	e.virtualCursors = []VirtualCursor{}
+	// Post-state: no virtual cursors
+	if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
+		primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+		e.buffer.History.SetActiveCompositePostCursors(primary, nil)
+		e.buffer.History.EndComposite()
+	}
 }
 
 // addVirtualCursor adds a virtual cursor at the current position and moves primary cursor down
@@ -164,7 +164,7 @@ func (e *Editor) addVirtualCursor() {
 	// Check if we already have a virtual cursor at this position
 	currentX := e.buffer.CursorX
 	currentY := e.buffer.CursorIterator.LineNumber()
-	
+
 	for _, existing := range e.virtualCursors {
 		if existing.X == currentX && existing.Y == currentY {
 			// Already have a cursor here, just move down
@@ -174,41 +174,41 @@ func (e *Editor) addVirtualCursor() {
 			return
 		}
 	}
-	
+
 	// Add virtual cursor at current position
 	cursor := VirtualCursor{
 		X: currentX,
 		Y: currentY,
 	}
-    // When adding cursors in cursor mode, treat them as one composite group.
-    // Ensure a composite is open from enterCursorMode; if not, open one now.
-    if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
-        // if no active composite, start one capturing current state
-        // (this covers programmatic calls/tests)
-        e.buffer.History.StartComposite("Add virtual cursors")
-        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
-        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-        for _, vc := range e.virtualCursors {
-            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
-        }
-        e.buffer.History.SetActiveCompositeCursors(primary, v)
-    }
-    e.virtualCursors = append(e.virtualCursors, cursor)
-	
+	// When adding cursors in cursor mode, treat them as one composite group.
+	// Ensure a composite is open from enterCursorMode; if not, open one now.
+	if e.buffer != nil && e.buffer.History != nil && !e.buffer.History.HasActiveComposite() {
+		// if no active composite, start one capturing current state
+		// (this covers programmatic calls/tests)
+		e.buffer.History.StartComposite("Add virtual cursors")
+		primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+		for _, vc := range e.virtualCursors {
+			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+		}
+		e.buffer.History.SetActiveCompositeCursors(primary, v)
+	}
+	e.virtualCursors = append(e.virtualCursors, cursor)
+
 	// Move primary cursor down one line
-    if err := e.commandRegistry.Execute("down", nil); err != nil {
+	if err := e.commandRegistry.Execute("down", nil); err != nil {
 		LL.Debug("Failed to move cursor down after adding virtual cursor: %v", err)
 	}
-    // Update post-state snapshot continuously so undo can return to initial
-    // state after the entire add sequence.
-    if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
-        primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
-        v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-        for _, vc := range e.virtualCursors {
-            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
-        }
-        e.buffer.History.SetActiveCompositePostCursors(primary, v)
-    }
+	// Update post-state snapshot continuously so undo can return to initial
+	// state after the entire add sequence.
+	if e.buffer != nil && e.buffer.History != nil && e.buffer.History.HasActiveComposite() {
+		primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
+		for _, vc := range e.virtualCursors {
+			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+		}
+		e.buffer.History.SetActiveCompositePostCursors(primary, v)
+	}
 }
 
 // addVirtualCursorCmd is the command handler for adding a virtual cursor
@@ -232,7 +232,7 @@ func isMovementCommand(command string) bool {
 		"next-word", "previous-word",
 		"find-char", "find-char-backward",
 	}
-	
+
 	for _, cmd := range movementCommands {
 		if command == cmd {
 			return true
@@ -278,7 +278,7 @@ func (e *Editor) executeCommand() {
 	}
 	cmd := parts[0]
 	args := parts[1:]
-	
+
 	// Check for force flag (! suffix)
 	force := false
 	if strings.HasSuffix(cmd, "!") {
@@ -313,7 +313,7 @@ func (e *Editor) executeCommand() {
 		}
 		return
 	}
-	
+
 	// Command not found
 	e.ShowError("Unknown command: %s", cmd)
 }
@@ -386,35 +386,51 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 func (e *Editor) switchToInsertMode() {
 	// Hide key hints when switching to insert mode
 	e.keyHintsPopup.Hide()
-    // Special case: terminal buffers use TerminalMode instead of InsertMode
-    if e.buffer != nil && e.buffer.IsInternal {
-        if ts, ok := e.terminalSessions[e.buffer.FilePath]; ok && ts != nil && ts.term != nil {
-            // Restore saved terminal cursor if any
-            if ts.SavedCurX >= 0 || ts.SavedCurY >= 0 {
-                cx, cy := ts.SavedCurX, ts.SavedCurY
-                if cx < 0 { cx = 0 }
-                if cy < 0 { cy = 0 }
-                ts.term.curX, ts.term.curY = cx, cy
-            }
-            // Re-align the view to follow the terminal cursor location
-            bannerOffset := 0
-            if ts.Banner != "" { bannerOffset = 1 }
-            bufRow := len(ts.term.scrollback) + ts.SavedCurY + bannerOffset
-            if bufRow < 0 { bufRow = 0 }
-            if bufRow >= e.buffer.LineCount { bufRow = e.buffer.LineCount - 1 }
-            // Auto-follow so the cursor row is visible near bottom
-            visible := e.getVisibleHeight()
-            if visible < 1 { visible = 1 }
-            top := bufRow - (visible - 1)
-            if top < 0 { top = 0 }
-            if top >= e.buffer.LineCount { top = e.buffer.LineCount - 1 }
-            e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, top)
-        }
-        e.mode = commands.TerminalMode
-        return
-    }
-    e.mode = commands.InsertMode
-	
+	// Special case: terminal buffers use TerminalMode instead of InsertMode
+	if e.buffer != nil && e.buffer.IsInternal {
+		if ts, ok := e.terminalSessions[e.buffer.FilePath]; ok && ts != nil && ts.term != nil {
+			// Restore saved terminal cursor if any
+			if ts.SavedCurX >= 0 || ts.SavedCurY >= 0 {
+				cx, cy := ts.SavedCurX, ts.SavedCurY
+				if cx < 0 {
+					cx = 0
+				}
+				if cy < 0 {
+					cy = 0
+				}
+				ts.term.curX, ts.term.curY = cx, cy
+			}
+			// Re-align the view to follow the terminal cursor location
+			bannerOffset := 0
+			if ts.Banner != "" {
+				bannerOffset = 1
+			}
+			bufRow := len(ts.term.scrollback) + ts.SavedCurY + bannerOffset
+			if bufRow < 0 {
+				bufRow = 0
+			}
+			if bufRow >= e.buffer.LineCount {
+				bufRow = e.buffer.LineCount - 1
+			}
+			// Auto-follow so the cursor row is visible near bottom
+			visible := e.getVisibleHeight()
+			if visible < 1 {
+				visible = 1
+			}
+			top := bufRow - (visible - 1)
+			if top < 0 {
+				top = 0
+			}
+			if top >= e.buffer.LineCount {
+				top = e.buffer.LineCount - 1
+			}
+			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, top)
+		}
+		e.mode = commands.TerminalMode
+		return
+	}
+	e.mode = commands.InsertMode
+
 	// Check if we're between parentheses and automatically show signature help
 	if e.buffer != nil && e.isLikelyInsideCallOnCurrentLine() {
 		// Increment generation and request signature help
@@ -425,16 +441,16 @@ func (e *Editor) switchToInsertMode() {
 
 // enterInsertMode switches the editor to insert mode
 func (e *Editor) enterInsertMode(args []string) error {
-    e.switchToInsertMode()
-    // If we switched to TerminalMode for terminal buffers, do not start an insert session
-    if e.mode == commands.TerminalMode {
-        return nil
-    }
-    // Start tracking insert mode changes
-    if e.buffer != nil && e.buffer.History != nil {
-        e.buffer.History.StartInsertSession("i")
-    }
-	
+	e.switchToInsertMode()
+	// If we switched to TerminalMode for terminal buffers, do not start an insert session
+	if e.mode == commands.TerminalMode {
+		return nil
+	}
+	// Start tracking insert mode changes
+	if e.buffer != nil && e.buffer.History != nil {
+		e.buffer.History.StartInsertSession("i")
+	}
+
 	// Visual selection is handled in the editor struct, not buffer
 	return nil
 }
@@ -445,13 +461,13 @@ func (e *Editor) enterTemporaryNormalMode(args []string) error {
 		LL.Debug("enterTemporaryNormalMode: Not in insert mode, current mode: %v", e.mode)
 		return nil
 	}
-	
+
 	LL.Debug("enterTemporaryNormalMode: Switching from insert to temporary normal mode")
-	
+
 	// Switch to normal mode but mark it as temporary
 	e.mode = commands.NormalMode
 	e.temporaryNormal = true
-	
+
 	// Don't end the insert session yet - we'll resume it
 	return nil
 }
@@ -460,40 +476,40 @@ func (e *Editor) enterTemporaryNormalMode(args []string) error {
 func (e *Editor) exitInsertMode(args []string) error {
 	// Clean up auto-indent on all tracked lines when exiting insert mode
 	e.cleanupAllAutoIndentLines()
-	
+
 	// Clear temporary normal flag if set
 	e.temporaryNormal = false
-	
+
 	// Hide signature help when exiting insert mode
 	if e.buffer != nil {
 		e.buffer.CurrentSignature = nil
 	}
-	
-    // End the insert session
-    if e.buffer != nil && e.buffer.History != nil {
-        entry := e.buffer.History.EndInsertSession()
-        if entry != nil {
-            e.setLastChange(entry)
-            // Clear simple command when we have a new insert session
-            e.lastSimpleCommand = ""
-        }
-        // If a generic composite was open (e.g., multi-cursor change), close it now
-        e.buffer.History.EndComposite()
-    }
+
+	// End the insert session
+	if e.buffer != nil && e.buffer.History != nil {
+		entry := e.buffer.History.EndInsertSession()
+		if entry != nil {
+			e.setLastChange(entry)
+			// Clear simple command when we have a new insert session
+			e.lastSimpleCommand = ""
+		}
+		// If a generic composite was open (e.g., multi-cursor change), close it now
+		e.buffer.History.EndComposite()
+	}
 
 	e.mode = commands.NormalMode
 
 	// Visual selection is handled in the editor struct, not buffer
 
-    // Do not shift cursor left on exiting insert mode for terminal buffers
-    if !(e.buffer != nil && e.buffer.IsInternal) {
-        // Adjust cursor position if needed (vim behavior)
-        // When exiting insert mode, vim moves cursor back one position
-        // unless we're at the beginning of the line
-        if e.buffer.CursorX > 0 {
-            e.buffer.CursorX--
-        }
-    }
+	// Do not shift cursor left on exiting insert mode for terminal buffers
+	if !(e.buffer != nil && e.buffer.IsInternal) {
+		// Adjust cursor position if needed (vim behavior)
+		// When exiting insert mode, vim moves cursor back one position
+		// unless we're at the beginning of the line
+		if e.buffer.CursorX > 0 {
+			e.buffer.CursorX--
+		}
+	}
 
 	// Update syntax highlighting after all insert mode changes are complete
 	e.updateSyntaxHighlighting()
@@ -508,22 +524,22 @@ func (e *Editor) enterVisualMode(args []string) error {
 	if e.buffer == nil {
 		return nil
 	}
-	
+
 	e.mode = commands.VisualMode
-	
+
 	// Set visual anchor at current cursor position
 	e.buffer.VisualAnchorLine = e.buffer.CursorIterator.LineNumber()
 	e.buffer.VisualAnchorX = e.buffer.CursorX
 	e.buffer.VisualAnchorOffset = e.buffer.CursorIterator.Position() + e.buffer.CursorX
-	
+
 	// Exit insert mode if we're in it
 	if e.buffer.History != nil {
 		e.buffer.History.EndInsertSession()
 	}
-	
-	LL.Debug("Entered visual mode: anchor at line %d, x %d, offset %d", 
+
+	LL.Debug("Entered visual mode: anchor at line %d, x %d, offset %d",
 		e.buffer.VisualAnchorLine, e.buffer.VisualAnchorX, e.buffer.VisualAnchorOffset)
-	
+
 	return nil
 }
 
@@ -532,37 +548,37 @@ func (e *Editor) enterVisualLineMode(args []string) error {
 	if e.buffer == nil {
 		return nil
 	}
-	
+
 	e.mode = commands.VisualLineMode
-	
+
 	// Set visual anchor at current cursor line
 	e.buffer.VisualAnchorLine = e.buffer.CursorIterator.LineNumber()
 	e.buffer.VisualAnchorX = 0 // Line mode always starts from beginning of line
 	e.buffer.VisualAnchorOffset = e.buffer.CursorIterator.Position()
-	
+
 	// Exit insert mode if we're in it
 	if e.buffer.History != nil {
 		e.buffer.History.EndInsertSession()
 	}
-	
+
 	LL.Debug("Entered visual line mode: anchor at line %d", e.buffer.VisualAnchorLine)
-	
+
 	return nil
 }
 
 // exitVisualMode switches back to normal mode and clears visual selection
 func (e *Editor) exitVisualMode(args []string) error {
 	e.mode = commands.NormalMode
-	
+
 	// Clear visual selection
 	if e.buffer != nil {
 		e.buffer.VisualAnchorLine = -1
 		e.buffer.VisualAnchorX = -1
 		e.buffer.VisualAnchorOffset = -1
 	}
-	
+
 	LL.Debug("Exited visual mode")
-	
+
 	return nil
 }
 
@@ -599,12 +615,12 @@ func (e *Editor) quitWithWarning(args []string, force bool) error {
 	if e.buffer == nil {
 		return nil
 	}
-	
+
 	// Check if current buffer has unsaved changes
 	if !force && e.buffer.IsModified && e.buffer.HasFile() && !e.buffer.IsInternal {
 		return e.showUnsavedBufferDialog(e.buffer.FileName(), "quit")
 	}
-	
+
 	// Proceed with normal quit
 	return e.closeBuffer(args)
 }
@@ -620,7 +636,7 @@ func (e *Editor) quitAllWithWarning(args []string, force bool) error {
 			return e.showUnsavedBuffersDialog(unsavedBuffers)
 		}
 	}
-	
+
 	// Proceed with normal quit all
 	return e.actuallyQuit(args)
 }
@@ -632,14 +648,14 @@ func (e *Editor) showUnsavedBufferDialog(fileName, action string) error {
 	dialogHeight := 8
 	x := (width - dialogWidth) / 2
 	y := (height - dialogHeight) / 2
-	
+
 	title := "Unsaved Changes"
 	message := fmt.Sprintf("Buffer '%s' has unsaved changes. %s without saving?", fileName, action)
-	
+
 	dialog := widgets.NewYesNoDialog(x, y, dialogWidth, dialogHeight, title, message, e.config.Theme)
 	overlay := NewUnsavedBufferDialogOverlay(dialog, fileName, action, false, e)
 	e.renderingState.SetOverlay(overlay)
-	
+
 	return nil // Dialog will be handled by the overlay system
 }
 
@@ -650,14 +666,14 @@ func (e *Editor) showUnsavedBuffersDialog(fileNames []string) error {
 	dialogHeight := 10
 	x := (width - dialogWidth) / 2
 	y := (height - dialogHeight) / 2
-	
+
 	title := "Multiple Unsaved Changes"
 	fileList := strings.Join(fileNames, ", ")
 	message := fmt.Sprintf("The following buffers have unsaved changes: %s. Quit without saving?", fileList)
-	
+
 	dialog := widgets.NewYesNoDialog(x, y, dialogWidth, dialogHeight, title, message, e.config.Theme)
 	overlay := NewUnsavedBufferDialogOverlay(dialog, "", "quit all", true, e)
 	e.renderingState.SetOverlay(overlay)
-	
+
 	return nil // Dialog will be handled by the overlay system
 }

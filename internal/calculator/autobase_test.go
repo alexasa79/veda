@@ -36,7 +36,7 @@ func TestAutomaticBaseDetection(t *testing.T) {
 			expr:     "10 + 5",
 			expected: "15",
 		},
-		
+
 		// Hex with decimal uses hex output (ignore decimal when determining base)
 		{
 			name:     "hex and decimal",
@@ -46,19 +46,19 @@ func TestAutomaticBaseDetection(t *testing.T) {
 		{
 			name:     "binary and hex",
 			expr:     "0b1111 + 0xFF",
-			expected: "270",  // Mixed non-decimal bases → decimal
+			expected: "270", // Mixed non-decimal bases → decimal
 		},
 		{
 			name:     "octal and decimal",
 			expr:     "0o10 + 10",
-			expected: "0o22",  // Octal with decimal uses octal output
+			expected: "0o22", // Octal with decimal uses octal output
 		},
 		{
 			name:     "all three bases",
 			expr:     "0xFF + 0b1111 + 0o10",
 			expected: "278",
 		},
-		
+
 		// Complex expressions with single base
 		{
 			name:     "hex multiplication",
@@ -75,7 +75,7 @@ func TestAutomaticBaseDetection(t *testing.T) {
 			expr:     "0o100 / 0o2",
 			expected: "0o40",
 		},
-		
+
 		// Explicit directives override auto-detection
 		{
 			name:     "hex numbers with dec directive",
@@ -97,19 +97,19 @@ func TestAutomaticBaseDetection(t *testing.T) {
 			expr:     "0xFF + 10 bin",
 			expected: "0b100001001",
 		},
-		
+
 		// Decimal numbers with single non-decimal base
 		{
 			name:     "binary with multiple decimals",
 			expr:     "10 + 0b1010 + 5",
-			expected: "0b11001",  // Binary is the only non-decimal base
+			expected: "0b11001", // Binary is the only non-decimal base
 		},
 		{
 			name:     "hex surrounded by decimals",
 			expr:     "100 + 0xA + 50",
-			expected: "0xa0",  // Hex is the only non-decimal base
+			expected: "0xa0", // Hex is the only non-decimal base
 		},
-		
+
 		// Floating point always decimal (no hex/bin/oct floats)
 		{
 			name:     "float arithmetic",
@@ -119,17 +119,17 @@ func TestAutomaticBaseDetection(t *testing.T) {
 		{
 			name:     "hex int with float",
 			expr:     "0xFF + 1.5",
-			expected: "0x100",  // Hex output truncates float result
+			expected: "0x100", // Hex output truncates float result
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := EvaluateExpressionWithResult(tt.expr)
 			if err != nil {
 				t.Fatalf("Failed to evaluate expression %q: %v", tt.expr, err)
 			}
-			
+
 			got := result.String()
 			if got != tt.expected {
 				t.Errorf("Expression %q = %s; want %s", tt.expr, got, tt.expected)
@@ -160,14 +160,14 @@ func TestAutoBaseWithPrecision(t *testing.T) {
 			expected: "25.50000", // Mixed bases + precision = decimal
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := EvaluateExpressionWithResult(tt.expr)
 			if err != nil {
 				t.Fatalf("Failed to evaluate expression %q: %v", tt.expr, err)
 			}
-			
+
 			got := result.String()
 			if got != tt.expected {
 				t.Errorf("Expression %q = %s; want %s", tt.expr, got, tt.expected)
@@ -199,21 +199,21 @@ func TestAutoBaseInProcessLineAppend(t *testing.T) {
 			name:     "mixed bases",
 			line:     "Mixed: 0xFF + 10",
 			pos:      16,
-			expected: "Mixed: 0xFF + 10 → 0x109",  // Hex is the only non-decimal base
+			expected: "Mixed: 0xFF + 10 → 0x109", // Hex is the only non-decimal base
 		},
 		// Note: ProcessLineAppend with explicit directives is tested separately
 		// in format_test.go since it has specific edge cases
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ProcessLineAppend(tt.line, tt.pos)
 			if err != nil {
 				t.Fatalf("ProcessLineAppend failed: %v", err)
 			}
-			
+
 			if result != tt.expected {
-				t.Errorf("ProcessLineAppend(%q, %d) = %q; want %q", 
+				t.Errorf("ProcessLineAppend(%q, %d) = %q; want %q",
 					tt.line, tt.pos, result, tt.expected)
 			}
 		})

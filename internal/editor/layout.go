@@ -1,9 +1,9 @@
 package editor
 
 import (
-    "strings"
-    "veda/internal/commands"
-    "veda/internal/syntax"
+	"strings"
+	"veda/internal/commands"
+	"veda/internal/syntax"
 )
 
 // Layout calculation methods
@@ -12,70 +12,70 @@ import (
 
 // getVisibleHeight returns the number of lines available for content display
 func (e *Editor) getVisibleHeight() int {
-    _, height := e.screen.Size()
-    // For sub-window screens, the region already excludes the global status bar
-    if _, ok := e.screen.(*windowScreen); ok {
-        return height
-    }
-    // Terminal/internal buffers or empty windows should not reserve extra lines for context/diagnostics/signature
-    if e.mode == commands.TerminalMode || e.buffer == nil || (e.buffer != nil && e.buffer.IsInternal) {
-        // Reserve only the status bar line
-        return height - 1
-    }
-    reserved := 1 // Status bar
-    if e.shouldShowContext() {
-        reserved += len(e.contextCache) // Context lines
-    }
-    // Reserve space for signature if shown
-    if e.buffer.CurrentSignature != nil {
-        reserved += e.getSignatureLines()
-    }
-    // Reserve space for error/diagnostic lines if shown
-    if e.errorManager.GetCurrentError() != "" {
-        reserved += 1
-    } else {
-        // Reserve space for diagnostic lines if we have a diagnostic for current line
-        cursorLine := e.buffer.CursorIterator.LineNumber() + 1
-        if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
-            reserved += e.getDiagnosticLineCount(diag.Message)
-        }
-    }
-    return height - reserved
+	_, height := e.screen.Size()
+	// For sub-window screens, the region already excludes the global status bar
+	if _, ok := e.screen.(*windowScreen); ok {
+		return height
+	}
+	// Terminal/internal buffers or empty windows should not reserve extra lines for context/diagnostics/signature
+	if e.mode == commands.TerminalMode || e.buffer == nil || (e.buffer != nil && e.buffer.IsInternal) {
+		// Reserve only the status bar line
+		return height - 1
+	}
+	reserved := 1 // Status bar
+	if e.shouldShowContext() {
+		reserved += len(e.contextCache) // Context lines
+	}
+	// Reserve space for signature if shown
+	if e.buffer.CurrentSignature != nil {
+		reserved += e.getSignatureLines()
+	}
+	// Reserve space for error/diagnostic lines if shown
+	if e.errorManager.GetCurrentError() != "" {
+		reserved += 1
+	} else {
+		// Reserve space for diagnostic lines if we have a diagnostic for current line
+		cursorLine := e.buffer.CursorIterator.LineNumber() + 1
+		if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+			reserved += e.getDiagnosticLineCount(diag.Message)
+		}
+	}
+	return height - reserved
 }
 
 // getVisibleWidth returns the number of columns available for content display
 func (e *Editor) getVisibleWidth() int {
-    width, _ := e.screen.Size()
-    // Width is unaffected by status bar/overlays; subtract nothing
-    return width
+	width, _ := e.screen.Size()
+	// Width is unaffected by status bar/overlays; subtract nothing
+	return width
 }
 
 // getContentStartY returns the Y position where content starts
 func (e *Editor) getContentStartY() int {
-    // Window sub-screens always start at 0 within their region
-    if _, ok := e.screen.(*windowScreen); ok {
-        return 0
-    }
-    // Terminal/internal buffers do not reserve context lines
-    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
-        return 0
-    }
-    if e.shouldShowContext() {
-        return len(e.contextCache)
-    }
-    return 0
+	// Window sub-screens always start at 0 within their region
+	if _, ok := e.screen.(*windowScreen); ok {
+		return 0
+	}
+	// Terminal/internal buffers do not reserve context lines
+	if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+		return 0
+	}
+	if e.shouldShowContext() {
+		return len(e.contextCache)
+	}
+	return 0
 }
 
 // shouldShowContext determines if context should be shown
 func (e *Editor) shouldShowContext() bool {
-    if !e.showContext {
-        return false
-    }
-    // Never show context for terminal/internal buffers
-    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
-        return false
-    }
-    return true
+	if !e.showContext {
+		return false
+	}
+	// Never show context for terminal/internal buffers
+	if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+		return false
+	}
+	return true
 }
 
 // updateContext updates the cached context for the current cursor position
@@ -89,22 +89,22 @@ func (e *Editor) updateContext() {
 		return
 	}
 
-    // Suppress context for internal/terminal buffers
-    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
-        e.contextCache = nil
-        e.contextLine = currentLine
-        return
-    }
-    // Get file path
-    filePath := e.buffer.FilePath
-    if filePath == "" {
-        e.contextCache = nil
-        return
-    }
+	// Suppress context for internal/terminal buffers
+	if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+		e.contextCache = nil
+		e.contextLine = currentLine
+		return
+	}
+	// Get file path
+	filePath := e.buffer.FilePath
+	if filePath == "" {
+		e.contextCache = nil
+		return
+	}
 
-    // Calculate visible range (per-window; entire region height)
-    viewStartLine := e.buffer.ViewIterator.LineNumber()
-    viewEndLine := viewStartLine + e.getVisibleHeight() - 1
+	// Calculate visible range (per-window; entire region height)
+	viewStartLine := e.buffer.ViewIterator.LineNumber()
+	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
 
 	// Try to use tree-sitter for context if available
 	if e.highlighter != nil && e.highlighter.GetTree() != nil {
@@ -151,25 +151,25 @@ func (e *Editor) getAbsolutePosition() int {
 
 // updateSyntaxHighlighting re-parses the buffer for syntax highlighting
 func (e *Editor) updateSyntaxHighlighting() {
-    if e.buffer == nil || !e.buffer.HasFile() {
-        return
-    }
-    // Always update the highlighter associated with the current buffer/window,
-    // not the last global highlighter. In multi-window mode the global
-    // e.highlighter may point to another buffer, causing skew.
-    var h *syntax.Highlighter
-    if hh, ok := e.bufferHighlighters[e.buffer]; ok && hh != nil {
-        h = hh
-    } else {
-        h = syntax.NewHighlighter()
-        h.SetLanguageFromFile(e.buffer.FilePath)
-        e.bufferHighlighters[e.buffer] = h
-    }
-    content := e.buffer.Rope.String()
-    h.ParseFull([]byte(content))
-    // Keep the editor's active highlighter in sync for non-windowed paths and
-    // to ensure immediate token queries use the updated instance.
-    e.highlighter = h
+	if e.buffer == nil || !e.buffer.HasFile() {
+		return
+	}
+	// Always update the highlighter associated with the current buffer/window,
+	// not the last global highlighter. In multi-window mode the global
+	// e.highlighter may point to another buffer, causing skew.
+	var h *syntax.Highlighter
+	if hh, ok := e.bufferHighlighters[e.buffer]; ok && hh != nil {
+		h = hh
+	} else {
+		h = syntax.NewHighlighter()
+		h.SetLanguageFromFile(e.buffer.FilePath)
+		e.bufferHighlighters[e.buffer] = h
+	}
+	content := e.buffer.Rope.String()
+	h.ParseFull([]byte(content))
+	// Keep the editor's active highlighter in sync for non-windowed paths and
+	// to ensure immediate token queries use the updated instance.
+	e.highlighter = h
 }
 
 // getDiagnosticLineCount returns the number of lines needed to display a diagnostic message
@@ -177,7 +177,7 @@ func (e *Editor) getDiagnosticLineCount(message string) int {
 	// Remove carriage returns and split by newlines
 	cleanMessage := strings.ReplaceAll(message, "\r", "")
 	allLines := strings.Split(cleanMessage, "\n")
-	
+
 	// Filter out empty lines
 	var lines []string
 	for _, line := range allLines {
@@ -186,7 +186,7 @@ func (e *Editor) getDiagnosticLineCount(message string) int {
 			lines = append(lines, cleanLine)
 		}
 	}
-	
+
 	// Limit to reasonable number of lines to avoid taking up too much screen space
 	maxLines := 3
 	if len(lines) > maxLines {
@@ -197,7 +197,7 @@ func (e *Editor) getDiagnosticLineCount(message string) int {
 
 // handleResize processes screen resize events
 func (e *Editor) handleResize() {
-    width, _ := e.screen.Size()
+	width, _ := e.screen.Size()
 
 	// Update the command line widget's dimensions and position
 	e.commandLine.SetWidth(width)
@@ -208,23 +208,23 @@ func (e *Editor) handleResize() {
 	e.searchLine.SetPosition(0, e.getStatusBarY())
 
 	// Clear and redraw the screen to handle the new dimensions
-    // Recompute window layout if using windows
-    if len(e.windows) > 0 {
-        e.recomputeWindowsLayout()
-    }
-    // When a terminal buffer is active, propagate resize to PTY via proxy
-    if e.mode == commands.TerminalMode && e.buffer != nil {
-        if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
-            cols := e.getVisibleWidth()
-            rows := e.getVisibleHeight()
-            _ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)
-            ts.Cols, ts.Rows = cols, rows
-            if ts.term != nil {
-                ts.term.Resize(cols, rows)
-            }
-        }
-    }
-    e.screen.Clear()
+	// Recompute window layout if using windows
+	if len(e.windows) > 0 {
+		e.recomputeWindowsLayout()
+	}
+	// When a terminal buffer is active, propagate resize to PTY via proxy
+	if e.mode == commands.TerminalMode && e.buffer != nil {
+		if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
+			cols := e.getVisibleWidth()
+			rows := e.getVisibleHeight()
+			_ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)
+			ts.Cols, ts.Rows = cols, rows
+			if ts.term != nil {
+				ts.term.Resize(cols, rows)
+			}
+		}
+	}
+	e.screen.Clear()
 	e.render()
 	e.screen.Show()
 }

@@ -14,19 +14,19 @@ func TestBasicArithmetic(t *testing.T) {
 		{"2*3", 6},
 		{"10/2", 5},
 		{"10-3", 7},
-		{"2+3*4", 14},        // Precedence test
-		{"(2+3)*4", 20},      // Parentheses
-		{"2**3", 8},          // Power with **
-		{"2**3**2", 512},     // Right-associative power: 2**(3**2) = 2**9 = 512
-		{"10/2*3", 15},       // Left-to-right: (10/2)*3 = 5*3 = 15
-		{"-5", -5},           // Unary minus
-		{"+5", 5},            // Unary plus
-		{"-(2+3)", -5},       // Unary minus with parentheses
-		{"2*-3", -6},         // Unary minus in expression
-		{"1.5+2.5", 4},       // Floating point
-		{"3.14*2", 6.28},     // Floating point
-		{"1e3+1", 1001},      // Scientific notation
-		{"2.5e2", 250},       // Scientific notation
+		{"2+3*4", 14},    // Precedence test
+		{"(2+3)*4", 20},  // Parentheses
+		{"2**3", 8},      // Power with **
+		{"2**3**2", 512}, // Right-associative power: 2**(3**2) = 2**9 = 512
+		{"10/2*3", 15},   // Left-to-right: (10/2)*3 = 5*3 = 15
+		{"-5", -5},       // Unary minus
+		{"+5", 5},        // Unary plus
+		{"-(2+3)", -5},   // Unary minus with parentheses
+		{"2*-3", -6},     // Unary minus in expression
+		{"1.5+2.5", 4},   // Floating point
+		{"3.14*2", 6.28}, // Floating point
+		{"1e3+1", 1001},  // Scientific notation
+		{"2.5e2", 250},   // Scientific notation
 	}
 
 	for _, tt := range tests {
@@ -161,7 +161,7 @@ func TestProcessLineAppend(t *testing.T) {
 		{"2**3", 4, "2**3 → 8", false},
 		{"10/2", 4, "10/2 → 5", false},
 		{"3.5*2", 5, "3.5*2 → 7", false},
-		{"15 hex", 6, "15 hex → 0xf", false}, // Suffix directive
+		{"15 hex", 6, "15 hex → 0xf", false},          // Suffix directive
 		{"255 bin", 7, "255 bin → 0b11111111", false}, // Suffix directive binary
 		{"No math here", 12, "No math here", true},
 	}
@@ -188,16 +188,16 @@ func TestProcessLineAppend(t *testing.T) {
 
 func TestProcessLineReplace(t *testing.T) {
 	tests := []struct {
-		line        string
-		pos         int
+		line         string
+		pos          int
 		expectedLine string
-		expectedPos int
-		wantErr     bool
+		expectedPos  int
+		wantErr      bool
 	}{
 		{"1+1", 3, "2", 1, false},
 		{"Calculate: 2*3", 14, "Calculate: 6", 12, false},
 		{"x = 10/2", 8, "x = 5", 5, false},
-		{"0xFF+1", 6, "0x100", 5, false},  // Hex output since hex is only non-decimal base
+		{"0xFF+1", 6, "0x100", 5, false}, // Hex output since hex is only non-decimal base
 		{"The answer is 3.5*2", 19, "The answer is 7", 15, false},
 		{"No math", 7, "No math", 7, true},
 	}

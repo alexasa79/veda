@@ -64,7 +64,7 @@ func TestAutoSavePathGeneration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			autoSavePath := manager.getAutoSavePath(tt.inputPath)
-			
+
 			// Check that the path is not empty
 			if autoSavePath == "" {
 				t.Errorf("getAutoSavePath returned empty path for %s", tt.inputPath)
@@ -73,7 +73,7 @@ func TestAutoSavePathGeneration(t *testing.T) {
 
 			// Extract the filename
 			filename := filepath.Base(autoSavePath)
-			
+
 			// Check if it ends with the expected suffix
 			if !strings.HasSuffix(filename, tt.expectedSuffix) {
 				t.Errorf("Expected filename to end with %s, got: %s", tt.expectedSuffix, filename)
@@ -140,7 +140,7 @@ func TestAutoSaveFileNamingConsistency(t *testing.T) {
 func TestAutoSaveCleanupOnBufferClose(t *testing.T) {
 	// Create a temporary auto-save directory for testing
 	tempDir := t.TempDir()
-	
+
 	manager := &AutoSaveManager{
 		autoSaveDir:   tempDir,
 		lastSaveTimes: make(map[string]time.Time),
@@ -158,7 +158,7 @@ func TestAutoSaveCleanupOnBufferClose(t *testing.T) {
 	for _, filePath := range testFiles {
 		autoSavePath := manager.getAutoSavePath(filePath)
 		content := fmt.Sprintf("Auto-save content for %s", filePath)
-		
+
 		// Create the auto-save file
 		err := os.WriteFile(autoSavePath, []byte(content), 0644)
 		if err != nil {
@@ -177,15 +177,15 @@ func TestAutoSaveCleanupOnBufferClose(t *testing.T) {
 	// Test cleanup for each file
 	for _, filePath := range testFiles {
 		autoSavePath := manager.getAutoSavePath(filePath)
-		
+
 		// Clean up the auto-save file
 		manager.CleanupAutoSave(filePath)
-		
+
 		// Verify the file is deleted
 		if _, err := os.Stat(autoSavePath); !os.IsNotExist(err) {
 			t.Errorf("Auto-save file should be deleted after cleanup: %s", autoSavePath)
 		}
-		
+
 		// Verify it's removed from pending saves
 		manager.mutex.RLock()
 		if _, exists := manager.pendingSaves[filePath]; exists {
@@ -202,7 +202,7 @@ func TestAutoSaveCleanupOnSuccessfulSave(t *testing.T) {
 	// This tests the cleanup that should happen when a file is successfully saved
 	// via the writeFile function
 	tempDir := t.TempDir()
-	
+
 	manager := &AutoSaveManager{
 		autoSaveDir:   tempDir,
 		lastSaveTimes: make(map[string]time.Time),
@@ -211,7 +211,7 @@ func TestAutoSaveCleanupOnSuccessfulSave(t *testing.T) {
 
 	filePath := "/home/user/test.txt"
 	autoSavePath := manager.getAutoSavePath(filePath)
-	
+
 	// Create an auto-save file
 	content := "Test content with unsaved changes"
 	err := os.WriteFile(autoSavePath, []byte(content), 0644)
@@ -221,7 +221,7 @@ func TestAutoSaveCleanupOnSuccessfulSave(t *testing.T) {
 
 	// Mark as dirty
 	manager.MarkDirty(filePath)
-	
+
 	// Verify the auto-save file exists
 	if _, err := os.Stat(autoSavePath); os.IsNotExist(err) {
 		t.Fatal("Auto-save file should exist before cleanup")
@@ -229,12 +229,12 @@ func TestAutoSaveCleanupOnSuccessfulSave(t *testing.T) {
 
 	// Simulate successful save (this is what writeFile does)
 	manager.CleanupAutoSave(filePath)
-	
+
 	// Verify cleanup
 	if _, err := os.Stat(autoSavePath); !os.IsNotExist(err) {
 		t.Error("Auto-save file should be deleted after successful save")
 	}
-	
+
 	// Verify tracking is cleaned up
 	manager.mutex.RLock()
 	if _, exists := manager.pendingSaves[filePath]; exists {
@@ -251,7 +251,7 @@ func TestAutoSaveCleanupOnAllQuitOperations(t *testing.T) {
 	// The goal is that when the user quits without saving, they don't want to be
 	// prompted about recovery next time they open the file.
 	tempDir := t.TempDir()
-	
+
 	manager := &AutoSaveManager{
 		autoSaveDir:   tempDir,
 		lastSaveTimes: make(map[string]time.Time),
@@ -268,7 +268,7 @@ func TestAutoSaveCleanupOnAllQuitOperations(t *testing.T) {
 	for _, filePath := range testFiles {
 		autoSavePath := manager.getAutoSavePath(filePath)
 		content := fmt.Sprintf("Unsaved changes for %s", filePath)
-		
+
 		// Create the auto-save file
 		err := os.WriteFile(autoSavePath, []byte(content), 0644)
 		if err != nil {

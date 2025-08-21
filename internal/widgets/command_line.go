@@ -9,15 +9,15 @@ import (
 
 // CommandLineWidget wraps LineEditor with command-specific features like history and tab completion
 type CommandLineWidget struct {
-	editor              *LineEditor
-	history             []string
-	historyIndex        int
-	tempText            string
-	completionFunc      func(string) []string
-	completions         []string
-	completionIndex     int
-	completionPrefix    string
-	lastWasTab          bool
+	editor           *LineEditor
+	history          []string
+	historyIndex     int
+	tempText         string
+	completionFunc   func(string) []string
+	completions      []string
+	completionIndex  int
+	completionPrefix string
+	lastWasTab       bool
 }
 
 // NewCommandLineWidget creates a new command line widget
@@ -83,12 +83,12 @@ func (cl *CommandLineWidget) AddToHistory(command string) {
 	if strings.HasPrefix(command, ":") {
 		command = command[1:]
 	}
-	
+
 	// Don't add empty commands or duplicates of the last command
 	if command == "" || (len(cl.history) > 0 && cl.history[len(cl.history)-1] == command) {
 		return
 	}
-	
+
 	cl.history = append(cl.history, command)
 }
 
@@ -101,7 +101,7 @@ func (cl *CommandLineWidget) SetCompletionFunc(f func(string) []string) {
 func (cl *CommandLineWidget) HandleKey(ev *events.KeyEvent) bool {
 	// Track if this is a Tab key
 	isTab := ev.Key == events.KeyTab
-	
+
 	// If the last key wasn't Tab, reset completion state
 	if !isTab && cl.lastWasTab {
 		cl.completions = nil
@@ -109,7 +109,7 @@ func (cl *CommandLineWidget) HandleKey(ev *events.KeyEvent) bool {
 		cl.completionPrefix = ""
 		cl.lastWasTab = false
 	}
-	
+
 	switch ev.Key {
 	case events.KeyUp:
 		return cl.navigateHistoryUp()
@@ -133,7 +133,7 @@ func (cl *CommandLineWidget) navigateHistoryUp() bool {
 	if len(cl.history) == 0 {
 		return true
 	}
-	
+
 	// If we're at the current input, save it
 	if cl.historyIndex == -1 {
 		text := cl.editor.GetText()
@@ -146,7 +146,7 @@ func (cl *CommandLineWidget) navigateHistoryUp() bool {
 	} else if cl.historyIndex > 0 {
 		cl.historyIndex--
 	}
-	
+
 	// Set the historical command with colon prefix
 	cl.editor.SetText(":" + cl.history[cl.historyIndex])
 	cl.editor.SetCursor(len(cl.editor.GetText()))
@@ -158,7 +158,7 @@ func (cl *CommandLineWidget) navigateHistoryDown() bool {
 	if cl.historyIndex == -1 {
 		return true
 	}
-	
+
 	if cl.historyIndex < len(cl.history)-1 {
 		cl.historyIndex++
 		cl.editor.SetText(":" + cl.history[cl.historyIndex])
@@ -167,7 +167,7 @@ func (cl *CommandLineWidget) navigateHistoryDown() bool {
 		cl.historyIndex = -1
 		cl.editor.SetText(":" + cl.tempText)
 	}
-	
+
 	cl.editor.SetCursor(len(cl.editor.GetText()))
 	return true
 }
@@ -183,49 +183,49 @@ func (cl *CommandLineWidget) handleTabCompletion() bool {
 	if strings.HasPrefix(text, ":") {
 		text = text[1:]
 	}
-	
+
 	// Check if we need to get new completions
 	// We need new completions if:
 	// 1. We don't have any completions yet
 	// 2. The text is different from what we started completing AND we're not cycling
 	needNewCompletions := cl.completions == nil
-	
+
 	// If we're not cycling yet, check if the text changed
 	if cl.completionIndex == 0 && text != cl.completionPrefix {
 		needNewCompletions = true
 	}
-	
+
 	if needNewCompletions {
 		cl.completions = cl.completionFunc(text)
 		cl.completionIndex = 0
 		cl.completionPrefix = text
-		
+
 		if len(cl.completions) == 0 {
 			return true
 		}
-		
+
 		// Sort completions for predictable cycling order
 		sort.Strings(cl.completions)
 	}
-	
+
 	// Single completion - just use it
 	if len(cl.completions) == 1 {
 		cl.editor.SetText(":" + cl.completions[0])
 		cl.editor.SetCursor(len(cl.editor.GetText()))
 		return true
 	}
-	
+
 	// Multiple completions - cycle through them
 	if len(cl.completions) > 1 {
 		// Use modulo to cycle through completions
 		idx := cl.completionIndex % len(cl.completions)
 		cl.editor.SetText(":" + cl.completions[idx])
 		cl.editor.SetCursor(len(cl.editor.GetText()))
-		
+
 		// Move to next index
 		cl.completionIndex++
 	}
-	
+
 	return true
 }
 
@@ -234,7 +234,7 @@ func findCommonPrefix(strs []string) string {
 	if len(strs) == 0 {
 		return ""
 	}
-	
+
 	prefix := strs[0]
 	for _, s := range strs[1:] {
 		// Shorten prefix until it matches
@@ -245,6 +245,6 @@ func findCommonPrefix(strs []string) string {
 			break
 		}
 	}
-	
+
 	return prefix
 }

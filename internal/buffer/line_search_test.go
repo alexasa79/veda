@@ -8,10 +8,10 @@ import (
 func TestFindNodeAtLine(t *testing.T) {
 	t.Run("simple single node cases", func(t *testing.T) {
 		testCases := []struct {
-			name        string
-			text        string
-			lineNum     int
-			expectNode  bool
+			name         string
+			text         string
+			lineNum      int
+			expectNode   bool
 			expectOffset int
 		}{
 			{"empty buffer line 0", "", 0, true, 0},
@@ -64,7 +64,7 @@ func TestFindNodeAtLine(t *testing.T) {
 		}
 
 		for _, tc := range testCases {
-			t.Run(strings.Join([]string{"line", string(rune('0'+tc.lineNum))}, ""), func(t *testing.T) {
+			t.Run(strings.Join([]string{"line", string(rune('0' + tc.lineNum))}, ""), func(t *testing.T) {
 				node, offsetInNode := rope.findNodeAtLine(tc.lineNum)
 
 				if node == nil {
@@ -117,25 +117,25 @@ func TestFindNodeAtLine(t *testing.T) {
 
 			// Line 0: "a"
 			node, offset := rope.findNodeAtLine(0)
-			if node == nil || node.offset + offset != 0 {
+			if node == nil || node.offset+offset != 0 {
 				t.Errorf("Line 0: expected offset 0, got node=%v offset=%d", node, offset)
 			}
 
 			// Line 1: "" (empty)
 			node, offset = rope.findNodeAtLine(1)
-			if node == nil || node.offset + offset != 2 {
+			if node == nil || node.offset+offset != 2 {
 				t.Errorf("Line 1: expected offset 2, got node=%v offset=%d", node, offset)
 			}
 
 			// Line 2: "" (empty)
 			node, offset = rope.findNodeAtLine(2)
-			if node == nil || node.offset + offset != 3 {
+			if node == nil || node.offset+offset != 3 {
 				t.Errorf("Line 2: expected offset 3, got node=%v offset=%d", node, offset)
 			}
 
 			// Line 3: "b"
 			node, offset = rope.findNodeAtLine(3)
-			if node == nil || node.offset + offset != 4 {
+			if node == nil || node.offset+offset != 4 {
 				t.Errorf("Line 3: expected offset 4, got node=%v offset=%d", node, offset)
 			}
 		})
@@ -281,19 +281,19 @@ func TestFindLineStartInLeaf(t *testing.T) {
 func TestFindNodeAtLineRecursive(t *testing.T) {
 	t.Run("tree navigation", func(t *testing.T) {
 		// Create a specific tree structure: ((A\n, B\nC\n), (D, E\n))
-		nodeA := NewLeaf("A\n")      // 1 newline
-		nodeB := NewLeaf("B\nC\n")   // 2 newlines
-		nodeD := NewLeaf("D")        // 0 newlines
-		nodeE := NewLeaf("E\n")      // 1 newline
+		nodeA := NewLeaf("A\n")    // 1 newline
+		nodeB := NewLeaf("B\nC\n") // 2 newlines
+		nodeD := NewLeaf("D")      // 0 newlines
+		nodeE := NewLeaf("E\n")    // 1 newline
 
 		// Set offsets manually for this test
 		nodeA.offset = 0
-		nodeB.offset = 2  // After "A\n"
-		nodeD.offset = 6  // After "A\nB\nC\n"
-		nodeE.offset = 7  // After "A\nB\nC\nD"
+		nodeB.offset = 2 // After "A\n"
+		nodeD.offset = 6 // After "A\nB\nC\n"
+		nodeE.offset = 7 // After "A\nB\nC\nD"
 
-		leftSubtree := NewConcatNode(nodeA, nodeB)   // 3 newlines total
-		rightSubtree := NewConcatNode(nodeD, nodeE)  // 1 newline total
+		leftSubtree := NewConcatNode(nodeA, nodeB)       // 3 newlines total
+		rightSubtree := NewConcatNode(nodeD, nodeE)      // 1 newline total
 		root := NewConcatNode(leftSubtree, rightSubtree) // 4 newlines total
 
 		rope := &Rope{root: root}
@@ -310,7 +310,7 @@ func TestFindNodeAtLineRecursive(t *testing.T) {
 		}
 
 		for _, tc := range testCases {
-			t.Run(strings.Join([]string{"line", string(rune('0'+tc.lineNum))}, ""), func(t *testing.T) {
+			t.Run(strings.Join([]string{"line", string(rune('0' + tc.lineNum))}, ""), func(t *testing.T) {
 				resultNode, offset := rope.findNodeAtLineRecursive(root, tc.lineNum)
 
 				if resultNode != tc.expectNode {

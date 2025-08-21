@@ -14,7 +14,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 			"line 0",
 			"line 1",
 			"line 2 with some content",
-			"",  // empty line
+			"", // empty line
 			"line 4",
 			"final line",
 		}
@@ -23,7 +23,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 
 		// Test each line
 		for lineNum := 0; lineNum <= len(lines); lineNum++ {
-			t.Run(strings.Join([]string{"line", string(rune('0'+lineNum))}, ""), func(t *testing.T) {
+			t.Run(strings.Join([]string{"line", string(rune('0' + lineNum))}, ""), func(t *testing.T) {
 				// Use the optimized version
 				iter := NewBufferIteratorAtLine(buffer, lineNum)
 
@@ -287,7 +287,7 @@ func TestNewBufferIteratorAtLinePerformance(t *testing.T) {
 
 		// If it were linear, ratio would be close to sizeRatio (2.0)
 		// For logarithmic, ratio should be much less than sizeRatio
-		if ratio > sizeRatio * 0.8 { // Allow some tolerance
+		if ratio > sizeRatio*0.8 { // Allow some tolerance
 			t.Logf("Warning: Time ratio %.2f is close to size ratio %.2f, suggesting non-logarithmic behavior",
 				ratio, sizeRatio)
 		}
