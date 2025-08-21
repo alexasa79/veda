@@ -9,13 +9,14 @@ import (
 func TestBufferManagement(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	// Initially should have one empty buffer
-	if len(te.buffers) != 1 {
-		t.Errorf("Expected 1 buffer, got %d", len(te.buffers))
+	// Initially should have no buffers - only created when needed
+	if len(te.buffers) != 0 {
+		t.Errorf("Expected 0 buffers, got %d", len(te.buffers))
 	}
 
-	if te.buffer.HasFile() {
-		t.Errorf("Expected initial buffer to have no file, but it has: %s", te.buffer.FilePath)
+	// Buffer should be nil until needed
+	if te.buffer != nil {
+		t.Errorf("Expected initial buffer to be nil, but got: %v", te.buffer)
 	}
 }
 
@@ -92,9 +93,9 @@ func TestMultipleBuffers(t *testing.T) {
 	te.buffers["file2.txt"] = buffer2
 	te.bufferOrder = append(te.bufferOrder, "file1.txt", "file2.txt")
 
-	// Should have 3 buffers now (including the initial empty one)
-	if len(te.buffers) != 3 {
-		t.Errorf("Expected 3 buffers, got %d", len(te.buffers))
+	// Should have 2 buffers now (no initial empty buffer anymore)
+	if len(te.buffers) != 2 {
+		t.Errorf("Expected 2 buffers, got %d", len(te.buffers))
 	}
 
 	// Switch between buffers

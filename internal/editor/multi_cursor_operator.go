@@ -9,6 +9,11 @@ import (
 
 // executeOperatorWithTextObjectForAllCursors executes an operator+textobject for all cursors
 func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj TextObject) error {
+	// Check if we have a buffer to work with
+	if e.buffer == nil {
+		return nil // No buffer, nothing to operate on
+	}
+	
 	// Special handling for yank operator
 	if _, isYank := op.(YankOperator); isYank && len(e.virtualCursors) > 0 {
 		return e.executeYankForAllCursors(textObj)
