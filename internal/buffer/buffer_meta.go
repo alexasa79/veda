@@ -95,6 +95,10 @@ type Buffer struct {
 
 	// Syntax highlighting
 	Highlighter *syntax.Highlighter
+
+	// Context display cache (per-buffer)
+	ContextCache []int // Cached context line numbers for this buffer
+	ContextLine  int   // Line number for which context was cached (for this buffer)
 }
 
 // IndentationInfo holds information about file indentation
@@ -134,6 +138,9 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 	}
 	// Initialize per-buffer highlighter
 	b.Highlighter = syntax.NewHighlighter()
+	// Initialize context cache fields
+	b.ContextCache = nil
+	b.ContextLine = -1
 	b.UpdateLineNumberWidth()
 	// Create initial iterators
 	b.ViewIterator = NewBufferIterator(b)

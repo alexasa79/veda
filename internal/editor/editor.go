@@ -71,10 +71,8 @@ type Editor struct {
 	navHistory    []NavigationEntry // Stack of previous positions
 	maxNavHistory int               // Maximum number of entries to keep
 
-	// Context display
-	contextCache []int // Cached context line numbers
-	contextLine  int   // Line number for which context was cached
-	showContext  bool  // Whether to show context
+    // Context display (showContext remains global preference; cache is per-buffer)
+    showContext  bool // Whether to show context
 
 	// Async notifications
 	asyncEvents chan events.Event // Channel for async events
@@ -286,9 +284,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		bufferOrder:          []string{},
 		navHistory:           []NavigationEntry{},
 		maxNavHistory:        50,   // Keep last 50 navigation entries
-		showContext:          true, // Show context by default
-		contextCache:         nil,
-		contextLine:          -1,
+        showContext:          true, // Show context by default
 		asyncEvents:          make(chan events.Event, 100), // Buffered channel for async events
 		flashStartLine:       -1,                           // -1 means no flash
 		flashStartChar:       -1,
@@ -1886,9 +1882,10 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 			}
 
 			// If this is the current buffer, invalidate context cache to trigger redraw
-			if buf == e.buffer {
-				e.contextLine = -1 // Force context update
-			}
+            if buf == e.buffer {
+                // Force context update for active buffer
+                buf.ContextLine = -1
+            }
 		}
 	}()
 }

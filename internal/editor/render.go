@@ -960,7 +960,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 
 // drawContext draws the context lines at the top of the editor
 func (e *Editor) drawContext() {
-	if len(e.contextCache) == 0 {
+    if e.buffer == nil || len(e.buffer.ContextCache) == 0 {
 		return
 	}
 
@@ -974,7 +974,7 @@ func (e *Editor) drawContext() {
 	width, _ := e.screen.Size()
 
 	// Draw context lines with line numbers and syntax highlighting
-	for i, lineNum := range e.contextCache {
+    for i, lineNum := range e.buffer.ContextCache {
 		// Create an iterator at the context line
 		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
 		if !iter.IsEOF() {

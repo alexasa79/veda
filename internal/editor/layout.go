@@ -23,8 +23,10 @@ func (e *Editor) getVisibleHeight() int {
 		return height - 1
 	}
 	reserved := 1 // Status bar
-	if e.shouldShowContext() {
-		reserved += len(e.contextCache) // Context lines
+    if e.shouldShowContext() {
+        if e.buffer != nil {
+            reserved += len(e.buffer.ContextCache) // Context lines
+        }
 	}
 	// Reserve space for signature if shown
 	if e.buffer.CurrentSignature != nil {
@@ -60,8 +62,11 @@ func (e *Editor) getContentStartY() int {
 	if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
 		return 0
 	}
-	if e.shouldShowContext() {
-		return len(e.contextCache)
+    if e.shouldShowContext() {
+        if e.buffer != nil {
+            return len(e.buffer.ContextCache)
+        }
+        return 0
 	}
 	return 0
 }
@@ -85,21 +90,25 @@ func (e *Editor) updateContext() {
 	currentLine := cursorIter.LineNumber()
 
 	// Only update if line changed
-	if currentLine == e.contextLine && len(e.contextCache) > 0 {
+    if e.buffer != nil && currentLine == e.buffer.ContextLine && len(e.buffer.ContextCache) > 0 {
 		return
 	}
 
 	// Suppress context for internal/terminal buffers
-	if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
-		e.contextCache = nil
-		e.contextLine = currentLine
+    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+        if e.buffer != nil {
+            e.buffer.ContextCache = nil
+            e.buffer.ContextLine = currentLine
+        }
 		return
 	}
 	// Get file path
 	filePath := e.buffer.FilePath
-	if filePath == "" {
-		e.contextCache = nil
-		return
+    if filePath == "" {
+        if e.buffer != nil {
+            e.buffer.ContextCache = nil
+        }
+        return
 	}
 
 	// Calculate visible range (per-window; entire region height)
@@ -109,14 +118,18 @@ func (e *Editor) updateContext() {
     // Try to use tree-sitter for context if available (per-buffer highlighter)
     if e.buffer != nil && e.buffer.Highlighter != nil && e.buffer.Highlighter.GetTree() != nil {
 		// Use tree-sitter based context detection
-        e.contextCache = getTreeSitterContext(e.buffer, e.buffer.Highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+        e.buffer.ContextCache = getTreeSitterContext(e.buffer, e.buffer.Highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
 	} else {
 		// No tree-sitter available, no context
-		e.contextCache = nil
+        if e.buffer != nil {
+            e.buffer.ContextCache = nil
+        }
 		return
 	}
 
-	e.contextLine = currentLine
+    if e.buffer != nil {
+        e.buffer.ContextLine = currentLine
+    }
 }
 
 // getStatusBarY returns the Y position of the status bar
