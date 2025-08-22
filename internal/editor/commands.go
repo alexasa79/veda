@@ -184,6 +184,9 @@ func (e *Editor) registerCommands() {
 	// Error testing command
 	e.commandRegistry.Register("error", e.errorCommand, false)
 
+	// Messages command: append a line to *Messages*
+	e.commandRegistry.Register("message", e.messageCommand, false)
+
 	// Calculator commands
 	e.commandRegistry.Register("calculate-append", e.calculateAppend, false)
 	e.commandRegistry.Register("calculate-replace", e.calculateReplace, false)
