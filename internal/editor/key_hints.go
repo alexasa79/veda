@@ -83,10 +83,10 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"jump-to-reference":  "jump to reference",
 
 		// Indentation
-		"indent-line":    "indent line",
-		"unindent-line":  "unindent line",
-		"reindent-line":  "reindent line",
-		"reindent-expression":  "reindent expression",
+		"indent-line":         "indent line",
+		"unindent-line":       "unindent line",
+		"reindent-line":       "reindent line",
+		"reindent-expression": "reindent expression",
 
 		// Character commands
 		"find-character":       "find character",

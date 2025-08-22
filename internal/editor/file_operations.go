@@ -392,17 +392,17 @@ func (e *Editor) openFile(filePath string) {
 	var branch string
 	var diagnostics []proxy.Diagnostic
 
-    if err != nil {
-        // Surface the error to the user, but still fall back to creating a new buffer
-        e.ShowError("Failed to open file: %v", err)
-        // On any error, fall back to creating a new empty buffer for this path.
-        // This mirrors typical editor behavior (open-to-create) and makes tests robust
-        // even when the proxy isn't available.
-        content = ""
-        changes = &proxy.FileChanges{Added: []int{}, Deleted: []int{}, Modified: []int{}}
-        branch = "main"
-        LL.Info("Creating new file (fallback due to open error %v): %s", err, resolvedPath)
-    } else {
+	if err != nil {
+		// Surface the error to the user, but still fall back to creating a new buffer
+		e.ShowError("Failed to open file: %v", err)
+		// On any error, fall back to creating a new empty buffer for this path.
+		// This mirrors typical editor behavior (open-to-create) and makes tests robust
+		// even when the proxy isn't available.
+		content = ""
+		changes = &proxy.FileChanges{Added: []int{}, Deleted: []int{}, Modified: []int{}}
+		branch = "main"
+		LL.Info("Creating new file (fallback due to open error %v): %s", err, resolvedPath)
+	} else {
 		content = fileContent.Content
 		changes = &fileContent.Changes
 		branch = fileContent.Branch
@@ -424,37 +424,37 @@ func (e *Editor) openFile(filePath string) {
 				message := fmt.Sprintf("Auto-save found for %s. Recover unsaved changes?", filepath.Base(resolvedPath))
 				dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, "Recovery", message, e.config.Theme)
 
-                overlay := NewYesNoDialogOverlay(dialog)
-                resultChan := e.renderingState.SetOverlay(overlay)
+				overlay := NewYesNoDialogOverlay(dialog)
+				resultChan := e.renderingState.SetOverlay(overlay)
 
-                // Handle user's choice asynchronously by updating the already-open buffer
-                go func(origContent string) {
-                    res := <-resultChan
-                    finalContent := origContent
-                    if res == string(widgets.DialogResultYes) {
-                        if recoveredContent, err := e.autoSaveManager.GetAutoSaveContent(resolvedPath); err == nil {
-                            finalContent = recoveredContent
-                            LL.Info("Recovered content from auto-save for: %s", resolvedPath)
-                        } else {
-                            LL.Error("Failed to read auto-save content: %v", err)
-                        }
-                    } else if res == string(widgets.DialogResultNo) {
-                        e.autoSaveManager.CleanupAutoSave(resolvedPath)
-                    }
+				// Handle user's choice asynchronously by updating the already-open buffer
+				go func(origContent string) {
+					res := <-resultChan
+					finalContent := origContent
+					if res == string(widgets.DialogResultYes) {
+						if recoveredContent, err := e.autoSaveManager.GetAutoSaveContent(resolvedPath); err == nil {
+							finalContent = recoveredContent
+							LL.Info("Recovered content from auto-save for: %s", resolvedPath)
+						} else {
+							LL.Error("Failed to read auto-save content: %v", err)
+						}
+					} else if res == string(widgets.DialogResultNo) {
+						e.autoSaveManager.CleanupAutoSave(resolvedPath)
+					}
 
-                    // Update buffer content in place if it is still open
-                    if buf, exists := e.buffers[resolvedPath]; exists {
-                        // Replace content
-                        buf.Rope = buffer.NewRopeFromString(finalContent)
-                        // Reset iterators and cursor
-                        buf.ViewIterator = buffer.NewBufferIterator(buf)
-                        buf.CursorIterator = buffer.NewBufferIterator(buf)
-                        buf.CursorX = 0
-                        // Re-parse syntax and re-render
-                        e.updateSyntaxHighlighting()
-                        e.render()
-                    }
-                }(content)
+					// Update buffer content in place if it is still open
+					if buf, exists := e.buffers[resolvedPath]; exists {
+						// Replace content
+						buf.Rope = buffer.NewRopeFromString(finalContent)
+						// Reset iterators and cursor
+						buf.ViewIterator = buffer.NewBufferIterator(buf)
+						buf.CursorIterator = buffer.NewBufferIterator(buf)
+						buf.CursorX = 0
+						// Re-parse syntax and re-render
+						e.updateSyntaxHighlighting()
+						e.render()
+					}
+				}(content)
 			}
 		}
 	}
@@ -626,32 +626,32 @@ func (e *Editor) showProjectSymbolsList() {
 			e.connectionStatus = "Loading all symbols"
 		}
 
-        // Launch goroutine to fetch symbols
-        go func(query string) {
-            defer e.endAsyncOperation(operationID)
-            defer func() { e.connectionStatus = "" }() // Clear status when done
+		// Launch goroutine to fetch symbols
+		go func(query string) {
+			defer e.endAsyncOperation(operationID)
+			defer func() { e.connectionStatus = "" }() // Clear status when done
 
-            projectSymbols, err := e.proxyManager.ListProjectSymbols(e.workingDirectory, query)
+			projectSymbols, err := e.proxyManager.ListProjectSymbols(e.workingDirectory, query)
 
-            // Snapshot buffer-related fields safely; buffer can be nil
-            var filePath string
-            var gen uint64
-            var buf *buffer.Buffer
-            if e.buffer != nil {
-                buf = e.buffer
-                filePath = e.buffer.FilePath
-                gen = e.buffer.SignatureGeneration
-            }
+			// Snapshot buffer-related fields safely; buffer can be nil
+			var filePath string
+			var gen uint64
+			var buf *buffer.Buffer
+			if e.buffer != nil {
+				buf = e.buffer
+				filePath = e.buffer.FilePath
+				gen = e.buffer.SignatureGeneration
+			}
 
-            response := proxyworker.ProxyResponse{
-                Type:           proxyworker.RequestProjectSymbols,
-                FilePath:       filePath,
-                Buffer:         buf,
-                Generation:     gen,
-                ProjectSymbols: projectSymbols,
-                Query:          query,
-                Error:          err,
-            }
+			response := proxyworker.ProxyResponse{
+				Type:           proxyworker.RequestProjectSymbols,
+				FilePath:       filePath,
+				Buffer:         buf,
+				Generation:     gen,
+				ProjectSymbols: projectSymbols,
+				Query:          query,
+				Error:          err,
+			}
 
 			// Send response to the channel
 			select {
@@ -677,25 +677,25 @@ func (e *Editor) showProjectSymbolsList() {
 
 		selection := <-resultChan
 
-        // If a symbol was selected, navigate to it
-        if selection != "" {
-            // Find the selected symbol by display name
-            if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
-                sym := symbols[idx]
+		// If a symbol was selected, navigate to it
+		if selection != "" {
+			// Find the selected symbol by display name
+			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
+				sym := symbols[idx]
 
-                // Push current position to navigation history before jumping
-                e.pushNavigationHistory()
+				// Push current position to navigation history before jumping
+				e.pushNavigationHistory()
 
-                // Open file if different, or if no buffer yet
-                if e.buffer == nil || sym.Path != e.buffer.FilePath {
-                    e.openFile(sym.Path)
-                }
-                // Navigate to location
-                if e.buffer != nil {
-                    e.navigateToLocation(sym.Line, sym.Character)
-                }
-            }
-        }
+				// Open file if different, or if no buffer yet
+				if e.buffer == nil || sym.Path != e.buffer.FilePath {
+					e.openFile(sym.Path)
+				}
+				// Navigate to location
+				if e.buffer != nil {
+					e.navigateToLocation(sym.Line, sym.Character)
+				}
+			}
+		}
 	}()
 }
 

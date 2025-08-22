@@ -16,11 +16,11 @@ type NavigationEntry struct {
 
 // pushNavigationHistory saves the current position to navigation history
 func (e *Editor) pushNavigationHistory() {
-    // Guard against cases where no buffer is active yet
-    if e.buffer == nil {
-        return
-    }
-    if !e.buffer.HasFile() {
+	// Guard against cases where no buffer is active yet
+	if e.buffer == nil {
+		return
+	}
+	if !e.buffer.HasFile() {
 		return
 	}
 
