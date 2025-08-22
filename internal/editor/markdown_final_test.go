@@ -1,8 +1,9 @@
 package editor
 
 import (
-	"strings"
-	"testing"
+    "strings"
+    "testing"
+    "veda/internal/syntax"
 )
 
 func TestMarkdownRenderingWithSelection(t *testing.T) {
@@ -10,14 +11,13 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Check [this link](https://example.com) out")
 		te.buffer.FilePath = "test.md"
 
-		// Initialize highlighter for markdown
-		if te.highlighter != nil {
-			te.highlighter.SetLanguageFromFile(te.buffer.FilePath)
-			te.highlighter.ParseFull([]byte(te.buffer.Rope.String()))
-			t.Logf("Highlighter language after setup: %s", te.highlighter.GetCurrentLanguage())
-		} else {
-			t.Log("Highlighter is nil")
-		}
+        // Initialize highlighter for markdown (per-buffer)
+        te.buffer.Highlighter = syntax.NewHighlighter()
+        if te.buffer.Highlighter != nil {
+            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
+            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+            t.Logf("Highlighter language after setup: %s", te.buffer.Highlighter.GetCurrentLanguage())
+        }
 
 		// Get selection style
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
@@ -72,11 +72,12 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Text [link](url) here")
 		te.buffer.FilePath = "test.md"
 
-		// Initialize highlighter
-		if te.highlighter != nil {
-			te.highlighter.SetLanguageFromFile(te.buffer.FilePath)
-			te.highlighter.ParseFull([]byte(te.buffer.Rope.String()))
-		}
+        // Initialize highlighter (per-buffer)
+        te.buffer.Highlighter = syntax.NewHighlighter()
+        if te.buffer.Highlighter != nil {
+            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
+            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+        }
 
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")

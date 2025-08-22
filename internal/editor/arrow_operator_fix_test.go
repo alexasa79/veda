@@ -64,13 +64,13 @@ func TestArrowOperatorFix(t *testing.T) {
 				te := NewTestEditorWithContent(80, 24, tc.code)
 				te.buffer.FilePath = "test.py"
 
-				// Initialize syntax highlighting
-				te.highlighter = syntax.NewHighlighter()
-				err := te.highlighter.SetLanguageFromFile("test.py")
+                // Initialize syntax highlighting (per-buffer)
+                te.buffer.Highlighter = syntax.NewHighlighter()
+                err := te.buffer.Highlighter.SetLanguageFromFile("test.py")
 				if err != nil {
 					t.Skipf("Skipping test: Python syntax highlighting not available: %v", err)
 				}
-				te.highlighter.ParseFull([]byte(tc.code))
+                te.buffer.Highlighter.ParseFull([]byte(tc.code))
 
 				// Force render
 				te.render()

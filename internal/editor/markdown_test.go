@@ -1,8 +1,9 @@
 package editor
 
 import (
-	"testing"
-	"veda/internal/commands"
+    "testing"
+    "veda/internal/commands"
+    "veda/internal/syntax"
 )
 
 func TestMarkdownLinkInsertMode(t *testing.T) {
@@ -41,13 +42,14 @@ func TestMarkdownLinkInsertMode(t *testing.T) {
 			// Create test editor with markdown file
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
 
-			// Simulate opening a markdown file by setting up the highlighter
-			if te.highlighter != nil {
-				err := te.highlighter.SetLanguageFromFile("test.md")
-				if err != nil {
-					t.Fatalf("Failed to set markdown language: %v", err)
-				}
-			}
+            // Simulate opening a markdown file by setting up the highlighter (per-buffer)
+            te.buffer.Highlighter = syntax.NewHighlighter()
+            if te.buffer.Highlighter != nil {
+                err := te.buffer.Highlighter.SetLanguageFromFile("test.md")
+                if err != nil {
+                    t.Fatalf("Failed to set markdown language: %v", err)
+                }
+            }
 
 			// Enter insert mode
 			te.ExecuteCommand("enter-insert-mode")
@@ -99,14 +101,15 @@ func TestMarkdownLinkEscapeIssue(t *testing.T) {
 
 	te := NewTestEditorWithContent(80, 24, "")
 
-	// Simulate opening a markdown file by setting file path and highlighter
+    // Simulate opening a markdown file by setting file path and highlighter
 	te.buffer.FilePath = "test.md"
-	if te.highlighter != nil {
-		err := te.highlighter.SetLanguageFromFile("test.md")
-		if err != nil {
-			t.Fatalf("Failed to set markdown language: %v", err)
-		}
-	}
+    te.buffer.Highlighter = syntax.NewHighlighter()
+    if te.buffer.Highlighter != nil {
+        err := te.buffer.Highlighter.SetLanguageFromFile("test.md")
+        if err != nil {
+            t.Fatalf("Failed to set markdown language: %v", err)
+        }
+    }
 
 	// Enter insert mode
 	te.ExecuteCommand("enter-insert-mode")

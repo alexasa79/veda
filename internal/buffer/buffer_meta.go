@@ -3,6 +3,7 @@ package buffer
 import (
 	"fmt"
 	"strings"
+	"veda/internal/syntax"
 	"veda/internal/config"
 	"veda/internal/proxy"
 )
@@ -91,6 +92,9 @@ type Buffer struct {
 
 	// LSP notification callback
 	OnContentChange func() // Called when buffer content changes, for LSP notifications
+
+	// Syntax highlighting
+	Highlighter *syntax.Highlighter
 }
 
 // IndentationInfo holds information about file indentation
@@ -128,6 +132,8 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		VisualAnchorX:      -1,
 		VisualAnchorOffset: -1,
 	}
+	// Initialize per-buffer highlighter
+	b.Highlighter = syntax.NewHighlighter()
 	b.UpdateLineNumberWidth()
 	// Create initial iterators
 	b.ViewIterator = NewBufferIterator(b)

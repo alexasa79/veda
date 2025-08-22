@@ -59,8 +59,7 @@ type Editor struct {
 	proxyManager       *proxy.ProxyManager
 	commandRegistry    *commands.CommandRegistry
 	keyMapper          *commands.KeyMapper
-	highlighter        *syntax.Highlighter
-	bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
+    bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
 	perfTracker        *perf.TimeTracker
 
 	// Buffer management
@@ -281,8 +280,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		proxyManager:         proxyManager,
 		commandRegistry:      commands.NewCommandRegistry(),
 		keyMapper:            commands.NewKeyMapper(),
-		highlighter:          syntax.NewHighlighter(),
-		bufferHighlighters:   make(map[*buffer.Buffer]*syntax.Highlighter),
+        bufferHighlighters:   make(map[*buffer.Buffer]*syntax.Highlighter),
 		perfTracker:          perf.New(true, 60*time.Second), // Report every 60 seconds
 		buffers:              make(map[string]*buffer.Buffer),
 		bufferOrder:          []string{},
@@ -538,26 +536,9 @@ func (e *Editor) render() {
 		dim := i != e.activeWindow
 		sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
 
-		// Temporarily swap screen, buffer, and highlighter per window
+        // Temporarily swap screen and buffer per window
 		realScreen := e.screen
 		realBuffer := e.buffer
-		realHighlighter := e.highlighter
-		if h, ok := e.bufferHighlighters[win.Buffer]; ok {
-			e.highlighter = h
-		} else {
-			h := syntax.NewHighlighter()
-			if win.Buffer.HasFile() {
-				h.SetLanguageFromFile(win.Buffer.FilePath)
-				h.ParseFull([]byte(win.Buffer.Rope.String()))
-			}
-			e.bufferHighlighters[win.Buffer] = h
-			e.highlighter = h
-		}
-		// Ensure highlighter is initialized for this buffer
-		if e.highlighter != nil && e.highlighter.GetTree() == nil && win.Buffer.HasFile() {
-			_ = e.highlighter.SetLanguageFromFile(win.Buffer.FilePath)
-			e.highlighter.ParseFull([]byte(win.Buffer.Rope.String()))
-		}
 		e.screen = sub
 		// Temporarily map editor-wide iterators/state from window's own view/cursor
 		// Save buffer iterators/X
@@ -570,6 +551,21 @@ func (e *Editor) render() {
 		// Do not special-case EOF here; EOF is a valid state for empty buffers
 		win.Buffer.CursorX = win.CursorX
 		e.buffer = win.Buffer
+        // Ensure per-buffer highlighter is initialized and parsed
+        if e.buffer.Highlighter != nil {
+            if e.buffer.IsInternal {
+                // For internal buffers we often use markdown; ensure parsed
+                if e.buffer.Highlighter.GetTree() == nil {
+                    _ = e.buffer.Highlighter.SetLanguage("markdown")
+                    e.buffer.Highlighter.ParseFull([]byte(e.buffer.Rope.String()))
+                }
+            } else if e.buffer.HasFile() {
+                if e.buffer.Highlighter.GetTree() == nil {
+                    _ = e.buffer.Highlighter.SetLanguageFromFile(e.buffer.FilePath)
+                    e.buffer.Highlighter.ParseFull([]byte(e.buffer.Rope.String()))
+                }
+            }
+        }
 		// Draw editor content area then context (to match legacy order)
 		e.drawEditor()
 		e.drawContext()
@@ -583,7 +579,6 @@ func (e *Editor) render() {
 		win.Buffer.ViewIterator = savedView
 		win.Buffer.CursorIterator = savedCursor
 		win.Buffer.CursorX = savedX
-		e.highlighter = realHighlighter
 		e.screen = realScreen
 		e.buffer = realBuffer
 	}
@@ -1689,9 +1684,10 @@ func (e *Editor) getVisualCursorX() int {
 
 // getLineTokens returns syntax tokens for a line using iterator position
 func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
-	// Pass the iterator positions directly to the highlighter
-	// This allows future caching based on byte positions rather than line numbers
-	return e.highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+    if e.buffer == nil || e.buffer.Highlighter == nil {
+        return nil
+    }
+    return e.buffer.Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
 }
 
 // updateCursorState updates any state that depends on cursor position

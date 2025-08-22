@@ -22,13 +22,13 @@ func main() {
 	te := NewTestEditorWithContent(80, 24, initialCode)
 	te.buffer.FilePath = "test.go"
 
-	// Initialize syntax highlighting
-	te.highlighter = syntax.NewHighlighter()
-	err := te.highlighter.SetLanguageFromFile("test.go")
+    // Initialize syntax highlighting (per-buffer)
+    te.buffer.Highlighter = syntax.NewHighlighter()
+    err := te.buffer.Highlighter.SetLanguageFromFile("test.go")
 	if err != nil {
 		t.Fatalf("Failed to set language: %v", err)
 	}
-	te.highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+    te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
 
 	// Render the initial content
 	te.render()
@@ -119,7 +119,7 @@ func main() {
 	lineStart := iter.Position()
 	lineEnd := iter.LineEnd()
 	t.Logf("Line %d range: %d-%d", pastedLineNum, lineStart, lineEnd)
-	tokens := te.highlighter.GetTokensForLine(lineStart, lineEnd)
+    tokens := te.buffer.Highlighter.GetTokensForLine(lineStart, lineEnd)
 	t.Logf("Tokens for pasted line: %+v", tokens)
 
 	expectedStringStyle := te.config.Theme.GetStyle(te.config.Theme.SyntaxString)
@@ -160,7 +160,7 @@ func main() {
 		t.Logf("Line %d content: %q", pastedLineNum, iter.Line())
 
 		// Debug: Check if the tree is valid
-		tree := te.highlighter.GetTree()
+        tree := te.buffer.Highlighter.GetTree()
 		if tree != nil {
 			t.Logf("Tree root node type: %s", tree.RootNode().Type())
 			t.Logf("Tree root node range: %d-%d", tree.RootNode().StartByte(), tree.RootNode().EndByte())
@@ -176,7 +176,7 @@ func main() {
 
 		// Debug: Log tokens after update
 		iter2 := buffer.NewBufferIteratorAtLine(te.buffer, pastedLineNum)
-		tokensAfterUpdate := te.highlighter.GetTokensForLine(iter2.Position(), iter2.LineEnd())
+        tokensAfterUpdate := te.buffer.Highlighter.GetTokensForLine(iter2.Position(), iter2.LineEnd())
 		t.Logf("Tokens after updateSyntaxHighlighting: %+v", tokensAfterUpdate)
 
 		if stringStyleAfterUpdate != nil && stylesMatch(*stringStyleAfterUpdate, expectedStringStyle) {
