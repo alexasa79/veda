@@ -106,6 +106,8 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 
 		if err != nil {
 			LL.Debug("Directory listing error: %v", err)
+			// Also show a banner so the user notices
+			e.ShowError("Directory listing failed: %v", err)
 			contentUpdateChan <- []string{fmt.Sprintf("Error: %v", err)}
 			resultChan <- fileListingResult{paths: []string{}, filePaths: nil}
 			return
@@ -391,6 +393,8 @@ func (e *Editor) openFile(filePath string) {
 	var diagnostics []proxy.Diagnostic
 
     if err != nil {
+        // Surface the error to the user, but still fall back to creating a new buffer
+        e.ShowError("Failed to open file: %v", err)
         // On any error, fall back to creating a new empty buffer for this path.
         // This mirrors typical editor behavior (open-to-create) and makes tests robust
         // even when the proxy isn't available.
