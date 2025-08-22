@@ -20,7 +20,7 @@ func TestFindWindowContainingBuffer(t *testing.T) {
 
 	// Create windows and add buffers to them
 	win1 := newWindow(buf1)
-	win1.addBuffer(buf2)    // buf1 and buf2 in window 1
+    win1.Buffer = buf2      // buf1 and buf2 in window 1 (now just assign)
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
@@ -63,7 +63,7 @@ func TestShowBuffersWithMultipleWindows(t *testing.T) {
 
 	// Create windows and add buffers to them
 	win1 := newWindow(buf1)
-	win1.addBuffer(buf2)    // buf1 and buf2 in window 1
+    win1.Buffer = buf2
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
@@ -103,7 +103,7 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 
 	// Create windows and add buffers to them
 	win1 := newWindow(buf1)
-	win1.addBuffer(buf2)    // buf1 and buf2 in window 1
+    win1.Buffer = buf2
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
