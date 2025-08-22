@@ -133,7 +133,7 @@ func isMarkdownListItem(line string) bool {
 			if unicode.IsDigit(ch) {
 				continue
 			}
-            if (ch == '.' || ch == ')') && i > 0 && i+1 < len(line) && line[i+1] == ' ' {
+			if (ch == '.' || ch == ')') && i > 0 && i+1 < len(line) && line[i+1] == ' ' {
 				return true
 			}
 			break
@@ -156,7 +156,7 @@ func extractListPrefix(line string) string {
 		if unicode.IsDigit(ch) {
 			continue
 		}
-        if (ch == '.' || ch == ')') && i > 0 && i+1 < len(line) && line[i+1] == ' ' {
+		if (ch == '.' || ch == ')') && i > 0 && i+1 < len(line) && line[i+1] == ' ' {
 			return line[:i+2]
 		}
 		if (ch == '-' || ch == '*' || ch == '+') && i == 0 && len(line) > 1 && line[1] == ' ' {
@@ -176,37 +176,37 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 		LL.Trace("findParagraphBounds: Current line content: '%s'", lines[cursorLine])
 	}
 
-    // Find start of paragraph (previous empty line, markdown heading, or start of file)
-    for startLine > 0 {
-        prevLine := strings.TrimSpace(lines[startLine-1])
-        currentLine := strings.TrimSpace(lines[startLine])
-        LL.Trace("findParagraphBounds: Checking line %d: '%s'", startLine-1, lines[startLine-1])
+	// Find start of paragraph (previous empty line, markdown heading, or start of file)
+	for startLine > 0 {
+		prevLine := strings.TrimSpace(lines[startLine-1])
+		currentLine := strings.TrimSpace(lines[startLine])
+		LL.Trace("findParagraphBounds: Checking line %d: '%s'", startLine-1, lines[startLine-1])
 
-        // Stop at empty line
-        if prevLine == "" {
-            break
-        }
+		// Stop at empty line
+		if prevLine == "" {
+			break
+		}
 
-        // Stop at markdown heading (line starting with #)
-        if strings.HasPrefix(prevLine, "#") {
-            break
-        }
+		// Stop at markdown heading (line starting with #)
+		if strings.HasPrefix(prevLine, "#") {
+			break
+		}
 
-        // If we're currently on a list item line, do not cross into previous item
-        if isMarkdownListItem(currentLine) {
-            break
-        }
+		// If we're currently on a list item line, do not cross into previous item
+		if isMarkdownListItem(currentLine) {
+			break
+		}
 
-        // If the previous line is a list item, it marks the start of this item
-        if isMarkdownListItem(prevLine) {
-            startLine--
-            break
-        }
+		// If the previous line is a list item, it marks the start of this item
+		if isMarkdownListItem(prevLine) {
+			startLine--
+			break
+		}
 
-        startLine--
-    }
+		startLine--
+	}
 
-    // Find end of paragraph (next empty line, markdown heading, or end of file)
+	// Find end of paragraph (next empty line, markdown heading, or end of file)
 	for endLine < len(lines)-1 {
 		nextLine := strings.TrimSpace(lines[endLine+1])
 		LL.Trace("findParagraphBounds: Checking line %d: '%s'", endLine+1, lines[endLine+1])
@@ -221,12 +221,12 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 			break
 		}
 
-        // Stop at markdown list item boundary. Even if the current line is a
-        // continuation line (not itself a list item), the next list item marks
-        // the end of this paragraph.
-        if isMarkdownListItem(nextLine) {
-            break
-        }
+		// Stop at markdown list item boundary. Even if the current line is a
+		// continuation line (not itself a list item), the next list item marks
+		// the end of this paragraph.
+		if isMarkdownListItem(nextLine) {
+			break
+		}
 
 		endLine++
 	}
@@ -561,7 +561,7 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			// Fallback: do nothing if malformed
 			return nil
 		}
-		
+
 		// Check if this is a single-line block comment
 		if startLine == endLine {
 			// Single-line block comment: /* text */
@@ -571,11 +571,11 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			if closeIdx+2 < len(line) {
 				afterComment = line[closeIdx+2:]
 			}
-			
+
 			// For inline C block comments, use a simpler approach:
 			// Use wrapText with appropriate prefix/indentation, then post-process to add /* */ formatting
 			indentStr := beforeComment
-			
+
 			// First, try to see if it fits on a single line
 			singleLine := indentStr + "/* " + paragraphText.String() + " */" + afterComment
 			if len(singleLine) <= width {
@@ -584,10 +584,10 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			} else {
 				// Needs multiple lines - wrap the text content and add comment formatting
 				continuationIndent := indentStr + strings.Repeat(" ", len("/* "))
-				
+
 				// Wrap the text content with continuation indent
 				textLines := wrapText(paragraphText.String(), width, continuationIndent, "")
-				
+
 				// Post-process to add /* and */ formatting
 				wrappedLines = make([]string, len(textLines))
 				for i, line := range textLines {
@@ -610,16 +610,16 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			// Extract the complete comment text and rewrap it as inline style
 			beforeComment := lines[startLine][:openIdx]
 			afterComment := ""
-			
+
 			// Check if there's content after */ on the closing line
 			closeIdx := strings.Index(lines[endLine], "*/")
 			if closeIdx >= 0 && closeIdx+2 < len(lines[endLine]) {
 				afterComment = lines[endLine][closeIdx+2:]
 			}
-			
+
 			// Use the same inline wrapping logic as single-line comments
 			indentStr := beforeComment
-			
+
 			// First, try to see if it fits on a single line
 			singleLine := indentStr + "/* " + paragraphText.String() + " */" + afterComment
 			if len(singleLine) <= width {
@@ -628,10 +628,10 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 			} else {
 				// Needs multiple lines - wrap the text content and add comment formatting
 				continuationIndent := indentStr + strings.Repeat(" ", len("/* "))
-				
+
 				// Wrap the text content with continuation indent
 				textLines := wrapText(paragraphText.String(), width, continuationIndent, "")
-				
+
 				// Post-process to add /* and */ formatting
 				wrappedLines = make([]string, len(textLines))
 				for i, line := range textLines {

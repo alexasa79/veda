@@ -145,8 +145,8 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		buf := make([]byte, 0, maxScanTokenSize)
 		stdout.Buffer(buf, maxScanTokenSize)
 
-        // Wait for the hello/version line with a timeout
-        version, err := readProxyHello(stdout, 5*time.Second)
+		// Wait for the hello/version line with a timeout
+		version, err := readProxyHello(stdout, 5*time.Second)
 		if err != nil {
 			LL.Debug("Failed to read proxy hello on %s: %v", host, err)
 			return nil, cmd, err
@@ -990,8 +990,8 @@ func NewClient() (*Client, error) {
 	buf := make([]byte, 0, maxScanTokenSize)
 	stdout.Buffer(buf, maxScanTokenSize)
 
-    // Perform version handshake
-    if version, err := readProxyHello(stdout, 5*time.Second); err != nil {
+	// Perform version handshake
+	if version, err := readProxyHello(stdout, 5*time.Second); err != nil {
 		LL.Debug("Failed to read local proxy hello: %v", err)
 	} else if version != ProxyVersion {
 		LL.Error("Local proxy version mismatch: got %s, want %s", version, ProxyVersion)
@@ -1289,8 +1289,8 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 			"file_path": filePath,
 			"line":      line,
 			"character": character,
-            // propagate timeout to proxy (milliseconds)
-            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
+			// propagate timeout to proxy (milliseconds)
+			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1387,7 +1387,7 @@ func (c *Client) FindReferences(filePath string, line int, character int, includ
 			"line":                line,
 			"character":           character,
 			"include_declaration": includeDeclaration,
-            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
+			"timeout_ms":          int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1517,8 +1517,8 @@ func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 	request := JSONRPCRequest{
 		Method: "get_document_symbols",
 		Params: map[string]interface{}{
-			"file_path": filePath,
-            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
+			"file_path":  filePath,
+			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1572,8 +1572,8 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 	request := JSONRPCRequest{
 		Method: "get_folding_ranges",
 		Params: map[string]interface{}{
-			"file_path": filePath,
-            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
+			"file_path":  filePath,
+			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1660,10 +1660,10 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 	request := JSONRPCRequest{
 		Method: "get_signature_help",
 		Params: map[string]interface{}{
-			"file_path": filePath,
-			"line":      line,
-			"character": character,
-            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
+			"file_path":  filePath,
+			"line":       line,
+			"character":  character,
+			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1695,8 +1695,8 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 	request := JSONRPCRequest{
 		Method: "list_project_symbols",
 		Params: map[string]interface{}{
-			"query": query,
-            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
+			"query":      query,
+			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1802,10 +1802,10 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 	request := JSONRPCRequest{
 		Method: "get_completions",
 		Params: map[string]interface{}{
-			"file_path": filePath,
-			"line":      line,
-			"character": character,
-            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
+			"file_path":  filePath,
+			"line":       line,
+			"character":  character,
+			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}

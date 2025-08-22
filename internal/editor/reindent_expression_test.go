@@ -16,7 +16,7 @@ func TestReindentExpression_UsesBlockAndDedentsBraces(t *testing.T) {
 
 	te := NewTestEditorWithContent(80, 24, content)
 	// Place cursor inside the if block content
-    te.SetCursorPosition(4, 2) // zero-based: line "    foo();"
+	te.SetCursorPosition(4, 2) // zero-based: line "    foo();"
 
 	// Ensure spaces indentation with width 4
 	te.buffer.SetIndentationType(te.buffer.Indentation.Type) // keep defaults
@@ -48,7 +48,7 @@ func TestReindentExpression_CyclesRulerIndexWithoutChangingIndent(t *testing.T) 
 	te := NewTestEditorWithContent(80, 24, content)
 	te.config.VerticalRulers = []int{40, 60, 80}
 
-    te.SetCursorPosition(4, 1)
+	te.SetCursorPosition(4, 1)
 
 	// First call sets index to 0
 	_ = te.ExecuteCommand("reindent-expression")

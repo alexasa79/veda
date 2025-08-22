@@ -13,7 +13,7 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 	if e.buffer == nil {
 		return nil // No buffer, nothing to operate on
 	}
-	
+
 	// Special handling for yank operator
 	if _, isYank := op.(YankOperator); isYank && len(e.virtualCursors) > 0 {
 		return e.executeYankForAllCursors(textObj)

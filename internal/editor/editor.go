@@ -559,15 +559,15 @@ func (e *Editor) render() {
 			e.highlighter.ParseFull([]byte(win.Buffer.Rope.String()))
 		}
 		e.screen = sub
-        // Temporarily map editor-wide iterators/state from window's own view/cursor
-        // Save buffer iterators/X
+		// Temporarily map editor-wide iterators/state from window's own view/cursor
+		// Save buffer iterators/X
 		savedView := win.Buffer.ViewIterator
 		savedCursor := win.Buffer.CursorIterator
 		savedX := win.Buffer.CursorX
 		// Apply window state
 		win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
 		win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
-        // Do not special-case EOF here; EOF is a valid state for empty buffers
+		// Do not special-case EOF here; EOF is a valid state for empty buffers
 		win.Buffer.CursorX = win.CursorX
 		e.buffer = win.Buffer
 		// Draw editor content area then context (to match legacy order)
@@ -589,19 +589,19 @@ func (e *Editor) render() {
 	}
 	t0 = e.perfTracker.ReportSince("drawWindows", t0)
 
-    // Draw global UI once (signature, banners, status bar) for the active window/buffer.
-    {
-        win := e.windows[e.activeWindow]
-        activeBuf := win.Buffer
-        if activeBuf != nil {
+	// Draw global UI once (signature, banners, status bar) for the active window/buffer.
+	{
+		win := e.windows[e.activeWindow]
+		activeBuf := win.Buffer
+		if activeBuf != nil {
 			realBuf := e.buffer
 			// Temporarily sync active window's state to buffer to display correct line/col
-            w := win
+			w := win
 			savedView := activeBuf.ViewIterator
 			savedCursor := activeBuf.CursorIterator
 			savedX := activeBuf.CursorX
-            activeBuf.ViewIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.ViewLine))
-            activeBuf.CursorIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.CursorLine))
+			activeBuf.ViewIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.ViewLine))
+			activeBuf.CursorIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.CursorLine))
 			activeBuf.CursorX = w.CursorX
 			e.buffer = activeBuf
 			// Signature above status bar
@@ -609,8 +609,8 @@ func (e *Editor) render() {
 			e.drawErrorLine()
 			e.drawStatusBar()
 			// restore
-            activeBuf.ViewIterator = savedView
-            activeBuf.CursorIterator = savedCursor
+			activeBuf.ViewIterator = savedView
+			activeBuf.CursorIterator = savedCursor
 			activeBuf.CursorX = savedX
 			e.buffer = realBuf
 		} else {
@@ -643,7 +643,7 @@ func (e *Editor) render() {
 		}
 	}
 
-    // Update cursor position
+	// Update cursor position
 	if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
 		// Get cursor from overlay
 		x, y := e.renderingState.GetOverlay().GetCursorPosition()
@@ -653,33 +653,33 @@ func (e *Editor) render() {
 		// Command/Search modes are global; always place cursor on the real screen
 		if e.mode == commands.CommandMode || e.mode == commands.SearchMode {
 			e.updateCursor()
-        } else {
-            // Unified path: compute and show cursor relative to the active window region
-            win := e.windows[e.activeWindow]
-            if win.Buffer != nil {
-                sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
-                realScreen := e.screen
-                realBuffer := e.buffer
-                e.screen = sub
-                // Temporarily sync buffer to window state for correct cursor draw
-                savedView := win.Buffer.ViewIterator
-                savedCursor := win.Buffer.CursorIterator
-                savedX := win.Buffer.CursorX
-                win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
-                win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
-                win.Buffer.CursorX = win.CursorX
-                e.buffer = win.Buffer
-                e.updateCursor()
-                // Restore
-                win.Buffer.ViewIterator = savedView
-                win.Buffer.CursorIterator = savedCursor
-                win.Buffer.CursorX = savedX
-                e.screen = realScreen
-                e.buffer = realBuffer
-            } else {
-                e.updateCursor()
-            }
-        }
+		} else {
+			// Unified path: compute and show cursor relative to the active window region
+			win := e.windows[e.activeWindow]
+			if win.Buffer != nil {
+				sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+				realScreen := e.screen
+				realBuffer := e.buffer
+				e.screen = sub
+				// Temporarily sync buffer to window state for correct cursor draw
+				savedView := win.Buffer.ViewIterator
+				savedCursor := win.Buffer.CursorIterator
+				savedX := win.Buffer.CursorX
+				win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
+				win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
+				win.Buffer.CursorX = win.CursorX
+				e.buffer = win.Buffer
+				e.updateCursor()
+				// Restore
+				win.Buffer.ViewIterator = savedView
+				win.Buffer.CursorIterator = savedCursor
+				win.Buffer.CursorX = savedX
+				e.screen = realScreen
+				e.buffer = realBuffer
+			} else {
+				e.updateCursor()
+			}
+		}
 	}
 	t0 = e.perfTracker.ReportSince("updateCursor", t0)
 
