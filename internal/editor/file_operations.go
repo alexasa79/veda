@@ -701,28 +701,39 @@ func (e *Editor) showProjectSymbolsList() {
 
 // navigateToLocation moves cursor to specific line and character position
 func (e *Editor) navigateToLocation(line, character int) {
-	targetLine := line // LSP line numbers are 0-based
-	e.buffer.CursorX = character
+    // Log requested navigation
+    LL.Debug("navigateToLocation: request file=%s targetLine=%d targetChar=%d", e.buffer.FilePath, line, character)
 
-	// Create iterator and advance to target line
-	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
+    targetLine := line // LSP line numbers are 0-based
+    e.buffer.CursorX = character
 
-	// Move iterator to target line
-	for i := 0; i < targetLine && !e.buffer.CursorIterator.IsEOF(); i++ {
-		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
-	}
+    // Create iterator and advance to target line
+    e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
 
-	// Ensure cursor X is within bounds
-	currentLine := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(currentLine) {
-		e.buffer.CursorX = len(currentLine)
-		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-			e.buffer.CursorX-- // Don't go past last character in normal mode
-		}
-	}
+    // Move iterator to target line
+    for i := 0; i < targetLine && !e.buffer.CursorIterator.IsEOF(); i++ {
+        e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
+    }
 
-	// Position the definition at ScrollOffset from the top of the screen
-	e.scrollToShowAtTop()
+    // Ensure cursor X is within bounds
+    currentLine := e.buffer.CursorIterator.Line()
+    if e.buffer.CursorX > len(currentLine) {
+        e.buffer.CursorX = len(currentLine)
+        if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
+            e.buffer.CursorX-- // Don't go past last character in normal mode
+        }
+    }
+
+    // Center the target for better visibility
+    e.scrollToCenter()
+
+    // Log result state
+    LL.Debug("navigateToLocation: result file=%s cursorLine=%d cursorX=%d viewTop=%d",
+        e.buffer.FilePath,
+        e.buffer.CursorIterator.LineNumber(),
+        e.buffer.CursorX,
+        e.buffer.ViewIterator.LineNumber(),
+    )
 }
 
 // listProjectSymbolsCmd implements the list-project-symbols command
@@ -848,9 +859,10 @@ func (e *Editor) showDocumentSymbolsList() {
 
 		// If a symbol was selected, navigate to it
 		if selection != "" {
-			// Find the selected symbol by display name
+                    // Find the selected symbol by display name
 			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
 				sym := symbols[idx]
+                        LL.Debug("doc-symbol-select: file=%s symbol=%q kind=%d at %d:%d", e.buffer.FilePath, sym.Name, sym.Kind, sym.Range.Start.Line, sym.Range.Start.Character)
 				// Push current position to navigation history before jumping
 				e.pushNavigationHistory()
 				// Navigate to location (document symbols are in the current file)

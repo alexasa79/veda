@@ -523,6 +523,13 @@ func (e *Editor) render() {
 			continue
 		}
 
+		// Debug: print buffer and window-specific state before rendering this window
+		if win.Buffer == nil {
+			LL.Debug("render.window[%d]: buffer=<empty> viewTop=%d cursorLine=%d cursorX=%d", i, win.ViewLine, win.CursorLine, win.CursorX)
+		} else {
+			LL.Debug("render.window[%d]: buffer=%s viewTop=%d cursorLine=%d cursorX=%d", i, win.Buffer.DisplayName(), win.ViewLine, win.CursorLine, win.CursorX)
+		}
+
 		// Handle empty windows (Buffer == nil)
 		if win.Buffer == nil {
 			dim := i != e.activeWindow
