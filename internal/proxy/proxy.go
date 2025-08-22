@@ -21,12 +21,12 @@ var LL *log.Logger = log.NewLogger("PROXY")
 const maxScanTokenSize = 1024 * 1024 * 1024 // 1 GiB
 
 // ProxyRequestTimeout defines the timeout for proxy requests
-const ProxyRequestTimeout = 3 * time.Second
+const ProxyRequestTimeout = 10 * time.Second
 
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.6"
+const ProxyVersion = "1.0.8"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -145,8 +145,8 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		buf := make([]byte, 0, maxScanTokenSize)
 		stdout.Buffer(buf, maxScanTokenSize)
 
-		// Wait for the hello/version line with a timeout
-		version, err := readProxyHello(stdout, 3*time.Second)
+        // Wait for the hello/version line with a timeout
+        version, err := readProxyHello(stdout, 5*time.Second)
 		if err != nil {
 			LL.Debug("Failed to read proxy hello on %s: %v", host, err)
 			return nil, cmd, err
@@ -990,8 +990,8 @@ func NewClient() (*Client, error) {
 	buf := make([]byte, 0, maxScanTokenSize)
 	stdout.Buffer(buf, maxScanTokenSize)
 
-	// Perform version handshake
-	if version, err := readProxyHello(stdout, 2*time.Second); err != nil {
+    // Perform version handshake
+    if version, err := readProxyHello(stdout, 5*time.Second); err != nil {
 		LL.Debug("Failed to read local proxy hello: %v", err)
 	} else if version != ProxyVersion {
 		LL.Error("Local proxy version mismatch: got %s, want %s", version, ProxyVersion)
@@ -1289,6 +1289,8 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 			"file_path": filePath,
 			"line":      line,
 			"character": character,
+            // propagate timeout to proxy (milliseconds)
+            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1385,6 +1387,7 @@ func (c *Client) FindReferences(filePath string, line int, character int, includ
 			"line":                line,
 			"character":           character,
 			"include_declaration": includeDeclaration,
+            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1515,6 +1518,7 @@ func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 		Method: "get_document_symbols",
 		Params: map[string]interface{}{
 			"file_path": filePath,
+            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1569,6 +1573,7 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 		Method: "get_folding_ranges",
 		Params: map[string]interface{}{
 			"file_path": filePath,
+            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1658,6 +1663,7 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 			"file_path": filePath,
 			"line":      line,
 			"character": character,
+            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1690,6 +1696,7 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 		Method: "list_project_symbols",
 		Params: map[string]interface{}{
 			"query": query,
+            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}
@@ -1798,6 +1805,7 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 			"file_path": filePath,
 			"line":      line,
 			"character": character,
+            "timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
 		ID: c.requestID,
 	}

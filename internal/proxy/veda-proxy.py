@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.6"
+PROXY_VERSION = "1.0.8"
 
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
@@ -404,7 +404,7 @@ class LSPManager:
         except Exception as e:
             logger.info(f"{what}: <unable to summarize: {e}>")
     
-    def get_definition(self, file_path: str, line: int, character: int) -> Optional[List[Dict[str, Any]]]:
+    def get_definition(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
         """Get the definition location for a symbol at the given position."""
         # Determine language from file extension
         language = self.get_language_for_file(file_path)
@@ -443,7 +443,7 @@ class LSPManager:
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
-        response = self._wait_for_response(language, request_id)
+        response = self._wait_for_response(language, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
         # Compact log
         self._log_compact_response("textDocument/definition", response)
         if response and "result" in response:
@@ -460,7 +460,7 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
-    def get_completions(self, file_path: str, line: int, character: int) -> Optional[Dict[str, Any]]:
+    def get_completions(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Get completion suggestions at the given position."""
         # Determine language from file extension
         language = self.get_language_for_file(file_path)
@@ -508,7 +508,7 @@ class LSPManager:
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
-        response = self._wait_for_response(language, request_id)
+        response = self._wait_for_response(language, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
         self._log_compact_response("textDocument/completion", response)
         if response and "result" in response:
             return response["result"]
@@ -516,7 +516,7 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
-    def get_references(self, file_path: str, line: int, character: int, include_declaration: bool = True) -> Optional[List[Dict[str, Any]]]:
+    def get_references(self, file_path: str, line: int, character: int, include_declaration: bool = True, timeout_ms: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
         """Get all references to a symbol at the given position."""
         # Determine language from file extension
         language = self.get_language_for_file(file_path)
@@ -561,7 +561,7 @@ class LSPManager:
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
-        response = self._wait_for_response(language, request_id)
+        response = self._wait_for_response(language, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
         self._log_compact_response("textDocument/references", response)
         if response and "result" in response:
             result = response["result"]
@@ -575,7 +575,7 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
-    def get_signature_help(self, file_path: str, line: int, character: int) -> Optional[Dict[str, Any]]:
+    def get_signature_help(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Get signature help for a function at the given position."""
         # Determine language from file extension
         language = self.get_language_for_file(file_path)
@@ -620,7 +620,7 @@ class LSPManager:
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
-        response = self._wait_for_response(language, request_id)
+        response = self._wait_for_response(language, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
         self._log_compact_response("textDocument/signatureHelp", response)
         if response and "result" in response:
             return response["result"]
@@ -628,7 +628,7 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
-    def get_document_symbols(self, file_path: str) -> Optional[List[Dict[str, Any]]]:
+    def get_document_symbols(self, file_path: str, timeout_ms: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
         """Get document symbols (functions, classes, etc.) for a file."""
         # Determine language from file extension
         ext = Path(file_path).suffix.lower()
@@ -670,7 +670,7 @@ class LSPManager:
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
-        response = self._wait_for_response(language, request_id)
+        response = self._wait_for_response(language, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
         self._log_compact_response("textDocument/documentSymbol", response)
         
         if response and "result" in response:
@@ -684,7 +684,7 @@ class LSPManager:
             logger.error(f"LSP error: {response['error']}")
         return None
     
-    def get_workspace_symbols(self, query: str = "") -> Optional[List[Dict[str, Any]]]:
+    def get_workspace_symbols(self, query: str = "", timeout_ms: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
         """Get workspace symbols (functions, classes, etc.) across all files in the project."""
         # Collect symbols from all active language servers
         all_symbols = []
@@ -710,7 +710,7 @@ class LSPManager:
             self._send_message(language, request)
             
             # Wait for the response with our specific request ID
-            response = self._wait_for_response(language, request_id)
+            response = self._wait_for_response(language, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
             self._log_compact_response(f"workspace/symbol [{language}]", response)
             
             if response and "result" in response:
@@ -745,7 +745,7 @@ class LSPManager:
                             }
                             
                             self._send_message(lang, request)
-                            response = self._wait_for_response(lang, request_id)
+                            response = self._wait_for_response(lang, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
                             
                             if response and "result" in response:
                                 result = response["result"]
@@ -756,7 +756,7 @@ class LSPManager:
         
         return all_symbols  # Return empty list instead of None
     
-    def get_folding_ranges(self, file_path: str) -> Optional[List[Dict[str, Any]]]:
+    def get_folding_ranges(self, file_path: str, timeout_ms: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
         """Get folding ranges for a file."""
         # Determine language from file extension
         ext = Path(file_path).suffix.lower()
@@ -798,7 +798,7 @@ class LSPManager:
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
-        response = self._wait_for_response(language, request_id)
+        response = self._wait_for_response(language, request_id, timeout=(timeout_ms or 0)/1000.0 or 5.0)
         self._log_compact_response("textDocument/foldingRange", response)
         
         if response and "result" in response:
@@ -1628,10 +1628,10 @@ class VedaProxy:
         success = self.lsp.stop_server(language)
         return {'success': success}
     
-    def go_to_definition(self, file_path: str, line: int, character: int) -> Dict[str, Any]:
+    def go_to_definition(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get the definition location for a symbol at the given position."""
         try:
-            result = self.lsp.get_definition(file_path, line, character)
+            result = self.lsp.get_definition(file_path, line, character, timeout_ms=timeout_ms)
             if result is not None:
                 return {'success': True, 'result': result}
             return {'success': False, 'error': 'No definition found'}
@@ -1649,10 +1649,10 @@ class VedaProxy:
         notifications = self.lsp.get_pending_notifications(language)
         return {'success': True, 'notifications': notifications}
     
-    def get_document_symbols(self, file_path: str) -> Dict[str, Any]:
+    def get_document_symbols(self, file_path: str, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get document symbols (functions, classes, etc.) for a file."""
         try:
-            result = self.lsp.get_document_symbols(file_path)
+            result = self.lsp.get_document_symbols(file_path, timeout_ms=timeout_ms)
             if result is not None:
                 return {'success': True, 'result': result}
             return {'success': False, 'error': 'No symbols found'}
@@ -1660,10 +1660,10 @@ class VedaProxy:
             logger.error(f"Error in get_document_symbols: {e}")
             return {'success': False, 'error': str(e)}
     
-    def get_folding_ranges(self, file_path: str) -> Dict[str, Any]:
+    def get_folding_ranges(self, file_path: str, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get folding ranges for a file."""
         try:
-            result = self.lsp.get_folding_ranges(file_path)
+            result = self.lsp.get_folding_ranges(file_path, timeout_ms=timeout_ms)
             if result is not None:
                 return {'success': True, 'result': result}
             return {'success': False, 'error': 'No folding ranges found'}
@@ -1671,10 +1671,10 @@ class VedaProxy:
             logger.error(f"Error in get_folding_ranges: {e}")
             return {'success': False, 'error': str(e)}
     
-    def get_signature_help(self, file_path: str, line: int, character: int) -> Dict[str, Any]:
+    def get_signature_help(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get signature help for a function at the given position."""
         try:
-            result = self.lsp.get_signature_help(file_path, line, character)
+            result = self.lsp.get_signature_help(file_path, line, character, timeout_ms=timeout_ms)
             if result is not None:
                 return {'success': True, 'result': result}
             return {'success': False, 'error': 'No signature help available'}
@@ -1682,10 +1682,10 @@ class VedaProxy:
             logger.error(f"Error in get_signature_help: {e}")
             return {'success': False, 'error': str(e)}
     
-    def list_project_symbols(self, query: str = "") -> Dict[str, Any]:
+    def list_project_symbols(self, query: str = "", timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get all symbols across the entire project workspace."""
         try:
-            result = self.lsp.get_workspace_symbols(query)
+            result = self.lsp.get_workspace_symbols(query, timeout_ms=timeout_ms)
             if result is not None:
                 # Format symbols for the fuzzy list widget
                 formatted_symbols = []
@@ -1732,10 +1732,10 @@ class VedaProxy:
             logger.error(f"Error in list_project_symbols: {e}")
             return {'success': False, 'error': str(e)}
     
-    def find_references(self, file_path: str, line: int, character: int, include_declaration: bool = True) -> Dict[str, Any]:
+    def find_references(self, file_path: str, line: int, character: int, include_declaration: bool = True, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Find all references to a symbol at the given position."""
         try:
-            result = self.lsp.get_references(file_path, line, character, include_declaration)
+            result = self.lsp.get_references(file_path, line, character, include_declaration, timeout_ms=timeout_ms)
             if result is not None:
                 return {'success': True, 'result': result}
             return {'success': False, 'error': 'No references found'}
@@ -1743,10 +1743,10 @@ class VedaProxy:
             logger.error(f"Error in find_references: {e}")
             return {'success': False, 'error': str(e)}
     
-    def get_completions(self, file_path: str, line: int, character: int) -> Dict[str, Any]:
+    def get_completions(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get completion suggestions at the given position."""
         try:
-            result = self.lsp.get_completions(file_path, line, character)
+            result = self.lsp.get_completions(file_path, line, character, timeout_ms=timeout_ms)
             if result is not None:
                 return {'success': True, 'result': result}
             return {'success': False, 'error': 'No completions found'}
