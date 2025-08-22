@@ -25,16 +25,16 @@ func TestFindWindowContainingBuffer(t *testing.T) {
 
 	te.windows = []*Window{win1, win2}
 
-	// Test finding windows
-	windowIdx1 := te.findWindowContainingBuffer("artifacts/file1.txt")
-	if windowIdx1 != 0 {
-		t.Errorf("Expected file1.txt to be in window 0, got %d", windowIdx1)
-	}
+    // Test finding windows (single Buffer per window)
+    windowIdx1 := te.findWindowContainingBuffer("artifacts/file1.txt")
+    if windowIdx1 != -1 {
+        t.Errorf("Expected file1.txt to not be in any window, got %d", windowIdx1)
+    }
 
-	windowIdx2 := te.findWindowContainingBuffer("artifacts/file2.txt")
-	if windowIdx2 != 0 {
-		t.Errorf("Expected file2.txt to be in window 0, got %d", windowIdx2)
-	}
+    windowIdx2 := te.findWindowContainingBuffer("artifacts/file2.txt")
+    if windowIdx2 != 0 {
+        t.Errorf("Expected file2.txt to be in window 0, got %d", windowIdx2)
+    }
 
 	windowIdx3 := te.findWindowContainingBuffer("artifacts/file3.txt")
 	if windowIdx3 != 1 {
