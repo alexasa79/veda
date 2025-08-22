@@ -454,11 +454,11 @@ func (e *Editor) autoIndentPasteIfApplicable(content string, currentLineNum int,
 		return content
 	}
 
-	// Only when we have a code language highlighter that's not markdown
-	if e.highlighter == nil {
+    // Only when we have a code language highlighter that's not markdown
+    if e.buffer == nil || e.buffer.Highlighter == nil {
 		return content
 	}
-	lang := e.highlighter.GetCurrentLanguage()
+    lang := e.buffer.Highlighter.GetCurrentLanguage()
 	if lang == "" || lang == "markdown" {
 		return content
 	}

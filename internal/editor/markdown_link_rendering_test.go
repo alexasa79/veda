@@ -65,13 +65,13 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 				te := NewTestEditorWithContent(tt.width, 10, tt.content)
 				te.buffer.FilePath = "test.md"
 
-				// Set up markdown syntax highlighting
-				te.highlighter = syntax.NewHighlighter()
-				err := te.highlighter.SetLanguage("markdown")
+                // Set up markdown syntax highlighting (per-buffer)
+                te.buffer.Highlighter = syntax.NewHighlighter()
+                err := te.buffer.Highlighter.SetLanguage("markdown")
 				if err != nil {
 					t.Fatalf("Failed to set markdown language: %v", err)
 				}
-				te.highlighter.ParseFull([]byte(tt.content))
+                te.buffer.Highlighter.ParseFull([]byte(tt.content))
 
 				// Ensure we're in normal mode
 				te.mode = commands.NormalMode
@@ -92,13 +92,13 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 				te := NewTestEditorWithContent(tt.width, 10, tt.content)
 				te.buffer.FilePath = "test.md"
 
-				// Set up markdown syntax highlighting
-				te.highlighter = syntax.NewHighlighter()
-				err := te.highlighter.SetLanguage("markdown")
+                // Set up markdown syntax highlighting (per-buffer)
+                te.buffer.Highlighter = syntax.NewHighlighter()
+                err := te.buffer.Highlighter.SetLanguage("markdown")
 				if err != nil {
 					t.Fatalf("Failed to set markdown language: %v", err)
 				}
-				te.highlighter.ParseFull([]byte(tt.content))
+                te.buffer.Highlighter.ParseFull([]byte(tt.content))
 
 				// Switch to insert mode
 				te.ExecuteCommand("enter-insert-mode")
@@ -130,13 +130,13 @@ func TestMarkdownLinkHighlighting(t *testing.T) {
 	te := NewTestEditorWithContent(80, 10, content)
 	te.buffer.FilePath = "test.md"
 
-	// Set up markdown syntax highlighting
-	te.highlighter = syntax.NewHighlighter()
-	err := te.highlighter.SetLanguage("markdown")
+    // Set up markdown syntax highlighting (per-buffer)
+    te.buffer.Highlighter = syntax.NewHighlighter()
+    err := te.buffer.Highlighter.SetLanguage("markdown")
 	if err != nil {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
-	te.highlighter.ParseFull([]byte(content))
+    te.buffer.Highlighter.ParseFull([]byte(content))
 
 	// Test that link text is highlighted in normal mode
 	te.mode = commands.NormalMode
@@ -174,13 +174,13 @@ func TestMarkdownLinkCursorPositioning(t *testing.T) {
 	te := NewTestEditorWithContent(80, 10, content)
 	te.buffer.FilePath = "test.md"
 
-	// Set up markdown syntax highlighting
-	te.highlighter = syntax.NewHighlighter()
-	err := te.highlighter.SetLanguage("markdown")
+    // Set up markdown syntax highlighting (per-buffer)
+    te.buffer.Highlighter = syntax.NewHighlighter()
+    err := te.buffer.Highlighter.SetLanguage("markdown")
 	if err != nil {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
-	te.highlighter.ParseFull([]byte(content))
+    te.buffer.Highlighter.ParseFull([]byte(content))
 
 	// In normal mode, move cursor to where the link URL would be
 	te.mode = commands.NormalMode
@@ -224,13 +224,13 @@ func TestMarkdownLinkEditing(t *testing.T) {
 	te := NewTestEditorWithContent(80, 10, content)
 	te.buffer.FilePath = "test.md"
 
-	// Set up markdown syntax highlighting
-	te.highlighter = syntax.NewHighlighter()
-	err := te.highlighter.SetLanguage("markdown")
+    // Set up markdown syntax highlighting (per-buffer)
+    te.buffer.Highlighter = syntax.NewHighlighter()
+    err := te.buffer.Highlighter.SetLanguage("markdown")
 	if err != nil {
 		t.Fatalf("Failed to set markdown language: %v", err)
 	}
-	te.highlighter.ParseFull([]byte(content))
+    te.buffer.Highlighter.ParseFull([]byte(content))
 
 	// Move cursor to the link text in normal mode
 	te.buffer.CursorX = 7 // Position at 't' in "this"

@@ -397,13 +397,16 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	var x int
 
 	// Get syntax tokens for this line using iterator position
-	tokens := e.getLineTokens(iter)
+    // Always use the buffer's own highlighter
+    var tokens []syntax.Token
+    if e.buffer != nil && e.buffer.Highlighter != nil {
+        tokens = e.buffer.Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+    }
 
-	// If we have syntax tokens and highlighter, use syntax highlighting path
-	// even with background overrides (like context lines)
-	if len(tokens) > 0 && e.highlighter != nil && e.buffer.HasFile() {
+    // If we have syntax tokens and a file-backed buffer, use syntax highlighting path
+    if len(tokens) > 0 && e.buffer != nil && e.buffer.HasFile() {
 		// Use syntax highlighting (this will be handled below)
-	} else if e.highlighter == nil || !e.buffer.HasFile() {
+    } else if e.buffer == nil || !e.buffer.HasFile() {
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 		// Fill rest of line if we have background
@@ -464,7 +467,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	}
 
 	// Handle syntax highlighting path
-	if len(tokens) > 0 && e.highlighter != nil && e.buffer.HasFile() {
+    if len(tokens) > 0 && e.buffer != nil && e.buffer.HasFile() {
 		// Draw with syntax highlighting
 		x = startX
 		lastEnd := 0
@@ -595,6 +598,23 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	// Get the absolute offset of the start of this line
 	lineStartOffset := iter.Position()
 
+	// Defensive clamping of wrapped segment bounds against actual line length
+	lineLen := len(originalLine)
+	segStart := wl.StartChar
+	segEnd := wl.EndChar
+	if segStart < 0 {
+		segStart = 0
+	}
+	if segStart > lineLen {
+		segStart = lineLen
+	}
+	if segEnd < segStart {
+		segEnd = segStart
+	}
+	if segEnd > lineLen {
+		segEnd = lineLen
+	}
+
 	// Find trailing spaces position for the whole line
 	trailingStart := -1
 	if e.whitespaceStyle.showTrailingSpaces {
@@ -654,12 +674,14 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		}
 	}
 
-	// If no highlighter, draw without syntax highlighting
-	if e.highlighter == nil || !e.buffer.HasFile() {
+    // If no highlighter, draw without syntax highlighting
+    if e.buffer == nil || e.buffer.Highlighter == nil || !e.buffer.HasFile() {
 		x := startX
 		// Draw the wrapped segment
-		segmentOffset := lineStartOffset + wl.StartChar
-		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
+		segmentOffset := lineStartOffset + segStart
+		// Clamp wl.Text usage to the clamped segment range
+		textSegment := originalLine[segStart:segEnd]
+		x += e.drawText(startX, screenY, normalStyle, textSegment, segmentOffset, searchMatches, lineIndex, segStart, trailingStart)
 
 		// Fill rest of line if we have background
 		if hasBg {
@@ -720,13 +742,17 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	}
 
 	// Get syntax tokens for the full line
-	tokens := e.getLineTokens(iter)
+    var tokens []syntax.Token
+    if e.buffer != nil && e.buffer.Highlighter != nil {
+        tokens = e.buffer.Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+    }
 
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
 		x := startX
-		segmentOffset := lineStartOffset + wl.StartChar
-		x += e.drawText(startX, screenY, normalStyle, wl.Text, segmentOffset, searchMatches, lineIndex, wl.StartChar, trailingStart)
+		segmentOffset := lineStartOffset + segStart
+		textSegment := originalLine[segStart:segEnd]
+		x += e.drawText(startX, screenY, normalStyle, textSegment, segmentOffset, searchMatches, lineIndex, segStart, trailingStart)
 
 		// Fill rest of line
 		if hasBg {
@@ -788,24 +814,24 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 
 	// Draw with syntax highlighting, but only for the wrapped segment
 	x := startX
-	pos := wl.StartChar
+	pos := segStart
 
 	for _, token := range tokens {
 		// Skip tokens that end before our segment
-		if token.End <= wl.StartChar {
+		if token.End <= segStart {
 			continue
 		}
 
 		// Stop if token starts after our segment
-		if token.Start >= wl.EndChar {
+		if token.Start >= segEnd {
 			break
 		}
 
 		// Draw any text before this token with normal style
-		if token.Start > pos && pos < wl.EndChar {
+		if token.Start > pos && pos < segEnd {
 			endPos := token.Start
-			if endPos > wl.EndChar {
-				endPos = wl.EndChar
+			if endPos > segEnd {
+				endPos = segEnd
 			}
 			if endPos > pos {
 				text := originalLine[pos:endPos]
@@ -815,14 +841,14 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		}
 
 		// Draw the token portion that's in our segment
-		if token.Start < wl.EndChar && token.End > pos {
+		if token.Start < segEnd && token.End > pos {
 			tokenStart := token.Start
 			if tokenStart < pos {
 				tokenStart = pos
 			}
 			tokenEnd := token.End
-			if tokenEnd > wl.EndChar {
-				tokenEnd = wl.EndChar
+			if tokenEnd > segEnd {
+				tokenEnd = segEnd
 			}
 
 			if tokenEnd > tokenStart {
@@ -839,8 +865,8 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	}
 
 	// Draw any remaining text with normal style
-	if pos < wl.EndChar {
-		text := originalLine[pos:wl.EndChar]
+	if pos < segEnd {
+		text := originalLine[pos:segEnd]
 		x += e.drawText(x, screenY, normalStyle, text, lineStartOffset+pos, searchMatches, lineIndex, pos, trailingStart)
 	}
 
@@ -1512,11 +1538,11 @@ func (e *Editor) drawSignature() {
 	activeStart, activeEnd := e.getActiveParameterRange(sig)
 
 	// Draw the signature
-	if e.highlighter != nil {
-		e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd)
-	} else {
-		e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd)
-	}
+    if e.buffer != nil && e.buffer.Highlighter != nil {
+        e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+    } else {
+        e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+    }
 }
 
 // fillLine fills an entire line with the given style
@@ -1566,7 +1592,11 @@ func (e *Editor) getActiveParameterRange(sig *buffer.SignatureHelp) (int, int) {
 
 // drawSignatureWithHighlighting draws the signature with syntax highlighting and bold active parameter
 func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int) {
-	tokens := e.highlighter.GetTokensForString(text)
+    if e.buffer == nil || e.buffer.Highlighter == nil {
+        e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+        return
+    }
+    tokens := e.buffer.Highlighter.GetTokensForString(text)
 	if len(tokens) == 0 {
 		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
 		return

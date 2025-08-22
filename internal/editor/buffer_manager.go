@@ -54,28 +54,28 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 		e.updateSearchMatchesOnContentChange()
 	}
 
-	// Set up syntax highlighting
-	if e.highlighter != nil {
-		// Check if this is a special buffer that should use markdown
-		if (strings.HasPrefix(buf.FilePath, "*References:") && strings.HasSuffix(buf.FilePath, "*")) ||
-			buf.FilePath == "*Help*" ||
-			buf.FilePath == "*Key Bindings*" ||
-			buf.FilePath == "*Diagnostics*" ||
-			buf.FilePath == "*Messages*" ||
-			buf.FilePath == "*Project Changes*" {
-			// Set markdown language for special buffers
-			e.highlighter.SetLanguage("markdown")
-			e.highlighter.ParseFull([]byte(buf.Rope.String()))
-		} else if buf.HasFile() {
-			e.highlighter.SetLanguageFromFile(buf.FilePath)
-			e.highlighter.ParseFull([]byte(buf.Rope.String()))
-		} else {
-			// Reset syntax highlighting for unnamed buffer
-			e.highlighter = syntax.NewHighlighter()
-		}
+    // Set up syntax highlighting (per-buffer)
+    if buf.Highlighter != nil {
+        // Check if this is a special buffer that should use markdown
+        if (strings.HasPrefix(buf.FilePath, "*References:") && strings.HasSuffix(buf.FilePath, "*")) ||
+            buf.FilePath == "*Help*" ||
+            buf.FilePath == "*Key Bindings*" ||
+            buf.FilePath == "*Diagnostics*" ||
+            buf.FilePath == "*Messages*" ||
+            buf.FilePath == "*Project Changes*" {
+            // Set markdown language for special buffers
+            buf.Highlighter.SetLanguage("markdown")
+            buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
+        } else if buf.HasFile() {
+            buf.Highlighter.SetLanguageFromFile(buf.FilePath)
+            buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
+        } else {
+            // Reset syntax highlighting for unnamed buffer
+            buf.Highlighter = syntax.NewHighlighter()
+        }
 
-		// If windowing is enabled, ensure the active window shows this buffer
-		if len(e.windows) > 0 {
+        // If windowing is enabled, ensure the active window shows this buffer
+        if len(e.windows) > 0 {
 			if e.activeWindow < 0 {
 				e.activeWindow = 0
 			}
@@ -103,6 +103,16 @@ func (e *Editor) findWindowContainingBuffer(bufferPath string) int {
 
 // showBuffers shows the buffer list using the fuzzy list widget
 func (e *Editor) showBuffers(args []string) error {
+    // Debug: log current window/buffer context when opening the picker
+    var activePath string
+    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil && e.windows[e.activeWindow].Buffer != nil {
+        activePath = e.windows[e.activeWindow].Buffer.FilePath
+    }
+    var editorPath string
+    if e.buffer != nil {
+        editorPath = e.buffer.FilePath
+    }
+    LL.Debug("showBuffers: activeWindow=%d activeWinPath=%s editorPath=%s", e.activeWindow, activePath, editorPath)
 	// Check if we have any windows at all
 	if len(e.windows) == 0 {
 		return nil
@@ -120,11 +130,17 @@ func (e *Editor) showBuffers(args []string) error {
 	fuzzyListWidget.SetTitle("All Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 
-	// Create list of buffer display names from all windows
+    // Create list of buffer display names from all windows
 	var bufferDisplays []string
 	pathToDisplay := make(map[string]string)
 	pathToWindow := make(map[string]int) // Maps buffer path to window index
 	seenBuffers := make(map[string]bool) // Track already seen buffers to avoid duplicates
+
+    // Determine current buffer path based on active window to avoid drift with e.buffer
+    currentPath := editorPath
+    if activePath != "" {
+        currentPath = activePath
+    }
 
     // Collect buffers from all windows
 	for windowIdx, window := range e.windows {
@@ -140,7 +156,7 @@ func (e *Editor) showBuffers(args []string) error {
 				windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
 
 				var fullDisplayName string
-				if path == e.buffer.FilePath {
+                if currentPath != "" && path == currentPath {
 					// Mark current buffer
 					fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
 				} else {
@@ -165,7 +181,7 @@ func (e *Editor) showBuffers(args []string) error {
         windowInfo := "global"
 
         var fullDisplayName string
-        if e.buffer != nil && path == e.buffer.FilePath {
+        if currentPath != "" && path == currentPath {
             fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
         } else {
             fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
@@ -178,12 +194,12 @@ func (e *Editor) showBuffers(args []string) error {
 	fuzzyListWidget.SetContent(bufferDisplays)
 
 	// Create overlay and get result channel
-	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
+    overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
 	resultChan := e.renderingState.SetOverlay(overlay)
 
 	// Wait for result in a goroutine
 	go func() {
-		selection := <-resultChan
+        selection := <-resultChan
 
 		// If a buffer was selected, switch to it
 		if selection != "" {
@@ -458,6 +474,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 
 			// Look up the actual path from the display name
             if path, ok := pathToDisplay[selection]; ok {
+                LL.Debug("showBuffers selection: display='%s' path='%s' targetWindowIdx=%d", selection, path, pathToWindow[path])
                 // Find which window contains this buffer
                 targetWindowIdx := pathToWindow[path]
 

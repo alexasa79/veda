@@ -106,10 +106,10 @@ func (e *Editor) updateContext() {
 	viewStartLine := e.buffer.ViewIterator.LineNumber()
 	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
 
-	// Try to use tree-sitter for context if available
-	if e.highlighter != nil && e.highlighter.GetTree() != nil {
+    // Try to use tree-sitter for context if available (per-buffer highlighter)
+    if e.buffer != nil && e.buffer.Highlighter != nil && e.buffer.Highlighter.GetTree() != nil {
 		// Use tree-sitter based context detection
-		e.contextCache = getTreeSitterContext(e.buffer, e.highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+        e.contextCache = getTreeSitterContext(e.buffer, e.buffer.Highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
 	} else {
 		// No tree-sitter available, no context
 		e.contextCache = nil
@@ -154,22 +154,13 @@ func (e *Editor) updateSyntaxHighlighting() {
 	if e.buffer == nil || !e.buffer.HasFile() {
 		return
 	}
-	// Always update the highlighter associated with the current buffer/window,
-	// not the last global highlighter. In multi-window mode the global
-	// e.highlighter may point to another buffer, causing skew.
-	var h *syntax.Highlighter
-	if hh, ok := e.bufferHighlighters[e.buffer]; ok && hh != nil {
-		h = hh
-	} else {
-		h = syntax.NewHighlighter()
-		h.SetLanguageFromFile(e.buffer.FilePath)
-		e.bufferHighlighters[e.buffer] = h
-	}
-	content := e.buffer.Rope.String()
-	h.ParseFull([]byte(content))
-	// Keep the editor's active highlighter in sync for non-windowed paths and
-	// to ensure immediate token queries use the updated instance.
-	e.highlighter = h
+    // Update the buffer's own highlighter in place
+    if e.buffer.Highlighter == nil {
+        e.buffer.Highlighter = syntax.NewHighlighter()
+        _ = e.buffer.Highlighter.SetLanguageFromFile(e.buffer.FilePath)
+    }
+    content := e.buffer.Rope.String()
+    e.buffer.Highlighter.ParseFull([]byte(content))
 }
 
 // getDiagnosticLineCount returns the number of lines needed to display a diagnostic message
