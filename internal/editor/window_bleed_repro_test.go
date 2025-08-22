@@ -98,23 +98,27 @@ func TestRightWindowBottomShouldBeEmpty_Repro(t *testing.T) {
 		t.Fatalf("expected 2 windows after split, got %d", len(te.windows))
 	}
 
-	// Populate the right window with a small buffer (few short lines).
-	right := te.windows[1]
-	rightBuffer := right.Buffer
-	rightBuffer.Rope = buffer.NewRopeFromString(buildSmallContent())
-	rightBuffer.LineCount = strings.Count(rightBuffer.Rope.String(), "\n") + 1
-	rightBuffer.UpdateLineNumberWidth()
-	right.ViewLine = 0
-	right.CursorLine = 0
-	right.CursorX = 0
+    // Populate the right window with a small buffer (few short lines).
+    right := te.windows[1]
+    if right.Buffer == nil {
+        // In the current design, vsplit creates an empty window. Create a small buffer explicitly.
+        right.Buffer = buffer.NewBuffer(buildSmallContent(), "artifacts/small.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+    } else {
+        right.Buffer.Rope = buffer.NewRopeFromString(buildSmallContent())
+        right.Buffer.LineCount = strings.Count(right.Buffer.Rope.String(), "\n") + 1
+        right.Buffer.UpdateLineNumberWidth()
+    }
+    right.ViewLine = 0
+    right.CursorLine = 0
+    right.CursorX = 0
 
 	// Make sure editor points to the active window buffer and render.
-	te.buffer = rightBuffer
+    te.buffer = right.Buffer
 	te.render()
 
 	// Determine how many visual lines the right buffer actually draws.
 	wrapped := wrappedCountForWindowLocal(t, te, 1)
-	lineNumberWidth := rightBuffer.LineNumberWidth
+    lineNumberWidth := right.Buffer.LineNumberWidth
 
 	// For each row below the last drawn wrapped line, assert the content area
 	// of the right window (beyond the gutter) is empty (spaces).

@@ -263,7 +263,7 @@ func (e *Editor) closeBuffer(args []string) error {
 	currentPath := e.buffer.FilePath
 
 	// Remove buffer from current window
-	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
 		window := e.windows[e.activeWindow]
         // If the current window is showing this buffer, clear it
         shouldCloseWindow := false
@@ -273,22 +273,8 @@ func (e *Editor) closeBuffer(args []string) error {
         }
 
 		if shouldCloseWindow {
-			// No more buffers in this window - close the window
-			if len(e.windows) <= 1 {
-				// Last window - quit the editor if no buffers left globally
-				if len(e.buffers) <= 1 {
-					return e.actuallyQuit(args)
-				}
-				// Create a new buffer in the last window to avoid closing the editor
-				newBuf := e.createUnnamedBuffer()
-				e.buffers[newBuf.FilePath] = newBuf
-				e.bufferOrder = append(e.bufferOrder, newBuf.FilePath)
-                window.Buffer = newBuf
-				e.switchToBuffer(newBuf)
-			} else {
-				// Close this window and switch to another
-				return e.closeWindow(e.activeWindow)
-			}
+            // No more buffers in this window - close the window (handles last-window exit)
+            return e.closeWindow(e.activeWindow)
 		} else {
 			// Window still has buffers, switched to the next one automatically
 			e.buffer = window.Buffer
