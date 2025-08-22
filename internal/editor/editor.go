@@ -517,6 +517,8 @@ func (e *Editor) render() {
 
 	// Draw each window using a windowScreen. Inactive windows are dimmed.
 	for i, win := range e.windows {
+		// Per-window performance breakdown to analyze drawWindows cost
+		winTimer := e.perfTracker.Start()
 		if win == nil {
 			continue
 		}
@@ -531,6 +533,8 @@ func (e *Editor) render() {
 		// Prepare sub-screen
 		dim := i != e.activeWindow
 		sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
+		// Measure prepare phase
+		winTimer = e.perfTracker.ReportSince("drawWindows.window.prepare", winTimer)
 
         // Temporarily swap screen and buffer per window
 		realScreen := e.screen
@@ -564,7 +568,15 @@ func (e *Editor) render() {
         }
 		// Draw editor content area then context (to match legacy order)
 		e.drawEditor()
+		// Measure drawEditor phase; split active vs inactive to keep label cardinality bounded
+		if i == e.activeWindow {
+			winTimer = e.perfTracker.ReportSince("drawWindows.window.drawEditor.active", winTimer)
+		} else {
+			winTimer = e.perfTracker.ReportSince("drawWindows.window.drawEditor.inactive", winTimer)
+		}
+
 		e.drawContext()
+		winTimer = e.perfTracker.ReportSince("drawWindows.window.drawContext", winTimer)
 
 		// Restore
 		// Persist any scroll/cursor changes back into the window state
@@ -577,6 +589,13 @@ func (e *Editor) render() {
 		win.Buffer.CursorX = savedX
 		e.screen = realScreen
 		e.buffer = realBuffer
+		winTimer = e.perfTracker.ReportSince("drawWindows.window.restore", winTimer)
+		// Report total time for this window
+		if i == e.activeWindow {
+			_ = e.perfTracker.ReportSince("drawWindows.window.total.active", winTimer)
+		} else {
+			_ = e.perfTracker.ReportSince("drawWindows.window.total.inactive", winTimer)
+		}
 	}
 	t0 = e.perfTracker.ReportSince("drawWindows", t0)
 
