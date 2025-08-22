@@ -173,6 +173,15 @@ func (e *Editor) errorCommand(args []string) error {
 	return nil
 }
 
+// messageCommand appends a line to the *Messages* buffer without showing an error banner
+// Usage: :message hello world
+func (e *Editor) messageCommand(args []string) error {
+    msg := strings.Join(args, " ")
+    // Show banner and log to *Messages* (ShowInfo handles both)
+    e.ShowInfo("%s", msg)
+    return nil
+}
+
 // ShowTransientInfo displays a temporary informational banner that persists
 // until the next key press (separate from ErrorManager time-based banners).
 func (e *Editor) ShowTransientInfo(format string, args ...interface{}) {
