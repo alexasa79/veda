@@ -192,7 +192,7 @@ func getRenderedLine(te *TestEditor, lineNum int) string {
 	width, _ := te.mockScreen.Size()
 
 	// Calculate screen Y position
-	contentStartY := len(te.contextCache)
+    contentStartY := len(te.buffer.ContextCache)
 	viewStartLine := te.buffer.ViewIterator.LineNumber()
 	screenY := contentStartY + (lineNum - viewStartLine)
 
@@ -212,7 +212,7 @@ func getRenderedLine(te *TestEditor, lineNum int) string {
 // getCellStyle finds the style of a specific text in a line
 func getCellStyle(te *TestEditor, lineNum int, text string) *ui.Style {
 	// Calculate screen Y position
-	contentStartY := len(te.contextCache)
+    contentStartY := len(te.buffer.ContextCache)
 	viewStartLine := te.buffer.ViewIterator.LineNumber()
 	screenY := contentStartY + (lineNum - viewStartLine)
 
