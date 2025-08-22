@@ -584,8 +584,15 @@ func (e *Editor) render() {
 		win.CursorLine = win.Buffer.CursorIterator.LineNumber()
 		win.CursorX = win.Buffer.CursorX
 		// Restore buffer iterators/X
-		win.Buffer.ViewIterator = savedView
-		win.Buffer.CursorIterator = savedCursor
+		// Only restore if the saved iterators are still valid for the current buffer generation.
+		// If buffer content changed during rendering (e.g., async updates), keep the fresh iterators
+		// we created above to avoid generation mismatches.
+		if savedView != nil && savedView.Generation == win.Buffer.Generation {
+			win.Buffer.ViewIterator = savedView
+		}
+		if savedCursor != nil && savedCursor.Generation == win.Buffer.Generation {
+			win.Buffer.CursorIterator = savedCursor
+		}
 		win.Buffer.CursorX = savedX
 		e.screen = realScreen
 		e.buffer = realBuffer
