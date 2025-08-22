@@ -621,22 +621,32 @@ func (e *Editor) showProjectSymbolsList() {
 			e.connectionStatus = "Loading all symbols"
 		}
 
-		// Launch goroutine to fetch symbols
-		go func(query string) {
-			defer e.endAsyncOperation(operationID)
-			defer func() { e.connectionStatus = "" }() // Clear status when done
+        // Launch goroutine to fetch symbols
+        go func(query string) {
+            defer e.endAsyncOperation(operationID)
+            defer func() { e.connectionStatus = "" }() // Clear status when done
 
-			projectSymbols, err := e.proxyManager.ListProjectSymbols(e.workingDirectory, query)
+            projectSymbols, err := e.proxyManager.ListProjectSymbols(e.workingDirectory, query)
 
-			response := proxyworker.ProxyResponse{
-				Type:           proxyworker.RequestProjectSymbols,
-				FilePath:       e.buffer.FilePath,
-				Buffer:         e.buffer,
-				Generation:     e.buffer.SignatureGeneration,
-				ProjectSymbols: projectSymbols,
-				Query:          query,
-				Error:          err,
-			}
+            // Snapshot buffer-related fields safely; buffer can be nil
+            var filePath string
+            var gen uint64
+            var buf *buffer.Buffer
+            if e.buffer != nil {
+                buf = e.buffer
+                filePath = e.buffer.FilePath
+                gen = e.buffer.SignatureGeneration
+            }
+
+            response := proxyworker.ProxyResponse{
+                Type:           proxyworker.RequestProjectSymbols,
+                FilePath:       filePath,
+                Buffer:         buf,
+                Generation:     gen,
+                ProjectSymbols: projectSymbols,
+                Query:          query,
+                Error:          err,
+            }
 
 			// Send response to the channel
 			select {
@@ -662,23 +672,25 @@ func (e *Editor) showProjectSymbolsList() {
 
 		selection := <-resultChan
 
-		// If a symbol was selected, navigate to it
-		if selection != "" {
-			// Find the selected symbol by display name
-			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
-				sym := symbols[idx]
+        // If a symbol was selected, navigate to it
+        if selection != "" {
+            // Find the selected symbol by display name
+            if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
+                sym := symbols[idx]
 
-				// Push current position to navigation history before jumping
-				e.pushNavigationHistory()
+                // Push current position to navigation history before jumping
+                e.pushNavigationHistory()
 
-				// Open file if different
-				if sym.Path != e.buffer.FilePath {
-					e.openFile(sym.Path)
-				}
-				// Navigate to location
-				e.navigateToLocation(sym.Line, sym.Character)
-			}
-		}
+                // Open file if different, or if no buffer yet
+                if e.buffer == nil || sym.Path != e.buffer.FilePath {
+                    e.openFile(sym.Path)
+                }
+                // Navigate to location
+                if e.buffer != nil {
+                    e.navigateToLocation(sym.Line, sym.Character)
+                }
+            }
+        }
 	}()
 }
 
