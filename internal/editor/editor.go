@@ -732,6 +732,11 @@ func (e *Editor) handleEvent(ev events.Event) {
 		}
 		return
 	case *events.KeyEvent:
+		// Any key press hides transient info banner if active
+		if e.transientInfoActive {
+			e.transientInfoActive = false
+			// Fall through to normal handling after clearing; render will hide it next frame
+		}
 		// Terminal mode: forward all keys to terminal session; Esc switches to normal browse
 		if e.mode == commands.TerminalMode {
 			if ev.Key == events.KeyEscape {
