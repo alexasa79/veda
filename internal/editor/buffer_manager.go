@@ -91,8 +91,13 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 // findWindowContainingBuffer returns the window index that contains the given buffer path
 func (e *Editor) findWindowContainingBuffer(bufferPath string) int {
     for i, window := range e.windows {
-        if window != nil && window.Buffer != nil && window.Buffer.FilePath == bufferPath {
-            return i
+        if window != nil {
+            // Search through all buffers in the window
+            for _, buf := range window.Buffers {
+                if buf != nil && buf.FilePath == bufferPath {
+                    return i
+                }
+            }
         }
     }
     return -1
@@ -139,31 +144,36 @@ func (e *Editor) showBuffers(args []string) error {
         currentPath = activePath
     }
 
-    // Collect buffers from all windows: a buffer is owned by the window where Window.Buffer == buf
+    // Collect buffers from all windows: include all buffers in each window's buffer list
     for windowIdx, window := range e.windows {
-        if window == nil || window.Buffer == nil {
+        if window == nil {
             continue
         }
-        path := window.Buffer.FilePath
-        if path == "" || seenBuffers[path] {
-            continue
+        // Include all buffers in this window
+        for _, buf := range window.Buffers {
+            if buf == nil {
+                continue
+            }
+            path := buf.FilePath
+            if path == "" || seenBuffers[path] {
+                continue
+            }
+            seenBuffers[path] = true
+            pathToWindow[path] = windowIdx
+
+            displayName := buf.DisplayName()
+            windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
+
+            var fullDisplayName string
+            if currentPath != "" && path == currentPath {
+                fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
+            } else {
+                fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
+            }
+
+            bufferDisplays = append(bufferDisplays, fullDisplayName)
+            pathToDisplay[fullDisplayName] = path
         }
-        seenBuffers[path] = true
-        pathToWindow[path] = windowIdx
-
-        buf := window.Buffer
-        displayName := buf.DisplayName()
-        windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
-
-        var fullDisplayName string
-        if currentPath != "" && path == currentPath {
-            fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
-        } else {
-            fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
-        }
-
-        bufferDisplays = append(bufferDisplays, fullDisplayName)
-        pathToDisplay[fullDisplayName] = path
     }
 
     // Include global buffers that are not attached to any window yet (e.g., *Messages*)
