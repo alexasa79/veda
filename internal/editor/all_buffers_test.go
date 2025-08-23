@@ -18,17 +18,17 @@ func TestFindWindowContainingBuffer(t *testing.T) {
 	te.buffers["artifacts/file2.txt"] = buf2
 	te.buffers["artifacts/file3.txt"] = buf3
 
-	// Create windows and add buffers to them
+	// Create windows and add buffers to them using the proper multi-buffer system
 	win1 := newWindow(buf1)
-    win1.Buffer = buf2      // buf1 and buf2 in window 1 (now just assign)
+    win1.addBufferToWindow(buf2)  // Add buf2 to window with buf1
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
 
-    // Test finding windows (single Buffer per window)
+    // Test finding windows: both buf1 and buf2 should be in window 0
     windowIdx1 := te.findWindowContainingBuffer("artifacts/file1.txt")
-    if windowIdx1 != -1 {
-        t.Errorf("Expected file1.txt to not be in any window, got %d", windowIdx1)
+    if windowIdx1 != 0 {
+        t.Errorf("Expected file1.txt to be in window 0, got %d", windowIdx1)
     }
 
     windowIdx2 := te.findWindowContainingBuffer("artifacts/file2.txt")
@@ -61,9 +61,9 @@ func TestShowBuffersWithMultipleWindows(t *testing.T) {
 	te.buffers["artifacts/file2.txt"] = buf2
 	te.buffers["artifacts/file3.txt"] = buf3
 
-	// Create windows and add buffers to them
+	// Create windows and add buffers to them using the proper multi-buffer system
 	win1 := newWindow(buf1)
-    win1.Buffer = buf2
+    win1.addBufferToWindow(buf2)  // Add buf2 to window with buf1
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
@@ -101,9 +101,9 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 	te.buffers["artifacts/file2.txt"] = buf2
 	te.buffers["artifacts/file3.txt"] = buf3
 
-	// Create windows and add buffers to them
+	// Create windows and add buffers to them using the proper multi-buffer system
 	win1 := newWindow(buf1)
-    win1.Buffer = buf2
+    win1.addBufferToWindow(buf2)  // Add buf2 to window with buf1
 	win2 := newWindow(buf3) // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}

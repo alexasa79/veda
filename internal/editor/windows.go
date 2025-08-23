@@ -9,11 +9,12 @@ import (
 
 // Window represents a rectangular area of the screen showing a buffer
 type Window struct {
-	Buffer *buffer.Buffer
-	X      int
-	Y      int
-	Width  int
-	Height int
+	Buffer  *buffer.Buffer   // Current active buffer in the window
+	Buffers []*buffer.Buffer // All buffers in this window
+	X       int
+	Y       int
+	Width   int
+	Height  int
 	// Per-window view and cursor state (independent even if Buffer is shared)
 	ViewLine   int // Top visible logical line number
 	CursorLine int // Cursor logical line number
@@ -329,12 +330,9 @@ func (e *Editor) moveBufferLeft(args []string) error {
 		// Insert at the beginning
 		e.windows = append([]*Window{newWin}, e.windows...)
 
-		// Leave original window empty
+		// Remove buffer from original window
 		// (cur is now at index cur+1 after insertion)
-		e.windows[cur+1].Buffer = nil
-		e.windows[cur+1].ViewLine = 0
-		e.windows[cur+1].CursorLine = 0
-		e.windows[cur+1].CursorX = 0
+		e.windows[cur+1].removeBufferFromWindow(currentBuffer)
 
 		// Activate the new left window (index 0)
 		e.activateWindow(0)
@@ -342,21 +340,14 @@ func (e *Editor) moveBufferLeft(args []string) error {
 		// Move to existing left window
 		left := cur - 1
 
-		// Store the buffer from the left window (to swap if needed)
-		leftBuffer := e.windows[left].Buffer
-
-		// Move current buffer to left window
-		e.windows[left].Buffer = currentBuffer
+		// Add current buffer to left window
+		e.windows[left].addBufferToWindow(currentBuffer)
 		e.windows[left].ViewLine = e.windows[cur].ViewLine
 		e.windows[left].CursorLine = e.windows[cur].CursorLine
 		e.windows[left].CursorX = e.windows[cur].CursorX
 
-		// Put the left window's buffer in current window (or leave empty if it was the same)
-		if leftBuffer == currentBuffer {
-			e.windows[cur].Buffer = nil
-		} else {
-			e.windows[cur].Buffer = leftBuffer
-		}
+		// Remove buffer from current window
+		e.windows[cur].removeBufferFromWindow(currentBuffer)
 		e.windows[cur].ViewLine = 0
 		e.windows[cur].CursorLine = 0
 		e.windows[cur].CursorX = 0
@@ -386,11 +377,8 @@ func (e *Editor) moveBufferRight(args []string) error {
 		newWin.CursorLine = e.windows[cur].CursorLine
 		newWin.CursorX = e.windows[cur].CursorX
 
-		// Leave current window empty
-		e.windows[cur].Buffer = nil
-		e.windows[cur].ViewLine = 0
-		e.windows[cur].CursorLine = 0
-		e.windows[cur].CursorX = 0
+		// Remove buffer from current window
+		e.windows[cur].removeBufferFromWindow(currentBuffer)
 
 		// Activate the new right window
 		e.activateWindow(len(e.windows) - 1)
@@ -398,21 +386,14 @@ func (e *Editor) moveBufferRight(args []string) error {
 		// Move to existing right window
 		right := cur + 1
 
-		// Store the buffer from the right window (to swap if needed)
-		rightBuffer := e.windows[right].Buffer
-
-		// Move current buffer to right window
-		e.windows[right].Buffer = currentBuffer
+		// Add current buffer to right window
+		e.windows[right].addBufferToWindow(currentBuffer)
 		e.windows[right].ViewLine = e.windows[cur].ViewLine
 		e.windows[right].CursorLine = e.windows[cur].CursorLine
 		e.windows[right].CursorX = e.windows[cur].CursorX
 
-		// Put the right window's buffer in current window (or leave empty if it was the same)
-		if rightBuffer == currentBuffer {
-			e.windows[cur].Buffer = nil
-		} else {
-			e.windows[cur].Buffer = rightBuffer
-		}
+		// Remove buffer from current window
+		e.windows[cur].removeBufferFromWindow(currentBuffer)
 		e.windows[cur].ViewLine = 0
 		e.windows[cur].CursorLine = 0
 		e.windows[cur].CursorX = 0
@@ -445,20 +426,15 @@ func (e *Editor) moveBufferCenter(args []string) error {
 	}
 
 	currentBuffer := e.windows[cur].Buffer
-	centerBuffer := e.windows[center].Buffer
 
-	// Move current buffer to center window
-	e.windows[center].Buffer = currentBuffer
+	// Add current buffer to center window
+	e.windows[center].addBufferToWindow(currentBuffer)
 	e.windows[center].ViewLine = e.windows[cur].ViewLine
 	e.windows[center].CursorLine = e.windows[cur].CursorLine
 	e.windows[center].CursorX = e.windows[cur].CursorX
 
-	// Put the center window's buffer in current window (or leave empty if it was the same)
-	if centerBuffer == currentBuffer {
-		e.windows[cur].Buffer = nil
-	} else {
-		e.windows[cur].Buffer = centerBuffer
-	}
+	// Remove buffer from current window
+	e.windows[cur].removeBufferFromWindow(currentBuffer)
 	e.windows[cur].ViewLine = 0
 	e.windows[cur].CursorLine = 0
 	e.windows[cur].CursorX = 0
@@ -468,13 +444,63 @@ func (e *Editor) moveBufferCenter(args []string) error {
 	return nil
 }
 
+// addBufferToWindow adds a buffer to a window's buffer list and makes it active
+func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
+	if buf == nil {
+		return
+	}
+	
+	// Check if buffer is already in the window
+	for _, existing := range w.Buffers {
+		if existing == buf {
+			w.Buffer = buf // Just make it active
+			return
+		}
+	}
+	
+	// Add new buffer to the list and make it active
+	w.Buffers = append(w.Buffers, buf)
+	w.Buffer = buf
+}
+
+// removeBufferFromWindow removes a buffer from a window's buffer list
+func (w *Window) removeBufferFromWindow(buf *buffer.Buffer) {
+	if buf == nil {
+		return
+	}
+	
+	// Find and remove the buffer
+	for i, existing := range w.Buffers {
+		if existing == buf {
+			// Remove from slice
+			w.Buffers = append(w.Buffers[:i], w.Buffers[i+1:]...)
+			
+			// If this was the active buffer, switch to another or set to nil
+			if w.Buffer == buf {
+				if len(w.Buffers) > 0 {
+					w.Buffer = w.Buffers[len(w.Buffers)-1] // Use the last buffer
+				} else {
+					w.Buffer = nil // No buffers left
+				}
+			}
+			return
+		}
+	}
+}
+
 // newWindow creates a new window with initialized buffer management
 func newWindow(buf *buffer.Buffer) *Window {
+	var buffers []*buffer.Buffer
+	if buf != nil {
+		buffers = []*buffer.Buffer{buf}
+	}
+	
 	window := &Window{
-		Buffer:            buf,
-		ViewLine:          0,
-		CursorLine:        0,
-		CursorX:           0,
+		Buffer:   buf,
+		Buffers:  buffers,
+		ViewLine: 0,
+		CursorLine: 0,
+		CursorX:  0,
 	}
 
 	return window
