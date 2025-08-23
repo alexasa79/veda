@@ -1163,6 +1163,53 @@ func (e *Editor) handleEvent(ev events.Event) {
 			if data, ok := ev.Data.(map[string]interface{}); ok {
 				e.handleShowCompletions(data)
 			}
+		case "navigate-to-location":
+			// Handle navigation to a specific location in the current file
+			if data, ok := ev.Data.(map[string]interface{}); ok {
+				if line, ok := data["line"].(int); ok {
+					character, _ := data["character"].(int)
+					e.navigateToLocation(line, character)
+					// Update window state after navigation
+					if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+						win := e.windows[e.activeWindow]
+						if win != nil && win.Buffer == e.buffer {
+							win.ViewLine = e.buffer.ViewIterator.LineNumber()
+							win.CursorLine = e.buffer.CursorIterator.LineNumber()
+							win.CursorX = e.buffer.CursorX
+						}
+					}
+				}
+			}
+		case "open-file-and-navigate":
+			// Handle opening a file and navigating to a location
+			if data, ok := ev.Data.(map[string]interface{}); ok {
+				if filePath, ok := data["file"].(string); ok {
+					line, _ := data["line"].(int)
+					character, _ := data["character"].(int)
+					
+					// Push navigation history before opening
+					e.pushNavigationHistory()
+					
+					// Open the file if different
+					if e.buffer == nil || filePath != e.buffer.FilePath {
+						e.openFile(filePath)
+					}
+					
+					// Navigate to the location
+					if e.buffer != nil {
+						e.navigateToLocation(line, character)
+						// Update window state after navigation
+						if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+							win := e.windows[e.activeWindow]
+							if win != nil && win.Buffer == e.buffer {
+								win.ViewLine = e.buffer.ViewIterator.LineNumber()
+								win.CursorLine = e.buffer.CursorIterator.LineNumber()
+								win.CursorX = e.buffer.CursorX
+							}
+						}
+					}
+				}
+			}
 		}
 	default:
 		LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
@@ -2666,6 +2713,19 @@ func (e *Editor) goToDefinition(args []string) error {
 
 	// Position the definition at the center of the screen
 	e.scrollToCenter()
+
+	// Update window's cached state to match buffer
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		win := e.windows[e.activeWindow]
+		if win != nil && win.Buffer == e.buffer {
+			win.ViewLine = e.buffer.ViewIterator.LineNumber()
+			win.CursorLine = e.buffer.CursorIterator.LineNumber()
+			win.CursorX = e.buffer.CursorX
+		}
+	}
+
+	// Wake main loop to render the jump
+	e.asyncEvents <- events.NewCustomEvent("render", nil)
 
 	return nil
 }

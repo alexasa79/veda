@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"veda/internal/buffer"
+	"veda/internal/events"
 	"veda/internal/proxy"
 )
 
@@ -344,6 +345,19 @@ func (e *Editor) jumpToLocation(location proxy.Location) error {
 
 	// Position the reference at the center of the screen
 	e.scrollToCenter()
+
+	// Update window's cached state to match buffer
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		win := e.windows[e.activeWindow]
+		if win != nil && win.Buffer == e.buffer {
+			win.ViewLine = e.buffer.ViewIterator.LineNumber()
+			win.CursorLine = e.buffer.CursorIterator.LineNumber()
+			win.CursorX = e.buffer.CursorX
+		}
+	}
+
+	// Wake main loop to render the jump  
+	e.asyncEvents <- events.NewCustomEvent("render", nil)
 
 	return nil
 }

@@ -691,19 +691,12 @@ func (e *Editor) showProjectSymbolsList() {
 			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
 				sym := symbols[idx]
 
-				// Push current position to navigation history before jumping
-				e.pushNavigationHistory()
-
-				// Open file if different, or if no buffer yet
-				if e.buffer == nil || sym.Path != e.buffer.FilePath {
-					e.openFile(sym.Path)
-				}
-				// Navigate to location
-				if e.buffer != nil {
-					e.navigateToLocation(sym.Line, sym.Character)
-					// Wake main loop to render the jump
-					e.asyncEvents <- events.NewCustomEvent("render", nil)
-				}
+				// Send open-file-and-navigate event to main loop
+				e.asyncEvents <- events.NewCustomEvent("open-file-and-navigate", map[string]interface{}{
+					"file":      sym.Path,
+					"line":      sym.Line,
+					"character": sym.Character,
+				})
 			}
 		}
 	}()
@@ -736,6 +729,16 @@ func (e *Editor) navigateToLocation(line, character int) {
 
     // Center the target for better visibility
     e.scrollToCenter()
+
+    // Update window's cached state to match buffer
+    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+        win := e.windows[e.activeWindow]
+        if win != nil && win.Buffer == e.buffer {
+            win.ViewLine = e.buffer.ViewIterator.LineNumber()
+            win.CursorLine = e.buffer.CursorIterator.LineNumber()
+            win.CursorX = e.buffer.CursorX
+        }
+    }
 
     // Log result state
     LL.Debug("navigateToLocation: result file=%s cursorLine=%d cursorX=%d viewTop=%d",
@@ -878,8 +881,11 @@ func (e *Editor) showDocumentSymbolsList() {
                         LL.Debug("doc-symbol-select: file=%s symbol=%q kind=%d at %d:%d", e.buffer.FilePath, sym.Name, sym.Kind, sym.Range.Start.Line, sym.Range.Start.Character)
 				// Push current position to navigation history before jumping
 				e.pushNavigationHistory()
-				// Navigate to location (document symbols are in the current file)
-				e.navigateToLocation(sym.Range.Start.Line, sym.Range.Start.Character)
+				// Send navigation event to main loop instead of navigating directly
+				e.asyncEvents <- events.NewCustomEvent("navigate-to-location", map[string]interface{}{
+					"line":      sym.Range.Start.Line,
+					"character": sym.Range.Start.Character,
+				})
 			}
 		}
 	}()
