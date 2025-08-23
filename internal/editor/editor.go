@@ -281,7 +281,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		commandRegistry:      commands.NewCommandRegistry(),
 		keyMapper:            commands.NewKeyMapper(),
         bufferHighlighters:   make(map[*buffer.Buffer]*syntax.Highlighter),
-		perfTracker:          perf.New(true, 60*time.Second), // Report every 60 seconds
+		perfTracker:          perf.New(true, 30*time.Second), // Report every 30 seconds
 		buffers:              make(map[string]*buffer.Buffer),
 		bufferOrder:          []string{},
 		navHistory:           []NavigationEntry{},
