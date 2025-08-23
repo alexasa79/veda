@@ -72,6 +72,39 @@ Veda implements a unique interpretation of word operations that differs from vim
 - **Insert Mode Sessions**: All changes made during a single insert mode session (from entering to exiting insert mode) are grouped as one undo unit
 - **Important**: When implementing new text-modifying commands, they MUST support undo/redo by implementing the Command interface
 
+### Multi-Buffer Window System
+Veda supports multiple windows, each capable of containing multiple buffers:
+
+#### Window Structure
+- Each **window** maintains two key properties:
+  - `Buffer`: The currently active/visible buffer in the window
+  - `Buffers`: A list of all buffers that belong to this window
+- Windows can be created by moving buffers to new locations or explicitly splitting
+
+#### Buffer Movement Commands
+- **`Space w left`** (`move-buffer-left`): Move current buffer to the window on the left
+- **`Space w right`** (`move-buffer-right`): Move current buffer to the window on the right  
+- **`Space w c`** (`move-buffer-center`): Move current buffer to the center window
+
+#### Buffer Movement Behavior
+- **Moving to a new location**: Creates a new window if none exists in that direction
+- **Moving to an existing window**: Adds the buffer to that window's buffer list and makes it active
+- **Source window**: Buffer is removed from the source window's buffer list
+  - If other buffers remain in the source window, the most recently used one becomes active
+  - If no buffers remain, the window becomes empty
+- **Buffer persistence**: Moving a buffer to a window that already contains other buffers does NOT displace those buffers - they remain in the window's buffer list, just become inactive
+
+#### Global vs Window Buffers
+- **Window buffers**: Regular file buffers that belong to specific windows
+- **Global buffers**: Only internal buffers like `*Messages*`, `*Diagnostics*`, etc. that aren't tied to any window
+- The buffer picker shows window affiliation: `filename (W1)` for window buffers, `filename (global)` for global buffers
+
+#### Example Workflow
+1. Open `file1.txt` in Window 1
+2. Open `file2.txt` in Window 2  
+3. Move `file2.txt` to Window 1 → Window 1 now contains both files, `file2.txt` is active
+4. Move `file2.txt` back to Window 2 → `file1.txt` becomes active in Window 1, Window 2 contains `file2.txt`
+
 ### Language Server Protocol (LSP) Support
 - **Go to Definition**: Press 'g d' in normal mode to navigate to the definition of the symbol under the cursor
 - **Supported Languages**:
