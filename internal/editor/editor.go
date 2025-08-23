@@ -174,6 +174,8 @@ type Editor struct {
 	asyncOperations map[string]bool // Track active async operations by ID
 	spinnerIndex    int             // Current spinner animation frame
 	lastSpinnerTime time.Time       // Last time spinner was updated
+	spinnerRunning  bool            // True while spinner tick goroutine is active
+	spinnerStop     chan struct{}   // Stop channel for spinner tick goroutine
 
 	// Completion menu
 	completionMenu *widgets.CompletionMenu // Completion menu widget
@@ -300,6 +302,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		whitespaceStyle:      newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
 		workingDirectory:     ".", // Default to current directory
 		asyncOperations:      make(map[string]bool),
+		spinnerStop:          make(chan struct{}),
 		lastSpinnerTime:      time.Now(),
 		connectionStatus:     "",
 		errorManager:         NewErrorManager(),
@@ -345,11 +348,15 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// LSP callbacks will be set up when buffers are created
 
 	// Set up proxy status callback to update connection status
-	proxyManager.SetStatusCallback(func(status string) {
-		editor.connectionStatus = status
-		// Trigger a render to show the updated status immediately
-		editor.render()
-	})
+    proxyManager.SetStatusCallback(func(status string) {
+        editor.connectionStatus = status
+        // Wake main loop so the status/spinner updates without keypress
+        editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
+        // If status becomes empty (completion), force a final render wake
+        if status == "" {
+            editor.asyncEvents <- events.NewCustomEvent("render", nil)
+        }
+    })
 
 	// Register commands
 	editor.registerCommands()
@@ -397,23 +404,19 @@ func (e *Editor) Run() {
 	// Get the screen event channel
 	screenEvents := e.screen.EventChannel()
 
-	// Start a timer that fires every 100ms for smooth animations
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+    // No always-on ticker. We'll wake the loop via asyncEvents for spinner/overlay updates.
 
 	// Event loop
 	for !e.shouldExit {
 		var ev events.Event
 
-		// Use select to handle multiple event sources
-		select {
-		case ev = <-screenEvents:
-			// Got a screen event
-		case <-ticker.C:
-			// Timer fired - ev remains nil, will trigger redraw
-		case ev = <-e.asyncEvents:
-			// Got an async event
-		}
+        // Use select to handle multiple event sources
+        select {
+        case ev = <-screenEvents:
+            // Got a screen event
+        case ev = <-e.asyncEvents:
+            // Got an async event
+        }
 
 		// Handle overlay events first
 		if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
@@ -1930,7 +1933,7 @@ func (e *Editor) requestDiagnosticsRefresh(filePath string) {
 		return
 	}
 
-	// If the current buffer has LSP, send a didChange with current content as a nudge
+	// If the current buffer has LSP, send a didChange; rely on async diagnostics publish
 	buf, exists := e.buffers[filePath]
 	if !exists || !buf.HasFile() {
 		return
@@ -1939,30 +1942,12 @@ func (e *Editor) requestDiagnosticsRefresh(filePath string) {
 	content := buf.Rope.String()
 	go func(target *buffer.Buffer) {
 		LL.Debug("requestDiagnosticsRefresh: starting for %s", filePath)
-		// Nudge
 		if err := e.proxyManager.NotifyFileChange(filePath, content); err != nil {
 			LL.Debug("requestDiagnosticsRefresh: notify failed for %s: %v", filePath, err)
-		} else {
-			LL.Debug("requestDiagnosticsRefresh: didChange nudge sent for %s", filePath)
+			return
 		}
-
-		// Poll briefly for diagnostics (non-blocking to UI)
-		deadline := time.Now().Add(3 * time.Second)
-		for time.Now().Before(deadline) {
-			fc, err := e.proxyManager.GetFile(filePath)
-			if err == nil && fc != nil && len(fc.Diagnostics) > 0 {
-				if b, ok := e.buffers[filePath]; ok && b == target {
-					b.Diagnostics = fc.Diagnostics
-					LL.Info("requestDiagnosticsRefresh: received %d diagnostics for %s", len(fc.Diagnostics), filePath)
-					if b == e.buffer {
-						e.render()
-					}
-				}
-				return
-			}
-			time.Sleep(150 * time.Millisecond)
-		}
-		LL.Debug("requestDiagnosticsRefresh: timeout waiting for diagnostics for %s", filePath)
+		LL.Debug("requestDiagnosticsRefresh: didChange nudge sent for %s", filePath)
+		// No polling here; diagnostics will arrive via proxy's publish cache on next GetFile
 	}(buf)
 }
 

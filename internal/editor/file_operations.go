@@ -11,6 +11,7 @@ import (
 	"veda/internal/proxyworker"
 	"veda/internal/utils"
 	"veda/internal/widgets"
+    "veda/internal/events"
 )
 
 // Package-level variables for efficient file filtering
@@ -83,11 +84,12 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 	if files, ok := e.getCachedDirectoryListing(e.workingDirectory); ok && useCache {
 		LL.Debug("Using cached directory listing for %s", e.workingDirectory)
 		result := e.processFileList(files)
-		if len(result.paths) == 0 {
-			contentUpdateChan <- []string{"No files found"}
-		} else {
-			contentUpdateChan <- result.paths
-		}
+        if len(result.paths) == 0 {
+            contentUpdateChan <- []string{"No files found"}
+        } else {
+            contentUpdateChan <- result.paths
+        }
+        e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 		// End the async operation since we're serving from cache
 		e.endAsyncOperation(operationID)
 		e.connectionStatus = "" // Clear status when done
@@ -108,7 +110,8 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 			LL.Debug("Directory listing error: %v", err)
 			// Also show a banner so the user notices
 			e.ShowError("Directory listing failed: %v", err)
-			contentUpdateChan <- []string{fmt.Sprintf("Error: %v", err)}
+            contentUpdateChan <- []string{fmt.Sprintf("Error: %v", err)}
+            e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 			resultChan <- fileListingResult{paths: []string{}, filePaths: nil}
 			return
 		}
@@ -118,11 +121,12 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 		e.setCachedDirectoryListing(e.workingDirectory, files)
 		result := e.processFileList(files)
 
-		if len(result.paths) == 0 {
-			contentUpdateChan <- []string{"No files found"}
-		} else {
-			contentUpdateChan <- result.paths
-		}
+        if len(result.paths) == 0 {
+            contentUpdateChan <- []string{"No files found"}
+        } else {
+            contentUpdateChan <- result.paths
+        }
+        e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 
 		resultChan <- result
 	}()
@@ -338,8 +342,12 @@ func (e *Editor) ShowFuzzyListWidget() {
 				}
 				e.activateWindow(insertAt)
 				e.openFile(fullPath)
+				// Wake main loop to render the opened file
+				e.asyncEvents <- events.NewCustomEvent("render", nil)
 			} else {
 				e.openFile(fullPath)
+				// Wake main loop to render the opened file
+				e.asyncEvents <- events.NewCustomEvent("render", nil)
 			}
 		}
 		// Don't close contentUpdateChan - the sending goroutine might still be running
@@ -693,6 +701,8 @@ func (e *Editor) showProjectSymbolsList() {
 				// Navigate to location
 				if e.buffer != nil {
 					e.navigateToLocation(sym.Line, sym.Character)
+					// Wake main loop to render the jump
+					e.asyncEvents <- events.NewCustomEvent("render", nil)
 				}
 			}
 		}
@@ -805,14 +815,15 @@ func (e *Editor) showDocumentSymbolsList() {
 		defer func() { e.connectionStatus = "" }() // Clear status when done
 
 		select {
-		case response := <-symbolResponseChan:
+        case response := <-symbolResponseChan:
 			if response.Type == proxyworker.RequestDocumentSymbols {
 				if response.Error != nil {
 					LL.Debug("LSP document symbols error: %v", response.Error)
 					// Report error through editor's error system
 					e.ShowError("LSP error: %v", response.Error)
 					// Clear the list but don't show error in picker
-					contentUpdateChan <- []string{}
+                    contentUpdateChan <- []string{}
+                    e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 				} else {
 					LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
 
@@ -833,15 +844,17 @@ func (e *Editor) showDocumentSymbolsList() {
 					symbols = response.DocumentSymbols
 					symbolMap = newSymbolMap
 
-					if len(displayNames) == 0 {
-						contentUpdateChan <- []string{"No symbols found"}
-					} else {
-						contentUpdateChan <- displayNames
-					}
+                    if len(displayNames) == 0 {
+                        contentUpdateChan <- []string{"No symbols found"}
+                    } else {
+                        contentUpdateChan <- displayNames
+                    }
+                    e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 				}
 			}
-		case <-time.After(5 * time.Second):
-			contentUpdateChan <- []string{"Error: Timeout waiting for symbols"}
+        case <-time.After(5 * time.Second):
+            contentUpdateChan <- []string{"Error: Timeout waiting for symbols"}
+            e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 		}
 		// Don't close symbolResponseChan here - it's managed by the caller
 	}()

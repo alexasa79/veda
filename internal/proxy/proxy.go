@@ -64,6 +64,7 @@ func (pm *ProxyManager) reportStatus(status string) {
 	if pm.statusCallback != nil {
 		pm.statusCallback(status)
 	}
+    // Also emit a final blank status to signal completion cases explicitly
 }
 
 // getClient returns the appropriate client for the given path
@@ -145,8 +146,8 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		buf := make([]byte, 0, maxScanTokenSize)
 		stdout.Buffer(buf, maxScanTokenSize)
 
-		// Wait for the hello/version line with a timeout
-		version, err := readProxyHello(stdout, 5*time.Second)
+        // Wait for the hello/version line with a timeout
+        version, err := readProxyHello(stdout, 5*time.Second)
 		if err != nil {
 			LL.Debug("Failed to read proxy hello on %s: %v", host, err)
 			return nil, cmd, err
@@ -191,8 +192,8 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	duration := time.Since(startTime)
 	LL.Info("Created remote proxy connection to %s in %v", host, duration)
 
-	// Report successful connection
-	pm.reportStatus(fmt.Sprintf("Connected to %s", host))
+    // Report successful connection
+    pm.reportStatus(fmt.Sprintf("Connected to %s", host))
 
 	return client, nil
 }
