@@ -36,12 +36,12 @@ func TestEditorCreateNewFile(t *testing.T) {
 	te.Editor.openFile(testFile)
 
 	// Should have a buffer for the file
-	if te.Editor.buffer == nil {
+	if te.Editor.CurrentBuffer() == nil {
 		t.Fatalf("Editor should have created a buffer for the new file")
 	}
 
-	if te.Editor.buffer.FilePath != testFile {
-		t.Errorf("Buffer file path mismatch. Expected: %s, Got: %s", testFile, te.Editor.buffer.FilePath)
+	if te.Editor.CurrentBuffer().FilePath != testFile {
+		t.Errorf("Buffer file path mismatch. Expected: %s, Got: %s", testFile, te.Editor.CurrentBuffer().FilePath)
 	}
 
 	// Step 2: Add some content to the buffer
@@ -49,10 +49,10 @@ func TestEditorCreateNewFile(t *testing.T) {
 
 	// Insert content into the buffer using the Insert method
 	testContent := "Hello from editor test!\nThis is line 2.\n"
-	te.Editor.buffer.Insert(0, testContent)
+	te.Editor.CurrentBuffer().Insert(0, testContent)
 
 	// Mark the buffer as modified
-	te.Editor.buffer.MarkModified()
+	te.Editor.CurrentBuffer().MarkModified()
 
 	// Step 3: Save the file using editor's writeFile method
 	t.Logf("Saving file via editor")
@@ -87,7 +87,7 @@ func TestEditorCreateNewFile(t *testing.T) {
 	}
 
 	// Step 6: Verify buffer is marked as saved
-	if te.Editor.buffer.IsModified {
+	if te.Editor.CurrentBuffer().IsModified {
 		t.Errorf("Buffer should be marked as saved after successful write")
 	}
 

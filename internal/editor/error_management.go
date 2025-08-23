@@ -191,12 +191,12 @@ func (e *Editor) ShowTransientInfo(format string, args ...interface{}) {
 
 // showFileInfoCommand shows information about the current file/buffer
 func (e *Editor) showFileInfoCommand(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	// Gather basic info
-	display := e.buffer.DisplayName()
-	path := e.buffer.FilePath
+	display := e.CurrentBuffer().DisplayName()
+	path := e.CurrentBuffer().FilePath
 	if path == "" {
 		path = display
 	}
@@ -214,16 +214,16 @@ func (e *Editor) showFileInfoCommand(args []string) error {
 			}
 		}
 	}
-	lines := e.buffer.LineCount
+	lines := e.CurrentBuffer().LineCount
 	bytes := 0
-	if e.buffer.Rope != nil {
-		bytes = e.buffer.Rope.Length()
+	if e.CurrentBuffer().Rope != nil {
+		bytes = e.CurrentBuffer().Rope.Length()
 	}
 	indent := "Spaces"
-	if e.buffer.Indentation.Type == config.IndentTabs {
+	if e.CurrentBuffer().Indentation.Type == config.IndentTabs {
 		indent = "Tabs"
 	} else {
-		indent = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
+		indent = fmt.Sprintf("Spaces:%d", e.CurrentBuffer().Indentation.Width)
 	}
 	e.ShowTransientInfo("%s — %d lines, %d bytes, %s", path, lines, bytes, indent)
 	return nil

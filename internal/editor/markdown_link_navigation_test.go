@@ -11,7 +11,7 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 	t.Run("follow markdown link without line number", func(t *testing.T) {
 		// Create editor with a markdown link
 		te := NewTestEditorWithContent(80, 24, "Check [this file](test.go) for details")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
 		// Move cursor to the link (accounting for markdown rendering)
 		// In normal mode, this renders as "Check this file for details"
@@ -27,8 +27,8 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		te.ExecuteCommand("jump-to-reference")
 
 		// Should have opened test.go
-		if te.buffer.FilePath != "test.go" {
-			t.Errorf("Expected to open test.go, but current file is %s", te.buffer.FilePath)
+		if te.CurrentBuffer().FilePath != "test.go" {
+			t.Errorf("Expected to open test.go, but current file is %s", te.CurrentBuffer().FilePath)
 		}
 
 		// Should be at the beginning of the file
@@ -41,7 +41,7 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 	t.Run("follow markdown link with line number", func(t *testing.T) {
 		// Create editor with a markdown link that includes a line number
 		te := NewTestEditorWithContent(80, 24, "See [function](main.go#L10) for implementation")
-		te.buffer.FilePath = "README.md"
+		te.CurrentBuffer().FilePath = "README.md"
 
 		// Create a target file with multiple lines
 		content := ""
@@ -61,27 +61,27 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		te.ExecuteCommand("jump-to-reference")
 
 		// Should have opened main.go
-		if te.buffer.FilePath != "main.go" {
-			t.Errorf("Expected to open main.go, but current file is %s", te.buffer.FilePath)
+		if te.CurrentBuffer().FilePath != "main.go" {
+			t.Errorf("Expected to open main.go, but current file is %s", te.CurrentBuffer().FilePath)
 		}
 
 		// Should be at line 10 (0-based index 9)
-		lineNum := te.buffer.CursorIterator.LineNumber()
+		lineNum := te.CurrentBuffer().CursorIterator.LineNumber()
 		if lineNum != 9 {
 			t.Errorf("Expected to be at line 10 (index 9), but at line %d", lineNum+1)
 		}
 
 		// Cursor should be at beginning of the line
-		if te.buffer.CursorX != 0 {
-			t.Errorf("Expected cursor X to be 0, got %d", te.buffer.CursorX)
+		if te.CurrentBuffer().CursorX != 0 {
+			t.Errorf("Expected cursor X to be 0, got %d", te.CurrentBuffer().CursorX)
 		}
 	})
 
 	t.Run("cursor not on link does nothing", func(t *testing.T) {
 		// Create editor with a markdown link
 		te := NewTestEditorWithContent(80, 24, "Check [this file](test.go) for details")
-		te.buffer.FilePath = "test.md"
-		originalFile := te.buffer.FilePath
+		te.CurrentBuffer().FilePath = "test.md"
+		originalFile := te.CurrentBuffer().FilePath
 
 		// Move cursor to a position not on the link
 		// Move to the end of the line
@@ -91,15 +91,15 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		te.ExecuteCommand("jump-to-reference")
 
 		// Should still be in the same file
-		if te.buffer.FilePath != originalFile {
-			t.Errorf("File should not have changed, but changed from %s to %s", originalFile, te.buffer.FilePath)
+		if te.CurrentBuffer().FilePath != originalFile {
+			t.Errorf("File should not have changed, but changed from %s to %s", originalFile, te.CurrentBuffer().FilePath)
 		}
 	})
 
 	t.Run("follow link in insert mode", func(t *testing.T) {
 		// Create editor with a markdown link
 		te := NewTestEditorWithContent(80, 24, "Check [this file](test.go) for details")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")
@@ -120,15 +120,15 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		te.ExecuteCommand("jump-to-reference")
 
 		// Should have opened test.go
-		if te.buffer.FilePath != "test.go" {
-			t.Errorf("Expected to open test.go, but current file is %s", te.buffer.FilePath)
+		if te.CurrentBuffer().FilePath != "test.go" {
+			t.Errorf("Expected to open test.go, but current file is %s", te.CurrentBuffer().FilePath)
 		}
 	})
 
 	t.Run("navigation history is preserved", func(t *testing.T) {
 		// Create editor with a markdown link
 		te := NewTestEditorWithContent(80, 24, "Go to [target](target.go#L5)")
-		te.buffer.FilePath = "source.md"
+		te.CurrentBuffer().FilePath = "source.md"
 
 		// Create target file
 		te.buffers["target.go"] = buffer.NewBuffer("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6", "target.go", config.IndentSpaces, 4)
@@ -142,11 +142,11 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		te.ExecuteCommand("jump-to-reference")
 
 		// Should be in target.go at line 5
-		if te.buffer.FilePath != "target.go" {
-			t.Errorf("Expected to be in target.go, but in %s", te.buffer.FilePath)
+		if te.CurrentBuffer().FilePath != "target.go" {
+			t.Errorf("Expected to be in target.go, but in %s", te.CurrentBuffer().FilePath)
 		}
 
-		lineNum := te.buffer.CursorIterator.LineNumber()
+		lineNum := te.CurrentBuffer().CursorIterator.LineNumber()
 		if lineNum != 4 { // Line 5 is index 4
 			t.Errorf("Expected to be at line 5 (index 4), but at line %d", lineNum+1)
 		}
@@ -155,8 +155,8 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		te.ExecuteCommand("go-back")
 
 		// Should be back in source.md
-		if te.buffer.FilePath != "source.md" {
-			t.Errorf("Expected to be back in source.md, but in %s", te.buffer.FilePath)
+		if te.CurrentBuffer().FilePath != "source.md" {
+			t.Errorf("Expected to be back in source.md, but in %s", te.CurrentBuffer().FilePath)
 		}
 	})
 }

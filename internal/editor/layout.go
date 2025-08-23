@@ -18,18 +18,18 @@ func (e *Editor) getVisibleHeight() int {
 		return height
 	}
 	// Terminal/internal buffers or empty windows should not reserve extra lines for context/diagnostics/signature
-	if e.mode == commands.TerminalMode || e.buffer == nil || (e.buffer != nil && e.buffer.IsInternal) {
+	if e.mode == commands.TerminalMode || e.CurrentBuffer() == nil || (e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal) {
 		// Reserve only the status bar line
 		return height - 1
 	}
 	reserved := 1 // Status bar
     if e.shouldShowContext() {
-        if e.buffer != nil {
-            reserved += len(e.buffer.ContextCache) // Context lines
+        if e.CurrentBuffer() != nil {
+            reserved += len(e.CurrentBuffer().ContextCache) // Context lines
         }
 	}
 	// Reserve space for signature if shown
-	if e.buffer.CurrentSignature != nil {
+	if e.CurrentBuffer().CurrentSignature != nil {
 		reserved += e.getSignatureLines()
 	}
 	// Reserve space for error/diagnostic lines if shown
@@ -37,8 +37,8 @@ func (e *Editor) getVisibleHeight() int {
 		reserved += 1
 	} else {
 		// Reserve space for diagnostic lines if we have a diagnostic for current line
-		cursorLine := e.buffer.CursorIterator.LineNumber() + 1
-		if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+		cursorLine := e.CurrentBuffer().CursorIterator.LineNumber() + 1
+		if diag, ok := e.CurrentBuffer().GetDiagnosticForLine(cursorLine); ok {
 			reserved += e.getDiagnosticLineCount(diag.Message)
 		}
 	}
@@ -59,12 +59,12 @@ func (e *Editor) getContentStartY() int {
 		return 0
 	}
 	// Terminal/internal buffers do not reserve context lines
-	if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+	if e.mode == commands.TerminalMode || (e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal) {
 		return 0
 	}
     if e.shouldShowContext() {
-        if e.buffer != nil {
-            return len(e.buffer.ContextCache)
+        if e.CurrentBuffer() != nil {
+            return len(e.CurrentBuffer().ContextCache)
         }
         return 0
 	}
@@ -77,7 +77,7 @@ func (e *Editor) shouldShowContext() bool {
 		return false
 	}
 	// Never show context for terminal/internal buffers
-	if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
+	if e.mode == commands.TerminalMode || (e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal) {
 		return false
 	}
 	return true
@@ -86,49 +86,49 @@ func (e *Editor) shouldShowContext() bool {
 // updateContext updates the cached context for the current cursor position
 func (e *Editor) updateContext() {
 	// Get current cursor line
-	cursorIter := e.buffer.CursorIterator
+	cursorIter := e.CurrentBuffer().CursorIterator
 	currentLine := cursorIter.LineNumber()
 
 	// Only update if line changed
-    if e.buffer != nil && currentLine == e.buffer.ContextLine && len(e.buffer.ContextCache) > 0 {
+    if e.CurrentBuffer() != nil && currentLine == e.CurrentBuffer().ContextLine && len(e.CurrentBuffer().ContextCache) > 0 {
 		return
 	}
 
 	// Suppress context for internal/terminal buffers
-    if e.mode == commands.TerminalMode || (e.buffer != nil && e.buffer.IsInternal) {
-        if e.buffer != nil {
-            e.buffer.ContextCache = nil
-            e.buffer.ContextLine = currentLine
+    if e.mode == commands.TerminalMode || (e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal) {
+        if e.CurrentBuffer() != nil {
+            e.CurrentBuffer().ContextCache = nil
+            e.CurrentBuffer().ContextLine = currentLine
         }
 		return
 	}
 	// Get file path
-	filePath := e.buffer.FilePath
+	filePath := e.CurrentBuffer().FilePath
     if filePath == "" {
-        if e.buffer != nil {
-            e.buffer.ContextCache = nil
+        if e.CurrentBuffer() != nil {
+            e.CurrentBuffer().ContextCache = nil
         }
         return
 	}
 
 	// Calculate visible range (per-window; entire region height)
-	viewStartLine := e.buffer.ViewIterator.LineNumber()
+	viewStartLine := e.CurrentBuffer().ViewIterator.LineNumber()
 	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
 
     // Try to use tree-sitter for context if available (per-buffer highlighter)
-    if e.buffer != nil && e.buffer.Highlighter != nil && e.buffer.Highlighter.GetTree() != nil {
+    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil && e.CurrentBuffer().Highlighter.GetTree() != nil {
 		// Use tree-sitter based context detection
-        e.buffer.ContextCache = getTreeSitterContext(e.buffer, e.buffer.Highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+        e.CurrentBuffer().ContextCache = getTreeSitterContext(e.CurrentBuffer(), e.CurrentBuffer().Highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
 	} else {
 		// No tree-sitter available, no context
-        if e.buffer != nil {
-            e.buffer.ContextCache = nil
+        if e.CurrentBuffer() != nil {
+            e.CurrentBuffer().ContextCache = nil
         }
 		return
 	}
 
-    if e.buffer != nil {
-        e.buffer.ContextLine = currentLine
+    if e.CurrentBuffer() != nil {
+        e.CurrentBuffer().ContextLine = currentLine
     }
 }
 
@@ -146,16 +146,16 @@ func (e *Editor) getVisibleLines() int {
 // getAbsolutePosition returns the absolute position in the buffer for the current cursor
 func (e *Editor) getAbsolutePosition() int {
 	// Get the position at the start of the current line
-	pos := e.buffer.CursorIterator.Position()
+	pos := e.CurrentBuffer().CursorIterator.Position()
 
 	// Add current X position
 	// Need to get current line length to validate cursorX
-	if !e.buffer.CursorIterator.IsEOF() {
-		line := e.buffer.CursorIterator.Line()
-		if e.buffer.CursorX > len(line) {
+	if !e.CurrentBuffer().CursorIterator.IsEOF() {
+		line := e.CurrentBuffer().CursorIterator.Line()
+		if e.CurrentBuffer().CursorX > len(line) {
 			pos += len(line)
 		} else {
-			pos += e.buffer.CursorX
+			pos += e.CurrentBuffer().CursorX
 		}
 	}
 
@@ -164,16 +164,16 @@ func (e *Editor) getAbsolutePosition() int {
 
 // updateSyntaxHighlighting re-parses the buffer for syntax highlighting
 func (e *Editor) updateSyntaxHighlighting() {
-	if e.buffer == nil || !e.buffer.HasFile() {
+	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		return
 	}
     // Update the buffer's own highlighter in place
-    if e.buffer.Highlighter == nil {
-        e.buffer.Highlighter = syntax.NewHighlighter()
-        _ = e.buffer.Highlighter.SetLanguageFromFile(e.buffer.FilePath)
+    if e.CurrentBuffer().Highlighter == nil {
+        e.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        _ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
     }
-    content := e.buffer.Rope.String()
-    e.buffer.Highlighter.ParseFull([]byte(content))
+    content := e.CurrentBuffer().Rope.String()
+    e.CurrentBuffer().Highlighter.ParseFull([]byte(content))
 }
 
 // getDiagnosticLineCount returns the number of lines needed to display a diagnostic message
@@ -217,8 +217,8 @@ func (e *Editor) handleResize() {
 		e.recomputeWindowsLayout()
 	}
 	// When a terminal buffer is active, propagate resize to PTY via proxy
-	if e.mode == commands.TerminalMode && e.buffer != nil {
-		if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
+	if e.mode == commands.TerminalMode && e.CurrentBuffer() != nil {
+		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.SessionID != "" {
 			cols := e.getVisibleWidth()
 			rows := e.getVisibleHeight()
 			_ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)

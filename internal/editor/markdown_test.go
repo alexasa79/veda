@@ -43,9 +43,9 @@ func TestMarkdownLinkInsertMode(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
 
             // Simulate opening a markdown file by setting up the highlighter (per-buffer)
-            te.buffer.Highlighter = syntax.NewHighlighter()
-            if te.buffer.Highlighter != nil {
-                err := te.buffer.Highlighter.SetLanguageFromFile("test.md")
+            te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+            if te.CurrentBuffer().Highlighter != nil {
+                err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.md")
                 if err != nil {
                     t.Fatalf("Failed to set markdown language: %v", err)
                 }
@@ -60,18 +60,18 @@ func TestMarkdownLinkInsertMode(t *testing.T) {
 			// Type the text character by character
 			for i, ch := range tt.insertText {
 				t.Logf("Inserting character %d: %c", i, ch)
-				t.Logf("Buffer before: %q", te.buffer.Rope.String())
-				t.Logf("Cursor position: (%d, %d)", te.buffer.CursorX, te.buffer.CursorIterator.LineNumber())
+				t.Logf("Buffer before: %q", te.CurrentBuffer().Rope.String())
+				t.Logf("Cursor position: (%d, %d)", te.CurrentBuffer().CursorX, te.CurrentBuffer().CursorIterator.LineNumber())
 
 				te.insertChar(ch)
 
-				t.Logf("Buffer after: %q", te.buffer.Rope.String())
-				t.Logf("Cursor position: (%d, %d)", te.buffer.CursorX, te.buffer.CursorIterator.LineNumber())
+				t.Logf("Buffer after: %q", te.CurrentBuffer().Rope.String())
+				t.Logf("Cursor position: (%d, %d)", te.CurrentBuffer().CursorX, te.CurrentBuffer().CursorIterator.LineNumber())
 				t.Logf("---")
 			}
 
 			// Check buffer before exiting insert mode
-			bufferBeforeExit := te.buffer.Rope.String()
+			bufferBeforeExit := te.CurrentBuffer().Rope.String()
 			if bufferBeforeExit != tt.expectedBuffer {
 				t.Errorf("%s: Buffer before exit insert mode is wrong\nExpected: %q\nGot: %q",
 					tt.description, tt.expectedBuffer, bufferBeforeExit)
@@ -81,7 +81,7 @@ func TestMarkdownLinkInsertMode(t *testing.T) {
 			te.ExecuteCommand("exit-insert-mode")
 
 			// Check buffer after exiting insert mode
-			bufferAfterExit := te.buffer.Rope.String()
+			bufferAfterExit := te.CurrentBuffer().Rope.String()
 			if bufferAfterExit != tt.expectedBuffer {
 				t.Errorf("%s: Buffer after exit insert mode changed!\nExpected: %q\nGot: %q",
 					tt.description, tt.expectedBuffer, bufferAfterExit)
@@ -102,10 +102,10 @@ func TestMarkdownLinkEscapeIssue(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "")
 
     // Simulate opening a markdown file by setting file path and highlighter
-	te.buffer.FilePath = "test.md"
-    te.buffer.Highlighter = syntax.NewHighlighter()
-    if te.buffer.Highlighter != nil {
-        err := te.buffer.Highlighter.SetLanguageFromFile("test.md")
+	te.CurrentBuffer().FilePath = "test.md"
+    te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+    if te.CurrentBuffer().Highlighter != nil {
+        err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.md")
         if err != nil {
             t.Fatalf("Failed to set markdown language: %v", err)
         }
@@ -118,34 +118,34 @@ func TestMarkdownLinkEscapeIssue(t *testing.T) {
 	chars := []rune{'[', 'l', 'i', 'n', 'k'}
 	for i, ch := range chars {
 		t.Logf("Step %d: Inserting '%c'", i+1, ch)
-		t.Logf("  Buffer before: %q", te.buffer.Rope.String())
-		t.Logf("  Cursor at: (%d, %d)", te.buffer.CursorX, te.buffer.CursorIterator.LineNumber())
+		t.Logf("  Buffer before: %q", te.CurrentBuffer().Rope.String())
+		t.Logf("  Cursor at: (%d, %d)", te.CurrentBuffer().CursorX, te.CurrentBuffer().CursorIterator.LineNumber())
 
 		te.insertChar(ch)
 
-		t.Logf("  Buffer after: %q", te.buffer.Rope.String())
-		t.Logf("  Cursor at: (%d, %d)", te.buffer.CursorX, te.buffer.CursorIterator.LineNumber())
+		t.Logf("  Buffer after: %q", te.CurrentBuffer().Rope.String())
+		t.Logf("  Cursor at: (%d, %d)", te.CurrentBuffer().CursorX, te.CurrentBuffer().CursorIterator.LineNumber())
 	}
 
 	// Buffer should be "[link" at this point (auto-pairing disabled)
 	expectedBeforeEsc := "[link"
-	actualBeforeEsc := te.buffer.Rope.String()
+	actualBeforeEsc := te.CurrentBuffer().Rope.String()
 	if actualBeforeEsc != expectedBeforeEsc {
 		t.Errorf("Buffer before ESC is wrong\nExpected: %q\nGot: %q", expectedBeforeEsc, actualBeforeEsc)
 	}
 
 	// Now press Escape to exit insert mode
 	t.Logf("Pressing ESC to exit insert mode")
-	t.Logf("  Buffer before ESC: %q", te.buffer.Rope.String())
+	t.Logf("  Buffer before ESC: %q", te.CurrentBuffer().Rope.String())
 
 	te.ExecuteCommand("exit-insert-mode")
 
-	t.Logf("  Buffer after ESC: %q", te.buffer.Rope.String())
-	t.Logf("  Cursor at: (%d, %d)", te.buffer.CursorX, te.buffer.CursorIterator.LineNumber())
+	t.Logf("  Buffer after ESC: %q", te.CurrentBuffer().Rope.String())
+	t.Logf("  Cursor at: (%d, %d)", te.CurrentBuffer().CursorX, te.CurrentBuffer().CursorIterator.LineNumber())
 
 	// Buffer should still be "[link", not duplicated
 	expectedAfterEsc := "[link"
-	actualAfterEsc := te.buffer.Rope.String()
+	actualAfterEsc := te.CurrentBuffer().Rope.String()
 	if actualAfterEsc != expectedAfterEsc {
 		t.Errorf("Buffer changed after ESC!\nExpected: %q\nGot: %q", expectedAfterEsc, actualAfterEsc)
 	}

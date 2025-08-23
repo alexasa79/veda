@@ -26,15 +26,15 @@ func main() {
 
 		// Create test editor with first file
 		te := NewTestEditorWithContent(120, 30, file1Content)
-		te.buffer.FilePath = "test1.go"
+		te.CurrentBuffer().FilePath = "test1.go"
 
         // Initialize syntax highlighting for first file (per-buffer)
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        err := te.buffer.Highlighter.SetLanguageFromFile("test1.go")
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test1.go")
 		if err != nil {
 			t.Skipf("Skipping test: Go syntax highlighting not available: %v", err)
 		}
-        te.buffer.Highlighter.ParseFull([]byte(file1Content))
+        te.CurrentBuffer().Highlighter.ParseFull([]byte(file1Content))
 
 		// Force render to ensure syntax highlighting is applied
 		te.render()
@@ -86,7 +86,7 @@ func TestFunction() {
 		te.bufferOrder = append(te.bufferOrder, "test2.go")
 
 		// Ensure the first window has the correct buffer reference (the original buffer)
-		originalBuffer := te.buffer
+		originalBuffer := te.CurrentBuffer()
 		if len(te.windows) > 0 {
 			te.windows[0].Buffer = originalBuffer
 		}
@@ -97,13 +97,13 @@ func TestFunction() {
 		te.activeWindow = len(te.windows) - 1 // Switch to the new window
 
 		// Update the editor's active buffer to match the active window
-		te.buffer = te.windows[te.activeWindow].Buffer
+		te.SetCurrentBuffer(te.windows[te.activeWindow].Buffer)
 
         // Set up syntax highlighting for the new buffer (per-buffer)
-        if te.buffer != nil {
-            te.buffer.Highlighter = syntax.NewHighlighter()
-            te.buffer.Highlighter.SetLanguageFromFile("test2.go")
-            te.buffer.Highlighter.ParseFull([]byte(file2Content))
+        if te.CurrentBuffer() != nil {
+            te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile("test2.go")
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(file2Content))
         }
 
 		// Force render after setting up second window
@@ -137,13 +137,13 @@ func TestFunction() {
 		// Now switch back to the FIRST window (left) to edit there - this is the key scenario!
 		t.Logf("Switching back to first window to edit (this is where the bug should occur)")
 		te.activeWindow = 0
-		te.buffer = te.windows[te.activeWindow].Buffer
+		te.SetCurrentBuffer(te.windows[te.activeWindow].Buffer)
 
         // Update syntax highlighting for the first file (per-buffer)
-        if te.buffer != nil {
-            te.buffer.Highlighter = syntax.NewHighlighter()
-            te.buffer.Highlighter.SetLanguageFromFile("test1.go")
-            te.buffer.Highlighter.ParseFull([]byte(file1Content))
+        if te.CurrentBuffer() != nil {
+            te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile("test1.go")
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(file1Content))
         }
 
 		te.render()
@@ -282,11 +282,11 @@ func TestFunction() {
 			t.Logf("Actual func color: %v", firstFuncFgAfterEditing)
 
 			// Check syntax highlighting tokens
-            funcIter := buffer.NewBufferIteratorAtLine(te.buffer, firstFuncLineNum)
+            funcIter := buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), firstFuncLineNum)
             funcLineStart := funcIter.Position()
             funcLineEnd := funcIter.LineEnd()
-            if te.buffer != nil && te.buffer.Highlighter != nil {
-                funcTokens := te.buffer.Highlighter.GetTokensForLine(funcLineStart, funcLineEnd)
+            if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
+                funcTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(funcLineStart, funcLineEnd)
                 t.Logf("Syntax tokens for func line: %+v", funcTokens)
             }
 

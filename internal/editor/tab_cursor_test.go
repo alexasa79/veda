@@ -38,7 +38,7 @@ func TestTabCharacterCursorMovement(t *testing.T) {
 			t.Errorf("Expected visual line 0, got %d", visualLine)
 		}
 		// Visual column should be line number width
-		expectedVisualCol := te.buffer.LineNumberWidth
+		expectedVisualCol := te.CurrentBuffer().LineNumberWidth
 		if visualCol != expectedVisualCol {
 			t.Errorf("Expected visual column %d, got %d", expectedVisualCol, visualCol)
 		}
@@ -53,7 +53,7 @@ func TestTabCharacterCursorMovement(t *testing.T) {
 			t.Errorf("Expected visual line 0, got %d", visualLine)
 		}
 		// Visual column should be line number width + 4 (tab width)
-		expectedVisualCol = te.buffer.LineNumberWidth + 4
+		expectedVisualCol = te.CurrentBuffer().LineNumberWidth + 4
 		if visualCol != expectedVisualCol {
 			t.Errorf("Expected visual column %d, got %d", expectedVisualCol, visualCol)
 		}
@@ -70,7 +70,7 @@ func TestTabCharacterCursorMovement(t *testing.T) {
 
 		// Visual position should be line number width + 8 (two tabs)
 		_, visualCol := te.GetCursorVisualPosition()
-		expectedVisualCol := te.buffer.LineNumberWidth + 8
+		expectedVisualCol := te.CurrentBuffer().LineNumberWidth + 8
 		if visualCol != expectedVisualCol {
 			t.Errorf("Expected visual column %d, got %d", expectedVisualCol, visualCol)
 		}
@@ -83,7 +83,7 @@ func TestTabCharacterCursorMovement(t *testing.T) {
 
 		// Visual position should account for two tabs + 5 characters
 		_, visualCol = te.GetCursorVisualPosition()
-		expectedVisualCol = te.buffer.LineNumberWidth + 8 + 5
+		expectedVisualCol = te.CurrentBuffer().LineNumberWidth + 8 + 5
 		if visualCol != expectedVisualCol {
 			t.Errorf("Expected visual column %d, got %d", expectedVisualCol, visualCol)
 		}

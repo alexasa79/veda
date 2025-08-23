@@ -97,7 +97,7 @@ Last line`,
 			}
 
 			// Extract selected text
-			content := te.buffer.Rope.String()
+			content := te.CurrentBuffer().Rope.String()
 			if end > len(content) {
 				end = len(content)
 			}
@@ -134,9 +134,9 @@ Line 4`)
 		// Check result
 		expected := `Line 1
 Line 4`
-		if te.buffer.Rope.String() != expected {
+		if te.CurrentBuffer().Rope.String() != expected {
 			t.Errorf("After delete, expected:\n%s\nGot:\n%s",
-				expected, te.buffer.Rope.String())
+				expected, te.CurrentBuffer().Rope.String())
 		}
 
 		// Should be back in normal mode
@@ -165,9 +165,9 @@ Line 3`)
 		expected := `Line 1
 Line 2
 Line 3`
-		if te.buffer.Rope.String() != expected {
+		if te.CurrentBuffer().Rope.String() != expected {
 			t.Errorf("Buffer changed after yank, expected:\n%s\nGot:\n%s",
-				expected, te.buffer.Rope.String())
+				expected, te.CurrentBuffer().Rope.String())
 		}
 
 		// Should be back in normal mode
@@ -195,7 +195,7 @@ func TestVisualLineModeExit(t *testing.T) {
 	}
 
 	// Visual anchor should be cleared
-	if te.buffer.VisualAnchorLine != -1 {
-		t.Errorf("Expected visual anchor line to be -1, got %d", te.buffer.VisualAnchorLine)
+	if te.CurrentBuffer().VisualAnchorLine != -1 {
+		t.Errorf("Expected visual anchor line to be -1, got %d", te.CurrentBuffer().VisualAnchorLine)
 	}
 }

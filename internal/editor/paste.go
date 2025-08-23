@@ -123,12 +123,12 @@ func (e *Editor) pasteBefore(args []string) error {
 // pasteAfterCursor pastes content after the cursor position (character-wise)
 func (e *Editor) pasteAfterCursor(content string) error {
 	// Save ViewIterator line number before buffer modification
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current position
 	// The CursorIterator points to the beginning of the line, so we need to add CursorX
-	pos := e.buffer.CursorIterator.Position() + e.buffer.CursorX
-	line := e.buffer.CursorIterator.Line()
+	pos := e.CurrentBuffer().CursorIterator.Position() + e.CurrentBuffer().CursorX
+	line := e.CurrentBuffer().CursorIterator.Line()
 
 	// Always move one character right to paste after cursor (unless line is empty)
 	if len(line) > 0 {
@@ -137,30 +137,30 @@ func (e *Editor) pasteAfterCursor(content string) error {
 
 	// Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
-		buffer:     e.buffer,
+		buffer:     e.CurrentBuffer(),
 		position:   pos,
 		content:    content,
 		isLinewise: false,
-		oldCursorX: e.buffer.CursorX,
-		oldCursorY: e.buffer.CursorIterator.LineNumber(),
+		oldCursorX: e.CurrentBuffer().CursorX,
+		oldCursorY: e.CurrentBuffer().CursorIterator.LineNumber(),
 	}
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), pasteCmd); err != nil {
 			return err
 		} else if executed != nil {
 			e.lastChange = executed
 		}
 	} else {
-		pasteCmd.Execute(e.buffer)
+		pasteCmd.Execute(e.CurrentBuffer())
 	}
 
 	// Recreate ViewIterator after buffer modification
-	if viewLine >= e.buffer.LineCount {
-		viewLine = e.buffer.LineCount - 1
+	if viewLine >= e.CurrentBuffer().LineCount {
+		viewLine = e.CurrentBuffer().LineCount - 1
 	}
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -171,38 +171,38 @@ func (e *Editor) pasteAfterCursor(content string) error {
 // pasteBeforeCursor pastes content before the cursor position (character-wise)
 func (e *Editor) pasteBeforeCursor(content string) error {
 	// Save ViewIterator line number before buffer modification
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current position
 	// The CursorIterator points to the beginning of the line, so we need to add CursorX
-	pos := e.buffer.CursorIterator.Position() + e.buffer.CursorX
+	pos := e.CurrentBuffer().CursorIterator.Position() + e.CurrentBuffer().CursorX
 
 	// Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
-		buffer:     e.buffer,
+		buffer:     e.CurrentBuffer(),
 		position:   pos,
 		content:    content,
 		isLinewise: false,
-		oldCursorX: e.buffer.CursorX,
-		oldCursorY: e.buffer.CursorIterator.LineNumber(),
+		oldCursorX: e.CurrentBuffer().CursorX,
+		oldCursorY: e.CurrentBuffer().CursorIterator.LineNumber(),
 	}
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), pasteCmd); err != nil {
 			return err
 		} else if executed != nil {
 			e.lastChange = executed
 		}
 	} else {
-		pasteCmd.Execute(e.buffer)
+		pasteCmd.Execute(e.CurrentBuffer())
 	}
 
 	// Recreate ViewIterator after buffer modification
-	if viewLine >= e.buffer.LineCount {
-		viewLine = e.buffer.LineCount - 1
+	if viewLine >= e.CurrentBuffer().LineCount {
+		viewLine = e.CurrentBuffer().LineCount - 1
 	}
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -213,23 +213,23 @@ func (e *Editor) pasteBeforeCursor(content string) error {
 // pasteAfterLine pastes content after the current line (line-wise)
 func (e *Editor) pasteAfterLine(content string) error {
 	// Save ViewIterator line number before buffer modification
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current line number
-	lineNum := e.buffer.CursorIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Find the start of the next line
 	var pos int
-	if lineNum < e.buffer.LineCount-1 {
+	if lineNum < e.CurrentBuffer().LineCount-1 {
 		// Not the last line, insert at start of next line
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum+1)
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum+1)
 		pos = iter.Position()
 	} else {
 		// Last line, insert at end of buffer
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 		pos = iter.LineEnd()
 		// Add newline before pasted content if buffer doesn't end with one
-		if pos > 0 && e.buffer.Rope.ByteAt(pos-1) != '\n' {
+		if pos > 0 && e.CurrentBuffer().Rope.ByteAt(pos-1) != '\n' {
 			content = "\n" + content
 		}
 	}
@@ -244,23 +244,23 @@ func (e *Editor) pasteAfterLine(content string) error {
 
 	// Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
-		buffer:     e.buffer,
+		buffer:     e.CurrentBuffer(),
 		position:   pos,
 		content:    content,
 		isLinewise: true,
-		oldCursorX: e.buffer.CursorX,
-		oldCursorY: e.buffer.CursorIterator.LineNumber(),
+		oldCursorX: e.CurrentBuffer().CursorX,
+		oldCursorY: e.CurrentBuffer().CursorIterator.LineNumber(),
 	}
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), pasteCmd); err != nil {
 			return err
 		} else if executed != nil {
 			e.lastChange = executed
 		}
 	} else {
-		pasteCmd.Execute(e.buffer)
+		pasteCmd.Execute(e.CurrentBuffer())
 	}
 
 	// Recreate ViewIterator after buffer modification
@@ -269,10 +269,10 @@ func (e *Editor) pasteAfterLine(content string) error {
 	if viewLine > lineNum {
 		viewLine += newLineCount
 	}
-	if viewLine >= e.buffer.LineCount {
-		viewLine = e.buffer.LineCount - 1
+	if viewLine >= e.CurrentBuffer().LineCount {
+		viewLine = e.CurrentBuffer().LineCount - 1
 	}
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -283,13 +283,13 @@ func (e *Editor) pasteAfterLine(content string) error {
 // pasteBeforeLine pastes content before the current line (line-wise)
 func (e *Editor) pasteBeforeLine(content string) error {
 	// Save ViewIterator line number before buffer modification
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current line number
-	lineNum := e.buffer.CursorIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Find the start of the current line
-	iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 	pos := iter.Position()
 
 	// Optionally auto-adjust indentation for code blocks when conditions are clear
@@ -302,23 +302,23 @@ func (e *Editor) pasteBeforeLine(content string) error {
 
 	// Create paste command for undo/redo
 	pasteCmd := &PasteCommand{
-		buffer:     e.buffer,
+		buffer:     e.CurrentBuffer(),
 		position:   pos,
 		content:    content,
 		isLinewise: true,
-		oldCursorX: e.buffer.CursorX,
-		oldCursorY: e.buffer.CursorIterator.LineNumber(),
+		oldCursorX: e.CurrentBuffer().CursorX,
+		oldCursorY: e.CurrentBuffer().CursorIterator.LineNumber(),
 	}
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, pasteCmd); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), pasteCmd); err != nil {
 			return err
 		} else if executed != nil {
 			e.lastChange = executed
 		}
 	} else {
-		pasteCmd.Execute(e.buffer)
+		pasteCmd.Execute(e.CurrentBuffer())
 	}
 
 	// Recreate ViewIterator after buffer modification
@@ -327,10 +327,10 @@ func (e *Editor) pasteBeforeLine(content string) error {
 	if viewLine >= lineNum {
 		viewLine += newLineCount
 	}
-	if viewLine >= e.buffer.LineCount {
-		viewLine = e.buffer.LineCount - 1
+	if viewLine >= e.CurrentBuffer().LineCount {
+		viewLine = e.CurrentBuffer().LineCount - 1
 	}
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -455,10 +455,10 @@ func (e *Editor) autoIndentPasteIfApplicable(content string, currentLineNum int,
 	}
 
     // Only when we have a code language highlighter that's not markdown
-    if e.buffer == nil || e.buffer.Highlighter == nil {
+    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
 		return content
 	}
-    lang := e.buffer.Highlighter.GetCurrentLanguage()
+    lang := e.CurrentBuffer().Highlighter.GetCurrentLanguage()
 	if lang == "" || lang == "markdown" {
 		return content
 	}
@@ -469,10 +469,10 @@ func (e *Editor) autoIndentPasteIfApplicable(content string, currentLineNum int,
 	targetLine := currentLineNum
 
 	// Get indentation info for the target line; require non-continuation
-	if targetLine < 0 || targetLine >= e.buffer.LineCount {
+	if targetLine < 0 || targetLine >= e.CurrentBuffer().LineCount {
 		return content
 	}
-	targetIter := buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
+	targetIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
 	// Extract actual leading whitespace of the target line without relying on file indent settings
 	lineText := targetIter.Line()
 	j := 0

@@ -20,8 +20,8 @@ func TestCalculatorWithMultipleCursors(t *testing.T) {
 	}
 
 	// Move primary cursor to end of first line
-	ed.Editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(ed.Editor.buffer, 0)
-	ed.Editor.buffer.CursorX = 6
+	ed.Editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), 0)
+	ed.Editor.CurrentBuffer().CursorX = 6
 
 	// Test current behavior - calculator commands are NOT multi-cursor
 	// This test documents the current limitation
@@ -33,9 +33,9 @@ func TestCalculatorWithMultipleCursors(t *testing.T) {
 		}
 
 		// Check that only the primary cursor line was modified
-		lines := make([]string, ed.Editor.buffer.LineCount)
-		for i := 0; i < ed.Editor.buffer.LineCount; i++ {
-			iter := buffer.NewBufferIteratorAtLine(ed.Editor.buffer, i)
+		lines := make([]string, ed.Editor.CurrentBuffer().LineCount)
+		for i := 0; i < ed.Editor.CurrentBuffer().LineCount; i++ {
+			iter := buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), i)
 			lines[i] = iter.Line()
 		}
 
@@ -64,11 +64,11 @@ func TestCalculatorMultiCursorSequentialExecution(t *testing.T) {
 	ed := NewTestEditorWithContent(80, 24, content)
 
 	// For each line, position the cursor AFTER the last character (inclusive end)
-	for lineNum := 0; lineNum < ed.Editor.buffer.LineCount; lineNum++ {
-		iter := buffer.NewBufferIteratorAtLine(ed.Editor.buffer, lineNum)
+	for lineNum := 0; lineNum < ed.Editor.CurrentBuffer().LineCount; lineNum++ {
+		iter := buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), lineNum)
 		line := iter.Line()
-		ed.Editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(ed.Editor.buffer, lineNum)
-		ed.Editor.buffer.CursorX = len(line) // inclusive end, so the full expression is considered
+		ed.Editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), lineNum)
+		ed.Editor.CurrentBuffer().CursorX = len(line) // inclusive end, so the full expression is considered
 		if err := ed.ExecuteCommand("calculate-append"); err != nil {
 			t.Fatalf("calculate-append failed at line %d: %v", lineNum, err)
 		}
@@ -76,8 +76,8 @@ func TestCalculatorMultiCursorSequentialExecution(t *testing.T) {
 
 	// Validate expected results on all lines
 	expected := []string{"10 + 5 → 15", "20 * 2 → 40", "30 - 10 → 20"}
-	for i := 0; i < ed.Editor.buffer.LineCount; i++ {
-		iter := buffer.NewBufferIteratorAtLine(ed.Editor.buffer, i)
+	for i := 0; i < ed.Editor.CurrentBuffer().LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), i)
 		if got := iter.Line(); got != expected[i] {
 			t.Errorf("Line %d: expected '%s', got '%s'", i, expected[i], got)
 		}

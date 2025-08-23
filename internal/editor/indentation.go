@@ -94,7 +94,7 @@ func isReliableIndentLine(line string) bool {
 
 // detectIndentation analyzes the buffer to determine indentation style
 func (e *Editor) detectIndentation() buffer.IndentationInfo {
-	lines := e.buffer.Lines()
+	lines := e.CurrentBuffer().Lines()
 
 	// Count occurrences of different indentation patterns
 	tabCount := 0
@@ -183,5 +183,5 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 
 // getCurrentLineIndentInfo returns detailed indentation info for the line at the iterator
 func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.LineIndentInfo {
-	return e.buffer.GetCurrentLineIndentInfo(iter)
+	return e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
 }

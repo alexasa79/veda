@@ -11,11 +11,16 @@ func TestAutoIndentCleanupBasics(t *testing.T) {
 	editor := &Editor{
 		autoIndentLines: make(map[string]AutoIndentInfo),
 		lastCursorLine:  -1,
+		windows:         []*Window{},
+		activeWindow:    0,
 	}
 
 	// Create a test buffer
 	testBuffer := buffer.NewBuffer("", "test.go", config.IndentSpaces, 4)
-	editor.buffer = testBuffer
+	
+	// Create a window with the buffer
+	editor.windows = append(editor.windows, &Window{Buffer: testBuffer})
+	editor.SetCurrentBuffer(testBuffer)
 
 	// Test tracking auto-indent
 	editor.trackAutoIndent(1, 4)

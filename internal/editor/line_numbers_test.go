@@ -49,13 +49,13 @@ func TestLineNumbersRendering(t *testing.T) {
 		}
 
 		// Also check LineNumberWidth
-		if te.buffer.LineNumberWidth == 0 {
-			t.Errorf("Expected LineNumberWidth > 0, got %d", te.buffer.LineNumberWidth)
+		if te.CurrentBuffer().LineNumberWidth == 0 {
+			t.Errorf("Expected LineNumberWidth > 0, got %d", te.CurrentBuffer().LineNumberWidth)
 		}
-		t.Logf("LineNumberWidth: %d", te.buffer.LineNumberWidth)
+		t.Logf("LineNumberWidth: %d", te.CurrentBuffer().LineNumberWidth)
 
 		// Check buffer line count
-		t.Logf("Buffer LineCount: %d", te.buffer.LineCount)
+		t.Logf("Buffer LineCount: %d", te.CurrentBuffer().LineCount)
 
 		// Debug: Check what's at position 0,0
 		ch, _ := te.mockScreen.GetCell(0, 0)

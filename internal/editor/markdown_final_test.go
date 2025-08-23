@@ -9,14 +9,14 @@ import (
 func TestMarkdownRenderingWithSelection(t *testing.T) {
 	t.Run("markdown link renders correctly and selection works", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Check [this link](https://example.com) out")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
         // Initialize highlighter for markdown (per-buffer)
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        if te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
-            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
-            t.Logf("Highlighter language after setup: %s", te.buffer.Highlighter.GetCurrentLanguage())
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        if te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+            t.Logf("Highlighter language after setup: %s", te.CurrentBuffer().Highlighter.GetCurrentLanguage())
         }
 
 		// Get selection style
@@ -70,13 +70,13 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 
 	t.Run("insert mode shows full markdown syntax", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Text [link](url) here")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
         // Initialize highlighter (per-buffer)
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        if te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
-            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        if te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
         }
 
 		// Enter insert mode

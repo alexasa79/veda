@@ -381,15 +381,15 @@ func TestDeleteOperations(t *testing.T) {
 		content := "package main\n\nfunc main() {\n\tprintln(\"hello\")\n\tprintln(\"world\")\n}\n"
 		te := NewTestEditorWithContent(80, 24, content)
         // Set filename to .go so highlighter selects Go (enables auto-indent code path)
-        te.buffer.FilePath = "test.go"
-        if te.buffer.Highlighter != nil {
-            _ = te.buffer.Highlighter.SetLanguage("go")
+        te.CurrentBuffer().FilePath = "test.go"
+        if te.CurrentBuffer().Highlighter != nil {
+            _ = te.CurrentBuffer().Highlighter.SetLanguage("go")
         }
 
 		// Move cursor to first line inside function body (line 3)
 		// Lines: 0:package,1:blank,2:func...,3:\tprintln("hello"),4:\tprintln("world"),5:}
-		te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 3)
-		te.buffer.CursorX = 0
+		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 3)
+		te.CurrentBuffer().CursorX = 0
 
 		// Enter visual line mode and select both body lines
 		_ = te.ExecuteCommand("enter-visual-line-mode")

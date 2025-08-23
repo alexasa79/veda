@@ -52,7 +52,7 @@ func wrappedCountForWindow(t *testing.T, te *TestEditor, idx int) int {
 	// Create a sub-screen and temporarily bind editor to that region
 	sub := newWindowScreen(te.mockScreen, win.X, win.Y, win.Width, win.Height, false)
 	realScreen := te.screen
-	realBuffer := te.buffer
+	realBuffer := te.CurrentBuffer()
 	te.screen = sub
 	// Map window state onto buffer
 	savedView := win.Buffer.ViewIterator
@@ -69,7 +69,7 @@ func wrappedCountForWindow(t *testing.T, te *TestEditor, idx int) int {
 	win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, viewLine)
 	win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, cursorLine)
 	win.Buffer.CursorX = win.CursorX
-	te.buffer = win.Buffer
+	te.SetCurrentBuffer(win.Buffer)
 	// Calculate wrapped lines for the current view
 	wrapped := te.CalculateWrappedLines()
 	count := len(wrapped)
@@ -78,7 +78,7 @@ func wrappedCountForWindow(t *testing.T, te *TestEditor, idx int) int {
 	win.Buffer.CursorIterator = savedCursor
 	win.Buffer.CursorX = savedX
 	te.screen = realScreen
-	te.buffer = realBuffer
+	te.SetCurrentBuffer(realBuffer)
 	return count
 }
 

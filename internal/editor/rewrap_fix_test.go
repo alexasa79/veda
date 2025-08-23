@@ -16,8 +16,8 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 		// Position cursor at a specific X position on the first line
 		te.SetCursorPosition(45, 0) // After "positioned here"
 
-		initialLine := te.buffer.CursorIterator.LineNumber()
-		initialX := te.buffer.CursorX
+		initialLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial cursor position: line %d, column %d", initialLine, initialX)
 
 		// Position cursor on the paragraph for rewrapping (this will be the active cursor during rewrap)
@@ -38,8 +38,8 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 		te.SetCursorPosition(0, originalCursorLine)               // Move to start of first line
 		te.SetCursorPosition(originalCursorX, originalCursorLine) // Then to original position
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final cursor position: line %d, column %d", finalLine, finalX)
 
 		// The fix should maintain the cursor position
@@ -51,7 +51,7 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 
 		// Also verify the first line content is unchanged
 		te.SetCursorPosition(0, 0)
-		firstLineContent := te.buffer.CursorIterator.Line()
+		firstLineContent := te.CurrentBuffer().CursorIterator.Line()
 		expectedFirstLine := "Some text with cursor positioned here          <- cursor at specific position"
 		if firstLineContent != expectedFirstLine {
 			t.Errorf("First line content changed unexpectedly:\nExpected: %q\nActual:   %q", expectedFirstLine, firstLineContent)
@@ -78,8 +78,8 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		finalChar := te.getCharAtCursor()
 
 		t.Logf("Final position: line %d, column %d, char %c", finalLine, finalX, finalChar)
@@ -96,13 +96,13 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 
 	// Helper function to get character at cursor position
 	getCharAtCursor := func(te *TestEditor) rune {
-		line := te.buffer.CursorIterator.Line()
-		if te.buffer.CursorX >= len([]rune(line)) {
+		line := te.CurrentBuffer().CursorIterator.Line()
+		if te.CurrentBuffer().CursorX >= len([]rune(line)) {
 			return 0 // Beyond end of line
 		}
 		runes := []rune(line)
-		if te.buffer.CursorX < len(runes) {
-			return runes[te.buffer.CursorX]
+		if te.CurrentBuffer().CursorX < len(runes) {
+			return runes[te.CurrentBuffer().CursorX]
 		}
 		return 0
 	}

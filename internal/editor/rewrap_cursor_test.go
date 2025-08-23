@@ -22,10 +22,10 @@ Line after paragraph`
 		te.SetCursorPosition(31, 0) // End of "First line here with some content"
 
 		// Get initial cursor position
-		initialLine := te.buffer.CursorIterator.LineNumber()
-		initialX := te.buffer.CursorX
+		initialLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial cursor position: line %d, column %d", initialLine, initialX)
-		t.Logf("Initial line content: %q", te.buffer.CursorIterator.Line())
+		t.Logf("Initial line content: %q", te.CurrentBuffer().CursorIterator.Line())
 
 		// Position cursor on the paragraph line for rewrapping
 		te.SetCursorPosition(10, 3) // Middle of the long paragraph
@@ -38,10 +38,10 @@ Line after paragraph`
 
 		// Check that cursor on first line maintained its X position
 		te.SetCursorPosition(initialX, initialLine)
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final cursor position: line %d, column %d", finalLine, finalX)
-		t.Logf("Final line content: %q", te.buffer.CursorIterator.Line())
+		t.Logf("Final line content: %q", te.CurrentBuffer().CursorIterator.Line())
 
 		if finalLine != initialLine {
 			t.Errorf("Cursor line changed from %d to %d", initialLine, finalLine)
@@ -67,10 +67,10 @@ Line after paragraph`
 
 		te.SetCursorPosition(targetPos+5, 0) // Middle of "definitely"
 
-		initialLine := te.buffer.CursorIterator.LineNumber()
-		initialX := te.buffer.CursorX
+		initialLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial cursor position: line %d, column %d", initialLine, initialX)
-		t.Logf("Character at cursor: %c", []rune(te.buffer.CursorIterator.Line())[initialX])
+		t.Logf("Character at cursor: %c", []rune(te.CurrentBuffer().CursorIterator.Line())[initialX])
 
 		// Execute rewrap
 		err := te.ExecuteCommand("rewrap-paragraph")
@@ -79,12 +79,12 @@ Line after paragraph`
 		}
 
 		// Check final position
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final cursor position: line %d, column %d", finalLine, finalX)
 
 		// Verify cursor is still in the word "definitely"
-		finalLineContent := te.buffer.CursorIterator.Line()
+		finalLineContent := te.CurrentBuffer().CursorIterator.Line()
 		if finalX >= len(finalLineContent) {
 			t.Errorf("Cursor X position %d is beyond line length %d", finalX, len(finalLineContent))
 			return
@@ -108,10 +108,10 @@ Line after paragraph`
 
 		// Position cursor at end of the long line
 		te.SetCursorPosition(0, 1) // Start of paragraph line
-		longLine := te.buffer.CursorIterator.Line()
+		longLine := te.CurrentBuffer().CursorIterator.Line()
 		te.SetCursorPosition(len(longLine), 1) // End of line
 
-		initialX := te.buffer.CursorX
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial cursor at end of line: column %d", initialX)
 
 		// Execute rewrap
@@ -120,8 +120,8 @@ Line after paragraph`
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final cursor position: line %d, column %d", finalLine, finalX)
 
 		// Should not jump to beginning
@@ -147,8 +147,8 @@ This is the second part after an empty line.`
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final cursor position after rewrap: line %d, column %d", finalLine, finalX)
 
 		// Should handle empty line gracefully without jumping to start
@@ -165,7 +165,7 @@ This is the second part after an empty line.`
 		// Position cursor in middle of first comment line (after "very")
 		te.SetCursorPosition(20, 0)
 
-		initialX := te.buffer.CursorX
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial cursor in comment: column %d", initialX)
 
 		// Execute rewrap
@@ -174,8 +174,8 @@ This is the second part after an empty line.`
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final cursor position: line %d, column %d", finalLine, finalX)
 
 		// Should maintain position within comment content, not jump to "//" prefix

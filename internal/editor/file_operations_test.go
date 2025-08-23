@@ -24,17 +24,17 @@ func TestOpenNonExistentFile(t *testing.T) {
 	te.openFile(nonExistentFile)
 
 	// Check that a buffer was created with the correct file path
-	if te.buffer == nil {
+	if te.CurrentBuffer() == nil {
 		t.Fatal("Expected buffer to be created for non-existent file")
 	}
 
-	if te.buffer.FilePath != nonExistentFile {
-		t.Errorf("Expected buffer file path to be %s, got %s", nonExistentFile, te.buffer.FilePath)
+	if te.CurrentBuffer().FilePath != nonExistentFile {
+		t.Errorf("Expected buffer file path to be %s, got %s", nonExistentFile, te.CurrentBuffer().FilePath)
 	}
 
 	// Check that the buffer is empty
-	if te.buffer.Rope.String() != "" {
-		t.Errorf("Expected empty buffer for new file, got: %s", te.buffer.Rope.String())
+	if te.CurrentBuffer().Rope.String() != "" {
+		t.Errorf("Expected empty buffer for new file, got: %s", te.CurrentBuffer().Rope.String())
 	}
 
 	// Type some content
@@ -47,12 +47,12 @@ func TestOpenNonExistentFile(t *testing.T) {
 	te.ExecuteCommand("exit-insert-mode")
 
 	// Check the content
-	if te.buffer.Rope.String() != "Hello" {
-		t.Errorf("Expected buffer content to be 'Hello', got: %s", te.buffer.Rope.String())
+	if te.CurrentBuffer().Rope.String() != "Hello" {
+		t.Errorf("Expected buffer content to be 'Hello', got: %s", te.CurrentBuffer().Rope.String())
 	}
 
 	// Buffer should be marked as modified
-	if !te.buffer.IsModified {
+	if !te.CurrentBuffer().IsModified {
 		t.Error("Expected buffer to be marked as modified")
 	}
 }
@@ -74,17 +74,17 @@ func TestOpenNonExistentFileWithSubdirectory(t *testing.T) {
 	te.openFile(nonExistentFile)
 
 	// Check that a buffer was created with the correct file path
-	if te.buffer == nil {
+	if te.CurrentBuffer() == nil {
 		t.Fatal("Expected buffer to be created for non-existent file")
 	}
 
-	if te.buffer.FilePath != nonExistentFile {
-		t.Errorf("Expected buffer file path to be %s, got %s", nonExistentFile, te.buffer.FilePath)
+	if te.CurrentBuffer().FilePath != nonExistentFile {
+		t.Errorf("Expected buffer file path to be %s, got %s", nonExistentFile, te.CurrentBuffer().FilePath)
 	}
 
 	// Check that the buffer is empty
-	if te.buffer.Rope.String() != "" {
-		t.Errorf("Expected empty buffer for new file, got: %s", te.buffer.Rope.String())
+	if te.CurrentBuffer().Rope.String() != "" {
+		t.Errorf("Expected empty buffer for new file, got: %s", te.CurrentBuffer().Rope.String())
 	}
 
 	// Type some simple content
@@ -96,12 +96,12 @@ func TestOpenNonExistentFileWithSubdirectory(t *testing.T) {
 	te.ExecuteCommand("exit-insert-mode")
 
 	// Check the content
-	if te.buffer.Rope.String() != content {
-		t.Errorf("Expected buffer content to be:\n%s\nGot:\n%s", content, te.buffer.Rope.String())
+	if te.CurrentBuffer().Rope.String() != content {
+		t.Errorf("Expected buffer content to be:\n%s\nGot:\n%s", content, te.CurrentBuffer().Rope.String())
 	}
 
 	// Buffer should be marked as modified
-	if !te.buffer.IsModified {
+	if !te.CurrentBuffer().IsModified {
 		t.Error("Expected buffer to be marked as modified")
 	}
 }

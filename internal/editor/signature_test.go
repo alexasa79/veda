@@ -11,7 +11,7 @@ func TestShowSignature(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "fmt.Printf()")
 
 	// Set up the file so LSP would work
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 
 	// Execute show-signature command
 	err := te.showSignature(nil)
@@ -20,8 +20,8 @@ func TestShowSignature(t *testing.T) {
 	}
 
 	// Verify that generation was incremented
-	if te.buffer.SignatureGeneration != 1 {
-		t.Errorf("Expected SignatureGeneration to be 1, got %d", te.buffer.SignatureGeneration)
+	if te.CurrentBuffer().SignatureGeneration != 1 {
+		t.Errorf("Expected SignatureGeneration to be 1, got %d", te.CurrentBuffer().SignatureGeneration)
 	}
 }
 
@@ -80,32 +80,32 @@ func TestCheckSignatureUpdate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.content)
-			te.buffer.FilePath = "test.go"
-			te.buffer.CursorX = tt.cursorX
+			te.CurrentBuffer().FilePath = "test.go"
+			te.CurrentBuffer().CursorX = tt.cursorX
 
 			// Set up signature state
 			if tt.hasSignature {
-				te.buffer.CurrentSignature = &buffer.SignatureHelp{
+				te.CurrentBuffer().CurrentSignature = &buffer.SignatureHelp{
 					Label: "test(a int, b string)",
 				}
 			}
 
 			// Record initial generation
-			initialGen := te.buffer.SignatureGeneration
+			initialGen := te.CurrentBuffer().SignatureGeneration
 
 			// Check signature update
 			te.checkSignatureUpdate()
 
 			// Verify generation increment
 			if tt.expectReRequest {
-				if te.buffer.SignatureGeneration != initialGen+1 {
+				if te.CurrentBuffer().SignatureGeneration != initialGen+1 {
 					t.Errorf("Expected generation to increment, but it didn't. Initial: %d, Current: %d",
-						initialGen, te.buffer.SignatureGeneration)
+						initialGen, te.CurrentBuffer().SignatureGeneration)
 				}
 			} else {
-				if te.buffer.SignatureGeneration != initialGen {
+				if te.CurrentBuffer().SignatureGeneration != initialGen {
 					t.Errorf("Expected generation to stay the same, but it changed. Initial: %d, Current: %d",
-						initialGen, te.buffer.SignatureGeneration)
+						initialGen, te.CurrentBuffer().SignatureGeneration)
 				}
 			}
 		})
@@ -174,7 +174,7 @@ func TestParseSignatureHelpResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, "test")
-			buf := te.buffer
+			buf := te.CurrentBuffer()
 
 			// Parse the response
 			te.parseSignatureHelpResponse(buf, tt.response)
@@ -215,16 +215,16 @@ func TestSignatureHelpGeneration(t *testing.T) {
 	t.Skip("Test needs to be updated for new goroutine-based approach")
 
 	te := NewTestEditorWithContent(80, 24, "test()")
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 
 	// Add buffer to editor's buffers map
-	te.buffers["test.go"] = te.buffer
+	te.buffers["test.go"] = te.CurrentBuffer()
 
 	// Set up initial signature
-	te.buffer.CurrentSignature = &buffer.SignatureHelp{
+	te.CurrentBuffer().CurrentSignature = &buffer.SignatureHelp{
 		Label: "test(a int)",
 	}
-	te.buffer.SignatureGeneration = 5
+	te.CurrentBuffer().SignatureGeneration = 5
 
 	// Simulate receiving a response with old generation
 	response := proxyworker.ProxyResponse{
@@ -245,9 +245,9 @@ func TestSignatureHelpGeneration(t *testing.T) {
 	// te.handleLSPResponse(response)
 
 	// Verify that old response was ignored
-	if te.buffer.CurrentSignature.Label != "test(a int)" {
+	if te.CurrentBuffer().CurrentSignature.Label != "test(a int)" {
 		t.Errorf("Old response should have been ignored, but signature changed to %q",
-			te.buffer.CurrentSignature.Label)
+			te.CurrentBuffer().CurrentSignature.Label)
 	}
 
 	// Now send a response with current generation
@@ -264,32 +264,32 @@ func TestSignatureHelpGeneration(t *testing.T) {
 	// te.handleLSPResponse(response)
 
 	// Verify that new response was applied
-	if te.buffer.CurrentSignature.Label != "new signature" {
+	if te.CurrentBuffer().CurrentSignature.Label != "new signature" {
 		t.Errorf("New response should have been applied, but signature is %q",
-			te.buffer.CurrentSignature.Label)
+			te.CurrentBuffer().CurrentSignature.Label)
 	}
 }
 
 func TestUpdateCursorStateCallsCheckSignature(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "func(a, b)")
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 
 	// Set up signature
-	te.buffer.CurrentSignature = &buffer.SignatureHelp{
+	te.CurrentBuffer().CurrentSignature = &buffer.SignatureHelp{
 		Label: "test(a int, b string)",
 	}
 
 	// Position cursor on comma
-	te.buffer.CursorX = 6
+	te.CurrentBuffer().CursorX = 6
 
 	// Record initial generation
-	initialGen := te.buffer.SignatureGeneration
+	initialGen := te.CurrentBuffer().SignatureGeneration
 
 	// Call updateCursorState
 	te.updateCursorState()
 
 	// Verify that generation was incremented (indicating checkSignatureUpdate was called)
-	if te.buffer.SignatureGeneration != initialGen+1 {
+	if te.CurrentBuffer().SignatureGeneration != initialGen+1 {
 		t.Errorf("Expected generation to increment after updateCursorState, but it didn't")
 	}
 }
@@ -315,7 +315,7 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		}
 
 		// Record initial generation
-		initialGen := te.buffer.SignatureGeneration
+		initialGen := te.CurrentBuffer().SignatureGeneration
 
 		// Enter insert mode - should automatically trigger signature help
 		te.ExecuteCommand("enter-insert-mode")
@@ -326,8 +326,8 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		}
 
 		// Verify generation was incremented (automatic signature help triggered)
-		if te.buffer.SignatureGeneration != initialGen+1 {
-			t.Errorf("Expected signature generation to increment when entering insert mode between parentheses, but it remained %d", te.buffer.SignatureGeneration)
+		if te.CurrentBuffer().SignatureGeneration != initialGen+1 {
+			t.Errorf("Expected signature generation to increment when entering insert mode between parentheses, but it remained %d", te.CurrentBuffer().SignatureGeneration)
 		}
 	})
 
@@ -341,7 +341,7 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		te.ExecuteCommand("right")
 
 		// Record initial generation
-		initialGen := te.buffer.SignatureGeneration
+		initialGen := te.CurrentBuffer().SignatureGeneration
 
 		// Enter insert mode - should NOT trigger signature help
 		te.ExecuteCommand("enter-insert-mode")
@@ -352,8 +352,8 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		}
 
 		// Verify generation was NOT incremented (no signature help)
-		if te.buffer.SignatureGeneration != initialGen {
-			t.Errorf("Expected signature generation to remain %d when not between parentheses, but it became %d", initialGen, te.buffer.SignatureGeneration)
+		if te.CurrentBuffer().SignatureGeneration != initialGen {
+			t.Errorf("Expected signature generation to remain %d when not between parentheses, but it became %d", initialGen, te.CurrentBuffer().SignatureGeneration)
 		}
 	})
 
@@ -371,12 +371,12 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		te.ExecuteCommand("enter-insert-mode")
 
 		// Simulate having signature help (normally would come from LSP)
-		te.buffer.CurrentSignature = &buffer.SignatureHelp{
+		te.CurrentBuffer().CurrentSignature = &buffer.SignatureHelp{
 			Label: "Printf(format string, a ...interface{}) (n int, err error)",
 		}
 
 		// Verify signature help is present
-		if te.buffer.CurrentSignature == nil {
+		if te.CurrentBuffer().CurrentSignature == nil {
 			t.Fatal("Expected signature help to be present for this test")
 		}
 
@@ -389,7 +389,7 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		}
 
 		// Verify signature help was cleared
-		if te.buffer.CurrentSignature != nil {
+		if te.CurrentBuffer().CurrentSignature != nil {
 			t.Errorf("Expected signature help to be cleared when exiting insert mode, but it's still present")
 		}
 	})
@@ -405,19 +405,19 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		te.ExecuteCommand("append-after-cursor")
 
 		// Record initial generation
-		initialGen := te.buffer.SignatureGeneration
+		initialGen := te.CurrentBuffer().SignatureGeneration
 
 		// Type opening parenthesis - should trigger signature help
 		te.InsertChar('(')
 
 		// Verify signature generation was incremented (signature help requested)
-		if te.buffer.SignatureGeneration != initialGen+1 {
-			t.Errorf("Expected signature generation to increment when typing '(' in insert mode, initial=%d, current=%d", initialGen, te.buffer.SignatureGeneration)
+		if te.CurrentBuffer().SignatureGeneration != initialGen+1 {
+			t.Errorf("Expected signature generation to increment when typing '(' in insert mode, initial=%d, current=%d", initialGen, te.CurrentBuffer().SignatureGeneration)
 		}
 
 		// Verify the content now includes the parenthesis
 		expectedContent := "fmt.Printf("
-		actualContent := te.buffer.Rope.String()
+		actualContent := te.CurrentBuffer().Rope.String()
 		if actualContent != expectedContent {
 			t.Errorf("Expected content '%s', got '%s'", expectedContent, actualContent)
 		}
@@ -433,14 +433,14 @@ func TestAutomaticSignatureHelp(t *testing.T) {
 		te.ExecuteCommand("enter-insert-mode")
 
 		// Record initial generation
-		initialGen := te.buffer.SignatureGeneration
+		initialGen := te.CurrentBuffer().SignatureGeneration
 
 		// Type a regular character - should NOT trigger signature help
 		te.InsertChar('x')
 
 		// Verify signature generation was NOT incremented
-		if te.buffer.SignatureGeneration != initialGen {
-			t.Errorf("Expected signature generation to remain %d when typing regular characters, but it became %d", initialGen, te.buffer.SignatureGeneration)
+		if te.CurrentBuffer().SignatureGeneration != initialGen {
+			t.Errorf("Expected signature generation to remain %d when typing regular characters, but it became %d", initialGen, te.CurrentBuffer().SignatureGeneration)
 		}
 	})
 }

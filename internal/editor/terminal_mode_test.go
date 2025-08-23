@@ -24,13 +24,13 @@ func TestTerminalModeBinding(t *testing.T) {
 	}
 
 	// Verify current buffer properties
-	if te.buffer == nil {
+	if te.CurrentBuffer() == nil {
 		t.Fatalf("expected a current buffer after opening terminal")
 	}
-	if !te.buffer.IsInternal {
+	if !te.CurrentBuffer().IsInternal {
 		t.Errorf("terminal buffer should be internal")
 	}
-	if !te.buffer.IsReadOnly {
+	if !te.CurrentBuffer().IsReadOnly {
 		t.Errorf("terminal buffer should be read-only")
 	}
 
@@ -113,7 +113,7 @@ func TestTerminalReopen(t *testing.T) {
 	if te.mode != commands.TerminalMode {
 		t.Fatalf("expected TERMINAL mode after first open, got %v", te.mode)
 	}
-	if te.buffer == nil || !te.buffer.IsInternal || !te.buffer.IsReadOnly {
+	if te.CurrentBuffer() == nil || !te.CurrentBuffer().IsInternal || !te.CurrentBuffer().IsReadOnly {
 		t.Fatalf("terminal buffer should be internal and read-only on first open")
 	}
 	// Exit and open again
@@ -122,7 +122,7 @@ func TestTerminalReopen(t *testing.T) {
 	if te.mode != commands.TerminalMode {
 		t.Fatalf("expected TERMINAL mode after second open, got %v", te.mode)
 	}
-	if te.buffer == nil || !te.buffer.IsInternal || !te.buffer.IsReadOnly {
+	if te.CurrentBuffer() == nil || !te.CurrentBuffer().IsInternal || !te.CurrentBuffer().IsReadOnly {
 		t.Fatalf("terminal buffer should be internal and read-only on second open")
 	}
 }

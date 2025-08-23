@@ -36,7 +36,7 @@ def create_sample_tasks() -> List[Task]:
 		te.SetCursorPosition(0, 15)
 
 		// Verify we're on an empty line
-		currentLine := te.buffer.CursorIterator.Line()
+		currentLine := te.CurrentBuffer().CursorIterator.Line()
 		if strings.TrimSpace(currentLine) != "" {
 			t.Fatalf("Expected to be on empty line, but line contains: %q", currentLine)
 		}
@@ -77,7 +77,7 @@ def create_sample_tasks() -> List[Task]:
 		}
 
 		// Also verify the cursor position is reasonable
-		cursorLine := te.buffer.CursorIterator.LineNumber()
+		cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
 		if cursorLine < 0 || cursorLine >= len(linesAfter) {
 			t.Errorf("Cursor position %d is out of bounds for %d lines", cursorLine, len(linesAfter))
 		}

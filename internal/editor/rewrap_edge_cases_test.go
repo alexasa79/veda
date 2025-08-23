@@ -7,13 +7,13 @@ import (
 
 // Helper function to get character at cursor position
 func (te *TestEditor) getCharAtCursor() rune {
-	line := te.buffer.CursorIterator.Line()
-	if te.buffer.CursorX >= len([]rune(line)) {
+	line := te.CurrentBuffer().CursorIterator.Line()
+	if te.CurrentBuffer().CursorX >= len([]rune(line)) {
 		return 0 // Beyond end of line
 	}
 	runes := []rune(line)
-	if te.buffer.CursorX < len(runes) {
-		return runes[te.buffer.CursorX]
+	if te.CurrentBuffer().CursorX < len(runes) {
+		return runes[te.CurrentBuffer().CursorX]
 	}
 	return 0
 }
@@ -38,8 +38,8 @@ func TestRewrapEdgeCases(t *testing.T) {
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		finalChar := te.getCharAtCursor()
 
 		t.Logf("Final position: line %d, column %d", finalLine, finalX)
@@ -74,8 +74,8 @@ This is a paragraph with some empty lines and weird spacing that might confuse t
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 
 		t.Logf("Final position after rewrap empty line: line %d, column %d", finalLine, finalX)
 		t.Logf("Buffer content:\n%s", te.GetBufferContent())
@@ -90,7 +90,7 @@ This is a paragraph with some empty lines and weird spacing that might confuse t
 		// Position cursor at end of line
 		te.SetCursorPosition(len(content), 0)
 
-		initialX := te.buffer.CursorX
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial cursor at position: %d", initialX)
 
 		// Execute rewrap (even though it shouldn't change anything)
@@ -99,8 +99,8 @@ This is a paragraph with some empty lines and weird spacing that might confuse t
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 
 		t.Logf("Final position: line %d, column %d", finalLine, finalX)
 
@@ -129,8 +129,8 @@ This is a paragraph with some empty lines and weird spacing that might confuse t
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		finalChar := te.getCharAtCursor()
 
 		t.Logf("Final position: line %d, column %d", finalLine, finalX)
@@ -162,8 +162,8 @@ This is a paragraph with some empty lines and weird spacing that might confuse t
 				t.Fatalf("Rewrap %d failed: %v", i+1, err)
 			}
 
-			currentLine := te.buffer.CursorIterator.LineNumber()
-			currentX := te.buffer.CursorX
+			currentLine := te.CurrentBuffer().CursorIterator.LineNumber()
+			currentX := te.CurrentBuffer().CursorX
 			currentChar := te.getCharAtCursor()
 
 			t.Logf("After rewrap %d: line %d, column %d, char '%c'", i+1, currentLine, currentX, currentChar)

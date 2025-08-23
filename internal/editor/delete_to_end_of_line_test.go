@@ -10,7 +10,7 @@ func TestDeleteToEndOfLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello, World!")
 
 		// Position cursor at position 7 (after comma and space)
-		te.buffer.CursorX = 7
+		te.CurrentBuffer().CursorX = 7
 		AssertCursorAt(t, te, 7, 0)
 
 		// Execute D command
@@ -54,7 +54,7 @@ func TestDeleteToEndOfLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello")
 
 		// Position cursor at end (position 4, last character)
-		te.buffer.CursorX = 4
+		te.CurrentBuffer().CursorX = 4
 		AssertCursorAt(t, te, 4, 0)
 
 		// Execute D command
@@ -71,7 +71,7 @@ func TestDeleteToEndOfLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Line 1\nLine 2\nLine 3")
 
 		// Position cursor at "1" in first line
-		te.buffer.CursorX = 5
+		te.CurrentBuffer().CursorX = 5
 
 		// Execute D command
 		te.ExecuteCommand("delete-to-end-of-line")
@@ -87,7 +87,7 @@ func TestDeleteToEndOfLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello, World!")
 
 		// Position cursor at position 7
-		te.buffer.CursorX = 7
+		te.CurrentBuffer().CursorX = 7
 
 		// Execute D command
 		te.ExecuteCommand("delete-to-end-of-line")
@@ -105,7 +105,7 @@ func TestDeleteToEndOfLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "\tHello\tWorld")
 
 		// Position after first tab
-		te.buffer.CursorX = 1
+		te.CurrentBuffer().CursorX = 1
 
 		// Execute D command
 		te.ExecuteCommand("delete-to-end-of-line")
@@ -119,7 +119,7 @@ func TestDeleteToEndOfLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Line 1 text\nLine 2 text\nLine 3 text")
 
 		// Position at "1" in first line
-		te.buffer.CursorX = 5
+		te.CurrentBuffer().CursorX = 5
 
 		// Execute D command
 		te.ExecuteCommand("delete-to-end-of-line")
@@ -127,7 +127,7 @@ func TestDeleteToEndOfLine(t *testing.T) {
 
 		// Move to next line
 		te.ExecuteCommand("down")
-		te.buffer.CursorX = 5 // Position at "2"
+		te.CurrentBuffer().CursorX = 5 // Position at "2"
 
 		// Repeat last command with '.'
 		te.ExecuteCommand("repeat-last-change")

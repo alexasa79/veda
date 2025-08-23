@@ -335,10 +335,10 @@ func (e *Editor) ShowFuzzyListWidget() {
 				insertAt := e.activeWindow + 1
 				// Temporarily switch active window to new one for openFile side effects
 				if insertAt >= len(e.windows) {
-					e.windows = append(e.windows, newWindow(e.buffer))
+					e.windows = append(e.windows, newWindow(e.CurrentBuffer()))
 				} else {
 					e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-					e.windows[insertAt] = newWindow(e.buffer)
+					e.windows[insertAt] = newWindow(e.CurrentBuffer())
 				}
 				e.activateWindow(insertAt)
 				e.openFile(fullPath)
@@ -488,7 +488,7 @@ func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *pr
 
 	// If this is replacing the empty buffer AND it's still empty, remove it
 	// We should keep the unnamed buffer if the user has typed anything into it
-	if e.buffer == nil || !e.buffer.HasFile() {
+	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		if unnamedBuffer, exists := e.buffers["[No Name]"]; exists {
 			// Only remove if the buffer is truly empty
 			if unnamedBuffer.Rope.String() == "" {
@@ -645,10 +645,10 @@ func (e *Editor) showProjectSymbolsList() {
 			var filePath string
 			var gen uint64
 			var buf *buffer.Buffer
-			if e.buffer != nil {
-				buf = e.buffer
-				filePath = e.buffer.FilePath
-				gen = e.buffer.SignatureGeneration
+			if e.CurrentBuffer() != nil {
+				buf = e.CurrentBuffer()
+				filePath = e.CurrentBuffer().FilePath
+				gen = e.CurrentBuffer().SignatureGeneration
 			}
 
 			response := proxyworker.ProxyResponse{
@@ -705,25 +705,25 @@ func (e *Editor) showProjectSymbolsList() {
 // navigateToLocation moves cursor to specific line and character position
 func (e *Editor) navigateToLocation(line, character int) {
     // Log requested navigation
-    LL.Debug("navigateToLocation: request file=%s targetLine=%d targetChar=%d", e.buffer.FilePath, line, character)
+    LL.Debug("navigateToLocation: request file=%s targetLine=%d targetChar=%d", e.CurrentBuffer().FilePath, line, character)
 
     targetLine := line // LSP line numbers are 0-based
-    e.buffer.CursorX = character
+    e.CurrentBuffer().CursorX = character
 
     // Create iterator and advance to target line
-    e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
+    e.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(e.CurrentBuffer())
 
     // Move iterator to target line
-    for i := 0; i < targetLine && !e.buffer.CursorIterator.IsEOF(); i++ {
-        e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
+    for i := 0; i < targetLine && !e.CurrentBuffer().CursorIterator.IsEOF(); i++ {
+        e.CurrentBuffer().CursorIterator = e.CurrentBuffer().CursorIterator.Next()
     }
 
     // Ensure cursor X is within bounds
-    currentLine := e.buffer.CursorIterator.Line()
-    if e.buffer.CursorX > len(currentLine) {
-        e.buffer.CursorX = len(currentLine)
-        if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-            e.buffer.CursorX-- // Don't go past last character in normal mode
+    currentLine := e.CurrentBuffer().CursorIterator.Line()
+    if e.CurrentBuffer().CursorX > len(currentLine) {
+        e.CurrentBuffer().CursorX = len(currentLine)
+        if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+            e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
         }
     }
 
@@ -733,19 +733,19 @@ func (e *Editor) navigateToLocation(line, character int) {
     // Update window's cached state to match buffer
     if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
         win := e.windows[e.activeWindow]
-        if win != nil && win.Buffer == e.buffer {
-            win.ViewLine = e.buffer.ViewIterator.LineNumber()
-            win.CursorLine = e.buffer.CursorIterator.LineNumber()
-            win.CursorX = e.buffer.CursorX
+        if win != nil && win.Buffer == e.CurrentBuffer() {
+            win.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
+            win.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
+            win.CursorX = e.CurrentBuffer().CursorX
         }
     }
 
     // Log result state
     LL.Debug("navigateToLocation: result file=%s cursorLine=%d cursorX=%d viewTop=%d",
-        e.buffer.FilePath,
-        e.buffer.CursorIterator.LineNumber(),
-        e.buffer.CursorX,
-        e.buffer.ViewIterator.LineNumber(),
+        e.CurrentBuffer().FilePath,
+        e.CurrentBuffer().CursorIterator.LineNumber(),
+        e.CurrentBuffer().CursorX,
+        e.CurrentBuffer().ViewIterator.LineNumber(),
     )
 }
 
@@ -784,21 +784,21 @@ func (e *Editor) showDocumentSymbolsList() {
 	contentUpdateChan := make(chan []string, 1)
 
 	// Send async LSP request for document symbols
-	operationID := fmt.Sprintf("doc-symbols-%s", e.buffer.FilePath)
-	e.startAsyncOperation(operationID, "loading document symbols for: "+e.buffer.FilePath)
+	operationID := fmt.Sprintf("doc-symbols-%s", e.CurrentBuffer().FilePath)
+	e.startAsyncOperation(operationID, "loading document symbols for: "+e.CurrentBuffer().FilePath)
 
 	// Set connection status
 	e.connectionStatus = "Loading document symbols"
 
 	// Launch goroutine to fetch document symbols
 	go func() {
-		documentSymbols, err := e.proxyManager.GetDocumentSymbols(e.buffer.FilePath)
+		documentSymbols, err := e.proxyManager.GetDocumentSymbols(e.CurrentBuffer().FilePath)
 
 		response := proxyworker.ProxyResponse{
 			Type:            proxyworker.RequestDocumentSymbols,
-			FilePath:        e.buffer.FilePath,
-			Buffer:          e.buffer,
-			Generation:      e.buffer.SignatureGeneration,
+			FilePath:        e.CurrentBuffer().FilePath,
+			Buffer:          e.CurrentBuffer(),
+			Generation:      e.CurrentBuffer().SignatureGeneration,
 			DocumentSymbols: documentSymbols,
 			Error:           err,
 		}
@@ -806,7 +806,7 @@ func (e *Editor) showDocumentSymbolsList() {
 		// Send response to the channel
 		select {
 		case symbolResponseChan <- response:
-			LL.Trace("Sent document symbols response for %s", e.buffer.FilePath)
+			LL.Trace("Sent document symbols response for %s", e.CurrentBuffer().FilePath)
 		default:
 			LL.Debug("Symbol response channel full, dropping response")
 		}
@@ -878,7 +878,7 @@ func (e *Editor) showDocumentSymbolsList() {
                     // Find the selected symbol by display name
 			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
 				sym := symbols[idx]
-                        LL.Debug("doc-symbol-select: file=%s symbol=%q kind=%d at %d:%d", e.buffer.FilePath, sym.Name, sym.Kind, sym.Range.Start.Line, sym.Range.Start.Character)
+                        LL.Debug("doc-symbol-select: file=%s symbol=%q kind=%d at %d:%d", e.CurrentBuffer().FilePath, sym.Name, sym.Kind, sym.Range.Start.Line, sym.Range.Start.Character)
 				// Push current position to navigation history before jumping
 				e.pushNavigationHistory()
 				// Send navigation event to main loop instead of navigating directly
@@ -908,9 +908,9 @@ func (e *Editor) writeFile(args []string) error {
 		// Save as - use the provided filename
 		filePath = e.resolvePath(args[0])
 		saveAs = true
-	} else if e.buffer.HasFile() {
+	} else if e.CurrentBuffer().HasFile() {
 		// Save to current file
-		filePath = e.buffer.FilePath
+		filePath = e.CurrentBuffer().FilePath
 		saveAs = false
 	} else {
 		// No filename and buffer has no file
@@ -918,7 +918,7 @@ func (e *Editor) writeFile(args []string) error {
 	}
 
 	// Get the content from the buffer
-	content := e.buffer.Rope.String()
+	content := e.CurrentBuffer().Rope.String()
 
 	// Save to local history first (don't fail the save if history fails)
 	if e.localHistory != nil {
@@ -954,16 +954,16 @@ func (e *Editor) writeFile(args []string) error {
 		}
 
 		// Update buffer diagnostics with the returned diagnostics
-		e.buffer.Diagnostics = diagnostics
+		e.CurrentBuffer().Diagnostics = diagnostics
 
 		// If this is a "save as" operation, update the buffer's file path
 		if saveAs {
 			// Remove old buffer from maps if it had a file
-			if e.buffer.HasFile() {
-				delete(e.buffers, e.buffer.FilePath)
+			if e.CurrentBuffer().HasFile() {
+				delete(e.buffers, e.CurrentBuffer().FilePath)
 				// Update buffer order
 				for i, path := range e.bufferOrder {
-					if path == e.buffer.FilePath {
+					if path == e.CurrentBuffer().FilePath {
 						e.bufferOrder[i] = filePath
 						break
 					}
@@ -980,14 +980,14 @@ func (e *Editor) writeFile(args []string) error {
 			}
 
 			// Update buffer's file path
-			e.buffer.FilePath = filePath
+			e.CurrentBuffer().FilePath = filePath
 
 			// Add buffer with new path
-			e.buffers[filePath] = e.buffer
+			e.buffers[filePath] = e.CurrentBuffer()
 		}
 
 		// Mark buffer as saved
-		e.buffer.MarkSaved()
+		e.CurrentBuffer().MarkSaved()
 
 		// Clean up auto-save since file was successfully saved
 		if e.autoSaveManager != nil {
@@ -1085,7 +1085,7 @@ func (e *Editor) performAutoSave(filePath string) {
 
 // markBufferDirty marks a buffer as having unsaved changes for auto-save
 func (e *Editor) markBufferDirty() {
-	if e.autoSaveManager != nil && e.buffer.HasFile() {
-		e.autoSaveManager.MarkDirty(e.buffer.FilePath)
+	if e.autoSaveManager != nil && e.CurrentBuffer().HasFile() {
+		e.autoSaveManager.MarkDirty(e.CurrentBuffer().FilePath)
 	}
 }

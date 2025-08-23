@@ -156,7 +156,7 @@ func TestGoToEnd(t *testing.T) {
 		}
 
 		// Verify the cursor iterator is NOT at EOF
-		if te.buffer.CursorIterator.IsEOF() {
+		if te.CurrentBuffer().CursorIterator.IsEOF() {
 			t.Errorf("After go-to-end, cursor iterator should not be at EOF")
 		}
 

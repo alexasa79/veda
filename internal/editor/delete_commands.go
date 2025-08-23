@@ -168,7 +168,7 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 func (e *Editor) executeOperatorWithTextObject(op Operator, textObj TextObject) error {
 	defer e.clearPendingOperation()
 
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 
@@ -179,11 +179,11 @@ func (e *Editor) executeOperatorWithTextObject(op Operator, textObj TextObject) 
 	}
 
 	// Get current cursor position
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	cursorChar := e.buffer.CursorX
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	cursorChar := e.CurrentBuffer().CursorX
 
 	// Get the range from the text object
-	startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursorLine, cursorChar)
+	startLine, startChar, endLine, endChar, found := textObj.GetRange(e.CurrentBuffer(), cursorLine, cursorChar)
 	if !found {
 		return nil
 	}

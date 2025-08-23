@@ -23,7 +23,7 @@ func TestCursorAdjustmentOnShorterLines(t *testing.T) {
 	te2 := NewTestEditorWithContent(80, 24, "This is a very long line\nx\nAnother long line")
 
 	// Move to near end of first line
-	te2.buffer.CursorX = 20
+	te2.CurrentBuffer().CursorX = 20
 	AssertCursorAt(t, te2, 20, 0)
 
 	// Move down to single character line
@@ -36,7 +36,7 @@ func TestCursorAdjustmentOnShorterLines(t *testing.T) {
 
 	// Test with empty line
 	te3 := NewTestEditorWithContent(80, 24, "Some text\n\nMore text")
-	te3.buffer.CursorX = 5
+	te3.CurrentBuffer().CursorX = 5
 
 	// Move down to empty line
 	te3.ExecuteCommand("down")

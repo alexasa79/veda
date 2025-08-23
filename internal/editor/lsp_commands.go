@@ -12,20 +12,20 @@ import (
 // findReferences finds all references to the symbol under cursor
 func (e *Editor) findReferences(args []string) error {
 	// Only works if we have a file open
-	if !e.buffer.HasFile() {
+	if !e.CurrentBuffer().HasFile() {
 		return fmt.Errorf("no file open")
 	}
 
 	// Get cursor position (LSP uses 0-based line numbers)
-	line := e.buffer.CursorIterator.LineNumber()
-	character := e.buffer.CursorX
+	line := e.CurrentBuffer().CursorIterator.LineNumber()
+	character := e.CurrentBuffer().CursorX
 
-	LL.Debug("findReferences: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
+	LL.Debug("findReferences: file=%s, line=%d, character=%d", e.CurrentBuffer().FilePath, line, character)
 
 	// We'll reuse a single references buffer if it already exists
 
 	// Get references from LSP
-	locations, err := e.proxyManager.FindReferences(e.buffer.FilePath, line, character, true)
+	locations, err := e.proxyManager.FindReferences(e.CurrentBuffer().FilePath, line, character, true)
 	if err != nil {
 		LL.Debug("findReferences failed: %v", err)
 		return err
@@ -43,7 +43,7 @@ func (e *Editor) findReferences(args []string) error {
 	symbolName := e.getSymbolAtCursor()
 
 	// Save source file path before switching buffers
-	sourceFilePath := e.buffer.FilePath
+	sourceFilePath := e.CurrentBuffer().FilePath
 
 	// Create references buffer content in markdown format
 	content := e.formatReferencesAsMarkdown(locations, sourceFilePath, line, character)
@@ -152,8 +152,8 @@ func (e *Editor) findReferences(args []string) error {
 			LL.Debug("No matching reference found, defaulting to first reference at line %d", targetLine)
 		}
 
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
-		e.buffer.CursorX = 0
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
+		e.CurrentBuffer().CursorX = 0
 		// Ensure the cursor is visible
 		e.scroll()
 	}
@@ -224,8 +224,8 @@ func (e *Editor) formatReferencesAsMarkdown(locations []proxy.Location, sourceFi
 
 // getSymbolAtCursor tries to extract the symbol name at the current cursor position
 func (e *Editor) getSymbolAtCursor() string {
-	line := e.buffer.CursorIterator.Line()
-	x := e.buffer.CursorX
+	line := e.CurrentBuffer().CursorIterator.Line()
+	x := e.CurrentBuffer().CursorX
 
 	// Simple word extraction - find word boundaries
 	start := x
@@ -322,24 +322,24 @@ func (e *Editor) jumpToLocation(location proxy.Location) error {
 	e.pushNavigationHistory()
 
 	// If it's a different file, open it
-	if e.buffer.FilePath != filePath {
+	if e.CurrentBuffer().FilePath != filePath {
 		LL.Debug("jumpToReference: opening different file: %s", filePath)
 		e.openFile(filePath)
 	}
 
 	// Jump to the location
 	targetLine := location.Range.Start.Line
-	e.buffer.CursorX = location.Range.Start.Character
+	e.CurrentBuffer().CursorX = location.Range.Start.Character
 
 	// Create iterator at the target line directly
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
 
 	// Ensure cursor X is within bounds
-	currentLine := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(currentLine) {
-		e.buffer.CursorX = len(currentLine)
-		if e.buffer.CursorX > 0 {
-			e.buffer.CursorX-- // Don't go past last character in normal mode
+	currentLine := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(currentLine) {
+		e.CurrentBuffer().CursorX = len(currentLine)
+		if e.CurrentBuffer().CursorX > 0 {
+			e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
 		}
 	}
 
@@ -349,10 +349,10 @@ func (e *Editor) jumpToLocation(location proxy.Location) error {
 	// Update window's cached state to match buffer
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
 		win := e.windows[e.activeWindow]
-		if win != nil && win.Buffer == e.buffer {
-			win.ViewLine = e.buffer.ViewIterator.LineNumber()
-			win.CursorLine = e.buffer.CursorIterator.LineNumber()
-			win.CursorX = e.buffer.CursorX
+		if win != nil && win.Buffer == e.CurrentBuffer() {
+			win.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
+			win.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
+			win.CursorX = e.CurrentBuffer().CursorX
 		}
 	}
 
@@ -365,7 +365,7 @@ func (e *Editor) jumpToLocation(location proxy.Location) error {
 // jumpToReferenceUnderCursor handles pressing Enter in a references buffer
 func (e *Editor) jumpToReferenceUnderCursor(args []string) error {
 	// Check if current buffer is a references buffer
-	refsBuffer, isRefsBuffer := e.referencesBuffers[e.buffer.DisplayName()]
+	refsBuffer, isRefsBuffer := e.referencesBuffers[e.CurrentBuffer().DisplayName()]
 	if !isRefsBuffer {
 		return fmt.Errorf("not in a references buffer")
 	}
@@ -374,7 +374,7 @@ func (e *Editor) jumpToReferenceUnderCursor(args []string) error {
 	e.currentReferencesBuffer = refsBuffer
 
 	// Parse the line to extract the reference index
-	line := e.buffer.CursorIterator.Line()
+	line := e.CurrentBuffer().CursorIterator.Line()
 
 	// Look for pattern like "1. [file:line:col]"
 	var index int

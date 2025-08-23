@@ -9,14 +9,14 @@ import (
 // showCompletions shows the completion menu with LSP completions
 func (e *Editor) showCompletions() error {
 	// Check if we have a file open
-	if !e.buffer.HasFile() {
+	if !e.CurrentBuffer().HasFile() {
 		LL.Debug("No file open, cannot get completions")
 		return nil
 	}
 
 	// Get the current cursor position
-	line := e.buffer.CursorIterator.LineNumber()
-	character := e.buffer.CursorX
+	line := e.CurrentBuffer().CursorIterator.LineNumber()
+	character := e.CurrentBuffer().CursorX
 
 	// Get the current word prefix to use as initial filter
 	prefix := e.getWordBeforeCursor()
@@ -30,7 +30,7 @@ func (e *Editor) showCompletions() error {
 		defer e.endAsyncOperation(operationID)
 
 		// Get completions from LSP
-		result, err := e.proxyManager.GetCompletions(e.buffer.FilePath, line, character)
+		result, err := e.proxyManager.GetCompletions(e.CurrentBuffer().FilePath, line, character)
 		if err != nil {
 			LL.Debug("Failed to get completions: %v", err)
 			return // Don't show error to user, just no completions
@@ -99,13 +99,13 @@ func (e *Editor) handleShowCompletions(data map[string]interface{}) {
 // getCursorScreenPosition returns the screen position of the cursor
 func (e *Editor) getCursorScreenPosition() (int, int) {
 	// Calculate X position (accounting for line numbers)
-	lineNumberWidth := e.buffer.LineNumberWidth
-	x := lineNumberWidth + e.buffer.CursorX
+	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
+	x := lineNumberWidth + e.CurrentBuffer().CursorX
 
 	// Calculate Y position (accounting for context and scroll)
 	y := e.getContentStartY()
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 	y += cursorLine - viewLine
 
 	return x, y
@@ -153,12 +153,12 @@ func (e *Editor) hideCompletionMenu() {
 
 // getWordBeforeCursor returns the word before the cursor position
 func (e *Editor) getWordBeforeCursor() string {
-	if e.buffer == nil || e.buffer.CursorIterator.IsEOF() {
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().CursorIterator.IsEOF() {
 		return ""
 	}
 
-	line := e.buffer.CursorIterator.Line()
-	cursorX := e.buffer.CursorX
+	line := e.CurrentBuffer().CursorIterator.Line()
+	cursorX := e.CurrentBuffer().CursorX
 
 	// Find start of word
 	start := cursorX

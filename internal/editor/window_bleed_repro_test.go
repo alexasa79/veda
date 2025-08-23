@@ -43,7 +43,7 @@ func wrappedCountForWindowLocal(t *testing.T, te *TestEditor, idx int) int {
 	win := te.windows[idx]
 	sub := newWindowScreen(te.mockScreen, win.X, win.Y, win.Width, win.Height, false)
 	realScreen := te.screen
-	realBuffer := te.buffer
+	realBuffer := te.CurrentBuffer()
 	te.screen = sub
 	// Map window state
 	savedView := win.Buffer.ViewIterator
@@ -60,7 +60,7 @@ func wrappedCountForWindowLocal(t *testing.T, te *TestEditor, idx int) int {
 	win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, viewLine)
 	win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, cursorLine)
 	win.Buffer.CursorX = win.CursorX
-	te.buffer = win.Buffer
+	te.SetCurrentBuffer(win.Buffer)
 	wrapped := te.CalculateWrappedLines()
 	count := len(wrapped)
 	// Restore
@@ -68,7 +68,7 @@ func wrappedCountForWindowLocal(t *testing.T, te *TestEditor, idx int) int {
 	win.Buffer.CursorIterator = savedCursor
 	win.Buffer.CursorX = savedX
 	te.screen = realScreen
-	te.buffer = realBuffer
+	te.SetCurrentBuffer(realBuffer)
 	return count
 }
 
@@ -84,7 +84,7 @@ func TestRightWindowBottomShouldBeEmpty_Repro(t *testing.T) {
 	// configured minimum active width, left will shrink.
 	te := NewTestEditorWithContent(120, 30, buildLargeContent(200))
 	// Ensure the sole window uses the editor buffer we just created.
-	te.windows[0].Buffer = te.buffer
+	te.windows[0].Buffer = te.CurrentBuffer()
 
 	// Initial render in single-window mode; this paints the entire grid with
 	// non-space content from the left buffer.
@@ -113,7 +113,7 @@ func TestRightWindowBottomShouldBeEmpty_Repro(t *testing.T) {
     right.CursorX = 0
 
 	// Make sure editor points to the active window buffer and render.
-    te.buffer = right.Buffer
+    te.SetCurrentBuffer(right.Buffer)
 	te.render()
 
 	// Determine how many visual lines the right buffer actually draws.

@@ -11,9 +11,9 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "")
 
 		// Set up a Go file to enable syntax highlighting
-        te.buffer.FilePath = "test.go"
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        te.buffer.Highlighter.SetLanguageFromFile("test.go")
+        te.CurrentBuffer().FilePath = "test.go"
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.go")
 
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")
@@ -73,10 +73,10 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "func main() { fmt.Println(\"Hello\") }")
 
 		// Set up Go file
-        te.buffer.FilePath = "test.go"
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        te.buffer.Highlighter.SetLanguageFromFile("test.go")
-        te.buffer.Highlighter.Parse([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().FilePath = "test.go"
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.go")
+        te.CurrentBuffer().Highlighter.Parse([]byte(te.CurrentBuffer().Rope.String()))
 
 		// Move cursor to middle of line
 		te.SetCursorPosition(13, 0) // After "{"
@@ -107,13 +107,13 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "var x = 10")
 
 		// Enable Go syntax highlighting
-        te.buffer.FilePath = "test.go"
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        te.buffer.Highlighter.SetLanguageFromFile("test.go")
-        te.buffer.Highlighter.Parse([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().FilePath = "test.go"
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.go")
+        te.CurrentBuffer().Highlighter.Parse([]byte(te.CurrentBuffer().Rope.String()))
 
 		// Move to end of line
-		te.buffer.CursorX = 10
+		te.CurrentBuffer().CursorX = 10
 		te.ExecuteCommand("enter-insert-mode")
 
 		// Make several rapid edits
@@ -158,9 +158,9 @@ func TestEmptyBufferWithSyntaxHighlighting(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "")
 
 		// Enable syntax highlighting on empty buffer
-        te.buffer.FilePath = "test.go"
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        te.buffer.Highlighter.SetLanguageFromFile("test.go")
+        te.CurrentBuffer().FilePath = "test.go"
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.go")
 
 		// Should not crash when rendering empty buffer
 		te.drawEditor()

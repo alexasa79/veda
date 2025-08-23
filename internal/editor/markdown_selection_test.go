@@ -8,7 +8,7 @@ import (
 func TestMarkdownSelectionHighlighting(t *testing.T) {
 	t.Run("visual selection highlighting in markdown links", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Check [this link](https://example.com) out")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
 		// Get selection style
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
@@ -52,7 +52,7 @@ func TestMarkdownSelectionHighlighting(t *testing.T) {
 
 	t.Run("selection across markdown boundaries", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Text before [link](url) text after")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
 		// Get selection style
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)

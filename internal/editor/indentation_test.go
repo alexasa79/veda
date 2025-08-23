@@ -392,7 +392,7 @@ func TestIndentationCommands(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "test content")
 
 		// Start with default (4 spaces)
-		if te.buffer.Indentation.Type != config.IndentSpaces || te.buffer.Indentation.Width != 4 {
+		if te.CurrentBuffer().Indentation.Type != config.IndentSpaces || te.CurrentBuffer().Indentation.Width != 4 {
 			t.Fatalf("Expected default to be 4 spaces")
 		}
 
@@ -401,8 +401,8 @@ func TestIndentationCommands(t *testing.T) {
 		te.commandLine.SetText(":expandtab=false")
 		te.executeCommand()
 
-		if te.buffer.Indentation.Type != config.IndentTabs {
-			t.Errorf("Expected IndentTabs, got %v", te.buffer.Indentation.Type)
+		if te.CurrentBuffer().Indentation.Type != config.IndentTabs {
+			t.Errorf("Expected IndentTabs, got %v", te.CurrentBuffer().Indentation.Type)
 		}
 	})
 
@@ -414,11 +414,11 @@ func TestIndentationCommands(t *testing.T) {
 		te.commandLine.SetText(":tabstop=2")
 		te.executeCommand()
 
-		if te.buffer.Indentation.Type != config.IndentSpaces {
-			t.Errorf("Expected IndentSpaces, got %v", te.buffer.Indentation.Type)
+		if te.CurrentBuffer().Indentation.Type != config.IndentSpaces {
+			t.Errorf("Expected IndentSpaces, got %v", te.CurrentBuffer().Indentation.Type)
 		}
-		if te.buffer.Indentation.Width != 2 {
-			t.Errorf("Expected width 2, got %d", te.buffer.Indentation.Width)
+		if te.CurrentBuffer().Indentation.Width != 2 {
+			t.Errorf("Expected width 2, got %d", te.CurrentBuffer().Indentation.Width)
 		}
 	})
 
@@ -430,8 +430,8 @@ func TestIndentationCommands(t *testing.T) {
 		te.commandLine.SetText(":tabstop=8")
 		te.executeCommand()
 
-		if te.buffer.Indentation.Width != 8 {
-			t.Errorf("Expected width 8, got %d", te.buffer.Indentation.Width)
+		if te.CurrentBuffer().Indentation.Width != 8 {
+			t.Errorf("Expected width 8, got %d", te.CurrentBuffer().Indentation.Width)
 		}
 	})
 
@@ -439,15 +439,15 @@ func TestIndentationCommands(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "test content")
 
 		// First set to tabs
-		te.buffer.SetIndentationType(config.IndentTabs)
+		te.CurrentBuffer().SetIndentationType(config.IndentTabs)
 
 		// Then use :expandtab=true
 		te.enterCommandMode()
 		te.commandLine.SetText(":expandtab=true")
 		te.executeCommand()
 
-		if te.buffer.Indentation.Type != config.IndentSpaces {
-			t.Errorf("Expected IndentSpaces after expandtab, got %v", te.buffer.Indentation.Type)
+		if te.CurrentBuffer().Indentation.Type != config.IndentSpaces {
+			t.Errorf("Expected IndentSpaces after expandtab, got %v", te.CurrentBuffer().Indentation.Type)
 		}
 	})
 }

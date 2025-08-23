@@ -31,12 +31,12 @@ Line 10`
 	te.navigateToLocation(5, 3)
 	
 	// Check that buffer state was updated
-	bufferLine := te.buffer.CursorIterator.LineNumber()
+	bufferLine := te.CurrentBuffer().CursorIterator.LineNumber()
 	if bufferLine != 5 {
 		t.Errorf("Buffer cursor line not updated: expected 5, got %d", bufferLine)
 	}
-	if te.buffer.CursorX != 3 {
-		t.Errorf("Buffer cursor X not updated: expected 3, got %d", te.buffer.CursorX)
+	if te.CurrentBuffer().CursorX != 3 {
+		t.Errorf("Buffer cursor X not updated: expected 3, got %d", te.CurrentBuffer().CursorX)
 	}
 	
 	// Check that window state was synchronized
@@ -74,7 +74,7 @@ func doSomething() {
 	
 	// Create a mock location (simulating LSP reference)
 	location := proxy.Location{
-		URI: "file://" + te.buffer.FilePath,
+		URI: "file://" + te.CurrentBuffer().FilePath,
 		Range: proxy.Range{
 			Start: proxy.Position{Line: 5, Character: 5}, // doSomething function
 		},

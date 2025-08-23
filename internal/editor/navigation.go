@@ -17,24 +17,24 @@ type NavigationEntry struct {
 // pushNavigationHistory saves the current position to navigation history
 func (e *Editor) pushNavigationHistory() {
 	// Guard against cases where no buffer is active yet
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return
 	}
-	if !e.buffer.HasFile() {
+	if !e.CurrentBuffer().HasFile() {
 		return
 	}
 
 	// Skip special buffers - don't add them to navigation history
-	if (strings.HasPrefix(e.buffer.FilePath, "*References:") && strings.HasSuffix(e.buffer.FilePath, "*")) ||
-		e.buffer.FilePath == "*Diagnostics*" {
+	if (strings.HasPrefix(e.CurrentBuffer().FilePath, "*References:") && strings.HasSuffix(e.CurrentBuffer().FilePath, "*")) ||
+		e.CurrentBuffer().FilePath == "*Diagnostics*" {
 		return
 	}
 
 	entry := NavigationEntry{
-		filePath:         e.buffer.FilePath,
-		cursorX:          e.buffer.CursorX,
-		cursorLineNumber: e.buffer.CursorIterator.LineNumber(),
-		topLineNumber:    e.buffer.ViewIterator.LineNumber(),
+		filePath:         e.CurrentBuffer().FilePath,
+		cursorX:          e.CurrentBuffer().CursorX,
+		cursorLineNumber: e.CurrentBuffer().CursorIterator.LineNumber(),
+		topLineNumber:    e.CurrentBuffer().ViewIterator.LineNumber(),
 	}
 
 	// Add to history
@@ -62,7 +62,7 @@ func (e *Editor) goBack(args []string) error {
 	e.saveCurrentBufferState()
 
 	// Check if we need to switch files
-	if entry.filePath != e.buffer.FilePath {
+	if entry.filePath != e.CurrentBuffer().FilePath {
 		// Check if the file is already open
 		if buf, exists := e.buffers[entry.filePath]; exists {
 			e.switchToBuffer(buf)
@@ -74,21 +74,21 @@ func (e *Editor) goBack(args []string) error {
 
 	// Always restore cursor position from navigation entry
 	// This overrides any position from switchToBuffer
-	e.buffer.CursorX = entry.cursorX
+	e.CurrentBuffer().CursorX = entry.cursorX
 
 	// Restore cursor iterator to the saved line number
-	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
-	for i := 0; i < entry.cursorLineNumber && !e.buffer.CursorIterator.IsEOF(); i++ {
-		e.buffer.CursorIterator = e.buffer.CursorIterator.Next()
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(e.CurrentBuffer())
+	for i := 0; i < entry.cursorLineNumber && !e.CurrentBuffer().CursorIterator.IsEOF(); i++ {
+		e.CurrentBuffer().CursorIterator = e.CurrentBuffer().CursorIterator.Next()
 	}
 
 	// Ensure cursor is within bounds
-	if !e.buffer.CursorIterator.IsEOF() {
-		line := e.buffer.CursorIterator.Line()
-		if e.buffer.CursorX > len(line) {
-			e.buffer.CursorX = len(line)
-			if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-				e.buffer.CursorX-- // Don't go past last character in normal mode
+	if !e.CurrentBuffer().CursorIterator.IsEOF() {
+		line := e.CurrentBuffer().CursorIterator.Line()
+		if e.CurrentBuffer().CursorX > len(line) {
+			e.CurrentBuffer().CursorX = len(line)
+			if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+				e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
 			}
 		}
 	}

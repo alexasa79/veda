@@ -13,7 +13,7 @@ func TestDiagnosticsGutterAndBannerRendering(t *testing.T) {
 	te := NewTestEditorWithContent(40, 10, content)
 
 	// Inject diagnostics (1-based lines)
-	te.buffer.Diagnostics = []proxy.Diagnostic{
+	te.CurrentBuffer().Diagnostics = []proxy.Diagnostic{
 		{Line: 2, Severity: "error", Message: "Syntax error"},
 		{Line: 4, Severity: "warning", Message: "Unused variable"},
 	}
@@ -24,7 +24,7 @@ func TestDiagnosticsGutterAndBannerRendering(t *testing.T) {
 	te.drawStatusBar()
 
 	// Indicator is drawn in the middle gutter column: digits + 1
-	digitsWidth := te.buffer.LineNumberWidth - 3
+	digitsWidth := te.CurrentBuffer().LineNumberWidth - 3
 	if digitsWidth < 1 {
 		digitsWidth = 1
 	}
@@ -80,7 +80,7 @@ func TestMultiLineDiagnosticRendering(t *testing.T) {
 	te := NewTestEditorWithContent(80, 20, content) // Large screen to accommodate multi-line display
 
 	// Inject a diagnostic with newlines in the message
-	te.buffer.Diagnostics = []proxy.Diagnostic{
+	te.CurrentBuffer().Diagnostics = []proxy.Diagnostic{
 		{Line: 2, Severity: "error", Message: "This is a multi-line\nerror message that\nspans multiple lines"},
 	}
 
@@ -161,7 +161,7 @@ func TestDiagnosticRenderingWithEmptyLines(t *testing.T) {
 	te := NewTestEditorWithContent(80, 20, content)
 
 	// Inject a diagnostic with empty lines in the message (like the clang example)
-	te.buffer.Diagnostics = []proxy.Diagnostic{
+	te.CurrentBuffer().Diagnostics = []proxy.Diagnostic{
 		{Line: 2, Severity: "error", Message: "Too few arguments to function call, single argument 'arg1' was not specified\n\nbroken.c:1:5: note: 'f' declared here"},
 	}
 

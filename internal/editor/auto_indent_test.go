@@ -187,7 +187,7 @@ func TestInsertNewlineWithAutoIndent(t *testing.T) {
 			for i := 0; i < tt.cursorLine; i++ {
 				te.ExecuteCommand("down")
 			}
-			te.Editor.buffer.CursorX = tt.cursorCol
+			te.Editor.CurrentBuffer().CursorX = tt.cursorCol
 
 			// Insert newline
 			te.ExecuteCommand("insert-newline")

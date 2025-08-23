@@ -76,7 +76,7 @@ func main() {
 
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
-		te.buffer.FilePath = blockTestFile
+		te.CurrentBuffer().FilePath = blockTestFile
 
 		// Wait for LSP to populate folding ranges
 		time.Sleep(1 * time.Second)
@@ -84,7 +84,7 @@ func main() {
 		// Get folding ranges via proxy
 		foldingRanges, err := pm.GetFoldingRanges(blockTestFile)
 		if err == nil {
-			te.buffer.FoldingRanges = foldingRanges
+			te.CurrentBuffer().FoldingRanges = foldingRanges
 			t.Logf("Successfully got %d folding ranges", len(foldingRanges))
 			for i, r := range foldingRanges {
 				t.Logf("  Range %d: lines %d-%d", i, r.StartLine, r.EndLine)
@@ -99,7 +99,7 @@ func main() {
 		te.ExecuteCommand("down")
 		te.ExecuteCommand("down")
 
-		t.Logf("Cursor position: line %d, char %d", te.buffer.CursorIterator.LineNumber(), te.buffer.CursorX)
+		t.Logf("Cursor position: line %d, char %d", te.CurrentBuffer().CursorIterator.LineNumber(), te.CurrentBuffer().CursorX)
 
 		// Execute dab
 		te.TypeKeys("dab")
@@ -142,12 +142,12 @@ func main() {
 
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
-		te.buffer.FilePath = blockTestFile
+		te.CurrentBuffer().FilePath = blockTestFile
 
 		// Get folding ranges via proxy
 		foldingRanges, err := pm.GetFoldingRanges(blockTestFile)
 		if err == nil {
-			te.buffer.FoldingRanges = foldingRanges
+			te.CurrentBuffer().FoldingRanges = foldingRanges
 		}
 
 		// Move cursor inside the if block (accounting for package line)
@@ -181,7 +181,7 @@ func main() {
 
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
-		te.buffer.FilePath = functionTestFile
+		te.CurrentBuffer().FilePath = functionTestFile
 
 		// Wait for LSP to populate document symbols
 		time.Sleep(1 * time.Second)
@@ -238,7 +238,7 @@ func calculate(x, y int) int {
 
 		// Set up proxy manager and file path for LSP text objects
 		te.Editor.proxyManager = pm
-		te.buffer.FilePath = functionTestFile
+		te.CurrentBuffer().FilePath = functionTestFile
 
 		// Wait for LSP to populate document symbols
 		time.Sleep(1 * time.Second)

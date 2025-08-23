@@ -33,8 +33,8 @@ func TestInsertMode(t *testing.T) {
 	t.Run("backspace deletes one indent chunk in leading whitespace (spaces)", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "        hello") // 8 spaces then text
 		// Set indentation to 4 spaces
-		te.buffer.SetIndentationType(config.IndentSpaces)
-		te.buffer.SetIndentationWidth(4)
+		te.CurrentBuffer().SetIndentationType(config.IndentSpaces)
+		te.CurrentBuffer().SetIndentationWidth(4)
 		// Place cursor after 8 spaces
 		te.SetCursorPosition(8, 0)
 		// Enter insert mode and press backspace
@@ -47,7 +47,7 @@ func TestInsertMode(t *testing.T) {
 
 	t.Run("backspace deletes one tab or up to 4 spaces in tabs mode", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "\thello") // leading tab then text
-		te.buffer.SetIndentationType(config.IndentTabs)
+		te.CurrentBuffer().SetIndentationType(config.IndentTabs)
 		// Place cursor after tab
 		te.SetCursorPosition(1, 0)
 		te.ExecuteCommand("enter-insert-mode")
@@ -57,7 +57,7 @@ func TestInsertMode(t *testing.T) {
 
 		// Now try with spaces before cursor in tabs mode
 		te = NewTestEditorWithContent(80, 24, "    hello") // 4 spaces
-		te.buffer.SetIndentationType(config.IndentTabs)
+		te.CurrentBuffer().SetIndentationType(config.IndentTabs)
 		te.SetCursorPosition(4, 0)
 		te.ExecuteCommand("enter-insert-mode")
 		te.ExecuteCommand("backspace")
@@ -100,7 +100,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello World")
 
 		// Move cursor to position 5 (after "Hello")
-		te.buffer.CursorX = 5
+		te.CurrentBuffer().CursorX = 5
 
 		// Enter insert mode and insert comma
 		te.ExecuteCommand("enter-insert-mode")
@@ -114,7 +114,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello World")
 
 		// Move cursor to position 5 (after "Hello")
-		te.buffer.CursorX = 5
+		te.CurrentBuffer().CursorX = 5
 
 		// Enter insert mode and insert newline
 		te.ExecuteCommand("enter-insert-mode")
@@ -128,7 +128,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello")
 
 		// Move to end of line
-		te.buffer.CursorX = 5
+		te.CurrentBuffer().CursorX = 5
 
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")
@@ -177,7 +177,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello\nWorld")
 
 		// Move to position (2, 0) - after "He"
-		te.buffer.CursorX = 2
+		te.CurrentBuffer().CursorX = 2
 
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")
@@ -216,7 +216,7 @@ func TestInsertMode(t *testing.T) {
 		AssertCursorAt(t, te, 0, 0)
 
 		// Move to position 1 (after 'H')
-		te.buffer.CursorX = 1
+		te.CurrentBuffer().CursorX = 1
 		te.ExecuteCommand("right-insert")
 		AssertCursorAt(t, te, 2, 0) // At end of "Hi"
 

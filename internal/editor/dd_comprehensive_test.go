@@ -21,14 +21,14 @@ func TestDDOriginalBugRegression(t *testing.T) {
 		te.SetCursorPosition(0, 3)
 
 		// Record line count before deletion
-		initialLineCount := te.buffer.LineCount
+		initialLineCount := te.CurrentBuffer().LineCount
 		t.Logf("Before dd: %d lines", initialLineCount)
 
 		// Execute dd
 		te.TypeKeys("dd")
 
 		// The critical test: verify EXACTLY one line was deleted
-		finalLineCount := te.buffer.LineCount
+		finalLineCount := te.CurrentBuffer().LineCount
 		linesDeleted := initialLineCount - finalLineCount
 
 		if linesDeleted != 1 {
@@ -66,8 +66,8 @@ line5`
 
 		// They should be different - this would have caught the original bug
 		// If dd was incorrectly deleting 2 lines, then dd and 2dd would both delete 2 lines
-		singleDDLines := te1.buffer.LineCount
-		doubleDDLines := te2.buffer.LineCount
+		singleDDLines := te1.CurrentBuffer().LineCount
+		doubleDDLines := te2.CurrentBuffer().LineCount
 
 		if singleDDLines == doubleDDLines {
 			t.Errorf("CRITICAL BUG: dd and 2dd produced same result (%d lines)", singleDDLines)

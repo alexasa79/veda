@@ -17,7 +17,7 @@ var markdownLinkRegex = regexp.MustCompile(`\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*
 // jumpToReference is a command wrapper that checks if we're in a references buffer or on a markdown link
 func (e *Editor) jumpToReference(args []string) error {
 	// Check if current buffer is a references buffer
-	_, isRefsBuffer := e.referencesBuffers[e.buffer.DisplayName()]
+	_, isRefsBuffer := e.referencesBuffers[e.CurrentBuffer().DisplayName()]
 	if isRefsBuffer {
 		// Try the index-based approach first for references buffers
 		if err := e.jumpToReferenceUnderCursor(args); err == nil {
@@ -42,10 +42,10 @@ func (e *Editor) openMarkdownLinkInNewWindow(args []string) error {
 		insertAt := e.activeWindow + 1
 		oldActive := e.activeWindow
 		if insertAt >= len(e.windows) {
-			e.windows = append(e.windows, newWindow(e.buffer))
+			e.windows = append(e.windows, newWindow(e.CurrentBuffer()))
 		} else {
 			e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-			e.windows[insertAt] = newWindow(e.buffer)
+			e.windows[insertAt] = newWindow(e.CurrentBuffer())
 		}
 		e.recomputeWindowsLayout()
 		e.lastWindow = oldActive
@@ -61,8 +61,8 @@ func (e *Editor) openMarkdownLinkInNewWindow(args []string) error {
 
 // getMarkdownLinkAtCursor returns the link URL and line number (if any) at the current cursor position
 func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
-	line := e.buffer.CursorIterator.Line()
-	cursorX := e.buffer.CursorX
+	line := e.CurrentBuffer().CursorIterator.Line()
+	cursorX := e.CurrentBuffer().CursorX
 
 	// Find all markdown links in the line
 	matches := markdownLinkRegex.FindAllStringSubmatchIndex(line, -1)
@@ -132,8 +132,8 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 		// Jump to the line if specified
 		if lineNum > 0 {
 			targetLine := lineNum - 1
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
-			e.buffer.CursorX = 0
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
+			e.CurrentBuffer().CursorX = 0
 			e.scrollToCenter()
 		}
 

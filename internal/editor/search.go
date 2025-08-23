@@ -161,17 +161,17 @@ func (e *Editor) findPreviousCmd(args []string) error {
 // searchWordUnderCursor searches for the word under the cursor
 func (e *Editor) searchWordUnderCursor() {
 	// Get the current cursor position
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	cursorChar := e.buffer.CursorX
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	cursorChar := e.CurrentBuffer().CursorX
 
 	// Find the word boundary at the cursor
-	wordBoundary := FindCurrentWordBoundary(e.buffer, cursorLine, cursorChar, false)
+	wordBoundary := FindCurrentWordBoundary(e.CurrentBuffer(), cursorLine, cursorChar, false)
 	if wordBoundary == nil {
 		return
 	}
 
 	// Get the line content
-	iter := buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
 	if iter.IsEOF() {
 		return
 	}
@@ -243,12 +243,12 @@ func (e *Editor) searchWordUnderCursorCmd(args []string) error {
 func (e *Editor) moveCursorToPosition(pos int) {
 	// Remember the current view line before moving cursor (if iterator is still valid)
 	oldViewLine := 0
-	if e.buffer.ViewIterator != nil && e.buffer.ViewIterator.Generation == e.buffer.Generation {
-		oldViewLine = e.buffer.ViewIterator.LineNumber()
+	if e.CurrentBuffer().ViewIterator != nil && e.CurrentBuffer().ViewIterator.Generation == e.CurrentBuffer().Generation {
+		oldViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
 	}
 
 	// Create an iterator at the beginning
-	iter := buffer.NewBufferIterator(e.buffer)
+	iter := buffer.NewBufferIterator(e.CurrentBuffer())
 	lineNum := 0
 	lineStart := 0
 
@@ -265,15 +265,15 @@ func (e *Editor) moveCursorToPosition(pos int) {
 	}
 
 	// Set cursor position
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.CursorX = pos - lineStart
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().CursorX = pos - lineStart
 
 	// Ensure cursor X is within bounds
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(line) {
-		e.buffer.CursorX = len(line)
-		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-			e.buffer.CursorX--
+	line := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(line) {
+		e.CurrentBuffer().CursorX = len(line)
+		if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+			e.CurrentBuffer().CursorX--
 		}
 	}
 
@@ -281,12 +281,12 @@ func (e *Editor) moveCursorToPosition(pos int) {
 	visibleHeight := e.getVisibleHeight()
 
 	// Ensure ViewIterator is valid
-	if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, oldViewLine)
+	if e.CurrentBuffer().ViewIterator == nil || e.CurrentBuffer().ViewIterator.Generation != e.CurrentBuffer().Generation {
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), oldViewLine)
 	}
 
-	viewLine := e.buffer.ViewIterator.LineNumber()
-	cursorLine := e.buffer.CursorIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Check if cursor is within visible range
 	if cursorLine >= viewLine && cursorLine < viewLine+visibleHeight {
@@ -298,7 +298,7 @@ func (e *Editor) moveCursorToPosition(pos int) {
 	e.scrollToCenter()
 
 	// Check if the view actually changed
-	newViewLine := e.buffer.ViewIterator.LineNumber()
+	newViewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 	if newViewLine == oldViewLine {
 		// View didn't change, use default scrolling instead
 		e.scrollToShowAtTop()
@@ -321,7 +321,7 @@ func (e *Editor) updateSearchMatches() {
 	}
 
 	// Get buffer content
-	content := e.buffer.Rope.String()
+	content := e.CurrentBuffer().Rope.String()
 
 	// Find all matches
 	pos := 0
