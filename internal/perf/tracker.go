@@ -145,9 +145,9 @@ func (r *Reporter) report() {
 		metrics = append(metrics, m)
 	}
 
-	// Sort by total time (most expensive first)
+	// Sort by name (alphabetically)
 	sort.Slice(metrics, func(i, j int) bool {
-		return metrics[i].totalTime > metrics[j].totalTime
+		return metrics[i].name < metrics[j].name
 	})
 
 	// Report each metric with microsecond precision

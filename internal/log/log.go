@@ -32,6 +32,7 @@ type Logger struct {
 
 var logFile *os.File = nil
 var AllLoggers []*Logger = make([]*Logger, 0)
+var flushStopCh chan struct{}
 
 func SetupLogging(filename string) {
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND|os.O_TRUNC, 0666)
@@ -39,10 +40,35 @@ func SetupLogging(filename string) {
 		panic(fmt.Sprintf("Failed to open log file: %v", err))
 	}
 	logFile = f
+	
+	// Start background flusher goroutine
+	flushStopCh = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		
+		for {
+			select {
+			case <-ticker.C:
+				if logFile != nil {
+					logFile.Sync()
+				}
+			case <-flushStopCh:
+				return
+			}
+		}
+	}()
 }
 
 func CleanupLogging() {
+	// Stop the flusher goroutine
+	if flushStopCh != nil {
+		close(flushStopCh)
+		flushStopCh = nil
+	}
+	
 	if logFile != nil {
+		logFile.Sync() // Final flush before closing
 		logFile.Close()
 		logFile = nil
 	}
@@ -79,8 +105,6 @@ func (logger *Logger) log(level LogLevel, format string, args ...interface{}) {
 			time.Now().Format("2006-01-02T15:04:05.000000"), logger.Name, levelToString(level),
 			filepath.Base(file), line, t)
 		logFile.Write([]byte(logLine))
-		// Also flush immediately for debugging
-		logFile.Sync()
 	}
 }
 
