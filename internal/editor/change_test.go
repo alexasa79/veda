@@ -36,7 +36,7 @@ func TestChangeOperations(t *testing.T) {
 	t.Run("C changes to end of line", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello, World!")
 		// Position cursor at position 7 (after comma and space)
-		te.buffer.CursorX = 7
+		te.CurrentBuffer().CursorX = 7
 		AssertCursorAt(t, te, 7, 0)
 
 		// Execute C
@@ -58,7 +58,7 @@ func TestChangeOperations(t *testing.T) {
 	t.Run("C at end of line enters insert mode with no deletion", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello")
 		// Place at end (on last visible char index 4 in normal mode)
-		te.buffer.CursorX = 4
+		te.CurrentBuffer().CursorX = 4
 		AssertCursorAt(t, te, 4, 0)
 
 		// Execute C

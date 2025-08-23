@@ -19,7 +19,7 @@ func TestReindentExpression_UsesBlockAndDedentsBraces(t *testing.T) {
 	te.SetCursorPosition(4, 2) // zero-based: line "    foo();"
 
 	// Ensure spaces indentation with width 4
-	te.buffer.SetIndentationType(te.buffer.Indentation.Type) // keep defaults
+	te.CurrentBuffer().SetIndentationType(te.CurrentBuffer().Indentation.Type) // keep defaults
 
 	// Execute expression reindent
 	if err := te.ExecuteCommand("reindent-expression"); err != nil {

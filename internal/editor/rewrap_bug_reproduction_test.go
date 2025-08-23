@@ -17,8 +17,8 @@ func TestRewrapBugReproduction(t *testing.T) {
 		// Position cursor right after "# " in the second line - this is tricky for offset calculation
 		te.SetCursorPosition(2, 1) // Just after "# " on second line
 
-		initialLine := te.buffer.CursorIterator.LineNumber()
-		initialX := te.buffer.CursorX
+		initialLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial: line %d, column %d", initialLine, initialX)
 
 		// Execute rewrap
@@ -27,8 +27,8 @@ func TestRewrapBugReproduction(t *testing.T) {
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final: line %d, column %d", finalLine, finalX)
 		t.Logf("Buffer:\n%s", te.GetBufferContent())
 
@@ -56,10 +56,10 @@ This is a paragraph with weird indentation    and spacing that might cause offse
 		// Position cursor on one of the empty lines
 		te.SetCursorPosition(4, 1) // Some random position on second line
 
-		initialLine := te.buffer.CursorIterator.LineNumber()
-		initialX := te.buffer.CursorX
+		initialLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial: line %d, column %d", initialLine, initialX)
-		t.Logf("Initial line content: %q", te.buffer.CursorIterator.Line())
+		t.Logf("Initial line content: %q", te.CurrentBuffer().CursorIterator.Line())
 
 		// Execute rewrap
 		err := te.ExecuteCommand("rewrap-paragraph")
@@ -67,10 +67,10 @@ This is a paragraph with weird indentation    and spacing that might cause offse
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final: line %d, column %d", finalLine, finalX)
-		t.Logf("Final line content: %q", te.buffer.CursorIterator.Line())
+		t.Logf("Final line content: %q", te.CurrentBuffer().CursorIterator.Line())
 
 		if finalLine == 0 && finalX == 0 {
 			t.Error("BUG REPRODUCED: Cursor jumped to very beginning")
@@ -90,8 +90,8 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 		// Position cursor at a specific X position on the first line
 		te.SetCursorPosition(45, 0) // After "positioned here"
 
-		initialLine := te.buffer.CursorIterator.LineNumber()
-		initialX := te.buffer.CursorX
+		initialLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		initialX := te.CurrentBuffer().CursorX
 		t.Logf("Initial: line %d, column %d", initialLine, initialX)
 
 		// Position cursor on the paragraph for rewrapping
@@ -104,10 +104,10 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 		}
 
 		// Now check if the first line cursor position was preserved
-		te.SetCursorPosition(te.buffer.CursorX, 0) // Move back to first line
+		te.SetCursorPosition(te.CurrentBuffer().CursorX, 0) // Move back to first line
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final: line %d, column %d", finalLine, finalX)
 
 		// Check if cursor jumped to beginning of first line (this would be the bug)
@@ -132,8 +132,8 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final: line %d, column %d", finalLine, finalX)
 		t.Logf("Buffer:\n%s", te.GetBufferContent())
 
@@ -163,8 +163,8 @@ This is a paragraph that needs rewrapping because it is quite long and exceeds o
 			t.Fatalf("Rewrap failed: %v", err)
 		}
 
-		finalLine := te.buffer.CursorIterator.LineNumber()
-		finalX := te.buffer.CursorX
+		finalLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		finalX := te.CurrentBuffer().CursorX
 		t.Logf("Final position with empty paragraph: line %d, column %d", finalLine, finalX)
 
 		// This scenario might cause unpredictable cursor behavior

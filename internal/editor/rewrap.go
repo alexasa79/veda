@@ -275,8 +275,8 @@ func (e *Editor) rewrapParagraph() error {
 	}
 
 	// Get current cursor position
-	currentLine := e.buffer.CursorIterator.LineNumber()
-	currentChar := e.buffer.CursorX
+	currentLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	currentChar := e.CurrentBuffer().CursorX
 
 	// Determine the ruler index to use
 	var rulerIndex int
@@ -299,8 +299,8 @@ func (e *Editor) rewrapParagraph() error {
 	// Update tracking AFTER rewrap to the new cursor position so a repeated
 	// Alt+Q at the same physical location cycles correctly even if cursorX shifts
 	// due to reflow.
-	e.lastRewrapLine = e.buffer.CursorIterator.LineNumber()
-	e.lastRewrapChar = e.buffer.CursorX
+	e.lastRewrapLine = e.CurrentBuffer().CursorIterator.LineNumber()
+	e.lastRewrapChar = e.CurrentBuffer().CursorX
 	e.lastRewrapIndex = rulerIndex
 
 	return nil
@@ -312,15 +312,15 @@ func (e *Editor) rewrapParagraphCmd(args []string) error {
 	// is undoable separately from the ongoing insert session. We do this by
 	// ending the current insert session, executing the rewrap as its own
 	// history entry, and then immediately starting a new insert session.
-	if e.mode == commands.InsertMode && e.buffer != nil && e.buffer.History != nil {
+	if e.mode == commands.InsertMode && e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
 		// End current insert session (no-op if empty)
-		e.buffer.History.EndInsertSession()
+		e.CurrentBuffer().History.EndInsertSession()
 		// Perform the rewrap as a standalone history unit
 		if err := e.rewrapParagraph(); err != nil {
 			return err
 		}
 		// Resume a fresh insert session so subsequent typing is grouped
-		e.buffer.History.StartInsertSession("i")
+		e.CurrentBuffer().History.StartInsertSession("i")
 		return nil
 	}
 	return e.rewrapParagraph()
@@ -329,22 +329,22 @@ func (e *Editor) rewrapParagraphCmd(args []string) error {
 func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	LL.Trace("rewrapParagraphWithWidth: Starting with width=%d", width)
 
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		LL.Trace("rewrapParagraphWithWidth: buffer is nil, returning")
 		return nil
 	}
 
 	// Save iterator positions before any buffer modifications
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	cursorX := e.buffer.CursorX
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	cursorX := e.CurrentBuffer().CursorX
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	LL.Trace("rewrapParagraphWithWidth: cursorLine=%d, cursorX=%d, viewLine=%d", cursorLine, cursorX, viewLine)
 
 	// Get all lines from buffer
-	lines := make([]string, e.buffer.LineCount)
-	for i := 0; i < e.buffer.LineCount; i++ {
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, i)
+	lines := make([]string, e.CurrentBuffer().LineCount)
+	for i := 0; i < e.CurrentBuffer().LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), i)
 		lines[i] = iter.Line()
 	}
 
@@ -661,9 +661,9 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	}
 
 	// Calculate the byte positions for replacement (full lines for all Stage 1 contexts)
-	startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+	startIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), startLine)
 	startPos := startIter.Position()
-	endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
+	endIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), endLine)
 	endPos := endIter.LineEnd()
 
 	// Build new content with newlines
@@ -676,15 +676,15 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	}
 
 	// Save cursor position before change
-	oldCursorX := e.buffer.CursorX
-	oldCursorY := e.buffer.CursorIterator.LineNumber()
+	oldCursorX := e.CurrentBuffer().CursorX
+	oldCursorY := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Create a single history entry for the whole operation
 	oldLinesCopy := make([]string, endLine-startLine+1)
 	copy(oldLinesCopy, lines[startLine:endLine+1])
 
 	entry := &RewrapHistoryEntry{
-		buffer:     e.buffer,
+		buffer:     e.CurrentBuffer(),
 		startLine:  startLine,
 		endLine:    endLine,
 		oldLines:   oldLinesCopy,
@@ -697,15 +697,15 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 	}
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.lastChange = executed
 		}
 	} else {
 		// If no history, execute directly
-		entry.Execute(e.buffer)
+		entry.Execute(e.CurrentBuffer())
 	}
 
 	// Update cursor position
@@ -754,27 +754,27 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		// Ensure we don't go past the end of the wrapped paragraph
 		if newCursorLine >= startLine+len(wrappedLines) {
 			newCursorLine = startLine + len(wrappedLines) - 1
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newCursorLine)
-			e.buffer.CursorX = len(e.buffer.CursorIterator.Line())
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newCursorLine)
+			e.CurrentBuffer().CursorX = len(e.CurrentBuffer().CursorIterator.Line())
 		} else {
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newCursorLine)
-			e.buffer.CursorX = newCursorX
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newCursorLine)
+			e.CurrentBuffer().CursorX = newCursorX
 		}
 	} else if cursorLine > endLine {
 		// Adjust cursor if paragraph size changed
 		lineDiff := len(wrappedLines) - (endLine - startLine + 1)
 		newLineNum := cursorLine + lineDiff
-		if newLineNum < e.buffer.LineCount {
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, newLineNum)
+		if newLineNum < e.CurrentBuffer().LineCount {
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLineNum)
 		} else {
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, e.buffer.LineCount-1)
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), e.CurrentBuffer().LineCount-1)
 		}
 	} else {
 		// Cursor was above the paragraph, recreate iterator at same position
 		// (it may have been invalidated by buffer changes)
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
 		// Restore the original cursor X position
-		e.buffer.CursorX = cursorX
+		e.CurrentBuffer().CursorX = cursorX
 	}
 
 	// Update view iterator to handle line count changes
@@ -782,22 +782,22 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		// Adjust view if it was below the paragraph
 		lineDiff := len(wrappedLines) - (endLine - startLine + 1)
 		newViewLine := viewLine + lineDiff
-		if newViewLine >= e.buffer.LineCount {
-			newViewLine = e.buffer.LineCount - 1
+		if newViewLine >= e.CurrentBuffer().LineCount {
+			newViewLine = e.CurrentBuffer().LineCount - 1
 		}
 		if newViewLine < 0 {
 			newViewLine = 0
 		}
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, newViewLine)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newViewLine)
 	} else {
 		// Recreate view iterator at same position (it may have been invalidated)
-		if viewLine >= e.buffer.LineCount {
-			viewLine = e.buffer.LineCount - 1
+		if viewLine >= e.CurrentBuffer().LineCount {
+			viewLine = e.CurrentBuffer().LineCount - 1
 		}
 		if viewLine < 0 {
 			viewLine = 0
 		}
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 	}
 
 	// Update syntax highlighting (skip during paste mode)

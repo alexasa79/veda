@@ -9,18 +9,18 @@ func (e *Editor) scroll() {
 	t0 := e.perfTracker.Start()
 
 	// Skip scrolling for empty windows
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return
 	}
 
 	visibleHeight := e.getVisibleHeight()
-	bufferLines := e.buffer.LineCount
-	topLine := e.buffer.ViewIterator.LineNumber()
+	bufferLines := e.CurrentBuffer().LineCount
+	topLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Adjust scroll offset for top margin only (to account for context lines)
     ctx := 0
-    if e.buffer != nil {
-        ctx = len(e.buffer.ContextCache)
+    if e.CurrentBuffer() != nil {
+        ctx = len(e.CurrentBuffer().ContextCache)
     }
     topScrollOffset := e.config.ScrollOffset - ctx
 	if topScrollOffset < 0 {
@@ -28,12 +28,12 @@ func (e *Editor) scroll() {
 	}
 
 	// Scroll up when cursor is too close to top
-	cursorLine := e.buffer.CursorIterator.LineNumber()
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	if cursorLine < topLine+topScrollOffset {
 		linesToMove := topLine - (cursorLine - topScrollOffset)
 		if linesToMove > 0 {
 			for i := 0; i < linesToMove; i++ {
-				e.buffer.ViewIterator = e.buffer.ViewIterator.Previous()
+				e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Previous()
 			}
 		}
 	}
@@ -58,7 +58,7 @@ func (e *Editor) scroll() {
 
 		if linesToMove > 0 {
 			for i := 0; i < linesToMove; i++ {
-				e.buffer.ViewIterator = e.buffer.ViewIterator.Next()
+				e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Next()
 			}
 		}
 	}
@@ -68,12 +68,12 @@ func (e *Editor) scroll() {
 // scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top
 func (e *Editor) scrollToShowAtTop() {
 	// Create a new iterator at the beginning
-	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(e.CurrentBuffer())
 
 	// Adjust scroll offset for top margin only (to account for context lines)
     ctx := 0
-    if e.buffer != nil {
-        ctx = len(e.buffer.ContextCache)
+    if e.CurrentBuffer() != nil {
+        ctx = len(e.CurrentBuffer().ContextCache)
     }
     topScrollOffset := e.config.ScrollOffset - ctx
 	if topScrollOffset < 0 {
@@ -81,14 +81,14 @@ func (e *Editor) scrollToShowAtTop() {
 	}
 
 	// Move down to position cursor at ScrollOffset from the top
-	targetLine := e.buffer.CursorIterator.LineNumber() - topScrollOffset
+	targetLine := e.CurrentBuffer().CursorIterator.LineNumber() - topScrollOffset
 	if targetLine < 0 {
 		targetLine = 0
 	}
 
 	// Move iterator to target line
-	for i := 0; i < targetLine && !e.buffer.ViewIterator.IsEOF(); i++ {
-		e.buffer.ViewIterator = e.buffer.ViewIterator.Next()
+	for i := 0; i < targetLine && !e.CurrentBuffer().ViewIterator.IsEOF(); i++ {
+		e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Next()
 	}
 }
 
@@ -96,7 +96,7 @@ func (e *Editor) scrollToShowAtTop() {
 // This method calculates the view position so that the cursor is on the last visible line
 func (e *Editor) ScrollToShowAtBottom() {
 	visibleHeight := e.getVisibleHeight()
-	cursorLine := e.buffer.CursorIterator.LineNumber()
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Calculate the desired view start line
 	// If cursor is below screen, we need to move view up by 1
@@ -109,16 +109,16 @@ func (e *Editor) ScrollToShowAtBottom() {
 	}
 
 	// Create iterator at the desired view line
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredViewLine)
 
 	LL.Debug("After going to the end, the view iterator is at %+v, cursor iterator at %+v, visible height is %d",
-		e.buffer.ViewIterator, e.buffer.CursorIterator, visibleHeight)
+		e.CurrentBuffer().ViewIterator, e.CurrentBuffer().CursorIterator, visibleHeight)
 }
 
 // scrollToCenter positions the view so the cursor line appears in the middle of the screen
 func (e *Editor) scrollToCenter() {
 	visibleHeight := e.getVisibleHeight()
-	cursorLine := e.buffer.CursorIterator.LineNumber()
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Calculate the desired view start line to center the cursor
 	desiredViewLine := cursorLine - visibleHeight/2
@@ -128,7 +128,7 @@ func (e *Editor) scrollToCenter() {
 		desiredViewLine = 0
 	} else {
 		// Don't scroll past the end of the buffer
-		maxViewLine := e.buffer.LineCount - visibleHeight
+		maxViewLine := e.CurrentBuffer().LineCount - visibleHeight
 		if maxViewLine < 0 {
 			maxViewLine = 0
 		}
@@ -138,5 +138,5 @@ func (e *Editor) scrollToCenter() {
 	}
 
 	// Create iterator at the desired view line
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredViewLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredViewLine)
 }

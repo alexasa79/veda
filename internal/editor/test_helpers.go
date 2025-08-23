@@ -36,28 +36,28 @@ func NewTestEditor(width, height int) *TestEditor {
 // NewTestEditorWithContent creates a test editor with initial content
 func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	te := NewTestEditor(width, height)
-	te.buffer = buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	te.SetCurrentBuffer(buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth))
 	// Update iterators to point to the new buffer
-	te.buffer.ViewIterator = buffer.NewBufferIterator(te.buffer)
-	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
+	te.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(te.CurrentBuffer())
+	te.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(te.CurrentBuffer())
 
 	// Set up content change callback for search match updates
-	te.buffer.OnContentChange = func() {
+	te.CurrentBuffer().OnContentChange = func() {
 		te.updateSearchMatchesOnContentChange()
 	}
 
 	// Add the buffer to the buffers map so buffer management functions work
-	te.buffers[te.buffer.FilePath] = te.buffer
+	te.buffers[te.CurrentBuffer().FilePath] = te.CurrentBuffer()
 	// Update buffer order if the file path isn't already there
 	found := false
 	for _, path := range te.bufferOrder {
-		if path == te.buffer.FilePath {
+		if path == te.CurrentBuffer().FilePath {
 			found = true
 			break
 		}
 	}
 	if !found {
-		te.bufferOrder = append(te.bufferOrder, te.buffer.FilePath)
+		te.bufferOrder = append(te.bufferOrder, te.CurrentBuffer().FilePath)
 	}
 
 	// Ensure the active window renders this new buffer in unified window mode
@@ -65,7 +65,7 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	// After swapping te.buffer, also attach it to the active window so render() paints it.
 	if len(te.windows) == 0 {
 		// Create a default window for this buffer and layout
-		te.windows = []*Window{newWindow(te.buffer)}
+		te.windows = []*Window{newWindow(te.CurrentBuffer())}
 		te.activeWindow = 0
 		te.recomputeWindowsLayout()
 	} else {
@@ -76,14 +76,14 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 			te.activeWindow = 0
 		}
 		if te.windows[aw] == nil {
-			te.windows[aw] = newWindow(te.buffer)
+			te.windows[aw] = newWindow(te.CurrentBuffer())
 		} else {
-			te.windows[aw].Buffer = te.buffer
+			te.windows[aw].Buffer = te.CurrentBuffer()
 		}
 		// Sync per-window cursor/view state from the buffer so status/render are consistent
-		te.windows[aw].ViewLine = te.buffer.ViewIterator.LineNumber()
-		te.windows[aw].CursorLine = te.buffer.CursorIterator.LineNumber()
-		te.windows[aw].CursorX = te.buffer.CursorX
+		te.windows[aw].ViewLine = te.CurrentBuffer().ViewIterator.LineNumber()
+		te.windows[aw].CursorLine = te.CurrentBuffer().CursorIterator.LineNumber()
+		te.windows[aw].CursorX = te.CurrentBuffer().CursorX
 	}
 
 	return te
@@ -206,37 +206,37 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 
 // GetCursorPosition returns the current cursor position
 func (te *TestEditor) GetCursorPosition() (x, y int) {
-	return te.buffer.CursorX, te.buffer.CursorIterator.LineNumber()
+	return te.CurrentBuffer().CursorX, te.CurrentBuffer().CursorIterator.LineNumber()
 }
 
 // SetCursorPosition sets the cursor to a specific position
 func (te *TestEditor) SetCursorPosition(x, y int) {
-	te.buffer.CursorX = x
+	te.CurrentBuffer().CursorX = x
 
 	// Reset cursor iterator to beginning
-	te.buffer.CursorIterator = buffer.NewBufferIterator(te.buffer)
+	te.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(te.CurrentBuffer())
 
 	// Move to target line
-	for i := 0; i < y && !te.buffer.CursorIterator.IsEOF(); i++ {
-		te.buffer.CursorIterator = te.buffer.CursorIterator.Next()
+	for i := 0; i < y && !te.CurrentBuffer().CursorIterator.IsEOF(); i++ {
+		te.CurrentBuffer().CursorIterator = te.CurrentBuffer().CursorIterator.Next()
 	}
 
 	// Ensure cursor X is within bounds
-	if !te.buffer.CursorIterator.IsEOF() {
-		line := te.buffer.CursorIterator.Line()
-		if te.buffer.CursorX > len(line) {
-			te.buffer.CursorX = len(line)
+	if !te.CurrentBuffer().CursorIterator.IsEOF() {
+		line := te.CurrentBuffer().CursorIterator.Line()
+		if te.CurrentBuffer().CursorX > len(line) {
+			te.CurrentBuffer().CursorX = len(line)
 		}
 		// Apply normal mode adjustment - in vim, cursor can't be past the last character
-		if te.mode == commands.NormalMode && te.buffer.CursorX == len(line) && len(line) > 0 {
-			te.buffer.CursorX--
+		if te.mode == commands.NormalMode && te.CurrentBuffer().CursorX == len(line) && len(line) > 0 {
+			te.CurrentBuffer().CursorX--
 		}
 	}
 }
 
 // GetBufferContent returns the entire buffer content as a string
 func (te *TestEditor) GetBufferContent() string {
-	return te.buffer.Rope.String()
+	return te.CurrentBuffer().Rope.String()
 }
 
 // GetScreenContent returns what's visible on the screen

@@ -141,7 +141,7 @@ func TestRepeatLastChange(t *testing.T) {
 		te.bufferOrder = append(te.bufferOrder, "test2.txt")
 
 		// Switch to the new buffer
-		te.buffer = buf2
+		te.SetCurrentBuffer(buf2)
 
 		// Move to position after "Buffer"
 		for i := 0; i < 6; i++ {
@@ -224,8 +224,8 @@ func TestRepeatLastChange(t *testing.T) {
 		}
 
 		// Ensure ViewIterator is valid
-		viewGen := te.buffer.ViewIterator.Generation
-		bufGen := te.buffer.Generation
+		viewGen := te.CurrentBuffer().ViewIterator.Generation
+		bufGen := te.CurrentBuffer().Generation
 		if viewGen != bufGen {
 			t.Fatalf("ViewIterator generation mismatch before dw: iterator has %d, buffer has %d", viewGen, bufGen)
 		}
@@ -234,8 +234,8 @@ func TestRepeatLastChange(t *testing.T) {
 		te.TypeKeys("dw")
 
 		// Check ViewIterator is still valid after dw
-		viewGen = te.buffer.ViewIterator.Generation
-		bufGen = te.buffer.Generation
+		viewGen = te.CurrentBuffer().ViewIterator.Generation
+		bufGen = te.CurrentBuffer().Generation
 		if viewGen != bufGen {
 			t.Fatalf("ViewIterator generation mismatch after dw: iterator has %d, buffer has %d", viewGen, bufGen)
 		}
@@ -244,8 +244,8 @@ func TestRepeatLastChange(t *testing.T) {
 		te.ExecuteCommand("repeat-last-change")
 
 		// Check ViewIterator is still valid after repeat
-		viewGen = te.buffer.ViewIterator.Generation
-		bufGen = te.buffer.Generation
+		viewGen = te.CurrentBuffer().ViewIterator.Generation
+		bufGen = te.CurrentBuffer().Generation
 		if viewGen != bufGen {
 			t.Fatalf("ViewIterator generation mismatch after repeat: iterator has %d, buffer has %d", viewGen, bufGen)
 		}
@@ -517,26 +517,26 @@ func TestRepeatLastChange(t *testing.T) {
 		}
 
 		// Verify iterators are valid before repeat
-		if te.buffer.CursorIterator.Generation != te.buffer.Generation {
+		if te.CurrentBuffer().CursorIterator.Generation != te.CurrentBuffer().Generation {
 			t.Fatalf("CursorIterator generation mismatch before repeat: iterator has %d, buffer has %d",
-				te.buffer.CursorIterator.Generation, te.buffer.Generation)
+				te.CurrentBuffer().CursorIterator.Generation, te.CurrentBuffer().Generation)
 		}
-		if te.buffer.ViewIterator.Generation != te.buffer.Generation {
+		if te.CurrentBuffer().ViewIterator.Generation != te.CurrentBuffer().Generation {
 			t.Fatalf("ViewIterator generation mismatch before repeat: iterator has %d, buffer has %d",
-				te.buffer.ViewIterator.Generation, te.buffer.Generation)
+				te.CurrentBuffer().ViewIterator.Generation, te.CurrentBuffer().Generation)
 		}
 
 		// Repeat the change
 		te.ExecuteCommand("repeat-last-change")
 
 		// Verify iterators are still valid after repeat
-		if te.buffer.CursorIterator.Generation != te.buffer.Generation {
+		if te.CurrentBuffer().CursorIterator.Generation != te.CurrentBuffer().Generation {
 			t.Fatalf("CursorIterator generation mismatch after repeat: iterator has %d, buffer has %d",
-				te.buffer.CursorIterator.Generation, te.buffer.Generation)
+				te.CurrentBuffer().CursorIterator.Generation, te.CurrentBuffer().Generation)
 		}
-		if te.buffer.ViewIterator.Generation != te.buffer.Generation {
+		if te.CurrentBuffer().ViewIterator.Generation != te.CurrentBuffer().Generation {
 			t.Fatalf("ViewIterator generation mismatch after repeat: iterator has %d, buffer has %d",
-				te.buffer.ViewIterator.Generation, te.buffer.Generation)
+				te.CurrentBuffer().ViewIterator.Generation, te.CurrentBuffer().Generation)
 		}
 
 		AssertBufferEquals(t, te, "hello test\nfoo test\nbaz qux")

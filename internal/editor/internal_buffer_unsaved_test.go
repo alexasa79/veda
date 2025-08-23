@@ -56,11 +56,11 @@ func TestInternalBuffersExcludedFromUnsavedChecks(t *testing.T) {
 		te.InsertChar('x')
 
 		// Verify the buffer is marked as modified
-		if !te.buffer.IsModified {
+		if !te.CurrentBuffer().IsModified {
 			t.Error("Buffer should be modified")
 		}
 
-		if te.buffer.IsInternal {
+		if te.CurrentBuffer().IsInternal {
 			t.Error("Regular file buffer should not be internal")
 		}
 
@@ -90,7 +90,7 @@ func TestInternalBuffersExcludedFromUnsavedChecks(t *testing.T) {
 			t.Error("Messages buffer should be modified and internal")
 		}
 
-		if te.buffer.IsModified {
+		if te.CurrentBuffer().IsModified {
 			t.Error("File buffer should not be modified")
 		}
 

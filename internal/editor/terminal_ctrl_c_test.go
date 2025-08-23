@@ -74,7 +74,7 @@ func TestTerminalModeCtrlCHandling(t *testing.T) {
 	buf := buffer.NewBuffer("", terminalPath, te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	buf.IsInternal = true
 	te.buffers[terminalPath] = buf
-	te.buffer = buf
+	te.SetCurrentBuffer(buf)
 
 	// Create a Ctrl+C key event
 	ctrlCEvent := &events.KeyEvent{

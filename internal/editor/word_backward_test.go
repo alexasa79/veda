@@ -33,7 +33,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello, world! foo-bar")
 
 		// Start at "bar"
-		te.buffer.CursorX = 18
+		te.CurrentBuffer().CursorX = 18
 		AssertCursorAt(t, te, 18, 0)
 
 		// Jump back to "foo"
@@ -73,7 +73,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello    world     foo")
 
 		// Start at "foo"
-		te.buffer.CursorX = 19
+		te.CurrentBuffer().CursorX = 19
 		AssertCursorAt(t, te, 19, 0)
 
 		// Jump back to "world" (skip multiple spaces)
@@ -89,7 +89,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello world foo")
 
 		// Start in middle of "world"
-		te.buffer.CursorX = 8
+		te.CurrentBuffer().CursorX = 8
 		AssertCursorAt(t, te, 8, 0)
 
 		// Should jump to beginning of "world"
@@ -117,7 +117,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "foo_bar baz_qux some_long_variable_name")
 
 		// Start at beginning of "some_long_variable_name"
-		te.buffer.CursorX = 16
+		te.CurrentBuffer().CursorX = 16
 		AssertCursorAt(t, te, 16, 0)
 
 		// Jump back to "baz_qux" (treating it as one word)
@@ -133,7 +133,7 @@ func TestWordBackward(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello , world")
 
 		// Start on the comma
-		te.buffer.CursorX = 6
+		te.CurrentBuffer().CursorX = 6
 		AssertCursorAt(t, te, 6, 0)
 
 		// Should jump back to "hello"

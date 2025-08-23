@@ -68,7 +68,7 @@ func TestShowBuffersWithMultipleWindows(t *testing.T) {
 
 	te.windows = []*Window{win1, win2}
 	te.activeWindow = 0
-	te.buffer = buf1
+	te.SetCurrentBuffer(buf1)
 
 	// Test that showBuffers doesn't crash and returns no error
 	err := te.showBuffers([]string{})
@@ -108,14 +108,14 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 
 	te.windows = []*Window{win1, win2}
 	te.activeWindow = 0
-	te.buffer = buf1
+	te.SetCurrentBuffer(buf1)
 
 	// Verify initial state
 	if te.activeWindow != 0 {
 		t.Errorf("Expected active window to be 0, got %d", te.activeWindow)
 	}
-	if te.buffer.FilePath != "artifacts/file1.txt" {
-		t.Errorf("Expected current buffer to be file1.txt, got %s", te.buffer.FilePath)
+	if te.CurrentBuffer().FilePath != "artifacts/file1.txt" {
+		t.Errorf("Expected current buffer to be file1.txt, got %s", te.CurrentBuffer().FilePath)
 	}
 
 	// Test finding buffer in different window
@@ -129,7 +129,7 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 	if te.activeWindow != 1 {
 		t.Errorf("Expected active window to be 1 after activation, got %d", te.activeWindow)
 	}
-	if te.buffer.FilePath != "artifacts/file3.txt" {
-		t.Errorf("Expected current buffer to be file3.txt after window switch, got %s", te.buffer.FilePath)
+	if te.CurrentBuffer().FilePath != "artifacts/file3.txt" {
+		t.Errorf("Expected current buffer to be file3.txt after window switch, got %s", te.CurrentBuffer().FilePath)
 	}
 }

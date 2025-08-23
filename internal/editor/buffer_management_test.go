@@ -9,14 +9,19 @@ import (
 func TestBufferManagement(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	// Initially should have no buffers - only created when needed
-	if len(te.buffers) != 0 {
-		t.Errorf("Expected 0 buffers, got %d", len(te.buffers))
+	// Initially should have one buffer - the default "[No Name]" buffer
+	if len(te.buffers) != 1 {
+		t.Errorf("Expected 1 initial buffer, got %d", len(te.buffers))
 	}
 
-	// Buffer should be nil until needed
-	if te.buffer != nil {
-		t.Errorf("Expected initial buffer to be nil, but got: %v", te.buffer)
+	// Buffer should exist (the initial "[No Name]" buffer)
+	if te.CurrentBuffer() == nil {
+		t.Errorf("Expected initial buffer to exist, but got nil")
+	}
+	
+	// Should be the "[No Name]" buffer
+	if te.CurrentBuffer().FilePath != "[No Name]" {
+		t.Errorf("Expected initial buffer to be '[No Name]', got '%s'", te.CurrentBuffer().FilePath)
 	}
 }
 
@@ -35,14 +40,14 @@ func TestSaveCurrentBufferState(t *testing.T) {
 	te.SetCursorPosition(5, 10)
 	// Move view down by 3 lines
 	for i := 0; i < 3; i++ {
-		te.buffer.ViewIterator = te.buffer.ViewIterator.Next()
+		te.CurrentBuffer().ViewIterator = te.CurrentBuffer().ViewIterator.Next()
 	}
 
 	// Save the state
 	te.saveCurrentBufferState()
 
 	// Check that it was saved
-	buf := te.buffers[te.buffer.FilePath]
+	buf := te.buffers[te.CurrentBuffer().FilePath]
 	if buf.CursorX != 5 {
 		t.Errorf("Expected cursorX to be 5, got %d", buf.CursorX)
 	}
@@ -70,15 +75,15 @@ func TestSwitchToBuffer(t *testing.T) {
 	te.switchToBuffer(newBuffer)
 
 	// Check that the editor state was updated
-	if te.buffer.FilePath != "test.txt" {
-		t.Errorf("Expected current file to be 'test.txt', got %s", te.buffer.FilePath)
+	if te.CurrentBuffer().FilePath != "test.txt" {
+		t.Errorf("Expected current file to be 'test.txt', got %s", te.CurrentBuffer().FilePath)
 	}
 	x, _ := te.GetCursorPosition()
 	if x != 3 {
 		t.Errorf("Expected cursorX to be 3, got %d", x)
 	}
-	if te.buffer.Rope.String() != "Hello, World!" {
-		t.Errorf("Expected buffer content to be 'Hello, World!', got %s", te.buffer.Rope.String())
+	if te.CurrentBuffer().Rope.String() != "Hello, World!" {
+		t.Errorf("Expected buffer content to be 'Hello, World!', got %s", te.CurrentBuffer().Rope.String())
 	}
 }
 
@@ -93,19 +98,19 @@ func TestMultipleBuffers(t *testing.T) {
 	te.buffers["file2.txt"] = buffer2
 	te.bufferOrder = append(te.bufferOrder, "file1.txt", "file2.txt")
 
-	// Should have 2 buffers now (no initial empty buffer anymore)
-	if len(te.buffers) != 2 {
-		t.Errorf("Expected 2 buffers, got %d", len(te.buffers))
+	// Should have 3 buffers now (includes the initial "[No Name]" buffer)
+	if len(te.buffers) != 3 {
+		t.Errorf("Expected 3 buffers, got %d", len(te.buffers))
 	}
 
 	// Switch between buffers
 	te.switchToBuffer(buffer1)
-	if te.buffer.Rope.String() != "Buffer 1" {
-		t.Errorf("Expected buffer content to be 'Buffer 1', got %s", te.buffer.Rope.String())
+	if te.CurrentBuffer().Rope.String() != "Buffer 1" {
+		t.Errorf("Expected buffer content to be 'Buffer 1', got %s", te.CurrentBuffer().Rope.String())
 	}
 
 	te.switchToBuffer(buffer2)
-	if te.buffer.Rope.String() != "Buffer 2" {
-		t.Errorf("Expected buffer content to be 'Buffer 2', got %s", te.buffer.Rope.String())
+	if te.CurrentBuffer().Rope.String() != "Buffer 2" {
+		t.Errorf("Expected buffer content to be 'Buffer 2', got %s", te.CurrentBuffer().Rope.String())
 	}
 }

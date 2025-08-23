@@ -20,7 +20,7 @@ func TestMultiBufferWindowBasics(t *testing.T) {
 	// Create initial window with buf1
 	te.windows = []*Window{newWindow(buf1)}
 	te.activeWindow = 0
-	te.buffer = buf1
+	te.SetCurrentBuffer(buf1)
 	
 	// Verify initial state
 	if len(te.windows[0].Buffers) != 1 {
@@ -43,7 +43,7 @@ func TestMoveBufferToNewWindow(t *testing.T) {
 	te.buffers["file1.txt"] = buf1
 	te.windows = []*Window{newWindow(buf1)}
 	te.activeWindow = 0
-	te.buffer = buf1
+	te.SetCurrentBuffer(buf1)
 	
 	// Move buffer right to create new window
 	err := te.ExecuteCommand("move-buffer-right")
@@ -97,7 +97,7 @@ func TestMoveBufferToExistingWindow(t *testing.T) {
 	win2 := newWindow(buf2)
 	te.windows = []*Window{win1, win2}
 	te.activeWindow = 1  // Start from window with buf2
-	te.buffer = buf2
+	te.SetCurrentBuffer(buf2)
 	
 	// Move buf2 from window 1 to window 0 (where buf1 is)
 	err := te.ExecuteCommand("move-buffer-left")
@@ -171,10 +171,10 @@ func TestBufferPersistenceAfterMovement(t *testing.T) {
 	win2 := newWindow(buf2)
 	te.windows = []*Window{win1, win2}
 	te.activeWindow = 0
-	te.buffer = buf1
+	te.SetCurrentBuffer(buf1)
 	
 	// Move buf3 to window 0 (should add it to buf1's window)
-	te.buffer = buf3  // Simulate having buf3 active in some way
+	te.SetCurrentBuffer(buf3) // Simulate having buf3 active in some way
 	te.windows[0].addBufferToWindow(buf3)
 	
 	// Now window 0 should have buf1 and buf3
@@ -184,7 +184,7 @@ func TestBufferPersistenceAfterMovement(t *testing.T) {
 	
 	// Move buf3 to window 1
 	te.activeWindow = 0
-	te.buffer = buf3
+	te.SetCurrentBuffer(buf3)
 	err := te.ExecuteCommand("move-buffer-right")
 	if err != nil {
 		t.Fatalf("Failed to move buf3 right: %v", err)
@@ -222,7 +222,7 @@ func TestRemoveLastBufferFromWindow(t *testing.T) {
 	win1 := newWindow(buf1)
 	te.windows = []*Window{win1, newWindow(nil)} // Second window starts empty
 	te.activeWindow = 0
-	te.buffer = buf1
+	te.SetCurrentBuffer(buf1)
 	
 	// Move the only buffer from window 0 to window 1
 	err := te.ExecuteCommand("move-buffer-right")
@@ -363,7 +363,7 @@ func TestMoveBufferCenter(t *testing.T) {
 	win3 := newWindow(buf3)
 	te.windows = []*Window{win1, win2, win3}
 	te.activeWindow = 2 // Start from window 2
-	te.buffer = buf3
+	te.SetCurrentBuffer(buf3)
 	
 	// Move buf3 to center (window 1)
 	err := te.ExecuteCommand("move-buffer-center")
@@ -418,7 +418,7 @@ func TestNoGlobalBuffersAfterMovement(t *testing.T) {
 	win2 := newWindow(buf2)
 	te.windows = []*Window{win1, win2}
 	te.activeWindow = 1
-	te.buffer = buf2
+	te.SetCurrentBuffer(buf2)
 	
 	// Move buf2 to window 0 (should add to buf1's window)
 	err := te.ExecuteCommand("move-buffer-left")

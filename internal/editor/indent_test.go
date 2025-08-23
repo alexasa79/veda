@@ -50,7 +50,7 @@ func TestIndentLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello world")
 
 		// Set buffer to use tabs
-		te.buffer.SetIndentationType(config.IndentTabs)
+		te.CurrentBuffer().SetIndentationType(config.IndentTabs)
 
 		// Execute indent command
 		te.ExecuteCommand("indent-line")
@@ -130,7 +130,7 @@ func TestUnindentLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "\thello world")
 
 		// Set buffer to use tabs
-		te.buffer.SetIndentationType(config.IndentTabs)
+		te.CurrentBuffer().SetIndentationType(config.IndentTabs)
 
 		// Execute unindent command
 		te.ExecuteCommand("unindent-line")
@@ -146,7 +146,7 @@ func TestUnindentLine(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "\t  hello world")
 
 		// Set buffer to use tabs
-		te.buffer.SetIndentationType(config.IndentTabs)
+		te.CurrentBuffer().SetIndentationType(config.IndentTabs)
 
 		// Execute unindent command - should remove the tab
 		te.ExecuteCommand("unindent-line")
@@ -283,7 +283,7 @@ func TestIndentUnindentRepeat(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "\t\thello\n\t\tworld")
 
 		// Set buffer to use tabs
-		te.buffer.SetIndentationType(config.IndentTabs)
+		te.CurrentBuffer().SetIndentationType(config.IndentTabs)
 
 		// Unindent first line
 		te.ExecuteCommand("unindent-line")
@@ -414,7 +414,7 @@ func TestIndentEdgeCases(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "  hello")
 
 		// Set indent width to 2
-		te.buffer.SetIndentationWidth(2)
+		te.CurrentBuffer().SetIndentationWidth(2)
 
 		// Execute unindent command
 		te.ExecuteCommand("unindent-line")

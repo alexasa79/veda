@@ -11,7 +11,7 @@ func TestTabNavigation(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Move to position after tab on first line
-		te.buffer.CursorX = 1 // Right after the tab
+		te.CurrentBuffer().CursorX = 1 // Right after the tab
 		AssertCursorAt(t, te, 1, 0)
 
 		// Move down - cursor should stay at position 1
@@ -29,7 +29,7 @@ func TestTabNavigation(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Position after first tab on line 1
-		te.buffer.CursorX = 1
+		te.CurrentBuffer().CursorX = 1
 		AssertCursorAt(t, te, 1, 0)
 
 		// Get initial visual column

@@ -20,15 +20,15 @@ func main() {
 
 	// Create test editor
 	te := NewTestEditorWithContent(80, 24, initialCode)
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 
     // Initialize syntax highlighting (per-buffer)
-    te.buffer.Highlighter = syntax.NewHighlighter()
-    err := te.buffer.Highlighter.SetLanguageFromFile("test.go")
+    te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+    err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.go")
 	if err != nil {
 		t.Fatalf("Failed to set language: %v", err)
 	}
-    te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+    te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
 
 	// Render the initial content
 	te.render()
@@ -75,14 +75,14 @@ func main() {
 
 	// Debug: Print all lines to find where the paste went
 	t.Logf("Buffer content after paste:")
-	for i := 0; i < te.buffer.LineCount; i++ {
+	for i := 0; i < te.CurrentBuffer().LineCount; i++ {
 		line := getRenderedLine(te, i)
 		t.Logf("Line %d: %s", i, line)
 	}
 
 	// Find which line contains our pasted content
 	pastedLineNum := -1
-	for i := 0; i < te.buffer.LineCount; i++ {
+	for i := 0; i < te.CurrentBuffer().LineCount; i++ {
 		line := getRenderedLine(te, i)
 		if strings.Contains(line, "fmt.Println") {
 			pastedLineNum = i
@@ -115,11 +115,11 @@ func main() {
 	}
 
 	// Debug: Log what tokens the highlighter has for this line
-	iter := buffer.NewBufferIteratorAtLine(te.buffer, pastedLineNum)
+	iter := buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), pastedLineNum)
 	lineStart := iter.Position()
 	lineEnd := iter.LineEnd()
 	t.Logf("Line %d range: %d-%d", pastedLineNum, lineStart, lineEnd)
-    tokens := te.buffer.Highlighter.GetTokensForLine(lineStart, lineEnd)
+    tokens := te.CurrentBuffer().Highlighter.GetTokensForLine(lineStart, lineEnd)
 	t.Logf("Tokens for pasted line: %+v", tokens)
 
 	expectedStringStyle := te.config.Theme.GetStyle(te.config.Theme.SyntaxString)
@@ -131,7 +131,7 @@ func main() {
 	t.Logf("Expected style: fg=%v, bg=%v, attr=%v", expectedFg, expectedBg, expectedAttr)
 
 	// Check what line this is and if it's the current line
-	currentLine := te.buffer.CursorIterator.LineNumber()
+	currentLine := te.CurrentBuffer().CursorIterator.LineNumber()
 	t.Logf("Current cursor line: %d, pasted line: %d", currentLine, pastedLineNum)
 
 	// Check if the background matches current line background
@@ -156,11 +156,11 @@ func main() {
 		t.Log("Testing if updateSyntaxHighlighting fixes the issue...")
 
 		// Debug: Check what content the highlighter has
-		t.Logf("Buffer content: %q", te.buffer.Rope.String())
+		t.Logf("Buffer content: %q", te.CurrentBuffer().Rope.String())
 		t.Logf("Line %d content: %q", pastedLineNum, iter.Line())
 
 		// Debug: Check if the tree is valid
-        tree := te.buffer.Highlighter.GetTree()
+        tree := te.CurrentBuffer().Highlighter.GetTree()
 		if tree != nil {
 			t.Logf("Tree root node type: %s", tree.RootNode().Type())
 			t.Logf("Tree root node range: %d-%d", tree.RootNode().StartByte(), tree.RootNode().EndByte())
@@ -175,8 +175,8 @@ func main() {
 		stringStyleAfterUpdate := getCellStyle(te, pastedLineNum, stringContent)
 
 		// Debug: Log tokens after update
-		iter2 := buffer.NewBufferIteratorAtLine(te.buffer, pastedLineNum)
-        tokensAfterUpdate := te.buffer.Highlighter.GetTokensForLine(iter2.Position(), iter2.LineEnd())
+		iter2 := buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), pastedLineNum)
+        tokensAfterUpdate := te.CurrentBuffer().Highlighter.GetTokensForLine(iter2.Position(), iter2.LineEnd())
 		t.Logf("Tokens after updateSyntaxHighlighting: %+v", tokensAfterUpdate)
 
 		if stringStyleAfterUpdate != nil && stylesMatch(*stringStyleAfterUpdate, expectedStringStyle) {
@@ -192,8 +192,8 @@ func getRenderedLine(te *TestEditor, lineNum int) string {
 	width, _ := te.mockScreen.Size()
 
 	// Calculate screen Y position
-    contentStartY := len(te.buffer.ContextCache)
-	viewStartLine := te.buffer.ViewIterator.LineNumber()
+    contentStartY := len(te.CurrentBuffer().ContextCache)
+	viewStartLine := te.CurrentBuffer().ViewIterator.LineNumber()
 	screenY := contentStartY + (lineNum - viewStartLine)
 
 	// Build the line string
@@ -212,8 +212,8 @@ func getRenderedLine(te *TestEditor, lineNum int) string {
 // getCellStyle finds the style of a specific text in a line
 func getCellStyle(te *TestEditor, lineNum int, text string) *ui.Style {
 	// Calculate screen Y position
-    contentStartY := len(te.buffer.ContextCache)
-	viewStartLine := te.buffer.ViewIterator.LineNumber()
+    contentStartY := len(te.CurrentBuffer().ContextCache)
+	viewStartLine := te.CurrentBuffer().ViewIterator.LineNumber()
 	screenY := contentStartY + (lineNum - viewStartLine)
 
 	// Find the text in the line

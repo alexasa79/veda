@@ -402,13 +402,13 @@ func (e *Editor) changeToEndOfLine(args []string) error {
 
 // yankToEndOfLine yanks from cursor to end of line (character-wise, no trailing newline)
 func (e *Editor) yankToEndOfLine(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	// Compute the range once and reuse the YankOperator's extraction logic
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	cursorX := e.buffer.CursorX
-	iter := e.buffer.CursorIterator
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	cursorX := e.CurrentBuffer().CursorX
+	iter := e.CurrentBuffer().CursorIterator
 	if iter.IsEOF() {
 		return nil
 	}

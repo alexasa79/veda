@@ -234,8 +234,8 @@ func TestGetCurrentLineIndentInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.content)
-			te.buffer.Indentation.Type = tt.indentType
-			te.buffer.Indentation.Width = tt.indentWidth
+			te.CurrentBuffer().Indentation.Type = tt.indentType
+			te.CurrentBuffer().Indentation.Width = tt.indentWidth
 
 			// Position cursor on the line to test
 			lines := strings.Split(tt.content, "\n")
@@ -249,7 +249,7 @@ func TestGetCurrentLineIndentInfo(t *testing.T) {
 				line = lines[tt.cursorLine]
 			}
 
-			info := te.buffer.GetLineIndentInfo(line)
+			info := te.CurrentBuffer().GetLineIndentInfo(line)
 
 			if info.Level != tt.expectedLevel {
 				t.Errorf("Expected level %d, got %d", tt.expectedLevel, info.Level)
@@ -293,8 +293,8 @@ func TestGetCurrentLineIndentInfoWithCursor(t *testing.T) {
 	}, "\n")
 
 	te := NewTestEditorWithContent(80, 24, content)
-	te.buffer.Indentation.Type = config.IndentSpaces
-	te.buffer.Indentation.Width = 4
+	te.CurrentBuffer().Indentation.Type = config.IndentSpaces
+	te.CurrentBuffer().Indentation.Width = 4
 
 	// Test each line
 	testCases := []struct {
@@ -310,7 +310,7 @@ func TestGetCurrentLineIndentInfoWithCursor(t *testing.T) {
 
 	for _, tc := range testCases {
 		te.SetCursorPosition(0, tc.cursorY)
-		info := te.getCurrentLineIndentInfo(te.buffer.CursorIterator)
+		info := te.getCurrentLineIndentInfo(te.CurrentBuffer().CursorIterator)
 
 		if info.Level != tc.expectedLevel {
 			t.Errorf("Line %d: expected level %d, got %d",

@@ -26,19 +26,19 @@ type Operator interface {
 type DeleteOperator struct{}
 
 func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, endChar int) error {
-	if editor.buffer == nil {
+	if editor.CurrentBuffer() == nil {
 		return nil
 	}
 
 	// Remember the view position before we make changes
-	viewLine := editor.buffer.ViewIterator.LineNumber()
+	viewLine := editor.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Calculate the text to delete
 	var textToDelete string
 
 	if startLine == endLine {
 		// Single line deletion
-		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		iter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
 		if !iter.IsEOF() {
 			line := iter.Line()
 			if startChar < len(line) && endChar <= len(line) {
@@ -53,17 +53,17 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	// Check if this is a line deletion (dd command)
 	isLineDeletion := false
 	if startChar == 0 && startLine == endLine {
-		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		iter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
 		line := iter.Line()
-		if endChar >= len(line) && startLine < editor.buffer.LineCount-1 {
+		if endChar >= len(line) && startLine < editor.CurrentBuffer().LineCount-1 {
 			// Include the newline character
 			textToDelete = line + "\n"
 			endChar = 0
 			endLine = startLine + 1
 			isLineDeletion = true
-		} else if endChar >= len(line) && startLine == editor.buffer.LineCount-1 && startLine > 0 {
+		} else if endChar >= len(line) && startLine == editor.CurrentBuffer().LineCount-1 && startLine > 0 {
 			// Last line - delete the newline from the previous line
-			prevIter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine-1)
+			prevIter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine-1)
 			prevLine := prevIter.Line()
 			startLine = startLine - 1
 			startChar = len(prevLine)
@@ -77,7 +77,7 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	// entire line 15 including its newline character.
 	if startChar == 0 && endLine == startLine+1 && endChar == 0 {
 		// This is a single empty line deletion - get the actual line content
-		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		iter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
 		if !iter.IsEOF() {
 			line := iter.Line()
 			// Delete the line content plus the newline character
@@ -91,13 +91,13 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	// the newline after the last selected line (if it exists). Otherwise a
 	// leading blank line remains.
 	if startChar == 0 && endLine > startLine && endChar > 0 {
-		iter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
+		iter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), endLine)
 		if !iter.IsEOF() {
 			lastLine := iter.Line()
 			if endChar >= len(lastLine) {
 				// We are deleting whole lines. If there's a following line,
 				// include the newline between endLine and endLine+1 in the deletion.
-				if endLine < editor.buffer.LineCount-1 {
+				if endLine < editor.CurrentBuffer().LineCount-1 {
 					textToDelete += "\n"
 					// Advance end to the beginning of the next line so subsequent
 					// cursor adjustments treat this as full line deletion.
@@ -121,15 +121,15 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	entry := buffer.NewDeleteTextEntry(startLine, startChar, textToDelete)
 
 	// Execute through history
-	if editor.buffer.History != nil {
-		if executed, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
+	if editor.CurrentBuffer().History != nil {
+		if executed, err := editor.CurrentBuffer().History.Execute(editor.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			// Don't set lastChange here - it's handled by executeOperatorWithTextObject
 			// which sets lastCommand instead
 		}
 	} else {
-		if err := entry.Execute(editor.buffer); err != nil {
+		if err := entry.Execute(editor.CurrentBuffer()); err != nil {
 			return err
 		}
 	}
@@ -140,33 +140,33 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	cursorChar := startChar
 
 	// Handle special cases
-	if editor.buffer.LineCount == 0 {
+	if editor.CurrentBuffer().LineCount == 0 {
 		// Buffer is now empty
-		editor.buffer.CursorIterator = buffer.NewBufferIterator(editor.buffer)
-		editor.buffer.ViewIterator = buffer.NewBufferIterator(editor.buffer)
-		editor.buffer.CursorX = 0
+		editor.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(editor.CurrentBuffer())
+		editor.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(editor.CurrentBuffer())
+		editor.CurrentBuffer().CursorX = 0
 		return nil
 	}
 
 	// Adjust cursor position if we deleted entire lines
 	if startChar == 0 && endLine > startLine {
 		// We deleted entire lines
-		if cursorLine >= editor.buffer.LineCount {
-			cursorLine = editor.buffer.LineCount - 1
+		if cursorLine >= editor.CurrentBuffer().LineCount {
+			cursorLine = editor.CurrentBuffer().LineCount - 1
 		}
 	}
 
 	// Recreate cursor iterator at the new position
-	editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, cursorLine)
+	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), cursorLine)
 
 	// Recreate view iterator to ensure it's valid after buffer changes
-	if viewLine >= editor.buffer.LineCount {
-		viewLine = editor.buffer.LineCount - 1
+	if viewLine >= editor.CurrentBuffer().LineCount {
+		viewLine = editor.CurrentBuffer().LineCount - 1
 		if viewLine < 0 {
 			viewLine = 0
 		}
 	}
-	editor.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(editor.buffer, viewLine)
+	editor.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), viewLine)
 
 	// Keep view where it was (don't change the view position)
 	// The view should only be adjusted if cursor goes out of visible range
@@ -174,17 +174,17 @@ func (d DeleteOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	// Set cursor X position
 	if isLineDeletion {
 		// For line deletions (dd), cursor should go to beginning of line
-		editor.buffer.CursorX = 0
+		editor.CurrentBuffer().CursorX = 0
 	} else {
-		editor.buffer.CursorX = cursorChar
+		editor.CurrentBuffer().CursorX = cursorChar
 	}
 
 	// Ensure cursor X is within bounds
-	line := editor.buffer.CursorIterator.Line()
-	if editor.buffer.CursorX > len(line) {
-		editor.buffer.CursorX = len(line)
-		if editor.buffer.CursorX > 0 && editor.mode == commands.NormalMode {
-			editor.buffer.CursorX--
+	line := editor.CurrentBuffer().CursorIterator.Line()
+	if editor.CurrentBuffer().CursorX > len(line) {
+		editor.CurrentBuffer().CursorX = len(line)
+		if editor.CurrentBuffer().CursorX > 0 && editor.mode == commands.NormalMode {
+			editor.CurrentBuffer().CursorX--
 		}
 	}
 
@@ -208,7 +208,7 @@ func (d DeleteOperator) GetType() string {
 type ChangeOperator struct{}
 
 func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, endChar int) error {
-	if editor.buffer == nil {
+	if editor.CurrentBuffer() == nil {
 		return nil
 	}
 
@@ -217,48 +217,48 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	// With new LineTextObject behavior: (cursorLine, 0, cursorLine + 1, 0) for single line
 	isLineChange := startChar == 0 && ((startLine == endLine) || (endLine == startLine+1 && endChar == 0))
 	if isLineChange {
-		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		iter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
 		if !iter.IsEOF() {
 			line := iter.Line()
 			// For new LineTextObject behavior (startLine, 0, startLine + 1, 0), we need different logic
 			if (endLine == startLine && endChar >= len(line)) || (endLine == startLine+1 && endChar == 0) {
 				// This is a cc operation - delete the line content but keep the line
 				// Store view position before making changes
-				viewLine := editor.buffer.ViewIterator.LineNumber()
+				viewLine := editor.CurrentBuffer().ViewIterator.LineNumber()
 
 				// Create delete entry for just the line content
 				if len(line) > 0 {
 					entry := buffer.NewDeleteTextEntry(startLine, 0, line)
-					if editor.buffer.History != nil {
-						if _, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
+					if editor.CurrentBuffer().History != nil {
+						if _, err := editor.CurrentBuffer().History.Execute(editor.CurrentBuffer(), entry); err != nil {
 							return err
 						}
 					} else {
-						if err := entry.Execute(editor.buffer); err != nil {
+						if err := entry.Execute(editor.CurrentBuffer()); err != nil {
 							return err
 						}
 					}
 				}
 
 				// Position cursor at the beginning of the now-empty line
-				editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
-				editor.buffer.CursorX = 0
+				editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
+				editor.CurrentBuffer().CursorX = 0
 
 				// Update view iterator to ensure it's valid
-				if viewLine >= editor.buffer.LineCount {
-					viewLine = editor.buffer.LineCount - 1
+				if viewLine >= editor.CurrentBuffer().LineCount {
+					viewLine = editor.CurrentBuffer().LineCount - 1
 					if viewLine < 0 {
 						viewLine = 0
 					}
 				}
-				editor.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(editor.buffer, viewLine)
+				editor.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), viewLine)
 
 				// Enter insert mode
 				editor.switchToInsertMode()
 
 				// Start tracking insert mode changes
-				if editor.buffer.History != nil {
-					editor.buffer.History.StartInsertSession("c")
+				if editor.CurrentBuffer().History != nil {
+					editor.CurrentBuffer().History.StartInsertSession("c")
 				}
 
 				return nil
@@ -271,23 +271,23 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	// full lines entirely, but keep a single (now-empty) first line and enter insert mode.
 	if startChar == 0 && endLine > startLine {
 		// Determine if the selection is linewise to the end of the last selected line
-		endIter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
+		endIter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), endLine)
 		if !endIter.IsEOF() {
 			lastLine := endIter.Line()
 			if endChar >= len(lastLine) {
 				// Store view position before making changes
-				viewLine := editor.buffer.ViewIterator.LineNumber()
+				viewLine := editor.CurrentBuffer().ViewIterator.LineNumber()
 
 				// 1) Delete lines from endLine down to startLine+1 entirely (including their preceding newlines)
 				for lineIdx := endLine; lineIdx >= startLine+1; lineIdx-- {
 					// Get previous line (exists because lineIdx > startLine >= 0)
-					prevIter := buffer.NewBufferIteratorAtLine(editor.buffer, lineIdx-1)
+					prevIter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), lineIdx-1)
 					if prevIter.IsEOF() {
 						continue
 					}
 					prevLine := prevIter.Line()
 
-					currIter := buffer.NewBufferIteratorAtLine(editor.buffer, lineIdx)
+					currIter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), lineIdx)
 					if currIter.IsEOF() {
 						continue
 					}
@@ -296,29 +296,29 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 					// Compose deletion: "\n" + current line, starting at end of previous line
 					delText := "\n" + currLine
 					entry := buffer.NewDeleteTextEntry(lineIdx-1, len(prevLine), delText)
-					if editor.buffer.History != nil {
-						if _, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
+					if editor.CurrentBuffer().History != nil {
+						if _, err := editor.CurrentBuffer().History.Execute(editor.CurrentBuffer(), entry); err != nil {
 							return err
 						}
 					} else {
-						if err := entry.Execute(editor.buffer); err != nil {
+						if err := entry.Execute(editor.CurrentBuffer()); err != nil {
 							return err
 						}
 					}
 				}
 
 				// 2) Clear content of the first line, but keep the line itself
-				firstIter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+				firstIter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
 				if !firstIter.IsEOF() {
 					firstLine := firstIter.Line()
 					if len(firstLine) > 0 {
 						entry := buffer.NewDeleteTextEntry(startLine, 0, firstLine)
-						if editor.buffer.History != nil {
-							if _, err := editor.buffer.History.Execute(editor.buffer, entry); err != nil {
+						if editor.CurrentBuffer().History != nil {
+							if _, err := editor.CurrentBuffer().History.Execute(editor.CurrentBuffer(), entry); err != nil {
 								return err
 							}
 						} else {
-							if err := entry.Execute(editor.buffer); err != nil {
+							if err := entry.Execute(editor.CurrentBuffer()); err != nil {
 								return err
 							}
 						}
@@ -326,20 +326,20 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 				}
 
 				// Reposition cursor and view
-				editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
-				editor.buffer.CursorX = 0
-				if viewLine >= editor.buffer.LineCount {
-					viewLine = editor.buffer.LineCount - 1
+				editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
+				editor.CurrentBuffer().CursorX = 0
+				if viewLine >= editor.CurrentBuffer().LineCount {
+					viewLine = editor.CurrentBuffer().LineCount - 1
 					if viewLine < 0 {
 						viewLine = 0
 					}
 				}
-				editor.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(editor.buffer, viewLine)
+				editor.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), viewLine)
 
 				// Enter insert mode
 				editor.switchToInsertMode()
-				if editor.buffer.History != nil {
-					editor.buffer.History.StartInsertSession("c")
+				if editor.CurrentBuffer().History != nil {
+					editor.CurrentBuffer().History.StartInsertSession("c")
 				}
 
 				return nil
@@ -357,8 +357,8 @@ func (c ChangeOperator) Execute(editor *Editor, startLine, startChar, endLine, e
 	editor.switchToInsertMode()
 
 	// Start tracking insert mode changes
-	if editor.buffer != nil && editor.buffer.History != nil {
-		editor.buffer.History.StartInsertSession("c")
+	if editor.CurrentBuffer() != nil && editor.CurrentBuffer().History != nil {
+		editor.CurrentBuffer().History.StartInsertSession("c")
 	}
 
 	return nil
@@ -372,7 +372,7 @@ func (c ChangeOperator) GetType() string {
 type YankOperator struct{}
 
 func (y YankOperator) Execute(editor *Editor, startLine, startChar, endLine, endChar int) error {
-	if editor.buffer == nil {
+	if editor.CurrentBuffer() == nil {
 		return nil
 	}
 
@@ -381,7 +381,7 @@ func (y YankOperator) Execute(editor *Editor, startLine, startChar, endLine, end
 
 	if startLine == endLine {
 		// Single line yank
-		iter := buffer.NewBufferIteratorAtLine(editor.buffer, startLine)
+		iter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), startLine)
 		if !iter.IsEOF() {
 			line := iter.Line()
 			if startChar < len(line) && endChar <= len(line) {
@@ -401,7 +401,7 @@ func (y YankOperator) Execute(editor *Editor, startLine, startChar, endLine, end
 		// If this is a full line yank (starts at 0 and ends at line length),
 		// add a newline to make it linewise
 		if startChar == 0 {
-			iter := buffer.NewBufferIteratorAtLine(editor.buffer, endLine)
+			iter := buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), endLine)
 			if !iter.IsEOF() {
 				line := iter.Line()
 				if endChar == len(line) {
@@ -443,7 +443,7 @@ func (e *Editor) getTextInRange(startLine, startChar, endLine, endChar int) stri
 	var result string
 
 	for line := startLine; line <= endLine; line++ {
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, line)
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), line)
 		if iter.IsEOF() {
 			break
 		}
@@ -478,18 +478,18 @@ func (e *Editor) getTextInRange(startLine, startChar, endLine, endChar int) stri
 // an opening brace '{' and the following line that starts with a closing brace '}'.
 // It operates around the provided line index (typically the cursor line after a delete).
 func (e *Editor) normalizeEmptyBlockNewlineAround(lineIndex int) {
-	if e.buffer == nil || e.buffer.LineCount < 3 {
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().LineCount < 3 {
 		return
 	}
 	curr := lineIndex
-	if curr <= 0 || curr >= e.buffer.LineCount-1 {
+	if curr <= 0 || curr >= e.CurrentBuffer().LineCount-1 {
 		return
 	}
 
 	// Read previous, current, and next lines
-	prevIter := buffer.NewBufferIteratorAtLine(e.buffer, curr-1)
-	currIter := buffer.NewBufferIteratorAtLine(e.buffer, curr)
-	nextIter := buffer.NewBufferIteratorAtLine(e.buffer, curr+1)
+	prevIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), curr-1)
+	currIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), curr)
+	nextIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), curr+1)
 	if prevIter.IsEOF() || currIter.IsEOF() || nextIter.IsEOF() {
 		return
 	}
@@ -517,20 +517,20 @@ func (e *Editor) normalizeEmptyBlockNewlineAround(lineIndex int) {
 	// Compose the text to delete (line content + newline)
 	textToDelete := currLine + "\n"
 	entry := buffer.NewDeleteTextEntry(curr, 0, textToDelete)
-	if e.buffer.History != nil {
-		if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return
 		}
 	} else {
-		if err := entry.Execute(e.buffer); err != nil {
+		if err := entry.Execute(e.CurrentBuffer()); err != nil {
 			return
 		}
 	}
 
 	// Keep cursor at the same visual place (line stays the same index but now points to the next line)
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, curr)
-	if e.buffer.CursorIterator.IsEOF() && curr > 0 {
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, curr-1)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), curr)
+	if e.CurrentBuffer().CursorIterator.IsEOF() && curr > 0 {
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), curr-1)
 	}
-	e.buffer.CursorX = min(e.buffer.CursorX, len(e.buffer.CursorIterator.Line()))
+	e.CurrentBuffer().CursorX = min(e.CurrentBuffer().CursorX, len(e.CurrentBuffer().CursorIterator.Line()))
 }

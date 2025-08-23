@@ -35,11 +35,11 @@ func TestLineWrapping_Basic(t *testing.T) {
 	AssertScreenContent(t, screen, 0, 2, " ")
 
 	// Build expected lines with new gutter width (line number + 2-indicator column + 1 space)
-	digitsWidth := te.buffer.LineNumberWidth - 3
+	digitsWidth := te.CurrentBuffer().LineNumberWidth - 3
 	if digitsWidth < 1 {
 		digitsWidth = 1
 	}
-	gutter1 := strings.Repeat(" ", te.buffer.LineNumberWidth)
+	gutter1 := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	// Compose numeric gutter directly
 	numGutter := func(n int) string {
 		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
@@ -69,7 +69,7 @@ func TestLineWrapping_WordBoundary(t *testing.T) {
 
 	// Should wrap at word boundaries, not in the middle of words
 	// Compose expected with dynamic gutter
-	digitsWidth := te.buffer.LineNumberWidth - 3
+	digitsWidth := te.CurrentBuffer().LineNumberWidth - 3
 	if digitsWidth < 1 {
 		digitsWidth = 1
 	}
@@ -77,7 +77,7 @@ func TestLineWrapping_WordBoundary(t *testing.T) {
 		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
 			func() string { return string('0' + byte(n)) }()) + strings.Repeat(" ", 3)
 	}
-	wrappedGutter := strings.Repeat(" ", te.buffer.LineNumberWidth)
+	wrappedGutter := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	AssertScreenLine(t, screen, 0, numGutter(1)+"Hello world")
 	AssertScreenLine(t, screen, 1, wrappedGutter+"programming")
 }
@@ -100,7 +100,7 @@ func TestLineWrapping_LongWord(t *testing.T) {
 
 	// Long word should be broken at screen width
 	// With line number gutter width dynamic
-	digitsWidth := te.buffer.LineNumberWidth - 3
+	digitsWidth := te.CurrentBuffer().LineNumberWidth - 3
 	if digitsWidth < 1 {
 		digitsWidth = 1
 	}
@@ -108,7 +108,7 @@ func TestLineWrapping_LongWord(t *testing.T) {
 		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
 			func() string { return string('0' + byte(n)) }()) + strings.Repeat(" ", 3)
 	}
-	wrappedGutter := strings.Repeat(" ", te.buffer.LineNumberWidth)
+	wrappedGutter := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	AssertScreenLine(t, screen, 0, numGutter(1)+"superc") // length depends on width; keep prefix check minimal
 	// Since AssertScreenLine checks full line, compute expected exact slices
 	// For width 10 and gutter 4 -> 6 chars fit on first line
@@ -144,7 +144,7 @@ func TestLineWrapping_MultipleLines(t *testing.T) {
 	screen := te.mockScreen.GetContent()
 
 	// Expected using dynamic gutter
-	digitsWidth := te.buffer.LineNumberWidth - 3
+	digitsWidth := te.CurrentBuffer().LineNumberWidth - 3
 	if digitsWidth < 1 {
 		digitsWidth = 1
 	}
@@ -152,7 +152,7 @@ func TestLineWrapping_MultipleLines(t *testing.T) {
 		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
 			func() string { return string('0' + byte(n)) }()) + strings.Repeat(" ", 3)
 	}
-	wrappedGutter := strings.Repeat(" ", te.buffer.LineNumberWidth)
+	wrappedGutter := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	AssertScreenLine(t, screen, 0, numGutter(1)+"Short line")
 	AssertScreenLine(t, screen, 1, numGutter(2)+"This is a much")
 	AssertScreenLine(t, screen, 2, wrappedGutter+"longer line that")
@@ -175,7 +175,7 @@ func TestLineWrapping_CursorNavigation(t *testing.T) {
 	// Verify initial setup
 	content := te.GetBufferContent()
 	t.Logf("Buffer content: %q", content)
-	t.Logf("Line count: %d", te.buffer.LineCount)
+	t.Logf("Line count: %d", te.CurrentBuffer().LineCount)
 	logX, logY := te.GetCursorPosition()
 	t.Logf("Initial logical position: (%d,%d)", logX, logY)
 	line, col := te.GetVisualCursorPosition()
@@ -191,8 +191,8 @@ func TestLineWrapping_CursorNavigation(t *testing.T) {
 	wrappedLines := te.CalculateWrappedLines()
 	t.Logf("Total wrapped lines: %d", len(wrappedLines))
 	width, _ := te.screen.Size()
-	t.Logf("Screen width: %d, line number width: %d", width, te.buffer.LineNumberWidth)
-	t.Logf("ViewIterator line: %d", te.buffer.ViewIterator.LineNumber())
+	t.Logf("Screen width: %d, line number width: %d", width, te.CurrentBuffer().LineNumberWidth)
+	t.Logf("ViewIterator line: %d", te.CurrentBuffer().ViewIterator.LineNumber())
 	for i, wl := range wrappedLines {
 		t.Logf("  [%d] logical=%d, start=%d, end=%d, text=%q",
 			i, wl.LogicalLineNum, wl.StartChar, wl.EndChar, wl.Text)
@@ -243,7 +243,7 @@ func TestLineWrapping_CursorNavigation(t *testing.T) {
 	te.ExecuteCommand("down")
 	// Note: GetVisualCursorPosition returns (visualLine, visualCol)
 	y, x := te.GetVisualCursorPosition()
-	expectedStartX := te.buffer.LineNumberWidth
+	expectedStartX := te.CurrentBuffer().LineNumberWidth
 	if y != 1 || x != expectedStartX {
 		t.Errorf("Expected cursor at start of next wrapped line (%d,1), got (%d,%d)", expectedStartX, x, y)
 	}
@@ -360,8 +360,8 @@ func TestLineWrapping_Scrolling(t *testing.T) {
 	first := wrapped[0]
 	// Examine the gutter region of the first visible screen line
 	gutter := GetScreenLine(screen, 0)
-	if len(gutter) > te.buffer.LineNumberWidth {
-		gutter = gutter[:te.buffer.LineNumberWidth]
+	if len(gutter) > te.CurrentBuffer().LineNumberWidth {
+		gutter = gutter[:te.CurrentBuffer().LineNumberWidth]
 	}
 	hasDigit := false
 	for _, r := range gutter {
@@ -488,7 +488,7 @@ func TestLineWrapping_SearchHighlight(t *testing.T) {
 func TestLineWrapping_SyntaxHighlight(t *testing.T) {
 	// Create a Go file with long lines
 	te := NewTestEditorWithContent(30, 10, "")
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 
 	// Insert Go code with a long string that wraps
 	te.ExecuteCommand("insert")

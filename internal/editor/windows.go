@@ -87,7 +87,7 @@ func (e *Editor) activateWindow(idx int) {
 		e.switchToBuffer(win.Buffer)
 	} else {
 		// When activating an empty window, clear the editor's buffer
-		e.buffer = nil
+		e.SetCurrentBuffer(nil)
 	}
 }
 
@@ -121,8 +121,8 @@ func (e *Editor) recomputeWindowsLayout() {
 		// minActiveWindowWidth specifies buffer content columns
 		// Add gutter width (line numbers + indicators) to get total window width
 		gutterWidth := 0
-		if e.buffer != nil {
-			gutterWidth = e.buffer.LineNumberWidth
+		if e.CurrentBuffer() != nil {
+			gutterWidth = e.CurrentBuffer().LineNumberWidth
 		} else {
 			// Fallback: assume typical gutter width for reasonable line counts
 			gutterWidth = 7 // 4 digits + 1 padding + 2 indicators
@@ -541,7 +541,7 @@ func (e *Editor) closeWindow(windowIndex int) error {
     // Update the editor's current buffer to match the new active window
     if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
         if e.windows[e.activeWindow] != nil {
-            e.buffer = e.windows[e.activeWindow].Buffer
+            // Buffer already synced via window
         }
     }
 

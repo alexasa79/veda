@@ -459,8 +459,8 @@ func TestRewrapCommandUndoRedo(t *testing.T) {
 
 	// Save initial state
 	initialContent := te.GetBufferContent()
-	initialCursorX := te.Editor.buffer.CursorX
-	initialCursorY := te.Editor.buffer.CursorIterator.LineNumber() // Save as int, not iterator
+	initialCursorX := te.Editor.CurrentBuffer().CursorX
+	initialCursorY := te.Editor.CurrentBuffer().CursorIterator.LineNumber() // Save as int, not iterator
 
 	// Execute rewrap
 	err := te.Editor.rewrapParagraph()
@@ -484,8 +484,8 @@ func TestRewrapCommandUndoRedo(t *testing.T) {
 	}
 
 	// Verify cursor restored
-	cursorX := te.Editor.buffer.CursorX
-	cursorY := te.Editor.buffer.CursorIterator.LineNumber()
+	cursorX := te.Editor.CurrentBuffer().CursorX
+	cursorY := te.Editor.CurrentBuffer().CursorIterator.LineNumber()
 	if cursorX != initialCursorX || cursorY != initialCursorY {
 		t.Errorf("Cursor not restored after undo: got (%d,%d), want (%d,%d)",
 			cursorX, cursorY, initialCursorX, initialCursorY)
@@ -564,8 +564,8 @@ func TestRewrapPositionBasedRulerCycling(t *testing.T) {
 
 	// Save cursor position after first rewrap; subsequent rewraps at "same place"
 	// should cycle to the next ruler even if CursorX shifts. We'll reuse these to return later.
-	savedLine := te.Editor.buffer.CursorIterator.LineNumber()
-	savedChar := te.Editor.buffer.CursorX
+	savedLine := te.Editor.CurrentBuffer().CursorIterator.LineNumber()
+	savedChar := te.Editor.CurrentBuffer().CursorX
 
 	// Second rewrap at same position - should cycle to second ruler (60)
 	err = te.Editor.rewrapParagraph()

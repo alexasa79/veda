@@ -17,7 +17,7 @@ func TestNavigationHistory(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, content)
 
 	// Set file path and position
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 	te.SetCursorPosition(5, 10)
 
 	// Push to navigation history
@@ -44,7 +44,7 @@ func TestNavigationHistorySkipsReferencesBuffer(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "test content")
 
 	// First, push a normal file position
-	te.buffer.FilePath = "main.go"
+	te.CurrentBuffer().FilePath = "main.go"
 	te.SetCursorPosition(5, 10)
 	te.pushNavigationHistory()
 
@@ -54,7 +54,7 @@ func TestNavigationHistorySkipsReferencesBuffer(t *testing.T) {
 	}
 
 	// Now set to references buffer and try to push
-	te.buffer.FilePath = "*References: test*"
+	te.CurrentBuffer().FilePath = "*References: test*"
 	te.SetCursorPosition(3, 5)
 	te.pushNavigationHistory()
 
@@ -69,7 +69,7 @@ func TestNavigationHistorySkipsReferencesBuffer(t *testing.T) {
 	}
 
 	// Try another normal file
-	te.buffer.FilePath = "other.go"
+	te.CurrentBuffer().FilePath = "other.go"
 	te.SetCursorPosition(7, 12)
 	te.pushNavigationHistory()
 
@@ -94,7 +94,7 @@ func TestNavigationHistoryMaxSize(t *testing.T) {
 		content += fmt.Sprintf("Line %d", i)
 	}
 	te := NewTestEditorWithContent(80, 24, content)
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 
 	// Push more entries than maxNavHistory
 	for i := 0; i < 60; i++ {
@@ -122,8 +122,8 @@ func TestGoBack(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, content)
 
 	// Set up initial state with a buffer
-	te.buffer.FilePath = "test1.go"
-	te.buffers["test1.go"] = te.buffer
+	te.CurrentBuffer().FilePath = "test1.go"
+	te.buffers["test1.go"] = te.CurrentBuffer()
 
 	// Push a few positions to history
 	te.SetCursorPosition(5, 10)

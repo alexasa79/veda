@@ -138,8 +138,8 @@ func TestTwoWindowEditing_PreservesRightWindowTokenHighlighting(t *testing.T) {
 	rightContent := "package main\n\nfunc right() {\n\tvar statusBarY int\n}\n"
 
 	te := NewTestEditorWithContent(200, 30, leftContent)
-	te.buffer.FilePath = "left.go"
-	te.windows[0].Buffer = te.buffer
+	te.CurrentBuffer().FilePath = "left.go"
+	te.windows[0].Buffer = te.CurrentBuffer()
 	te.render()
 
 	te.TypeKeys("space v")
@@ -176,7 +176,7 @@ func TestTwoWindowEditing_PreservesRightWindowTokenHighlighting(t *testing.T) {
 	// Edit LEFT window
 	te.TypeKeys("space 1")
 	left := te.windows[0]
-	te.buffer = left.Buffer
+	te.SetCurrentBuffer(left.Buffer)
 	te.ExecuteCommand("enter-insert-mode")
 	te.InsertChar('x')
 	te.PressKey(KeyEscape, 0)
@@ -209,8 +209,8 @@ func TestTwoWindowEditing_PreservesLeftWindowTokenHighlighting(t *testing.T) {
 	rightContent := "package main\n\nfunc right() {\n\treturn\n}\n"
 
 	te := NewTestEditorWithContent(200, 30, leftContent)
-	te.buffer.FilePath = "left.go"
-	te.windows[0].Buffer = te.buffer
+	te.CurrentBuffer().FilePath = "left.go"
+	te.windows[0].Buffer = te.CurrentBuffer()
 	te.render()
 
 	// Split to create two windows
@@ -249,7 +249,7 @@ func TestTwoWindowEditing_PreservesLeftWindowTokenHighlighting(t *testing.T) {
 
 	// Edit the LEFT buffer with a benign change that keeps the file valid.
 	// Move cursor to the println line (index 4) and insert a space at column 0.
-	te.buffer = leftWin.Buffer
+	te.SetCurrentBuffer(leftWin.Buffer)
 	te.SetCursorPosition(0, 4)
 	te.ExecuteCommand("enter-insert-mode")
 	te.InsertChar(' ')

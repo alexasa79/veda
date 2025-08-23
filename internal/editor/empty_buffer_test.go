@@ -14,11 +14,11 @@ func TestEmptyBufferRendering(t *testing.T) {
 		te.drawStatusBar()
 
 		// Check buffer properties
-		t.Logf("Buffer LineCount: %d", te.buffer.LineCount)
-		t.Logf("Buffer LineNumberWidth: %d", te.buffer.LineNumberWidth)
-		t.Logf("Buffer content: %q", te.buffer.String())
-		t.Logf("ViewIterator.IsEOF(): %v", te.buffer.ViewIterator.IsEOF())
-		t.Logf("ViewIterator.LineNumber(): %d", te.buffer.ViewIterator.LineNumber())
+		t.Logf("Buffer LineCount: %d", te.CurrentBuffer().LineCount)
+		t.Logf("Buffer LineNumberWidth: %d", te.CurrentBuffer().LineNumberWidth)
+		t.Logf("Buffer content: %q", te.CurrentBuffer().String())
+		t.Logf("ViewIterator.IsEOF(): %v", te.CurrentBuffer().ViewIterator.IsEOF())
+		t.Logf("ViewIterator.LineNumber(): %d", te.CurrentBuffer().ViewIterator.LineNumber())
 
 		// Check if line 1 is rendered
 		line := te.mockScreen.GetLine(0)

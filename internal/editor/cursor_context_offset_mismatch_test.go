@@ -21,11 +21,11 @@ func TestCursorHighlightDesyncWithContextLines(t *testing.T) {
 
 	te := NewTestEditorWithContent(100, 20, content)
 	// Ensure tree-sitter chooses Go grammar
-	te.buffer.FilePath = "main.go"
+	te.CurrentBuffer().FilePath = "main.go"
 
 	// Scroll the view down so the function declaration is above the visible area.
 	// This should produce at least one context line (the function signature).
-	te.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(te.buffer, 10)
+	te.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 10)
 
 	// Place cursor somewhere in the function body
 	te.SetCursorPosition(0, 15)
@@ -34,7 +34,7 @@ func TestCursorHighlightDesyncWithContextLines(t *testing.T) {
 	te.render()
 
 	// Require that context is actually shown; otherwise this test isn't meaningful
-    if len(te.buffer.ContextCache) == 0 {
+    if len(te.CurrentBuffer().ContextCache) == 0 {
 		t.Fatalf("expected contextCache > 0 to reproduce bug, got 0")
 	}
 
@@ -42,7 +42,7 @@ func TestCursorHighlightDesyncWithContextLines(t *testing.T) {
 	// The highlight is applied to the content cells (not the gutter), so probe at
 	// the first content column.
 	lineBg := te.config.Theme.GetStyle(te.config.Theme.CurrentLine).Bg
-	contentX := te.buffer.LineNumberWidth
+	contentX := te.CurrentBuffer().LineNumberWidth
 
 	_, height := te.screen.Size()
 	highlightedY := -1
@@ -63,6 +63,6 @@ func TestCursorHighlightDesyncWithContextLines(t *testing.T) {
 	// After fix: the physical cursor Y must match the highlighted line Y.
 	diff := cursorY - highlightedY
 	if diff != 0 {
-        t.Fatalf("expected cursorY and highlightedY to match (diff=0), got diff=%d (cursorY=%d, highlightedY=%d, contextLines=%d)", diff, cursorY, highlightedY, len(te.buffer.ContextCache))
+        t.Fatalf("expected cursorY and highlightedY to match (diff=0), got diff=%d (cursorY=%d, highlightedY=%d, contextLines=%d)", diff, cursorY, highlightedY, len(te.CurrentBuffer().ContextCache))
 	}
 }

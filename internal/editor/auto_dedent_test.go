@@ -77,7 +77,7 @@ func TestAutoDedentClosingBrace(t *testing.T) {
 			te.ExecuteCommand("exit-insert-mode")
 
 			// Check the result
-			actual := te.buffer.Rope.String()
+			actual := te.CurrentBuffer().Rope.String()
 			if actual != tt.expectedContent {
 				t.Errorf("%s\nExpected:\n%q\nGot:\n%q\nDescription: %s",
 					tt.name, tt.expectedContent, actual, tt.description)
@@ -91,8 +91,8 @@ func TestAutoDedentWithTabs(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "")
 
 	// Set indentation to tabs
-	te.buffer.Indentation.Type = 1 // config.IndentTabs
-	te.buffer.Indentation.Width = 4
+	te.CurrentBuffer().Indentation.Type = 1 // config.IndentTabs
+	te.CurrentBuffer().Indentation.Width = 4
 
 	// Enter insert mode
 	te.ExecuteCommand("enter-insert-mode")
@@ -112,7 +112,7 @@ func TestAutoDedentWithTabs(t *testing.T) {
 
 	// Check the result - closing brace should be dedented
 	expected := "if (true) {\n\treturn;\n}"
-	actual := te.buffer.Rope.String()
+	actual := te.CurrentBuffer().Rope.String()
 
 	if actual != expected {
 		t.Errorf("Tab indentation test failed\nExpected:\n%q\nGot:\n%q", expected, actual)
@@ -141,7 +141,7 @@ func TestAutoDedentComplexNesting(t *testing.T) {
 
 	// Expected result with proper dedenting
 	expected := "class Foo {\n    void bar() {\n        if (x) {\n            while (y) {\n                z++;\n            }\n        }\n    }\n}"
-	actual := te.buffer.Rope.String()
+	actual := te.CurrentBuffer().Rope.String()
 
 	if actual != expected {
 		t.Errorf("Complex nesting test failed\nExpected:\n%s\nGot:\n%s", expected, actual)

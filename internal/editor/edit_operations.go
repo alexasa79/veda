@@ -12,26 +12,26 @@ import (
 // openLineBelow opens a new line below the current line and enters insert mode
 func (e *Editor) openLineBelow(args []string) error {
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get the current line and move to end
 	currentLine := ""
-	if !e.buffer.CursorIterator.IsEOF() {
-		currentLine = e.buffer.CursorIterator.Line()
-		e.buffer.CursorX = len(currentLine)
+	if !e.CurrentBuffer().CursorIterator.IsEOF() {
+		currentLine = e.CurrentBuffer().CursorIterator.Line()
+		e.CurrentBuffer().CursorX = len(currentLine)
 	}
 
 	// Calculate auto-indent for the new line
-	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
+	autoIndent := e.CurrentBuffer().CalculateAutoIndent(currentLine, e.CurrentBuffer().CursorX)
 
 	// Create history entry for the newline and indentation
 	textToInsert := "\n" + autoIndent.IndentStr
-	entry := buffer.NewInsertTextEntry(lineNum, e.buffer.CursorX, textToInsert)
+	entry := buffer.NewInsertTextEntry(lineNum, e.CurrentBuffer().CursorX, textToInsert)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -39,15 +39,15 @@ func (e *Editor) openLineBelow(args []string) error {
 	} else {
 		// Fallback if history is not initialized
 		pos := e.getAbsolutePosition()
-		e.buffer.Insert(pos, textToInsert)
+		e.CurrentBuffer().Insert(pos, textToInsert)
 	}
 
 	// Recreate iterators - cursor moves to next line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum+1)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum+1)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Move cursor to end of indentation
-	e.buffer.CursorX = len(autoIndent.IndentStr)
+	e.CurrentBuffer().CursorX = len(autoIndent.IndentStr)
 
 	// Track auto-indentation for cleanup when cursor moves away
 	if len(autoIndent.IndentStr) > 0 {
@@ -57,8 +57,8 @@ func (e *Editor) openLineBelow(args []string) error {
 	// Enter insert mode
 	e.switchToInsertMode()
 	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("o")
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
+		e.CurrentBuffer().History.StartInsertSession("o")
 	}
 
 	// Update syntax highlighting (skip during paste mode)
@@ -75,14 +75,14 @@ func (e *Editor) openLineBelow(args []string) error {
 // openLineAbove opens a new line above the current line and enters insert mode
 func (e *Editor) openLineAbove(args []string) error {
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get the previous line for auto-indent calculation (if we're not on the first line)
 	previousLine := ""
 	if lineNum > 0 {
 		// Temporarily move to previous line to get its content
-		prevIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum-1)
+		prevIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum-1)
 		if !prevIter.IsEOF() {
 			previousLine = prevIter.Line()
 		}
@@ -90,17 +90,17 @@ func (e *Editor) openLineAbove(args []string) error {
 
 	// Calculate auto-indent based on the previous line
 	// Use the length of the previous line as cursor position for calculation
-	autoIndent := e.buffer.CalculateAutoIndent(previousLine, len(previousLine))
+	autoIndent := e.CurrentBuffer().CalculateAutoIndent(previousLine, len(previousLine))
 
 	// Move to beginning of current line
-	e.buffer.CursorX = 0
+	e.CurrentBuffer().CursorX = 0
 
 	// Create history entry for the newline
 	entry := buffer.NewInsertTextEntry(lineNum, 0, "\n")
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -108,13 +108,13 @@ func (e *Editor) openLineAbove(args []string) error {
 	} else {
 		// Fallback if history is not initialized
 		pos := e.getAbsolutePosition()
-		e.buffer.Insert(pos, "\n")
+		e.CurrentBuffer().Insert(pos, "\n")
 	}
 
 	// The cursor stays at the same line number (which is now the new empty line)
 	// because we inserted before the current position
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Insert indentation at the beginning of the new line
 	if autoIndent.IndentStr != "" {
@@ -122,8 +122,8 @@ func (e *Editor) openLineAbove(args []string) error {
 		indentEntry := buffer.NewInsertTextEntry(lineNum, 0, autoIndent.IndentStr)
 
 		// Execute through history
-		if e.buffer.History != nil {
-			if executed, err := e.buffer.History.Execute(e.buffer, indentEntry); err != nil {
+		if e.CurrentBuffer().History != nil {
+			if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), indentEntry); err != nil {
 				return err
 			} else if executed != nil {
 				e.setLastChange(executed)
@@ -131,16 +131,16 @@ func (e *Editor) openLineAbove(args []string) error {
 		} else {
 			// Fallback if history is not initialized
 			pos := e.getAbsolutePosition()
-			e.buffer.Insert(pos, autoIndent.IndentStr)
+			e.CurrentBuffer().Insert(pos, autoIndent.IndentStr)
 		}
 
 		// Recreate iterators after insertion
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 	}
 
 	// Move cursor to end of indentation
-	e.buffer.CursorX = len(autoIndent.IndentStr)
+	e.CurrentBuffer().CursorX = len(autoIndent.IndentStr)
 
 	// Track auto-indentation for cleanup when cursor moves away
 	if len(autoIndent.IndentStr) > 0 {
@@ -150,8 +150,8 @@ func (e *Editor) openLineAbove(args []string) error {
 	// Enter insert mode
 	e.switchToInsertMode()
 	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("O")
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
+		e.CurrentBuffer().History.StartInsertSession("O")
 	}
 
 	// Update syntax highlighting (skip during paste mode)
@@ -165,17 +165,17 @@ func (e *Editor) openLineAbove(args []string) error {
 // joinLines joins the current line with the next line
 func (e *Editor) joinLines(args []string) error {
 	// Get current line info and save view position before buffer modifications
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Can't join if we're on the last line
-	if lineNum >= e.buffer.LineCount-1 {
+	if lineNum >= e.CurrentBuffer().LineCount-1 {
 		return nil
 	}
 
 	// Get current line and next line
-	currentLine := e.buffer.CursorIterator.Line()
-	nextIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum+1)
+	currentLine := e.CurrentBuffer().CursorIterator.Line()
+	nextIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum+1)
 	if nextIter.IsEOF() {
 		return nil
 	}
@@ -217,8 +217,8 @@ func (e *Editor) joinLines(args []string) error {
 	compositeEntry.Add(deleteEntry)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, compositeEntry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), compositeEntry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -232,11 +232,11 @@ func (e *Editor) joinLines(args []string) error {
 	}
 
 	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Set cursor position to the join point
-	e.buffer.CursorX = cursorX
+	e.CurrentBuffer().CursorX = cursorX
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
@@ -249,19 +249,19 @@ func (e *Editor) joinLines(args []string) error {
 // insertTab inserts appropriate indentation at the current cursor position
 func (e *Editor) insertTab(args []string) error {
 	// Get the buffer's indentation string
-	indentStr := e.buffer.GetIndentationString()
+	indentStr := e.CurrentBuffer().GetIndentationString()
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	cursorX := e.buffer.CursorX
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	cursorX := e.CurrentBuffer().CursorX
 
 	// Create history entry
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, indentStr)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -269,15 +269,15 @@ func (e *Editor) insertTab(args []string) error {
 	} else {
 		// Fallback if history is not initialized
 		pos := e.getAbsolutePosition()
-		e.buffer.Insert(pos, indentStr)
+		e.CurrentBuffer().Insert(pos, indentStr)
 	}
 
 	// Recreate iterators at the same line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Move cursor forward by the length of the indentation
-	e.buffer.CursorX = cursorX + len(indentStr)
+	e.CurrentBuffer().CursorX = cursorX + len(indentStr)
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
@@ -295,7 +295,7 @@ func (e *Editor) insertChar(ch rune) error {
 	// Simply insert the character without any pairing or skipping logic
 
 	// Skip if no buffer (empty window)
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 
@@ -304,13 +304,13 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// If user types non-whitespace content, mark the line as having user content
 	if ch != ' ' && ch != '\t' {
-		e.markLineHasUserContent(e.buffer.CursorIterator.LineNumber())
+		e.markLineHasUserContent(e.CurrentBuffer().CursorIterator.LineNumber())
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	cursorX := e.buffer.CursorX
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	cursorX := e.CurrentBuffer().CursorX
 
 	// Check if we're typing a closing brace and should auto-dedent (disabled during paste)
 	if !e.inPasteMode && ch == '}' && e.shouldAutoDedentClosingBrace(lineNum, cursorX) {
@@ -319,10 +319,10 @@ func (e *Editor) insertChar(ch rune) error {
 			return err
 		}
 		// Update cursor position after dedent
-		cursorX = e.buffer.CursorX
+		cursorX = e.CurrentBuffer().CursorX
 		// Recreate iterators after buffer modification
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 	}
 
 	// Create history entry for the single character
@@ -330,25 +330,25 @@ func (e *Editor) insertChar(ch rune) error {
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
 
 	// Execute through history (this handles both direct execution and insert mode tracking)
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
+		if err := entry.Execute(e.CurrentBuffer()); err != nil {
 			return err
 		}
 	}
 
 	// Recreate iterators at the same line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Move cursor forward by one position
-	e.buffer.CursorX = cursorX + 1
+	e.CurrentBuffer().CursorX = cursorX + 1
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
@@ -363,13 +363,13 @@ func (e *Editor) insertChar(ch rune) error {
 		// Check if we're now in a function call context
 		if e.isLikelyInsideCallOnCurrentLine() {
 			// Increment generation and request signature help
-			e.buffer.SignatureGeneration++
+			e.CurrentBuffer().SignatureGeneration++
 			e.requestSignatureHelpAsync()
 		}
 	}
 
 	// Auto-trigger completion menu for member access operators in insert mode with LSP
-	if !e.inPasteMode && e.mode == commands.InsertMode && e.buffer != nil && e.buffer.HasLSP {
+	if !e.inPasteMode && e.mode == commands.InsertMode && e.CurrentBuffer() != nil && e.CurrentBuffer().HasLSP {
 		shouldTriggerCompletion := false
 
 		if ch == '.' {
@@ -377,10 +377,10 @@ func (e *Editor) insertChar(ch rune) error {
 			shouldTriggerCompletion = true
 		} else if ch == '>' {
 			// Check if we just typed '->' (arrow operator)
-			line := e.buffer.CursorIterator.Line()
-			if e.buffer.CursorX >= 2 && len(line) >= 2 {
+			line := e.CurrentBuffer().CursorIterator.Line()
+			if e.CurrentBuffer().CursorX >= 2 && len(line) >= 2 {
 				// Check if the previous character is '-' to form '->'
-				if line[e.buffer.CursorX-2] == '-' {
+				if line[e.CurrentBuffer().CursorX-2] == '-' {
 					shouldTriggerCompletion = true
 				}
 			}
@@ -400,54 +400,54 @@ func (e *Editor) insertChar(ch rune) error {
 func (e *Editor) insertNewline(args []string) error {
 	// Debug: entering insertNewline
 	LL.Debug("insertNewline: start at line=%d, x=%d, viewTop=%d, pasteMode=%v",
-		e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), e.inPasteMode)
+		e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber(), e.inPasteMode)
 	// During paste mode, insert a raw newline without auto-indentation
 	if e.inPasteMode {
 		LL.Trace("insertNewline: paste mode path")
-		lineNum := e.buffer.CursorIterator.LineNumber()
-		viewLineNum := e.buffer.ViewIterator.LineNumber()
-		cursorX := e.buffer.CursorX
+		lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+		viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+		cursorX := e.CurrentBuffer().CursorX
 
 		entry := buffer.NewInsertTextEntry(lineNum, cursorX, "\n")
 
-		if e.buffer.History != nil {
-			if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if e.CurrentBuffer().History != nil {
+			if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 				return err
 			} else if executed != nil {
 				e.setLastChange(executed)
 			}
 		} else {
-			if err := entry.Execute(e.buffer); err != nil {
+			if err := entry.Execute(e.CurrentBuffer()); err != nil {
 				return err
 			}
 		}
 
 		// Move cursor to the next line at column 0
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum+1)
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-		e.buffer.CursorX = 0
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum+1)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+		e.CurrentBuffer().CursorX = 0
 
 		// Skip highlighting during paste; it will be refreshed once at paste end
 		LL.Debug("insertNewline: (paste) after insert -> line=%d, x=%d, viewTop=%d",
-			e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber())
+			e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber())
 		return nil
 	}
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	cursorX := e.buffer.CursorX
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	cursorX := e.CurrentBuffer().CursorX
 
 	// Get the current line for auto-indent calculation
 	currentLine := ""
-	if !e.buffer.CursorIterator.IsEOF() {
-		currentLine = e.buffer.CursorIterator.Line()
+	if !e.CurrentBuffer().CursorIterator.IsEOF() {
+		currentLine = e.CurrentBuffer().CursorIterator.Line()
 	}
 
 	// Check if cursor is between braces on the same line
 	isBetweenBraces := e.isCursorBetweenBraces(currentLine, cursorX)
 
 	// Calculate auto-indent for the new line
-	autoIndent := e.buffer.CalculateAutoIndent(currentLine, e.buffer.CursorX)
+	autoIndent := e.CurrentBuffer().CalculateAutoIndent(currentLine, e.CurrentBuffer().CursorX)
 
 	// Create the text to insert
 	var textToInsert string
@@ -456,8 +456,8 @@ func (e *Editor) insertNewline(args []string) error {
 	if isBetweenBraces {
 		// Special case: cursor between {}
 		// Insert newline with indent, then another newline with base indent for closing brace
-		baseIndentInfo := e.buffer.GetLineIndentInfo(currentLine)
-		baseIndentStr := strings.Repeat(e.buffer.GetIndentationString(), baseIndentInfo.Level)
+		baseIndentInfo := e.CurrentBuffer().GetLineIndentInfo(currentLine)
+		baseIndentStr := strings.Repeat(e.CurrentBuffer().GetIndentationString(), baseIndentInfo.Level)
 
 		textToInsert = "\n" + autoIndent.IndentStr + "\n" + baseIndentStr
 		finalCursorX = len(autoIndent.IndentStr)
@@ -470,27 +470,27 @@ func (e *Editor) insertNewline(args []string) error {
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
+		if err := entry.Execute(e.CurrentBuffer()); err != nil {
 			return err
 		}
 	}
 
 	// Recreate iterators after buffer modification
 	// Cursor moves to next line (the indented line)
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum+1)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum+1)
 	// View iterator stays at its current line
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Move cursor to end of indentation
-	e.buffer.CursorX = finalCursorX
+	e.CurrentBuffer().CursorX = finalCursorX
 
 	// Track auto-indentation for cleanup when cursor moves away
 	if len(autoIndent.IndentStr) > 0 {
@@ -506,7 +506,7 @@ func (e *Editor) insertNewline(args []string) error {
 	e.scroll()
 
 	LL.Debug("insertNewline: end -> line=%d, x=%d, viewTop=%d (finalX=%d, betweenBraces=%v, indent=%q)",
-		e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), finalCursorX, isBetweenBraces, autoIndent.IndentStr)
+		e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber(), finalCursorX, isBetweenBraces, autoIndent.IndentStr)
 
 	return nil
 }
@@ -548,23 +548,23 @@ func (e *Editor) isCursorBetweenBraces(line string, cursorX int) bool {
 
 func (e *Editor) backspace(args []string) error {
 	// If at beginning of buffer, nothing to delete
-	if e.buffer.CursorX == 0 && e.buffer.CursorIterator.LineNumber() == 0 {
+	if e.CurrentBuffer().CursorX == 0 && e.CurrentBuffer().CursorIterator.LineNumber() == 0 {
 		return nil
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	cursorX := e.buffer.CursorX
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	cursorX := e.CurrentBuffer().CursorX
 	pos := e.getAbsolutePosition()
 
 	if cursorX == 0 {
 		// At beginning of line, join with previous line
 		if pos > 0 && lineNum > 0 {
 			// Store the length of the previous line before joining
-			prevIter := e.buffer.CursorIterator.Previous()
+			prevIter := e.CurrentBuffer().CursorIterator.Previous()
 			prevLineLen := 0
-			if !prevIter.Equals(e.buffer.CursorIterator) {
+			if !prevIter.Equals(e.CurrentBuffer().CursorIterator) {
 				prevLineLen = len(prevIter.Line())
 			}
 
@@ -573,25 +573,25 @@ func (e *Editor) backspace(args []string) error {
 			entry := buffer.NewDeleteTextEntry(lineNum-1, prevLineLen, deletedText)
 
 			// Execute through history
-			if e.buffer.History != nil {
-				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			if e.CurrentBuffer().History != nil {
+				if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 					return err
 				} else if executed != nil {
 					e.setLastChange(executed)
 				}
 			} else {
 				// Fallback if history is not initialized
-				if err := entry.Execute(e.buffer); err != nil {
+				if err := entry.Execute(e.CurrentBuffer()); err != nil {
 					return err
 				}
 			}
 
 			// Recreate iterators - cursor moves to previous line
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum-1)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum-1)
+			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 			// Position cursor at end of previous line
-			e.buffer.CursorX = prevLineLen
+			e.CurrentBuffer().CursorX = prevLineLen
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
@@ -601,7 +601,7 @@ func (e *Editor) backspace(args []string) error {
 	} else {
 		// Optimize backspace in leading whitespace: delete one indent chunk
 		if pos > 0 {
-			line := e.buffer.CursorIterator.Line()
+			line := e.CurrentBuffer().CursorIterator.Line()
 			// Only apply when all characters before cursor are spaces/tabs
 			onlyWhitespace := true
 			if cursorX > len(line) {
@@ -619,7 +619,7 @@ func (e *Editor) backspace(args []string) error {
 				var startX int
 				var deletedText string
 
-				if e.buffer.Indentation.Type == config.IndentTabs {
+				if e.CurrentBuffer().Indentation.Type == config.IndentTabs {
 					// Prefer removing a single tab if immediately before cursor
 					if line[cursorX-1] == '\t' {
 						startX = cursorX - 1
@@ -640,7 +640,7 @@ func (e *Editor) backspace(args []string) error {
 					}
 				} else {
 					// Spaces mode: delete one indent width of spaces if present before cursor
-					indentWidth := e.buffer.Indentation.Width
+					indentWidth := e.CurrentBuffer().Indentation.Width
 					if indentWidth <= 0 {
 						indentWidth = 4
 					}
@@ -662,25 +662,25 @@ func (e *Editor) backspace(args []string) error {
 				if deletedText != "" {
 					entry := buffer.NewDeleteTextEntry(lineNum, startX, deletedText)
 					// Execute through history
-					if e.buffer.History != nil {
-						if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+					if e.CurrentBuffer().History != nil {
+						if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 							return err
 						} else if executed != nil {
 							e.setLastChange(executed)
 						}
 					} else {
 						// Fallback if history is not initialized
-						if err := entry.Execute(e.buffer); err != nil {
+						if err := entry.Execute(e.CurrentBuffer()); err != nil {
 							return err
 						}
 					}
 
 					// Recreate iterators at the same line
-					e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-					e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+					e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+					e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 					// Move cursor back by chunk size
-					e.buffer.CursorX = startX
+					e.CurrentBuffer().CursorX = startX
 
 					// Update syntax highlighting (skip during paste mode)
 					if !e.inPasteMode {
@@ -695,30 +695,30 @@ func (e *Editor) backspace(args []string) error {
 			}
 
 			// Default: delete a single character before cursor
-			deletedChar := e.buffer.Rope.ByteAt(pos - 1)
+			deletedChar := e.CurrentBuffer().Rope.ByteAt(pos - 1)
 			deletedText := string(deletedChar)
 			entry := buffer.NewDeleteTextEntry(lineNum, cursorX-1, deletedText)
 
 			// Execute through history
-			if e.buffer.History != nil {
-				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			if e.CurrentBuffer().History != nil {
+				if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 					return err
 				} else if executed != nil {
 					e.setLastChange(executed)
 				}
 			} else {
 				// Fallback if history is not initialized
-				if err := entry.Execute(e.buffer); err != nil {
+				if err := entry.Execute(e.CurrentBuffer()); err != nil {
 					return err
 				}
 			}
 
 			// Recreate iterators at the same line
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 			// Move cursor back one position
-			e.buffer.CursorX = cursorX - 1
+			e.CurrentBuffer().CursorX = cursorX - 1
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
@@ -736,43 +736,43 @@ func (e *Editor) backspace(args []string) error {
 // deleteCurrentCharacter deletes the character at the current cursor position
 func (e *Editor) deleteCurrentCharacter(args []string) error {
 	// If at EOF or empty buffer, nothing to delete
-	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+	if e.CurrentBuffer().CursorIterator.IsEOF() || e.CurrentBuffer().Rope.Length() == 0 {
 		return nil
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current line to check bounds
-	line := e.buffer.CursorIterator.Line()
+	line := e.CurrentBuffer().CursorIterator.Line()
 
 	// If cursor is past the end of the line, check if we can delete newline
-	if e.buffer.CursorX >= len(line) {
+	if e.CurrentBuffer().CursorX >= len(line) {
 		// Check if there's a newline character at the end of this line
 		pos := e.getAbsolutePosition()
-		if pos < e.buffer.Rope.Length() && e.buffer.Rope.ByteAt(pos) == '\n' {
+		if pos < e.CurrentBuffer().Rope.Length() && e.CurrentBuffer().Rope.ByteAt(pos) == '\n' {
 			// We can delete the newline
 			deletedText := "\n"
-			entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
+			entry := buffer.NewDeleteTextEntry(lineNum, e.CurrentBuffer().CursorX, deletedText)
 
 			// Execute through history
-			if e.buffer.History != nil {
-				if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			if e.CurrentBuffer().History != nil {
+				if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 					return err
 				} else if executed != nil {
 					e.setLastChange(executed)
 				}
 			} else {
 				// Fallback if history is not initialized
-				if err := entry.Execute(e.buffer); err != nil {
+				if err := entry.Execute(e.CurrentBuffer()); err != nil {
 					return err
 				}
 			}
 
 			// Recreate iterators at the same position
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
@@ -784,41 +784,41 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 	}
 
 	// Get cursor X position
-	cursorX := e.buffer.CursorX
+	cursorX := e.CurrentBuffer().CursorX
 
 	// Get the character being deleted
 	pos := e.getAbsolutePosition()
-	deletedChar := e.buffer.Rope.ByteAt(pos)
+	deletedChar := e.CurrentBuffer().Rope.ByteAt(pos)
 	deletedText := string(deletedChar)
 
 	// Create history entry
 	entry := buffer.NewDeleteTextEntry(lineNum, cursorX, deletedText)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
+		if err := entry.Execute(e.CurrentBuffer()); err != nil {
 			return err
 		}
 	}
 
 	// Recreate iterators at the same line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Cursor position stays the same, but we need to ensure it's not past the end of the line
-	newLine := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(newLine) {
+	newLine := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(newLine) {
 		if len(newLine) > 0 {
-			e.buffer.CursorX = len(newLine) - 1 // Stay on last character in normal mode
+			e.CurrentBuffer().CursorX = len(newLine) - 1 // Stay on last character in normal mode
 		} else {
-			e.buffer.CursorX = 0
+			e.CurrentBuffer().CursorX = 0
 		}
 	}
 
@@ -833,41 +833,41 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 // deleteCharacterInsert deletes the character under the cursor in insert mode
 func (e *Editor) deleteCharacterInsert(args []string) error {
 	// If at EOF or empty buffer, nothing to delete
-	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+	if e.CurrentBuffer().CursorIterator.IsEOF() || e.CurrentBuffer().Rope.Length() == 0 {
 		return nil
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current line to check bounds
-	line := e.buffer.CursorIterator.Line()
+	line := e.CurrentBuffer().CursorIterator.Line()
 
 	// If cursor is at or past the end of the line, check if we can delete newline
-	if e.buffer.CursorX >= len(line) {
+	if e.CurrentBuffer().CursorX >= len(line) {
 		// Check if there's a newline character at the end of this line
 		pos := e.getAbsolutePosition()
-		if pos < e.buffer.Rope.Length() && e.buffer.Rope.ByteAt(pos) == '\n' {
+		if pos < e.CurrentBuffer().Rope.Length() && e.CurrentBuffer().Rope.ByteAt(pos) == '\n' {
 			// We can delete the newline
 			deletedText := "\n"
-			entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
+			entry := buffer.NewDeleteTextEntry(lineNum, e.CurrentBuffer().CursorX, deletedText)
 
 			// Execute through history
-			if e.buffer.History != nil {
-				if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+			if e.CurrentBuffer().History != nil {
+				if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 					return err
 				}
 			} else {
 				// Fallback if history is not initialized
-				if err := entry.Execute(e.buffer); err != nil {
+				if err := entry.Execute(e.CurrentBuffer()); err != nil {
 					return err
 				}
 			}
 
 			// Recreate iterators at the same position
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
@@ -880,33 +880,33 @@ func (e *Editor) deleteCharacterInsert(args []string) error {
 
 	// Get the character being deleted
 	pos := e.getAbsolutePosition()
-	deletedChar := e.buffer.Rope.ByteAt(pos)
+	deletedChar := e.CurrentBuffer().Rope.ByteAt(pos)
 	deletedText := string(deletedChar)
 
 	// Create history entry
-	entry := buffer.NewDeleteTextEntry(lineNum, e.buffer.CursorX, deletedText)
+	entry := buffer.NewDeleteTextEntry(lineNum, e.CurrentBuffer().CursorX, deletedText)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		}
 	} else {
 		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
+		if err := entry.Execute(e.CurrentBuffer()); err != nil {
 			return err
 		}
 	}
 
 	// Recreate iterators at the same line
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// In insert mode, cursor position stays the same
 	// But ensure it's not past the end of the line
-	newLine := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(newLine) {
-		e.buffer.CursorX = len(newLine)
+	newLine := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(newLine) {
+		e.CurrentBuffer().CursorX = len(newLine)
 	}
 
 	// Update syntax highlighting (skip during paste mode)
@@ -923,17 +923,17 @@ func (e *Editor) deleteCharacterInsert(args []string) error {
 // deleteWordForward deletes from cursor to end of current word (Alt+Delete)
 func (e *Editor) deleteWordForward(args []string) error {
 	// If at EOF or empty buffer, nothing to delete
-	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+	if e.CurrentBuffer().CursorIterator.IsEOF() || e.CurrentBuffer().Rope.Length() == 0 {
 		return nil
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	startX := e.buffer.CursorX
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	startX := e.CurrentBuffer().CursorX
 
 	// Find the next word boundary
-	nextWord := FindNextWordBoundary(e.buffer, lineNum, startX)
+	nextWord := FindNextWordBoundary(e.CurrentBuffer(), lineNum, startX)
 
 	var endLine, endX int
 	if nextWord != nil {
@@ -941,7 +941,7 @@ func (e *Editor) deleteWordForward(args []string) error {
 		endX = nextWord.StartChar
 	} else {
 		// No next word found, delete to end of current line
-		line := e.buffer.CursorIterator.Line()
+		line := e.CurrentBuffer().CursorIterator.Line()
 		endLine = lineNum
 		endX = len(line)
 	}
@@ -950,13 +950,13 @@ func (e *Editor) deleteWordForward(args []string) error {
 	var textToDelete string
 	if endLine == lineNum {
 		// Same line deletion
-		line := e.buffer.CursorIterator.Line()
+		line := e.CurrentBuffer().CursorIterator.Line()
 		if startX < len(line) && endX <= len(line) && endX > startX {
 			textToDelete = line[startX:endX]
 		}
 	} else {
 		// Multi-line deletion (including newline)
-		line := e.buffer.CursorIterator.Line()
+		line := e.CurrentBuffer().CursorIterator.Line()
 		if startX < len(line) {
 			textToDelete = line[startX:] + "\n"
 		} else {
@@ -972,20 +972,20 @@ func (e *Editor) deleteWordForward(args []string) error {
 	entry := buffer.NewDeleteTextEntry(lineNum, startX, textToDelete)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		}
 	} else {
 		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
+		if err := entry.Execute(e.CurrentBuffer()); err != nil {
 			return err
 		}
 	}
 
 	// Recreate iterators at the same position
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
@@ -1001,17 +1001,17 @@ func (e *Editor) deleteWordForward(args []string) error {
 // deleteToEndOfLine deletes from cursor position to end of line (D in vim)
 func (e *Editor) deleteToEndOfLine(args []string) error {
 	// If at EOF or empty buffer, nothing to delete
-	if e.buffer.CursorIterator.IsEOF() || e.buffer.Rope.Length() == 0 {
+	if e.CurrentBuffer().CursorIterator.IsEOF() || e.CurrentBuffer().Rope.Length() == 0 {
 		return nil
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	startX := e.buffer.CursorX
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	startX := e.CurrentBuffer().CursorX
 
 	// Get current line
-	line := e.buffer.CursorIterator.Line()
+	line := e.CurrentBuffer().CursorIterator.Line()
 
 	// If cursor is already at or past end of line, nothing to delete
 	if startX >= len(line) {
@@ -1025,8 +1025,8 @@ func (e *Editor) deleteToEndOfLine(args []string) error {
 	entry := buffer.NewDeleteTextEntry(lineNum, startX, deletedText)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -1034,18 +1034,18 @@ func (e *Editor) deleteToEndOfLine(args []string) error {
 	} else {
 		// Fallback if history is not initialized
 		pos := e.getAbsolutePosition()
-		e.buffer.Delete(pos, len(deletedText))
+		e.CurrentBuffer().Delete(pos, len(deletedText))
 	}
 
 	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Adjust cursor position if needed
-	line = e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > 0 && e.buffer.CursorX >= len(line) && len(line) > 0 {
+	line = e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > 0 && e.CurrentBuffer().CursorX >= len(line) && len(line) > 0 {
 		// In normal mode, cursor should be on last character if line is not empty
-		e.buffer.CursorX = len(line) - 1
+		e.CurrentBuffer().CursorX = len(line) - 1
 	}
 
 	// Update syntax highlighting
@@ -1060,14 +1060,14 @@ func (e *Editor) deleteToEndOfLine(args []string) error {
 // deleteWordBackward deletes from beginning of current word to cursor (Alt+Backspace)
 func (e *Editor) deleteWordBackward(args []string) error {
 	// If at beginning of buffer, nothing to delete
-	if e.buffer.CursorIterator.LineNumber() == 0 && e.buffer.CursorX == 0 {
+	if e.CurrentBuffer().CursorIterator.LineNumber() == 0 && e.CurrentBuffer().CursorX == 0 {
 		return nil
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	endX := e.buffer.CursorX
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	endX := e.CurrentBuffer().CursorX
 
 	// Find the previous word boundary
 	// We need to move back one character first, then find word start
@@ -1078,7 +1078,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 		// Move to previous line
 		if lineNum > 0 {
 			tempLine = lineNum - 1
-			tempIter := buffer.NewBufferIteratorAtLine(e.buffer, tempLine)
+			tempIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), tempLine)
 			tempX = len(tempIter.Line())
 		} else {
 			return nil
@@ -1089,7 +1089,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 	var startLine, startX int
 
 	// Use a temporary buffer position to find word start
-	tempIter := buffer.NewBufferIteratorAtLine(e.buffer, tempLine)
+	tempIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), tempLine)
 	currentLine := tempIter.Line()
 
 	// If we're in a word, find the start of this word
@@ -1109,7 +1109,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 				// Need to go to previous line
 				if tempLine > 0 {
 					tempLine--
-					tempIter = buffer.NewBufferIteratorAtLine(e.buffer, tempLine)
+					tempIter = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), tempLine)
 					currentLine = tempIter.Line()
 					tempX = len(currentLine) - 1
 				} else {
@@ -1137,7 +1137,7 @@ func (e *Editor) deleteWordBackward(args []string) error {
 
 	if startLine == lineNum {
 		// Same line deletion
-		line := e.buffer.CursorIterator.Line()
+		line := e.CurrentBuffer().CursorIterator.Line()
 		if startX < endX && endX <= len(line) {
 			textToDelete = line[startX:endX]
 			deleteLineNum = lineNum
@@ -1146,12 +1146,12 @@ func (e *Editor) deleteWordBackward(args []string) error {
 	} else {
 		// Multi-line deletion
 		// Delete from start position on previous line to cursor
-		prevIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+		prevIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), startLine)
 		prevLine := prevIter.Line()
 
 		textToDelete = prevLine[startX:] + "\n"
 		if endX > 0 {
-			line := e.buffer.CursorIterator.Line()
+			line := e.CurrentBuffer().CursorIterator.Line()
 			textToDelete += line[:endX]
 		}
 		deleteLineNum = startLine
@@ -1166,21 +1166,21 @@ func (e *Editor) deleteWordBackward(args []string) error {
 	entry := buffer.NewDeleteTextEntry(deleteLineNum, deleteX, textToDelete)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		}
 	} else {
 		// Fallback if history is not initialized
-		if err := entry.Execute(e.buffer); err != nil {
+		if err := entry.Execute(e.CurrentBuffer()); err != nil {
 			return err
 		}
 	}
 
 	// Update cursor position to where deletion started
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, startLine)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
-	e.buffer.CursorX = startX
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), startLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	e.CurrentBuffer().CursorX = startX
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -1205,21 +1205,21 @@ func (e *Editor) wordBackwardInsert(args []string) error {
 
 // reindentLine recalculates indentation of the current line based on context (vim '==')
 func (e *Editor) reindentLine(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	// Preserve view position
-	curLine := e.buffer.CursorIterator.LineNumber()
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	curLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current line text and its current indent info
-	line := e.buffer.CursorIterator.Line()
-	indentInfo := e.buffer.GetLineIndentInfo(line)
+	line := e.CurrentBuffer().CursorIterator.Line()
+	indentInfo := e.CurrentBuffer().GetLineIndentInfo(line)
 
 	// Compute desired indentation string using buffer's auto-indent context for empty line
 	// We reuse calculateIndentForEmptyLine-like logic via Buffer.CalculateAutoIndent on an empty line context.
 	// Use beginning of line as cursor column.
-	auto := e.buffer.CalculateAutoIndent("", 0)
+	auto := e.CurrentBuffer().CalculateAutoIndent("", 0)
 	desired := auto.IndentStr
 
 	// If desired equals current actual prefix, nothing to do
@@ -1237,8 +1237,8 @@ func (e *Editor) reindentLine(args []string) error {
 		composite.Add(buffer.NewInsertTextEntry(curLine, 0, desired))
 	}
 
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, composite); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -1247,25 +1247,25 @@ func (e *Editor) reindentLine(args []string) error {
 		}
 	} else {
 		// Fallback direct edits without history
-		lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
+		lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
 		if indentInfo.ActualPrefix != "" {
-			e.buffer.Delete(lineStart, len(indentInfo.ActualPrefix))
+			e.CurrentBuffer().Delete(lineStart, len(indentInfo.ActualPrefix))
 		}
 		if desired != "" {
-			e.buffer.Insert(lineStart, desired)
+			e.CurrentBuffer().Insert(lineStart, desired)
 		}
 	}
 
 	// Restore iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, curLine)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), curLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 
 	// Place cursor at first non-whitespace character
-	newLine := e.buffer.CursorIterator.Line()
-	e.buffer.CursorX = 0
+	newLine := e.CurrentBuffer().CursorIterator.Line()
+	e.CurrentBuffer().CursorX = 0
 	for i := 0; i < len(newLine); i++ {
 		if newLine[i] != ' ' && newLine[i] != '\t' {
-			e.buffer.CursorX = i
+			e.CurrentBuffer().CursorX = i
 			break
 		}
 	}
@@ -1282,13 +1282,13 @@ func (e *Editor) reindentLine(args []string) error {
 // can later extend line-breaking by rulers. For now, width cycling is recorded but
 // does not change indentation.
 func (e *Editor) reindentExpression(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 
 	// Determine width cycling index similar to rewrapParagraph
-	cursorLine := e.buffer.CursorIterator.LineNumber()
-	cursorX := e.buffer.CursorX
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	cursorX := e.CurrentBuffer().CursorX
 	width := 0
 	if len(e.config.VerticalRulers) > 0 {
 		if e.lastRewrapLine == cursorLine && e.lastRewrapChar == cursorX {
@@ -1311,21 +1311,21 @@ func (e *Editor) reindentExpression(args []string) error {
 	composite := buffer.NewCompositeEntry("Reindent expression")
 
 	// Preserve view position
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Helper: unit indentation string
-	unit := e.buffer.GetIndentationString()
+	unit := e.CurrentBuffer().GetIndentationString()
 
 	for ln := startLine; ln <= endLine; ln++ {
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, ln)
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
 		if iter.IsEOF() {
 			continue
 		}
 		line := iter.Line()
 		// Place CursorIterator at this line to let CalculateAutoIndent analyze context
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, ln)
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
 		// Desired indentation for an empty line at this position (block-level)
-		auto := e.buffer.CalculateAutoIndent("", 0)
+		auto := e.CurrentBuffer().CalculateAutoIndent("", 0)
 		desired := auto.IndentStr
 
 		// If this line begins with a closing brace, align to its matching open brace's indent
@@ -1359,8 +1359,8 @@ func (e *Editor) reindentExpression(args []string) error {
 		}
 	}
 
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, composite); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -1368,38 +1368,38 @@ func (e *Editor) reindentExpression(args []string) error {
 		}
 	} else {
 		// Fallback: execute entries directly
-		_ = composite.Execute(e.buffer)
+		_ = composite.Execute(e.CurrentBuffer())
 	}
 
 	// Restore iterators
-	if viewLine >= e.buffer.LineCount {
-		viewLine = e.buffer.LineCount - 1
+	if viewLine >= e.CurrentBuffer().LineCount {
+		viewLine = e.CurrentBuffer().LineCount - 1
 		if viewLine < 0 {
 			viewLine = 0
 		}
 	}
-	if cursorLine >= e.buffer.LineCount {
-		cursorLine = e.buffer.LineCount - 1
+	if cursorLine >= e.CurrentBuffer().LineCount {
+		cursorLine = e.CurrentBuffer().LineCount - 1
 		if cursorLine < 0 {
 			cursorLine = 0
 		}
 	}
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
 
 	// Move cursor to first non-whitespace of its line
-	newLine := e.buffer.CursorIterator.Line()
-	e.buffer.CursorX = 0
+	newLine := e.CurrentBuffer().CursorIterator.Line()
+	e.CurrentBuffer().CursorX = 0
 	for i := 0; i < len(newLine); i++ {
 		if newLine[i] != ' ' && newLine[i] != '\t' {
-			e.buffer.CursorX = i
+			e.CurrentBuffer().CursorX = i
 			break
 		}
 	}
 
 	// Remember position for width cycling
 	e.lastRewrapLine = cursorLine
-	e.lastRewrapChar = e.buffer.CursorX
+	e.lastRewrapChar = e.CurrentBuffer().CursorX
 
 	e.updateSyntaxHighlighting()
 	return nil
@@ -1408,28 +1408,28 @@ func (e *Editor) reindentExpression(args []string) error {
 // findExpressionRange tries to find a structural range around the cursor:
 // 1) LSP folding block (around), 2) braces {..}, 3) parentheses (..).
 func (e *Editor) findExpressionRange() (int, int, int, int, bool) {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return 0, 0, 0, 0, false
 	}
-	line := e.buffer.CursorIterator.LineNumber()
-	x := e.buffer.CursorX
+	line := e.CurrentBuffer().CursorIterator.LineNumber()
+	x := e.CurrentBuffer().CursorX
 
 	// Prefer LSP folding range if available
-	if len(e.buffer.FoldingRanges) > 0 {
+	if len(e.CurrentBuffer().FoldingRanges) > 0 {
 		tb := NewBlockTextObject(ModifierAround)
-		if sL, sC, eL, eC, ok := tb.GetRange(e.buffer, line, x); ok {
+		if sL, sC, eL, eC, ok := tb.GetRange(e.CurrentBuffer(), line, x); ok {
 			return sL, sC, eL, eC, true
 		}
 	}
 
 	// Try braces
 	bt := NewBracketTextObject('{', ModifierAround)
-	if sL, sC, eL, eC, ok := bt.GetRange(e.buffer, line, x); ok {
+	if sL, sC, eL, eC, ok := bt.GetRange(e.CurrentBuffer(), line, x); ok {
 		return sL, sC, eL, eC, true
 	}
 	// Try parentheses
 	pt := NewBracketTextObject('(', ModifierAround)
-	if sL, sC, eL, eC, ok := pt.GetRange(e.buffer, line, x); ok {
+	if sL, sC, eL, eC, ok := pt.GetRange(e.CurrentBuffer(), line, x); ok {
 		return sL, sC, eL, eC, true
 	}
 	return 0, 0, 0, 0, false
@@ -1438,18 +1438,18 @@ func (e *Editor) findExpressionRange() (int, int, int, int, bool) {
 // indentLine indents the current line by one level (>> in vim)
 func (e *Editor) indentLine(args []string) error {
 	// Get current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get the indentation string for this buffer
-	indentStr := e.buffer.GetIndentationString()
+	indentStr := e.CurrentBuffer().GetIndentationString()
 
 	// Create history entry to insert indentation at beginning of line
 	entry := buffer.NewInsertTextEntry(lineNum, 0, indentStr)
 
 	// Execute through history
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
@@ -1458,27 +1458,27 @@ func (e *Editor) indentLine(args []string) error {
 		}
 	} else {
 		// Fallback if history is not initialized
-		lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
-		e.buffer.Insert(lineStart, indentStr)
+		lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
+		e.CurrentBuffer().Insert(lineStart, indentStr)
 	}
 
 	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Move cursor to first non-whitespace character
-	line := e.buffer.CursorIterator.Line()
+	line := e.CurrentBuffer().CursorIterator.Line()
 	foundNonWhitespace := false
 	for i, ch := range line {
 		if ch != ' ' && ch != '\t' {
-			e.buffer.CursorX = i
+			e.CurrentBuffer().CursorX = i
 			foundNonWhitespace = true
 			break
 		}
 	}
 	// If line is all whitespace, leave cursor at current position
 	if !foundNonWhitespace && len(line) > 0 {
-		e.buffer.CursorX = len(line)
+		e.CurrentBuffer().CursorX = len(line)
 	}
 
 	// Update syntax highlighting
@@ -1490,14 +1490,14 @@ func (e *Editor) indentLine(args []string) error {
 // unindentLine unindents the current line by one level (<< in vim)
 func (e *Editor) unindentLine(args []string) error {
 	// Get current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Get current line
-	line := e.buffer.CursorIterator.Line()
+	line := e.CurrentBuffer().CursorIterator.Line()
 
 	// Calculate how much indentation to remove
-	indentInfo := e.buffer.GetLineIndentInfo(line)
+	indentInfo := e.CurrentBuffer().GetLineIndentInfo(line)
 	if indentInfo.Tabs == 0 && indentInfo.Spaces == 0 {
 		// No indentation to remove
 		return nil
@@ -1507,7 +1507,7 @@ func (e *Editor) unindentLine(args []string) error {
 	var toRemove int
 	deletedText := ""
 
-	if e.buffer.Indentation.Type == config.IndentTabs {
+	if e.CurrentBuffer().Indentation.Type == config.IndentTabs {
 		// Remove one tab if present at the beginning
 		if len(line) > 0 && line[0] == '\t' {
 			toRemove = 1
@@ -1539,7 +1539,7 @@ func (e *Editor) unindentLine(args []string) error {
 			} else {
 				break
 			}
-			if spaceCount >= e.buffer.Indentation.Width {
+			if spaceCount >= e.CurrentBuffer().Indentation.Width {
 				break
 			}
 		}
@@ -1554,8 +1554,8 @@ func (e *Editor) unindentLine(args []string) error {
 		entry := buffer.NewDeleteTextEntry(lineNum, 0, deletedText)
 
 		// Execute through history
-		if e.buffer.History != nil {
-			if executed, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if e.CurrentBuffer().History != nil {
+			if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 				return err
 			} else if executed != nil {
 				e.setLastChange(executed)
@@ -1564,21 +1564,21 @@ func (e *Editor) unindentLine(args []string) error {
 			}
 		} else {
 			// Fallback if history is not initialized
-			lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
-			e.buffer.Delete(lineStart, toRemove)
+			lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
+			e.CurrentBuffer().Delete(lineStart, toRemove)
 		}
 	}
 
 	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// Move cursor to first non-whitespace character
-	line = e.buffer.CursorIterator.Line()
-	e.buffer.CursorX = 0 // Start at beginning
+	line = e.CurrentBuffer().CursorIterator.Line()
+	e.CurrentBuffer().CursorX = 0 // Start at beginning
 	for i, ch := range line {
 		if ch != ' ' && ch != '\t' {
-			e.buffer.CursorX = i
+			e.CurrentBuffer().CursorX = i
 			break
 		}
 	}
@@ -1592,7 +1592,7 @@ func (e *Editor) unindentLine(args []string) error {
 // shouldAutoDedentClosingBrace checks if we should auto-dedent when typing a closing brace
 func (e *Editor) shouldAutoDedentClosingBrace(lineNum int, cursorX int) bool {
 	// Get current line
-	line := e.buffer.CursorIterator.Line()
+	line := e.CurrentBuffer().CursorIterator.Line()
 
 	// Check if line only contains whitespace before cursor
 	for i := 0; i < cursorX && i < len(line); i++ {
@@ -1608,7 +1608,7 @@ func (e *Editor) shouldAutoDedentClosingBrace(lineNum int, cursorX int) bool {
 	}
 
 	// Get current line's indentation level
-	currentIndentInfo := e.buffer.GetLineIndentInfo(line)
+	currentIndentInfo := e.CurrentBuffer().GetLineIndentInfo(line)
 
 	// We should dedent if current indentation is greater than the open brace line's indentation
 	return currentIndentInfo.Level > openBraceIndentLevel
@@ -1620,7 +1620,7 @@ func (e *Editor) findMatchingOpenBrace(startLine int) (lineNum int, indentLevel 
 
 	// Search backwards from the previous line
 	for lineNum := startLine - 1; lineNum >= 0; lineNum-- {
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 		if iter.IsEOF() {
 			continue
 		}
@@ -1635,7 +1635,7 @@ func (e *Editor) findMatchingOpenBrace(startLine int) (lineNum int, indentLevel 
 				braceCount--
 				if braceCount == 0 {
 					// Found the matching open brace
-					indentInfo := e.buffer.GetLineIndentInfo(line)
+					indentInfo := e.CurrentBuffer().GetLineIndentInfo(line)
 					return lineNum, indentInfo.Level
 				}
 			}
@@ -1648,8 +1648,8 @@ func (e *Editor) findMatchingOpenBrace(startLine int) (lineNum int, indentLevel 
 // autoDedentCurrentLine removes one level of indentation from the current line
 func (e *Editor) autoDedentCurrentLine(lineNum int) error {
 	// Get current line
-	line := e.buffer.CursorIterator.Line()
-	indentInfo := e.buffer.GetLineIndentInfo(line)
+	line := e.CurrentBuffer().CursorIterator.Line()
+	indentInfo := e.CurrentBuffer().GetLineIndentInfo(line)
 
 	if indentInfo.Level == 0 {
 		return nil // No indentation to remove
@@ -1669,7 +1669,7 @@ func (e *Editor) autoDedentCurrentLine(lineNum int) error {
 	var toRemove int
 	var deletedText string
 
-	if e.buffer.Indentation.Type == config.IndentTabs {
+	if e.CurrentBuffer().Indentation.Type == config.IndentTabs {
 		// Remove one tab if present
 		if indentInfo.Tabs > 0 {
 			toRemove = 1
@@ -1677,8 +1677,8 @@ func (e *Editor) autoDedentCurrentLine(lineNum int) error {
 		}
 	} else {
 		// Remove one indent width of spaces
-		if indentInfo.Spaces >= e.buffer.Indentation.Width {
-			toRemove = e.buffer.Indentation.Width
+		if indentInfo.Spaces >= e.CurrentBuffer().Indentation.Width {
+			toRemove = e.CurrentBuffer().Indentation.Width
 			deletedText = strings.Repeat(" ", toRemove)
 		}
 	}
@@ -1695,50 +1695,50 @@ func (e *Editor) autoDedentCurrentLine(lineNum int) error {
 		entry := buffer.NewDeleteTextEntry(lineNum, 0, allWhitespace)
 
 		// Execute through history
-		if e.buffer.History != nil {
-			if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if e.CurrentBuffer().History != nil {
+			if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 				return err
 			}
 		} else {
-			lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
-			e.buffer.Delete(lineStart, len(allWhitespace))
+			lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
+			e.CurrentBuffer().Delete(lineStart, len(allWhitespace))
 		}
 
 		// Now insert the dedented whitespace
 		dedentedWhitespace := line[toRemove:]
 		if len(dedentedWhitespace) > 0 {
 			insertEntry := buffer.NewInsertTextEntry(lineNum, 0, dedentedWhitespace)
-			if e.buffer.History != nil {
-				if _, err := e.buffer.History.Execute(e.buffer, insertEntry); err != nil {
+			if e.CurrentBuffer().History != nil {
+				if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), insertEntry); err != nil {
 					return err
 				}
 			} else {
-				lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
-				e.buffer.Insert(lineStart, dedentedWhitespace)
+				lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
+				e.CurrentBuffer().Insert(lineStart, dedentedWhitespace)
 			}
 		}
 
 		// Set cursor to end of dedented whitespace (where brace will go)
-		e.buffer.CursorX = len(dedentedWhitespace)
+		e.CurrentBuffer().CursorX = len(dedentedWhitespace)
 	} else {
 		// Normal case: just remove indentation from beginning
 		entry := buffer.NewDeleteTextEntry(lineNum, 0, deletedText)
 
 		// Execute through history
-		if e.buffer.History != nil {
-			if _, err := e.buffer.History.Execute(e.buffer, entry); err != nil {
+		if e.CurrentBuffer().History != nil {
+			if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
 				return err
 			}
 		} else {
-			lineStart := e.buffer.CursorIterator.Position() - e.buffer.CursorX
-			e.buffer.Delete(lineStart, toRemove)
+			lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
+			e.CurrentBuffer().Delete(lineStart, toRemove)
 		}
 
 		// Update cursor position after dedent
-		if e.buffer.CursorX >= toRemove {
-			e.buffer.CursorX -= toRemove
+		if e.CurrentBuffer().CursorX >= toRemove {
+			e.CurrentBuffer().CursorX -= toRemove
 		} else {
-			e.buffer.CursorX = 0
+			e.CurrentBuffer().CursorX = 0
 		}
 	}
 

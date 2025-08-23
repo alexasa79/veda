@@ -53,7 +53,7 @@ func TestAppendAfterCursor(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
 
 			// Set initial cursor position
-			te.buffer.CursorX = tt.cursorX
+			te.CurrentBuffer().CursorX = tt.cursorX
 
 			// Execute append after cursor
 			te.ExecuteCommand("append-after-cursor")
@@ -64,8 +64,8 @@ func TestAppendAfterCursor(t *testing.T) {
 			}
 
 			// Check cursor position
-			if te.buffer.CursorX != tt.expectedX {
-				t.Errorf("Expected cursor at X=%d, but got X=%d", tt.expectedX, te.buffer.CursorX)
+			if te.CurrentBuffer().CursorX != tt.expectedX {
+				t.Errorf("Expected cursor at X=%d, but got X=%d", tt.expectedX, te.CurrentBuffer().CursorX)
 			}
 
 			// Insert text
@@ -125,7 +125,7 @@ func TestAppendAtEndOfLine(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
 
 			// Set initial cursor position
-			te.buffer.CursorX = tt.cursorX
+			te.CurrentBuffer().CursorX = tt.cursorX
 
 			// Execute append at end of line
 			te.ExecuteCommand("append-at-end-of-line")
@@ -136,9 +136,9 @@ func TestAppendAtEndOfLine(t *testing.T) {
 			}
 
 			// Check cursor position is at end of line
-			line := te.buffer.CursorIterator.Line()
-			if te.buffer.CursorX != len(line) {
-				t.Errorf("Expected cursor at end of line (X=%d), but got X=%d", len(line), te.buffer.CursorX)
+			line := te.CurrentBuffer().CursorIterator.Line()
+			if te.CurrentBuffer().CursorX != len(line) {
+				t.Errorf("Expected cursor at end of line (X=%d), but got X=%d", len(line), te.CurrentBuffer().CursorX)
 			}
 
 			// Insert text
@@ -166,9 +166,9 @@ func TestAppendAtEndOfLineMultiLine(t *testing.T) {
 	te.ExecuteCommand("append-at-end-of-line")
 
 	// Should be at end of second line
-	line := te.buffer.CursorIterator.Line()
-	if te.buffer.CursorX != len(line) {
-		t.Errorf("Expected cursor at end of line (X=%d), but got X=%d", len(line), te.buffer.CursorX)
+	line := te.CurrentBuffer().CursorIterator.Line()
+	if te.CurrentBuffer().CursorX != len(line) {
+		t.Errorf("Expected cursor at end of line (X=%d), but got X=%d", len(line), te.CurrentBuffer().CursorX)
 	}
 
 	// Insert text
@@ -187,7 +187,7 @@ func TestAppendCommandsWithUndo(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello")
 
 		// Position cursor on 'e'
-		te.buffer.CursorX = 1
+		te.CurrentBuffer().CursorX = 1
 
 		// Append after cursor
 		te.ExecuteCommand("append-after-cursor")

@@ -212,9 +212,9 @@ func (e *Editor) showHelp(args []string) error {
 	}
 
 	// Position at the top of the help
-	e.buffer.CursorIterator = buffer.NewBufferIterator(e.buffer)
-	e.buffer.ViewIterator = buffer.NewBufferIterator(e.buffer)
-	e.buffer.CursorX = 0
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(e.CurrentBuffer())
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(e.CurrentBuffer())
+	e.CurrentBuffer().CursorX = 0
 
 	return nil
 }

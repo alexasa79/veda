@@ -65,14 +65,14 @@ func TestContinuationIndentForFunctionArguments(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, tt.initialContent)
 
 			// Set cursor position
-			te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, tt.cursorLine)
-			te.buffer.CursorX = tt.cursorX
+			te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), tt.cursorLine)
+			te.CurrentBuffer().CursorX = tt.cursorX
 
 			// Get the current line
-			currentLine := te.buffer.CursorIterator.Line()
+			currentLine := te.CurrentBuffer().CursorIterator.Line()
 
 			// Calculate auto-indent
-			autoIndent := te.buffer.CalculateAutoIndent(currentLine, te.buffer.CursorX)
+			autoIndent := te.CurrentBuffer().CalculateAutoIndent(currentLine, te.CurrentBuffer().CursorX)
 
 			// Check the indent column
 			if autoIndent.Column != tt.expectedIndentColumn {
@@ -82,7 +82,7 @@ func TestContinuationIndentForFunctionArguments(t *testing.T) {
 
 			// Also verify the indent string length matches expected column
 			// (for space indentation)
-			if te.buffer.Indentation.Type == config.IndentSpaces {
+			if te.CurrentBuffer().Indentation.Type == config.IndentSpaces {
 				if len(autoIndent.IndentStr) != tt.expectedIndentColumn {
 					t.Errorf("%s: Expected indent string length %d, got %d (string: %q)",
 						tt.description, tt.expectedIndentColumn, len(autoIndent.IndentStr), autoIndent.IndentStr)
@@ -100,8 +100,8 @@ func TestContinuationIndentWithEnter(t *testing.T) {
          2,`)
 
 	// Position cursor after "2,"
-	te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 2)
-	te.buffer.CursorX = 11
+	te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 2)
+	te.CurrentBuffer().CursorX = 11
 
 	// Press Enter (insert newline)
 	err := te.ExecuteCommand("insert-newline")
@@ -110,8 +110,8 @@ func TestContinuationIndentWithEnter(t *testing.T) {
 	}
 
 	// Check cursor position - should be indented to column 9
-	if te.buffer.CursorX != 9 {
-		t.Errorf("After Enter, expected cursor at column 9, got %d", te.buffer.CursorX)
+	if te.CurrentBuffer().CursorX != 9 {
+		t.Errorf("After Enter, expected cursor at column 9, got %d", te.CurrentBuffer().CursorX)
 	}
 
 	// Verify the content
@@ -120,7 +120,7 @@ func TestContinuationIndentWithEnter(t *testing.T) {
          2,
          `
 
-	actualContent := te.buffer.Rope.String()
+	actualContent := te.CurrentBuffer().Rope.String()
 	if actualContent != expectedContent {
 		t.Errorf("Content mismatch.\nExpected:\n%q\nGot:\n%q", expectedContent, actualContent)
 	}

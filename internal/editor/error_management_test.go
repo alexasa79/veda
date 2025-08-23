@@ -132,7 +132,7 @@ func TestErrorReporting(t *testing.T) {
 
 	t.Run("references buffer is read-only", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "package main\n\nfunc main() {\n\tprintln(\"Hello\")\n}")
-		te.buffer.FilePath = "test.go"
+		te.CurrentBuffer().FilePath = "test.go"
 
 		// Mock references buffer creation would happen through findReferences
 		// Since we can't easily test LSP functionality in unit tests,

@@ -23,7 +23,7 @@ func (e *Editor) deleteSelection(args []string) error {
 
 	// Calculate line and character position for history entry
 	// Find the line containing the start position
-	iter := buffer.NewBufferIterator(e.buffer)
+	iter := buffer.NewBufferIterator(e.CurrentBuffer())
 	lineNum := 0
 	lineStart := 0
 
@@ -41,7 +41,7 @@ func (e *Editor) deleteSelection(args []string) error {
 	charPos := start - lineStart
 
 	// Extract text that will be deleted
-	deletedText := e.buffer.Rope.Extract(start, end)
+	deletedText := e.CurrentBuffer().Rope.Extract(start, end)
 
 	// Store deleted text into 'd' register for later paste
 	if e.registers == nil {
@@ -56,7 +56,7 @@ func (e *Editor) deleteSelection(args []string) error {
 	deleteEntry := buffer.NewDeleteTextEntry(lineNum, charPos, deletedText)
 
 	// Execute the delete through history
-	if _, err := e.buffer.History.Execute(e.buffer, deleteEntry); err != nil {
+	if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), deleteEntry); err != nil {
 		return err
 	}
 
@@ -67,7 +67,7 @@ func (e *Editor) deleteSelection(args []string) error {
 	e.exitVisualMode(nil)
 
 	// Mark buffer as modified
-	e.buffer.IsModified = true
+	e.CurrentBuffer().IsModified = true
 
 	// Track this as a repeatable change
 	e.lastChange = deleteEntry
@@ -93,7 +93,7 @@ func (e *Editor) yankSelection(args []string) error {
 	}
 
 	// Extract selected text
-	selectedText := e.buffer.Rope.Extract(start, end)
+	selectedText := e.CurrentBuffer().Rope.Extract(start, end)
 
 	// For visual line mode, ensure the text ends with a newline
 	if e.mode == commands.VisualLineMode && !strings.HasSuffix(selectedText, "\n") {
@@ -131,7 +131,7 @@ func (e *Editor) changeSelection(args []string) error {
 
 	// Calculate line and character position for history entry
 	// Find the line containing the start position
-	iter := buffer.NewBufferIterator(e.buffer)
+	iter := buffer.NewBufferIterator(e.CurrentBuffer())
 	lineNum := 0
 	lineStart := 0
 
@@ -149,13 +149,13 @@ func (e *Editor) changeSelection(args []string) error {
 	charPos := start - lineStart
 
 	// Extract text that will be deleted
-	deletedText := e.buffer.Rope.Extract(start, end)
+	deletedText := e.CurrentBuffer().Rope.Extract(start, end)
 
 	// Create delete history entry
 	deleteEntry := buffer.NewDeleteTextEntry(lineNum, charPos, deletedText)
 
 	// Execute the delete through history
-	if _, err := e.buffer.History.Execute(e.buffer, deleteEntry); err != nil {
+	if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), deleteEntry); err != nil {
 		return err
 	}
 
@@ -167,7 +167,7 @@ func (e *Editor) changeSelection(args []string) error {
 	e.enterInsertMode(nil)
 
 	// Mark buffer as modified
-	e.buffer.IsModified = true
+	e.CurrentBuffer().IsModified = true
 
 	// Track this as part of the change (delete + upcoming insert)
 	e.lastChange = deleteEntry
@@ -199,7 +199,7 @@ func (e *Editor) indentSelectionWithCount(count int) error {
 	// Determine line range
 	startLine := 0
 	{
-		iter := buffer.NewBufferIterator(e.buffer)
+		iter := buffer.NewBufferIterator(e.CurrentBuffer())
 		for !iter.IsEOF() {
 			if start <= iter.LineEnd() {
 				break
@@ -214,7 +214,7 @@ func (e *Editor) indentSelectionWithCount(count int) error {
 		if target < 0 {
 			target = 0
 		}
-		iter := buffer.NewBufferIterator(e.buffer)
+		iter := buffer.NewBufferIterator(e.CurrentBuffer())
 		for !iter.IsEOF() {
 			if target <= iter.LineEnd() {
 				break
@@ -228,7 +228,7 @@ func (e *Editor) indentSelectionWithCount(count int) error {
 	}
 
 	// Build composite: insert (indentStr * count) at BOL for each line
-	unit := e.buffer.GetIndentationString()
+	unit := e.CurrentBuffer().GetIndentationString()
 	insertStr := strings.Repeat(unit, count)
 	composite := buffer.NewCompositeEntry("Indent selection")
 	for ln := startLine; ln <= endLine; ln++ {
@@ -236,8 +236,8 @@ func (e *Editor) indentSelectionWithCount(count int) error {
 			composite.Add(buffer.NewInsertTextEntry(ln, 0, insertStr))
 		}
 	}
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, composite); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
 			return err
 		} else if executed != nil {
 			e.lastChange = executed
@@ -271,7 +271,7 @@ func (e *Editor) unindentSelectionWithCount(count int) error {
 	// Determine line range
 	startLine := 0
 	{
-		iter := buffer.NewBufferIterator(e.buffer)
+		iter := buffer.NewBufferIterator(e.CurrentBuffer())
 		for !iter.IsEOF() {
 			if start <= iter.LineEnd() {
 				break
@@ -286,7 +286,7 @@ func (e *Editor) unindentSelectionWithCount(count int) error {
 		if target < 0 {
 			target = 0
 		}
-		iter := buffer.NewBufferIterator(e.buffer)
+		iter := buffer.NewBufferIterator(e.CurrentBuffer())
 		for !iter.IsEOF() {
 			if target <= iter.LineEnd() {
 				break
@@ -300,14 +300,14 @@ func (e *Editor) unindentSelectionWithCount(count int) error {
 	}
 
 	composite := buffer.NewCompositeEntry("Unindent selection")
-	useTabs := e.buffer.Indentation.Type == config.IndentTabs
-	width := e.buffer.Indentation.Width
+	useTabs := e.CurrentBuffer().Indentation.Type == config.IndentTabs
+	width := e.CurrentBuffer().Indentation.Width
 	if width <= 0 {
 		width = 4
 	}
 
 	for ln := startLine; ln <= endLine; ln++ {
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, ln)
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
 		if iter.IsEOF() {
 			continue
 		}
@@ -372,8 +372,8 @@ func (e *Editor) unindentSelectionWithCount(count int) error {
 		}
 	}
 
-	if e.buffer.History != nil {
-		if executed, err := e.buffer.History.Execute(e.buffer, composite); err != nil {
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
 			return err
 		} else if executed != nil {
 			e.lastChange = executed
@@ -390,7 +390,7 @@ func (e *Editor) unindentSelectionWithCount(count int) error {
 
 // startVisualLeft enters visual mode if not already active and moves left
 func (e *Editor) startVisualLeft(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
@@ -403,7 +403,7 @@ func (e *Editor) startVisualLeft(args []string) error {
 
 // startVisualRight enters visual mode if not already active and moves right
 func (e *Editor) startVisualRight(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
@@ -416,7 +416,7 @@ func (e *Editor) startVisualRight(args []string) error {
 
 // startVisualUp enters visual mode if not already active and moves up
 func (e *Editor) startVisualUp(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {
@@ -429,7 +429,7 @@ func (e *Editor) startVisualUp(args []string) error {
 
 // startVisualDown enters visual mode if not already active and moves down
 func (e *Editor) startVisualDown(args []string) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	if e.mode != commands.VisualMode && e.mode != commands.VisualLineMode {

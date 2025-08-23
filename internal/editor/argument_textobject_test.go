@@ -14,7 +14,7 @@ func TestArgumentTextObject(t *testing.T) {
 		// Content: "result := calculate(10, 20, 30)"
 		//          01234567890123456789012345678901
 		//                                   ^24 (on '2' in '20')
-		te.buffer.CursorX = 24
+		te.CurrentBuffer().CursorX = 24
 
 		// Execute daa - should delete around the second argument including comma
 		te.TypeKeys("daa")
@@ -32,7 +32,7 @@ func TestArgumentTextObject(t *testing.T) {
 		// Content: "result := calculate(firstValue, secondValue, thirdValue)"
 		//          0123456789012345678901234567890123456789012345678901234567
 		//                                        ^35 (on 's' in 'secondValue')
-		te.buffer.CursorX = 35
+		te.CurrentBuffer().CursorX = 35
 
 		// Execute dia - should delete only the argument content, not commas
 		te.TypeKeys("dia")
@@ -154,8 +154,8 @@ func TestArgumentTextObject(t *testing.T) {
 
 		// Move cursor to third line (line 2), in middle of "secondArg"
 		// Set up cursor position directly on line 2: "    secondArg,"
-		te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 2)
-		te.buffer.CursorX = 8 // Position on 'o' in "secondArg" (after 4 spaces + "seco")
+		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 2)
+		te.CurrentBuffer().CursorX = 8 // Position on 'o' in "secondArg" (after 4 spaces + "seco")
 
 		// Execute dia
 		te.TypeKeys("dia")

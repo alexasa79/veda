@@ -195,7 +195,7 @@ func TestCursorRendering(t *testing.T) {
 
 		// Get the cell at position (0,0) where virtual cursor is
 		// Note: We need to account for line numbers which shift content right
-		lineNumWidth := te.buffer.LineNumberWidth
+		lineNumWidth := te.CurrentBuffer().LineNumberWidth
 		char, style := te.mockScreen.GetCell(lineNumWidth, 0)
 
 		// Check that the character is still 'A'
@@ -228,7 +228,7 @@ func TestCursorRendering(t *testing.T) {
 		te.render()
 
 		// Check each virtual cursor position has styled background
-		lineNumWidth := te.buffer.LineNumberWidth
+		lineNumWidth := te.CurrentBuffer().LineNumberWidth
 		positions := []struct {
 			x, y int
 			char rune
@@ -288,7 +288,7 @@ func TestCursorRendering(t *testing.T) {
 
 		// Virtual cursor should be at column 6 in the text
 		// With line numbers, this is at screen position lineNumWidth + 6
-		lineNumWidth := te.buffer.LineNumberWidth
+		lineNumWidth := te.CurrentBuffer().LineNumberWidth
 		char, style := te.mockScreen.GetCell(lineNumWidth+6, 0)
 
 		// Check that we're looking at 'W' from "World"
@@ -340,7 +340,7 @@ func TestCursorRendering(t *testing.T) {
 		te.render()
 
 		// Check that line numbers don't have virtual cursor styling
-		lineNumWidth := te.buffer.LineNumberWidth
+		lineNumWidth := te.CurrentBuffer().LineNumberWidth
 		theme := theme.NewTheme()
 		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
 		virtualCursorBg := virtualCursorStyle.Bg
@@ -383,7 +383,7 @@ func TestCursorRendering(t *testing.T) {
 
 		// Check that mock screen's cursor position matches
 		// (accounting for line numbers)
-		lineNumWidth := te.buffer.LineNumberWidth
+		lineNumWidth := te.CurrentBuffer().LineNumberWidth
 		screenX, screenY := te.mockScreen.GetCursorPosition()
 		if screenX != lineNumWidth || screenY != 1 {
 			t.Errorf("Expected screen cursor at (%d,1), got (%d,%d)",
@@ -403,11 +403,11 @@ This is a **bold** text.
 		te := NewTestEditorWithContent(80, 24, markdownContent)
 
 		// Set the filename to trigger markdown syntax highlighting
-        te.buffer.FilePath = "test.md"
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        if te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile("test.md")
-            te.buffer.Highlighter.Parse([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().FilePath = "test.md"
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        if te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.md")
+            te.CurrentBuffer().Highlighter.Parse([]byte(te.CurrentBuffer().Rope.String()))
         }
 
 		// Enter cursor mode
@@ -440,13 +440,13 @@ This is a **bold** text.
 
 		// Log virtual cursor info for debugging
 		t.Logf("Virtual cursors: %+v", virtualCursors)
-        t.Logf("Highlighter active: %v", te.buffer.Highlighter != nil)
-        if te.buffer.Highlighter != nil {
-            t.Logf("Language: %s", te.buffer.Highlighter.GetCurrentLanguage())
+        t.Logf("Highlighter active: %v", te.CurrentBuffer().Highlighter != nil)
+        if te.CurrentBuffer().Highlighter != nil {
+            t.Logf("Language: %s", te.CurrentBuffer().Highlighter.GetCurrentLanguage())
         }
 
 		// Check first virtual cursor (at beginning of first line)
-		lineNumWidth := te.buffer.LineNumberWidth
+		lineNumWidth := te.CurrentBuffer().LineNumberWidth
 		char1, style1 := te.mockScreen.GetCell(lineNumWidth, 0)
 		theme := theme.NewTheme()
 		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
@@ -495,7 +495,7 @@ This is a **bold** text.
 [Link](http://example.com)`
 
 		te := NewTestEditorWithContent(80, 24, markdownContent)
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
 		// Enter cursor mode and add cursors at different positions
 		te.TypeKeys("m")
@@ -514,7 +514,7 @@ This is a **bold** text.
 		te.render()
 
 		// Verify all virtual cursors are rendered with the theme's virtual cursor background
-		lineNumWidth := te.buffer.LineNumberWidth
+		lineNumWidth := te.CurrentBuffer().LineNumberWidth
 		theme := theme.NewTheme()
 		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
 		virtualCursorBg := virtualCursorStyle.Bg

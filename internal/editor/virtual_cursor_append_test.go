@@ -51,7 +51,7 @@ func TestVirtualCursorVisibleWhenAppendingAfterEndOfLine(t *testing.T) {
 		// Check that virtual cursors are rendered with correct style
 		// First virtual cursor should be at position (6,0) on screen
 		// Since line numbers take up space, the actual screen position will be offset
-		lineNumberWidth := te.buffer.LineNumberWidth
+		lineNumberWidth := te.CurrentBuffer().LineNumberWidth
 
 		// Debug: Print virtual cursor positions and primary cursor position
 		for i, vc := range virtualCursors {
@@ -177,7 +177,7 @@ func TestVirtualCursorVisibleWhenAppendingAfterEndOfLine(t *testing.T) {
 		expectedStyle := te.config.Theme.GetStyle(te.config.Theme.VirtualCursor)
 
 		// Check that virtual cursors are rendered with correct style
-		lineNumberWidth := te.buffer.LineNumberWidth
+		lineNumberWidth := te.CurrentBuffer().LineNumberWidth
 
 		// Check virtual cursor at line 0, position after "Hello" (which would be column 5 in line, plus line number width)
 		screenX := lineNumberWidth + 5 // 5 is length of "Hello"

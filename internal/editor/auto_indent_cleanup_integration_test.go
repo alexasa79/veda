@@ -31,15 +31,15 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 }`
 
 	// Set up buffer with C file content
-	editor.buffer = buffer.NewBuffer(initialContent, "test.c", config.IndentSpaces, 4)
-	editor.buffer.CursorIterator = buffer.NewBufferIterator(editor.buffer)
+	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.c", config.IndentSpaces, 4))
+	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(editor.CurrentBuffer())
 
 	// Position cursor on line 2 (after the opening brace)
-	editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, 1) // Line with "{"
-	editor.buffer.CursorX = 1                                                       // After the "{"
+	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 1) // Line with "{"
+	editor.CurrentBuffer().CursorX = 1                                                       // After the "{"
 
 	t.Logf("Initial buffer content:")
-	logBufferContent(t, editor.buffer)
+	logBufferContent(t, editor.CurrentBuffer())
 
 	// Simulate user pressing 'O' to open line above
 	err = editor.openLineAbove([]string{})
@@ -48,7 +48,7 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 	}
 
 	t.Logf("After 'O' command:")
-	logBufferContent(t, editor.buffer)
+	logBufferContent(t, editor.CurrentBuffer())
 
 	// Now simulate pressing Enter to add another empty line
 	err = editor.insertNewline([]string{})
@@ -57,12 +57,12 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 	}
 
 	t.Logf("After Enter (adding empty line):")
-	logBufferContent(t, editor.buffer)
+	logBufferContent(t, editor.CurrentBuffer())
 
 	// Move to next line and type some content
-	editor.buffer.CursorIterator = editor.buffer.CursorIterator.Next()
-	if !editor.buffer.CursorIterator.IsEOF() {
-		editor.buffer.CursorX = len(editor.buffer.CursorIterator.Line())
+	editor.CurrentBuffer().CursorIterator = editor.CurrentBuffer().CursorIterator.Next()
+	if !editor.CurrentBuffer().CursorIterator.IsEOF() {
+		editor.CurrentBuffer().CursorX = len(editor.CurrentBuffer().CursorIterator.Line())
 	}
 
 	// Type some content on this line
@@ -76,7 +76,7 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 	}
 
 	t.Logf("After typing 'pr':")
-	logBufferContent(t, editor.buffer)
+	logBufferContent(t, editor.CurrentBuffer())
 
 	// Now simulate moving cursor away from empty lines to trigger cleanup
 	// Manually call cleanup on the lines we know have auto-indent
@@ -84,10 +84,10 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 	editor.cleanupAutoIndentOnLine(2)
 
 	t.Logf("After cleanup:")
-	logBufferContent(t, editor.buffer)
+	logBufferContent(t, editor.CurrentBuffer())
 
 	// Verify that empty lines don't have trailing whitespace
-	content := editor.buffer.Rope.String()
+	content := editor.CurrentBuffer().Rope.String()
 	lines := strings.Split(content, "\n")
 
 	for i, line := range lines {
@@ -120,11 +120,11 @@ func TestRealisticAutoIndentWorkflow(t *testing.T) {
 }`
 
 	// Set up buffer
-	editor.buffer = buffer.NewBuffer(initialContent, "test.c", config.IndentSpaces, 4)
+	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.c", config.IndentSpaces, 4))
 
 	// Position cursor on line 1 (after the opening brace) like user would
-	editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, 1)
-	editor.buffer.CursorX = 4 // After "    " indent
+	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 1)
+	editor.CurrentBuffer().CursorX = 4 // After "    " indent
 
 	// Simulate user pressing 'O' to open line above
 	err = editor.openLineAbove([]string{})
@@ -139,9 +139,9 @@ func TestRealisticAutoIndentWorkflow(t *testing.T) {
 	}
 
 	// Move to next line and type content like user would
-	editor.buffer.CursorIterator = editor.buffer.CursorIterator.Next()
-	if !editor.buffer.CursorIterator.IsEOF() {
-		editor.buffer.CursorX = len(editor.buffer.CursorIterator.Line())
+	editor.CurrentBuffer().CursorIterator = editor.CurrentBuffer().CursorIterator.Next()
+	if !editor.CurrentBuffer().CursorIterator.IsEOF() {
+		editor.CurrentBuffer().CursorX = len(editor.CurrentBuffer().CursorIterator.Line())
 	}
 
 	// User types a function call
@@ -154,7 +154,7 @@ func TestRealisticAutoIndentWorkflow(t *testing.T) {
 
 	// Now user moves cursor away (simulating cursor movement)
 	// This should trigger cleanup of the empty lines
-	editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, 0)
+	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 0)
 	editor.checkAndCleanupAutoIndent()
 
 	// Manually cleanup the lines that have auto-indent (for now)
@@ -163,7 +163,7 @@ func TestRealisticAutoIndentWorkflow(t *testing.T) {
 	editor.cleanupAutoIndentOnLine(2)
 
 	// Verify that empty lines don't have trailing whitespace
-	content := editor.buffer.Rope.String()
+	content := editor.CurrentBuffer().Rope.String()
 	lines := strings.Split(content, "\n")
 
 	for i, line := range lines {
@@ -187,9 +187,9 @@ func TestAutoIndentCleanupWithExitInsertMode(t *testing.T) {
 	defer editor.Close()
 
 	// Start with a simple buffer
-	editor.buffer = buffer.NewBuffer("int main()\n{\n}", "test.c", config.IndentSpaces, 4)
-	editor.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(editor.buffer, 1)
-	editor.buffer.CursorX = 1
+	editor.SetCurrentBuffer(buffer.NewBuffer("int main()\n{\n}", "test.c", config.IndentSpaces, 4))
+	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 1)
+	editor.CurrentBuffer().CursorX = 1
 
 	// Enter insert mode and add a line with auto-indent
 	editor.mode = commands.InsertMode
@@ -201,7 +201,7 @@ func TestAutoIndentCleanupWithExitInsertMode(t *testing.T) {
 	}
 
 	t.Logf("After 'o' command (in insert mode):")
-	logBufferContent(t, editor.buffer)
+	logBufferContent(t, editor.CurrentBuffer())
 
 	// Exit insert mode without typing anything - this should cleanup the auto-indent
 	err = editor.exitInsertMode([]string{})
@@ -210,10 +210,10 @@ func TestAutoIndentCleanupWithExitInsertMode(t *testing.T) {
 	}
 
 	t.Logf("After exiting insert mode:")
-	logBufferContent(t, editor.buffer)
+	logBufferContent(t, editor.CurrentBuffer())
 
 	// Check that the line doesn't have trailing whitespace
-	content := editor.buffer.Rope.String()
+	content := editor.CurrentBuffer().Rope.String()
 	lines := strings.Split(content, "\n")
 
 	for i, line := range lines {

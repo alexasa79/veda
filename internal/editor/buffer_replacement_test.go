@@ -17,13 +17,13 @@ func getBufferKeys(buffers map[string]*buffer.Buffer) []string {
 func TestFileOpening(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	// Verify initial state: no buffers, current buffer is nil
-	if len(te.buffers) != 0 {
-		t.Errorf("Expected 0 initial buffers, got %d", len(te.buffers))
+	// Verify initial state: one initial buffer (the default "[No Name]" buffer)
+	if len(te.buffers) != 1 {
+		t.Errorf("Expected 1 initial buffer, got %d", len(te.buffers))
 	}
 
-	if te.buffer != nil {
-		t.Errorf("Expected initial buffer to be nil, got %v", te.buffer)
+	if te.CurrentBuffer() == nil {
+		t.Errorf("Expected initial buffer to exist, got nil")
 	}
 
 	// Create a new buffer with content (simulating opening a file)
@@ -35,30 +35,32 @@ func TestFileOpening(t *testing.T) {
 	te.bufferOrder = append(te.bufferOrder, "test.txt")
 	te.switchToBuffer(newBuffer)
 
-	// Verify we now have exactly one buffer (the file we opened)
-	if len(te.buffers) != 1 {
-		t.Errorf("Expected 1 buffer after opening file, got %d", len(te.buffers))
+	// Verify we now have two buffers (the initial buffer and the file we opened)
+	if len(te.buffers) != 2 {
+		t.Errorf("Expected 2 buffers after opening file, got %d", len(te.buffers))
 	}
 
 	// Verify current buffer is the opened file
-	if te.buffer.FilePath != "test.txt" {
-		t.Errorf("Expected current buffer to be 'test.txt', got '%s'", te.buffer.FilePath)
+	if te.CurrentBuffer().FilePath != "test.txt" {
+		t.Errorf("Expected current buffer to be 'test.txt', got '%s'", te.CurrentBuffer().FilePath)
 	}
 }
 
 func TestMultipleBuffersManagement(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	// Start with no buffers
-	if len(te.buffers) != 0 {
-		t.Errorf("Expected 0 initial buffers, got %d", len(te.buffers))
+	// Start with one initial buffer (the default "[No Name]" buffer)
+	if len(te.buffers) != 1 {
+		t.Errorf("Expected 1 initial buffer, got %d", len(te.buffers))
 	}
 
-	// Create an unnamed buffer manually (user creates via :new command)
-	unnamedBuffer := buffer.NewBuffer("User typed this", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	te.buffers["[No Name]"] = unnamedBuffer
-	te.bufferOrder = append(te.bufferOrder, "[No Name]")
-	te.switchToBuffer(unnamedBuffer)
+	// Replace the content of the existing "[No Name]" buffer
+	if unnamedBuffer, exists := te.buffers["[No Name]"]; exists {
+		unnamedBuffer.Insert(0, "User typed this")
+		te.switchToBuffer(unnamedBuffer)
+	} else {
+		t.Fatal("Expected initial [No Name] buffer to exist")
+	}
 
 	// Now open a file
 	testContent := "Hello World!\nThis is test content."

@@ -10,7 +10,7 @@ import (
 
 // saveCurrentBufferState saves the current buffer's state before switching
 func (e *Editor) saveCurrentBufferState() {
-	if e.buffer != nil {
+	if e.CurrentBuffer() != nil {
 		// All state (cursorX, iterators, line offset cache) stays with the buffer
 		// No saving needed
 	}
@@ -19,37 +19,37 @@ func (e *Editor) saveCurrentBufferState() {
 // switchToBuffer switches to a different buffer
 func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	// Save the previous buffer
-	if e.buffer != nil && e.buffer != buf {
-		e.previousBuffer = e.buffer
+	if e.CurrentBuffer() != nil && e.CurrentBuffer() != buf {
+		e.previousBuffer = e.CurrentBuffer()
 	}
 
 	// Set the buffer - all state (cursorX, iterators, line offset cache) comes with it
-	e.buffer = buf
+	e.SetCurrentBuffer(buf)
 
 	// Ensure iterators are valid w.r.t. current buffer generation
 	// Iterators become invalid whenever the buffer content changes off-screen (e.g., messages buffer appends)
-	if e.buffer != nil {
+	if e.CurrentBuffer() != nil {
 		// Validate and recreate ViewIterator if needed
-		if e.buffer.ViewIterator == nil || e.buffer.ViewIterator.Generation != e.buffer.Generation {
+		if e.CurrentBuffer().ViewIterator == nil || e.CurrentBuffer().ViewIterator.Generation != e.CurrentBuffer().Generation {
 			// Preserve previous desired line without triggering validation
 			desiredLine := 0
-			if e.buffer.ViewIterator != nil {
-				desiredLine = e.buffer.ViewIterator.LineNum
+			if e.CurrentBuffer().ViewIterator != nil {
+				desiredLine = e.CurrentBuffer().ViewIterator.LineNum
 			}
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredLine)
+			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredLine)
 		}
 		// Validate and recreate CursorIterator if needed
-		if e.buffer.CursorIterator == nil || e.buffer.CursorIterator.Generation != e.buffer.Generation {
+		if e.CurrentBuffer().CursorIterator == nil || e.CurrentBuffer().CursorIterator.Generation != e.CurrentBuffer().Generation {
 			desiredCursorLine := 0
-			if e.buffer.CursorIterator != nil {
-				desiredCursorLine = e.buffer.CursorIterator.LineNum
+			if e.CurrentBuffer().CursorIterator != nil {
+				desiredCursorLine = e.CurrentBuffer().CursorIterator.LineNum
 			}
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, desiredCursorLine)
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredCursorLine)
 		}
 	}
 
 	// Set up LSP notification callback
-	e.buffer.OnContentChange = func() {
+	e.CurrentBuffer().OnContentChange = func() {
 		e.notifyLSPFileChange()
 		e.updateSearchMatchesOnContentChange()
 	}
@@ -111,8 +111,8 @@ func (e *Editor) showBuffers(args []string) error {
         activePath = e.windows[e.activeWindow].Buffer.FilePath
     }
     var editorPath string
-    if e.buffer != nil {
-        editorPath = e.buffer.FilePath
+    if e.CurrentBuffer() != nil {
+        editorPath = e.CurrentBuffer().FilePath
     }
     LL.Debug("showBuffers: activeWindow=%d activeWinPath=%s editorPath=%s", e.activeWindow, activePath, editorPath)
 	// Check if we have any windows at all
@@ -138,7 +138,7 @@ func (e *Editor) showBuffers(args []string) error {
 	pathToWindow := make(map[string]int) // Maps buffer path to window index
 	seenBuffers := make(map[string]bool) // Track already seen buffers to avoid duplicates
 
-    // Determine current buffer path based on active window to avoid drift with e.buffer
+    // Determine current buffer path based on active window to avoid drift with e.CurrentBuffer()
     currentPath := editorPath
     if activePath != "" {
         currentPath = activePath
@@ -270,7 +270,7 @@ func (e *Editor) showBuffers(args []string) error {
 
 // closeBuffer closes the current buffer
 func (e *Editor) closeBuffer(args []string) error {
-	currentPath := e.buffer.FilePath
+	currentPath := e.CurrentBuffer().FilePath
 
 	// Remove buffer from current window
     if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
@@ -287,7 +287,7 @@ func (e *Editor) closeBuffer(args []string) error {
             return e.closeWindow(e.activeWindow)
 		} else {
 			// Window still has buffers, switched to the next one automatically
-			e.buffer = window.Buffer
+			e.SetCurrentBuffer(window.Buffer)
 		}
 	} else {
 		// Fallback to old behavior if windowing is not properly set up
@@ -393,7 +393,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
         windowInfo := fmt.Sprintf("W%d", windowIdx+1)
 
         var fullDisplayName string
-        if path == e.buffer.FilePath {
+        if path == e.CurrentBuffer().FilePath {
             fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
         } else {
             fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
@@ -418,7 +418,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
         windowInfo := "global"
 
         var fullDisplayName string
-        if e.buffer != nil && path == e.buffer.FilePath {
+        if e.CurrentBuffer() != nil && path == e.CurrentBuffer().FilePath {
             fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
         } else {
             fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)

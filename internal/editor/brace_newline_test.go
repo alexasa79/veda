@@ -70,23 +70,23 @@ func TestInsertNewlineBetweenBracesProperIndent(t *testing.T) {
 			for i := 0; i < tt.cursorLine; i++ {
 				te.ExecuteCommand("down")
 			}
-			te.buffer.CursorX = tt.cursorX
+			te.CurrentBuffer().CursorX = tt.cursorX
 
 			// Enter insert mode and press Enter
 			te.ExecuteCommand("enter-insert-mode")
 			te.ExecuteCommand("insert-newline")
 
 			// Check content
-			actual := te.buffer.Rope.String()
+			actual := te.CurrentBuffer().Rope.String()
 			if actual != tt.expectedContent {
 				t.Errorf("%s\nExpected:\n%q\nGot:\n%q\nDescription: %s",
 					tt.name, tt.expectedContent, actual, tt.description)
 			}
 
 			// Check cursor position
-			if te.buffer.CursorX != tt.expectedCursorX {
+			if te.CurrentBuffer().CursorX != tt.expectedCursorX {
 				t.Errorf("%s: Cursor position mismatch\nExpected: %d\nGot: %d",
-					tt.name, tt.expectedCursorX, te.buffer.CursorX)
+					tt.name, tt.expectedCursorX, te.CurrentBuffer().CursorX)
 			}
 		})
 	}

@@ -273,8 +273,8 @@ func TestMultiCursorYankInside(t *testing.T) {
 // Helper function to get buffer content as string
 func getBufferContent(te *TestEditor) string {
 	var lines []string
-	for i := 0; i < te.buffer.LineCount; i++ {
-		iter := buffer.NewBufferIteratorAtLine(te.buffer, i)
+	for i := 0; i < te.CurrentBuffer().LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), i)
 		lines = append(lines, iter.Line())
 	}
 	return strings.Join(lines, "\n")

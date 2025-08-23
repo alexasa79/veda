@@ -16,7 +16,7 @@ import (
 // - Renders a space with background color corresponding to the change type
 // - Deleted indicators are intentionally not rendered
 func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
-	if e.buffer.GitChanges == nil {
+	if e.CurrentBuffer().GitChanges == nil {
 		return
 	}
 
@@ -24,14 +24,14 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 	isModified := false
 
 	// Added/Modified are 1-based
-	for _, a := range e.buffer.GitChanges.Added {
+	for _, a := range e.CurrentBuffer().GitChanges.Added {
 		if a == lineNum {
 			isAdded = true
 			break
 		}
 	}
 	if !isAdded {
-		for _, m := range e.buffer.GitChanges.Modified {
+		for _, m := range e.CurrentBuffer().GitChanges.Modified {
 			if m == lineNum {
 				isModified = true
 				break
@@ -71,11 +71,11 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 
 // drawGutterDiagnosticsIndicator renders a diagnostics icon in the second gutter column
 func (e *Editor) drawGutterDiagnosticsIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
-	if e.buffer.Diagnostics == nil || len(e.buffer.Diagnostics) == 0 {
+	if e.CurrentBuffer().Diagnostics == nil || len(e.CurrentBuffer().Diagnostics) == 0 {
 		return
 	}
 
-	diag, ok := e.buffer.GetDiagnosticForLine(lineNum)
+	diag, ok := e.CurrentBuffer().GetDiagnosticForLine(lineNum)
 	if !ok {
 		return
 	}
@@ -117,8 +117,8 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 	// Calculate line start position once if we need it for flash highlighting
 	var lineStartPos int
-	if lineNum >= 0 && e.buffer != nil && e.hasFlashHighlight() {
-		lineStartIter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+	if lineNum >= 0 && e.CurrentBuffer() != nil && e.hasFlashHighlight() {
+		lineStartIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 		lineStartPos = lineStartIter.Position()
 	}
 
@@ -127,8 +127,8 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	// Fetch diagnostic for this line (1-based)
 	var diagForLine *proxy.Diagnostic
 	var hasDiag bool
-	if lineNum >= 0 && e.buffer != nil && len(e.buffer.Diagnostics) > 0 {
-		if d, ok := e.buffer.GetDiagnosticForLine(lineNum + 1); ok {
+	if lineNum >= 0 && e.CurrentBuffer() != nil && len(e.CurrentBuffer().Diagnostics) > 0 {
+		if d, ok := e.CurrentBuffer().GetDiagnosticForLine(lineNum + 1); ok {
 			diagForLine = d
 			hasDiag = true
 		}
@@ -177,7 +177,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		// Virtual cursors store the logical column position (CursorX)
 		// We need to compare with the actual position in the line
 		// Only check for virtual cursors if we're rendering in the text area (not line numbers)
-		if e.buffer != nil && screenX >= e.buffer.LineNumberWidth && lineNum >= 0 {
+		if e.CurrentBuffer() != nil && screenX >= e.CurrentBuffer().LineNumberWidth && lineNum >= 0 {
 			for _, vc := range e.virtualCursors {
 				if vc.Y == lineNum && vc.X == charPosInLine {
 					hasVirtualCursor = true
@@ -310,7 +310,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	originalLine := iter.Line() // Keep the original line for whitespace detection
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-	isCurrentLine := e.buffer != nil && lineIndex == e.buffer.CursorIterator.LineNumber()
+	isCurrentLine := e.CurrentBuffer() != nil && lineIndex == e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Find search matches in this line
 	searchMatches := e.findSearchMatches(originalLine)
@@ -341,9 +341,9 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	}
 
 	// If this is a terminal/internal buffer, render using terminal emulator styles (regardless of mode)
-	if e.buffer != nil && e.buffer.IsInternal {
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal {
 		// Determine terminal row corresponding to this buffer line
-		ts := e.terminalSessions[e.buffer.FilePath]
+		ts := e.terminalSessions[e.CurrentBuffer().FilePath]
 		if ts != nil && ts.term != nil {
 			width, _ := e.screen.Size()
 			// Draw characters with per-cell styles; iterate runes to avoid breaking UTF-8
@@ -399,14 +399,14 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	// Get syntax tokens for this line using iterator position
     // Always use the buffer's own highlighter
     var tokens []syntax.Token
-    if e.buffer != nil && e.buffer.Highlighter != nil {
-        tokens = e.buffer.Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+        tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
     }
 
     // If we have syntax tokens and a file-backed buffer, use syntax highlighting path
-    if len(tokens) > 0 && e.buffer != nil && e.buffer.HasFile() {
+    if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
 		// Use syntax highlighting (this will be handled below)
-    } else if e.buffer == nil || !e.buffer.HasFile() {
+    } else if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 		// Fill rest of line if we have background
@@ -421,7 +421,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 				hasVirtualCursor := false
 				if lineIndex >= 0 {
 					// Calculate the character position in the line for this screen position
-					textColumn := i - e.buffer.LineNumberWidth
+					textColumn := i - e.CurrentBuffer().LineNumberWidth
 					charPosInLine := textColumn
 					for _, vc := range e.virtualCursors {
 						if vc.Y == lineIndex && vc.X == charPosInLine {
@@ -449,7 +449,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			hasVirtualCursor := false
 			if lineIndex >= 0 {
 				// Calculate the character position in the line for this screen position
-				textColumn := i - e.buffer.LineNumberWidth
+				textColumn := i - e.CurrentBuffer().LineNumberWidth
 				for _, vc := range e.virtualCursors {
 					if vc.Y == lineIndex && vc.X == textColumn {
 						hasVirtualCursor = true
@@ -467,7 +467,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	}
 
 	// Handle syntax highlighting path
-    if len(tokens) > 0 && e.buffer != nil && e.buffer.HasFile() {
+    if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
 		// Draw with syntax highlighting
 		x = startX
 		lastEnd := 0
@@ -529,7 +529,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			hasVirtualCursor := false
 			if lineIndex >= 0 {
 				// Calculate the character position in the line for this screen position
-				textColumn := i - e.buffer.LineNumberWidth
+				textColumn := i - e.CurrentBuffer().LineNumberWidth
 				charPosInLine := textColumn
 				for _, vc := range e.virtualCursors {
 					if vc.Y == lineIndex && vc.X == charPosInLine {
@@ -556,7 +556,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			hasVirtualCursor := false
 			if lineIndex >= 0 {
 				// Calculate the character position in the line for this screen position
-				textColumn := i - e.buffer.LineNumberWidth
+				textColumn := i - e.CurrentBuffer().LineNumberWidth
 				for _, vc := range e.virtualCursors {
 					if vc.Y == lineIndex && vc.X == textColumn {
 						hasVirtualCursor = true
@@ -580,7 +580,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	originalLine := iter.Line()
 	lineIndex := iter.LineNumber()
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
-	isCurrentLine := e.buffer != nil && lineIndex == e.buffer.CursorIterator.LineNumber()
+	isCurrentLine := e.CurrentBuffer() != nil && lineIndex == e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Find search matches in the full line
 	searchMatches := e.findSearchMatches(originalLine)
@@ -622,8 +622,8 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	}
 
 	// Terminal/internal buffers: draw using terminal emulator per-cell styles (regardless of mode)
-	if e.buffer != nil && e.buffer.IsInternal {
-		if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal {
+		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
 			// Draw only the wrapped segment using terminal styles; iterate runes to preserve UTF-8
 			x := startX
 			col := 0
@@ -675,7 +675,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	}
 
     // If no highlighter, draw without syntax highlighting
-    if e.buffer == nil || e.buffer.Highlighter == nil || !e.buffer.HasFile() {
+    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil || !e.CurrentBuffer().HasFile() {
 		x := startX
 		// Draw the wrapped segment
 		segmentOffset := lineStartOffset + segStart
@@ -695,7 +695,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				hasVirtualCursor := false
 				if lineIndex >= 0 {
 					// Calculate the character position in the line for this screen position
-					textColumn := i - e.buffer.LineNumberWidth
+					textColumn := i - e.CurrentBuffer().LineNumberWidth
 					charPosInLine := textColumn
 					for _, vc := range e.virtualCursors {
 						if vc.Y == lineIndex && vc.X == charPosInLine {
@@ -722,7 +722,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				hasVirtualCursor := false
 				if lineIndex >= 0 {
 					// Calculate the character position in the line for this screen position
-					textColumn := i - e.buffer.LineNumberWidth
+					textColumn := i - e.CurrentBuffer().LineNumberWidth
 					for _, vc := range e.virtualCursors {
 						if vc.Y == lineIndex && vc.X == textColumn {
 							hasVirtualCursor = true
@@ -743,8 +743,8 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 
 	// Get syntax tokens for the full line
     var tokens []syntax.Token
-    if e.buffer != nil && e.buffer.Highlighter != nil {
-        tokens = e.buffer.Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+        tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
     }
 
 	if len(tokens) == 0 {
@@ -766,7 +766,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				hasVirtualCursor := false
 				if lineIndex >= 0 {
 					// Calculate the character position in the line for this screen position
-					textColumn := i - e.buffer.LineNumberWidth
+					textColumn := i - e.CurrentBuffer().LineNumberWidth
 					charPosInLine := textColumn
 					for _, vc := range e.virtualCursors {
 						if vc.Y == lineIndex && vc.X == charPosInLine {
@@ -793,7 +793,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				hasVirtualCursor := false
 				if lineIndex >= 0 {
 					// Calculate the character position in the line for this screen position
-					textColumn := i - e.buffer.LineNumberWidth
+					textColumn := i - e.CurrentBuffer().LineNumberWidth
 					for _, vc := range e.virtualCursors {
 						if vc.Y == lineIndex && vc.X == textColumn {
 							hasVirtualCursor = true
@@ -880,7 +880,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			fillStyle := normalStyle
 
 			// Check if this column is a ruler position
-			textColumn := i - e.buffer.LineNumberWidth
+			textColumn := i - e.CurrentBuffer().LineNumberWidth
 			for _, rulerPos := range e.config.VerticalRulers {
 				if textColumn == rulerPos {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
@@ -903,8 +903,8 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				// Special-case: zero-length diagnostic at end-of-line (e.g., missing semicolon)
 				// When a diagnostic range starts and ends at EOL, there are no characters to paint.
 				// Paint the single cell immediately after the last character of the final wrapped segment.
-				if e.buffer != nil && len(e.buffer.Diagnostics) > 0 && wl.EndChar == len(originalLine) {
-					if diag, ok := e.buffer.GetDiagnosticForLine(lineIndex + 1); ok {
+				if e.CurrentBuffer() != nil && len(e.CurrentBuffer().Diagnostics) > 0 && wl.EndChar == len(originalLine) {
+					if diag, ok := e.CurrentBuffer().GetDiagnosticForLine(lineIndex + 1); ok {
 						if (diag.Severity == "error" || diag.Severity == "warning") && diag.EndChar <= diag.StartChar && diag.StartChar >= len(originalLine) {
 							// Use the current x position which is just after the drawn content of this segment
 							width, _ := e.screen.Size()
@@ -940,7 +940,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			hasVirtualCursor := false
 			if lineIndex >= 0 {
 				// Calculate the character position in the line for this screen position
-				textColumn := i - e.buffer.LineNumberWidth
+				textColumn := i - e.CurrentBuffer().LineNumberWidth
 				for _, vc := range e.virtualCursors {
 					if vc.Y == lineIndex && vc.X == textColumn {
 						hasVirtualCursor = true
@@ -960,7 +960,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 
 // drawContext draws the context lines at the top of the editor
 func (e *Editor) drawContext() {
-    if e.buffer == nil || len(e.buffer.ContextCache) == 0 {
+    if e.CurrentBuffer() == nil || len(e.CurrentBuffer().ContextCache) == 0 {
 		return
 	}
 
@@ -968,15 +968,15 @@ func (e *Editor) drawContext() {
 	contextBgStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
 
 	// Use cached line number width from buffer
-	lineNumberWidth := e.buffer.LineNumberWidth
+	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
 
 	// Get screen width
 	width, _ := e.screen.Size()
 
 	// Draw context lines with line numbers and syntax highlighting
-    for i, lineNum := range e.buffer.ContextCache {
+    for i, lineNum := range e.CurrentBuffer().ContextCache {
 		// Create an iterator at the context line
-		iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 		if !iter.IsEOF() {
 			// Fill the entire line with the context background
 			for x := 0; x < width; x++ {
@@ -1006,7 +1006,7 @@ func (e *Editor) drawEditor() {
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 
 	// Use cached line number width from buffer
-	lineNumberWidth := e.buffer.LineNumberWidth
+	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
 
 	// Clear the entire screen once
 	e.screen.Clear()
@@ -1026,7 +1026,7 @@ func (e *Editor) drawEditor() {
 	cachedIterLine := -1
 	if len(wrappedLines) > 0 {
 		firstLogical := wrappedLines[0].LogicalLineNum
-		cachedIter = buffer.NewBufferIteratorAtLine(e.buffer, firstLogical)
+		cachedIter = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), firstLogical)
 		cachedIterLine = cachedIter.LineNumber()
 	}
 
@@ -1038,7 +1038,7 @@ func (e *Editor) drawEditor() {
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		for x := 0; x < width; x++ {
 			fillStyle := normalStyle
-			textColumn := x - e.buffer.LineNumberWidth
+			textColumn := x - e.CurrentBuffer().LineNumberWidth
 			for _, rulerPos := range e.config.VerticalRulers {
 				if textColumn == rulerPos {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
@@ -1085,7 +1085,7 @@ func (e *Editor) drawEditor() {
 		var iter *buffer.BufferIterator
 		if cachedIter == nil {
 			// No wrapped lines or initialization failed; fall back to direct creation
-			iter = buffer.NewBufferIteratorAtLine(e.buffer, wl.LogicalLineNum)
+			iter = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), wl.LogicalLineNum)
 			cachedIter = iter
 			cachedIterLine = wl.LogicalLineNum
 		} else {
@@ -1172,12 +1172,12 @@ func (e *Editor) drawStatusBar() {
 		x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Space after mode
 
 		// Show filename and modified indicator (only if buffer exists)
-		if e.buffer != nil {
-			filename := e.buffer.FileName()
+		if e.CurrentBuffer() != nil {
+			filename := e.CurrentBuffer().FileName()
 			x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil, -1, 0, -1)
 
 			// Add modified indicator if buffer is modified
-			if e.buffer.IsModified {
+			if e.CurrentBuffer().IsModified {
 				x += e.drawText(x, statusBarY, statusBarStyle, " [+]", 0, nil, -1, 0, -1)
 			}
 		} else {
@@ -1186,15 +1186,15 @@ func (e *Editor) drawStatusBar() {
 		}
 
 		// Add git branch and change counts (only if buffer exists)
-		if e.buffer != nil && e.buffer.GitBranch != "" {
-			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  %s", e.buffer.GitBranch), 0, nil, -1, 0, -1)
+		if e.CurrentBuffer() != nil && e.CurrentBuffer().GitBranch != "" {
+			x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf("  %s", e.CurrentBuffer().GitBranch), 0, nil, -1, 0, -1)
 
 			// Count added and deleted lines
 			addedCount := 0
 			deletedCount := 0
-			if e.buffer.GitChanges != nil {
-				addedCount = len(e.buffer.GitChanges.Added) + len(e.buffer.GitChanges.Modified)
-				deletedCount = len(e.buffer.GitChanges.Deleted)
+			if e.CurrentBuffer().GitChanges != nil {
+				addedCount = len(e.CurrentBuffer().GitChanges.Added) + len(e.CurrentBuffer().GitChanges.Modified)
+				deletedCount = len(e.CurrentBuffer().GitChanges.Deleted)
 			}
 
 			if addedCount > 0 || deletedCount > 0 {
@@ -1203,12 +1203,12 @@ func (e *Editor) drawStatusBar() {
 		}
 
 		// Add diagnostic counts if there are any (only if buffer exists)
-		if e.buffer != nil && e.buffer.Diagnostics != nil && len(e.buffer.Diagnostics) > 0 {
+		if e.CurrentBuffer() != nil && e.CurrentBuffer().Diagnostics != nil && len(e.CurrentBuffer().Diagnostics) > 0 {
 			errorCount := 0
 			warningCount := 0
 
 			// Count errors and warnings
-			for _, diag := range e.buffer.Diagnostics {
+			for _, diag := range e.CurrentBuffer().Diagnostics {
 				switch diag.Severity {
 				case "error":
 					errorCount++
@@ -1243,7 +1243,7 @@ func (e *Editor) drawStatusBar() {
 		}
 
 		// Add LSP indicator if LSP is available (only if buffer exists)
-		if e.buffer != nil && e.buffer.HasLSP {
+		if e.CurrentBuffer() != nil && e.CurrentBuffer().HasLSP {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1)
 		}
 
@@ -1302,26 +1302,26 @@ func (e *Editor) drawStatusBar() {
 		// Right side: indentation and line:col (only if buffer exists)
 
 		var rightSideInfo string
-		if e.buffer != nil {
+		if e.CurrentBuffer() != nil {
 			// Use visual column position for display (accounting for tabs)
 			visualCol := 1
-			if !e.buffer.CursorIterator.IsEOF() {
-				line := e.buffer.CursorIterator.Line()
-				if e.buffer.CursorX <= len(line) {
-					visualCol = e.visualWidth(line[:e.buffer.CursorX]) + 1
+			if !e.CurrentBuffer().CursorIterator.IsEOF() {
+				line := e.CurrentBuffer().CursorIterator.Line()
+				if e.CurrentBuffer().CursorX <= len(line) {
+					visualCol = e.visualWidth(line[:e.CurrentBuffer().CursorX]) + 1
 				}
 			}
 
 			// Combine indentation info and line:col
 			var indentInfo string
-			if e.buffer.Indentation.Type == config.IndentTabs {
+			if e.CurrentBuffer().Indentation.Type == config.IndentTabs {
 				indentInfo = "Tabs"
 			} else {
-				indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
+				indentInfo = fmt.Sprintf("Spaces:%d", e.CurrentBuffer().Indentation.Width)
 			}
 
 			// Get current line indentation info
-			lineIndent := e.getCurrentLineIndentInfo(e.buffer.CursorIterator)
+			lineIndent := e.getCurrentLineIndentInfo(e.CurrentBuffer().CursorIterator)
 			var lineIndentDisplay string
 			if lineIndent.Level > 0 {
 				lineIndentDisplay = fmt.Sprintf("L%d", lineIndent.Level)
@@ -1334,15 +1334,15 @@ func (e *Editor) drawStatusBar() {
 
 			// Get current line length
 			currentLine := ""
-			if !e.buffer.CursorIterator.IsEOF() {
-				currentLine = e.buffer.CursorIterator.Line()
+			if !e.CurrentBuffer().CursorIterator.IsEOF() {
+				currentLine = e.CurrentBuffer().CursorIterator.Line()
 			}
 			lineLength := len(currentLine)
 
 			// Build line info with mixed styles
 			// Format: "40/65:1/16 [1234]"
-			currentLineNum := e.buffer.CursorIterator.LineNumber() + 1
-			totalLines := e.buffer.LineCount
+			currentLineNum := e.CurrentBuffer().CursorIterator.LineNumber() + 1
+			totalLines := e.CurrentBuffer().LineCount
 
 			// Calculate the full right info for positioning
 			rightSideInfo = fmt.Sprintf("%s  %s  %d/%d:%d/%d [%d]  ",
@@ -1363,17 +1363,17 @@ func (e *Editor) drawStatusBar() {
 
 		if rightX > x && rightSideInfo != "" { // Only draw if there's space and info to show
 			// For empty windows, we already set rightSideInfo to "", so this won't draw
-			if e.buffer != nil {
+			if e.CurrentBuffer() != nil {
 				// Draw each part separately with appropriate styles
 				x = rightX
 				indentInfo := ""
-				if e.buffer.Indentation.Type == config.IndentTabs {
+				if e.CurrentBuffer().Indentation.Type == config.IndentTabs {
 					indentInfo = "Tabs"
 				} else {
-					indentInfo = fmt.Sprintf("Spaces:%d", e.buffer.Indentation.Width)
+					indentInfo = fmt.Sprintf("Spaces:%d", e.CurrentBuffer().Indentation.Width)
 				}
 
-				lineIndent := e.getCurrentLineIndentInfo(e.buffer.CursorIterator)
+				lineIndent := e.getCurrentLineIndentInfo(e.CurrentBuffer().CursorIterator)
 				lineIndentDisplay := ""
 				if lineIndent.Level > 0 {
 					lineIndentDisplay = fmt.Sprintf("L%d", lineIndent.Level)
@@ -1388,18 +1388,18 @@ func (e *Editor) drawStatusBar() {
 				x += e.drawText(x, statusBarY, statusBarStyle, lineIndentDisplay+"  ", 0, nil, -1, 0, -1)
 
 				// Line info with mixed styles
-				currentLineNum := e.buffer.CursorIterator.LineNumber() + 1
-				totalLines := e.buffer.LineCount
+				currentLineNum := e.CurrentBuffer().CursorIterator.LineNumber() + 1
+				totalLines := e.CurrentBuffer().LineCount
 				visualCol := 1
-				if !e.buffer.CursorIterator.IsEOF() {
-					line := e.buffer.CursorIterator.Line()
-					if e.buffer.CursorX <= len(line) {
-						visualCol = e.visualWidth(line[:e.buffer.CursorX]) + 1
+				if !e.CurrentBuffer().CursorIterator.IsEOF() {
+					line := e.CurrentBuffer().CursorIterator.Line()
+					if e.CurrentBuffer().CursorX <= len(line) {
+						visualCol = e.visualWidth(line[:e.CurrentBuffer().CursorX]) + 1
 					}
 				}
 				currentLine := ""
-				if !e.buffer.CursorIterator.IsEOF() {
-					currentLine = e.buffer.CursorIterator.Line()
+				if !e.CurrentBuffer().CursorIterator.IsEOF() {
+					currentLine = e.CurrentBuffer().CursorIterator.Line()
 				}
 				lineLength := len(currentLine)
 
@@ -1446,9 +1446,9 @@ func (e *Editor) drawErrorLine() {
 	}
 
 	// Otherwise, show diagnostic for cursor line persistently (only if buffer exists)
-	if e.buffer != nil {
-		cursorLine := e.buffer.CursorIterator.LineNumber() + 1
-		if diag, ok := e.buffer.GetDiagnosticForLine(cursorLine); ok {
+	if e.CurrentBuffer() != nil {
+		cursorLine := e.CurrentBuffer().CursorIterator.LineNumber() + 1
+		if diag, ok := e.CurrentBuffer().GetDiagnosticForLine(cursorLine); ok {
 			var style ui.Style
 			switch diag.Severity {
 			case "error":
@@ -1511,12 +1511,12 @@ func (e *Editor) drawErrorLine() {
 // drawSignature renders the function signature above the status bar
 func (e *Editor) drawSignature() {
 	// Skip if no buffer
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return
 	}
 
-	LL.Trace("Drawing signature %v", e.buffer.CurrentSignature)
-	if e.buffer.CurrentSignature == nil {
+	LL.Trace("Drawing signature %v", e.CurrentBuffer().CurrentSignature)
+	if e.CurrentBuffer().CurrentSignature == nil {
 		return
 	}
 
@@ -1528,7 +1528,7 @@ func (e *Editor) drawSignature() {
 	e.fillLine(signatureY, signatureStyle)
 
 	// Prepare display text
-	sig := e.buffer.CurrentSignature
+	sig := e.CurrentBuffer().CurrentSignature
 	displayText := e.formatSignatureText(sig)
 	displayText = e.truncateText(displayText, width-2)
 
@@ -1538,7 +1538,7 @@ func (e *Editor) drawSignature() {
 	activeStart, activeEnd := e.getActiveParameterRange(sig)
 
 	// Draw the signature
-    if e.buffer != nil && e.buffer.Highlighter != nil {
+    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
         e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd)
     } else {
         e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd)
@@ -1592,11 +1592,11 @@ func (e *Editor) getActiveParameterRange(sig *buffer.SignatureHelp) (int, int) {
 
 // drawSignatureWithHighlighting draws the signature with syntax highlighting and bold active parameter
 func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int) {
-    if e.buffer == nil || e.buffer.Highlighter == nil {
+    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
         e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
         return
     }
-    tokens := e.buffer.Highlighter.GetTokensForString(text)
+    tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
 	if len(tokens) == 0 {
 		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
 		return

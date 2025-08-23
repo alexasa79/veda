@@ -20,7 +20,7 @@ func TestLineNumbersAtEndOfBuffer(t *testing.T) {
 		}
 
 		// Verify we're on the last line
-		cursorLine := te.buffer.CursorIterator.LineNumber()
+		cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
 		t.Logf("After G: cursor at line %d", cursorLine)
 
 		// Execute "o" to open line below
@@ -30,18 +30,18 @@ func TestLineNumbersAtEndOfBuffer(t *testing.T) {
 		}
 
 		// Check cursor position - should be on line 3 (0-based)
-		cursorLine = te.buffer.CursorIterator.LineNumber()
+		cursorLine = te.CurrentBuffer().CursorIterator.LineNumber()
 		t.Logf("After o: cursor at line %d", cursorLine)
 		if cursorLine != 3 {
 			t.Errorf("Expected cursor at line 3, got %d", cursorLine)
 		}
 
 		// Debug: Check buffer state
-		t.Logf("Buffer line count: %d", te.buffer.LineCount)
-		t.Logf("Cursor iterator IsEOF: %v", te.buffer.CursorIterator.IsEOF())
+		t.Logf("Buffer line count: %d", te.CurrentBuffer().LineCount)
+		t.Logf("Cursor iterator IsEOF: %v", te.CurrentBuffer().CursorIterator.IsEOF())
 
 		// Debug: Check what open-line-below actually did
-		bufContent := te.buffer.Rope.String()
+		bufContent := te.CurrentBuffer().Rope.String()
 		t.Logf("Buffer content after o: %q", bufContent)
 
 		// Force a render
@@ -53,7 +53,7 @@ func TestLineNumbersAtEndOfBuffer(t *testing.T) {
 
 		// Check line number area for line 4
 		// With 3 lines originally, line 4 should show "4" in the line number area
-		lineNumberWidth := te.buffer.LineNumberWidth
+		lineNumberWidth := te.CurrentBuffer().LineNumberWidth
 		t.Logf("Line number width: %d", lineNumberWidth)
 
 		// Check cell[3][0] should contain '4'

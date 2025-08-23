@@ -12,13 +12,13 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "# Header\n\nThis is a [link](https://example.com) in markdown.\n\nAnother paragraph.")
 
 		// Set the file path to .md to trigger markdown highlighting
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
         // Initialize markdown highlighter (per-buffer)
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        if te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
-            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        if te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
         }
 
 		// Get theme colors
@@ -65,13 +65,13 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 	t.Run("visual selection across markdown link", func(t *testing.T) {
 		// Create editor with markdown link
 		te := NewTestEditorWithContent(80, 24, "Check out [this link](https://example.com) for more info.")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
         // Initialize markdown highlighter (per-buffer)
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        if te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
-            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        if te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
         }
 
 		// Get selection style
@@ -117,13 +117,13 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 	t.Run("visual mode with markdown in insert vs normal mode", func(t *testing.T) {
 		// Test that markdown rendering differs between modes
 		te := NewTestEditorWithContent(80, 24, "This is a [test link](https://test.com) here.")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
         // Initialize markdown highlighter (per-buffer)
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        if te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
-            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        if te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
         }
 
 		// First check normal mode rendering
@@ -184,13 +184,13 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 
 	t.Run("visual selection with markdown headers", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "# Main Header\n## Sub Header\nNormal text")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
         // Initialize markdown highlighter (per-buffer)
-        te.buffer.Highlighter = syntax.NewHighlighter()
-        if te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
-            te.buffer.Highlighter.ParseFull([]byte(te.buffer.Rope.String()))
+        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+        if te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
         }
 
 		// Get selection style

@@ -16,7 +16,7 @@ func setupTerminalBufferForTest(te *TestEditor, cols, rows int, content string, 
 
 	// Add to editor buffers and select it
 	te.buffers[b.FilePath] = b
-	te.buffer = b
+	te.SetCurrentBuffer(b)
 	te.bufferOrder = []string{b.FilePath}
 
 	// Attach terminal session state with emulator
@@ -107,7 +107,7 @@ func TestTerminalColorsPersistInNormalMode(t *testing.T) {
 	te.drawEditor()
 
 	// Find the style at column 0, row 0
-	r0, style0 := te.mockScreen.GetCell(te.buffer.LineNumberWidth+0, 0)
+	r0, style0 := te.mockScreen.GetCell(te.CurrentBuffer().LineNumberWidth+0, 0)
 	if r0 != 'X' {
 		t.Fatalf("expected 'X' at content start, got %q", r0)
 	}
@@ -120,7 +120,7 @@ func TestTerminalColorsPersistInNormalMode(t *testing.T) {
 	te.mode = commands.NormalMode
 	te.drawEditor()
 
-	r1, style1 := te.mockScreen.GetCell(te.buffer.LineNumberWidth+0, 0)
+	r1, style1 := te.mockScreen.GetCell(te.CurrentBuffer().LineNumberWidth+0, 0)
 	if r1 != 'X' {
 		t.Fatalf("after normal mode, expected 'X', got %q", r1)
 	}

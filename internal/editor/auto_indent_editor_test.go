@@ -57,14 +57,14 @@ func TestInsertNewlineWithBraces(t *testing.T) {
 				te.ExecuteCommand("down")
 			}
 			// Move cursor to specific position
-			te.buffer.CursorX = tt.cursorX
+			te.CurrentBuffer().CursorX = tt.cursorX
 
 			// Enter insert mode and press Enter
 			te.ExecuteCommand("enter-insert-mode")
 			te.ExecuteCommand("insert-newline")
 
 			// Check content
-			actual := te.buffer.Rope.String()
+			actual := te.CurrentBuffer().Rope.String()
 			if actual != tt.expectedContent {
 				t.Errorf("%s\nExpected:\n%q\nGot:\n%q\nDescription: %s",
 					tt.name, tt.expectedContent, actual, tt.description)
@@ -103,7 +103,7 @@ func TestInsertNewlineBetweenBracesWithTyping(t *testing.T) {
 
 	// Check the result
 	expected := "int main() {\n    return 0;\n}"
-	actual := te.buffer.Rope.String()
+	actual := te.CurrentBuffer().Rope.String()
 
 	if actual != expected {
 		t.Errorf("Expected:\n%s\nGot:\n%s", expected, actual)

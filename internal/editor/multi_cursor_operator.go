@@ -10,7 +10,7 @@ import (
 // executeOperatorWithTextObjectForAllCursors executes an operator+textobject for all cursors
 func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj TextObject) error {
 	// Check if we have a buffer to work with
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil // No buffer, nothing to operate on
 	}
 
@@ -34,8 +34,8 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 	}
 
 	// Add primary cursor
-	primaryLine := e.buffer.CursorIterator.LineNumber()
-	primaryX := e.buffer.CursorX
+	primaryLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	primaryX := e.CurrentBuffer().CursorX
 	cursors = append(cursors, struct{ x, y int }{primaryX, primaryLine})
 
 	// Sort cursors by position (line, then char) in reverse order
@@ -50,7 +50,7 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 	}
 
 	// Store the view position
-	viewLine := e.buffer.ViewIterator.LineNumber()
+	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// For change and delete operations, we need special handling to preserve cursors
 	isChangeOp := false
@@ -64,19 +64,19 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 
 	if isChangeOp || isDeleteOp {
 		// Group all per-cursor history entries into a single undo unit
-		if e.buffer != nil && e.buffer.History != nil {
+		if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
 			if isChangeOp {
-				e.buffer.History.StartComposite("Change with multiple cursors")
+				e.CurrentBuffer().History.StartComposite("Change with multiple cursors")
 			} else {
-				e.buffer.History.StartComposite("Delete with multiple cursors")
+				e.CurrentBuffer().History.StartComposite("Delete with multiple cursors")
 			}
 			// Snapshot cursor positions prior to modifications so undo can restore them
-			primary := buffer.CursorPos{Line: e.buffer.CursorIterator.LineNumber(), Char: e.buffer.CursorX}
+			primary := buffer.CursorPos{Line: e.CurrentBuffer().CursorIterator.LineNumber(), Char: e.CurrentBuffer().CursorX}
 			v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
 			for _, vc := range e.virtualCursors {
 				v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
 			}
-			e.buffer.History.SetActiveCompositeCursors(primary, v)
+			e.CurrentBuffer().History.SetActiveCompositeCursors(primary, v)
 		}
 		// For change operations, we need to carefully track cursor positions
 		// because deletions can affect the positions of subsequent cursors
@@ -90,7 +90,7 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 
 		for i, cursor := range cursors {
 			// Get the range from the text object at this cursor position
-			startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursor.y, cursor.x)
+			startLine, startChar, endLine, endChar, found := textObj.GetRange(e.CurrentBuffer(), cursor.y, cursor.x)
 			if !found {
 				continue
 			}
@@ -153,8 +153,8 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 			e.switchToInsertMode()
 
 			// Start tracking insert mode changes
-			if e.buffer != nil && e.buffer.History != nil {
-				e.buffer.History.StartInsertSession("c")
+			if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
+				e.CurrentBuffer().History.StartInsertSession("c")
 			}
 		}
 		// Do NOT end the composite yet for change operations. The subsequent
@@ -162,16 +162,16 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 		// undoes both the deletions and the inserted text. We'll end the
 		// composite here for delete, but keep it open for change until the
 		// insert session ends elsewhere.
-		if e.buffer != nil && e.buffer.History != nil {
+		if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
 			if !isChangeOp { // pure delete
-				e.buffer.History.EndComposite()
+				e.CurrentBuffer().History.EndComposite()
 			}
 		}
 	} else {
 		// For non-change operations, execute normally
 		for _, cursor := range cursors {
 			// Get the range from the text object at this cursor position
-			startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursor.y, cursor.x)
+			startLine, startChar, endLine, endChar, found := textObj.GetRange(e.CurrentBuffer(), cursor.y, cursor.x)
 			if !found {
 				continue
 			}
@@ -184,13 +184,13 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 	}
 
 	// Restore view position
-	if viewLine >= e.buffer.LineCount {
-		viewLine = e.buffer.LineCount - 1
+	if viewLine >= e.CurrentBuffer().LineCount {
+		viewLine = e.CurrentBuffer().LineCount - 1
 	}
 	if viewLine < 0 {
 		viewLine = 0
 	}
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 
 	// Update syntax highlighting
 	e.updateSyntaxHighlighting()
@@ -209,14 +209,14 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 
 // executeYankForAllCursors performs yank operation on all cursors
 func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 
 	// Save positions
-	primaryLineNum := e.buffer.CursorIterator.LineNumber()
-	primaryCursorX := e.buffer.CursorX
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	primaryLineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	primaryCursorX := e.CurrentBuffer().CursorX
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Collect yanked text from all cursors
 	var yankedTexts []string
@@ -224,11 +224,11 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 	// First yank from virtual cursors
 	for _, cursor := range e.virtualCursors {
 		// Set cursor to virtual cursor position
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
-		e.buffer.CursorX = cursor.X
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursor.Y)
+		e.CurrentBuffer().CursorX = cursor.X
 
 		// Get the range from the text object
-		startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, cursor.Y, cursor.X)
+		startLine, startChar, endLine, endChar, found := textObj.GetRange(e.CurrentBuffer(), cursor.Y, cursor.X)
 		if !found {
 			continue
 		}
@@ -237,7 +237,7 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 		var text string
 		if startLine == endLine {
 			// Single line yank
-			iter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+			iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), startLine)
 			if !iter.IsEOF() {
 				line := iter.Line()
 				if startChar < len(line) && endChar <= len(line) {
@@ -257,17 +257,17 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 	}
 
 	// Restore primary cursor and yank from it
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
-	e.buffer.CursorX = primaryCursorX
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
+	e.CurrentBuffer().CursorX = primaryCursorX
 
 	// Get the range from the text object
-	startLine, startChar, endLine, endChar, found := textObj.GetRange(e.buffer, primaryLineNum, primaryCursorX)
+	startLine, startChar, endLine, endChar, found := textObj.GetRange(e.CurrentBuffer(), primaryLineNum, primaryCursorX)
 	if found {
 		// Get the text to yank
 		var text string
 		if startLine == endLine {
 			// Single line yank
-			iter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+			iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), startLine)
 			if !iter.IsEOF() {
 				line := iter.Line()
 				if startChar < len(line) && endChar <= len(line) {
@@ -299,7 +299,7 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 	}
 
 	// Restore view iterator
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	LL.Debug("Yanked %d items to clipboard (%d characters total)", len(yankedTexts), len(combinedText))
 

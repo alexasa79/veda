@@ -11,11 +11,11 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 		// Create editor with multiple lines to see line numbers
 		content := "# TODO List\nFirst item\nSecond item\nThird item"
 		te := NewTestEditorWithContent(80, 24, content)
-		te.buffer.FilePath = "TODO.md"
+		te.CurrentBuffer().FilePath = "TODO.md"
 
 		// Initialize markdown highlighter
-        if te.buffer != nil && te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
+        if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
 		}
 
 		// Get theme styles
@@ -159,11 +159,11 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 func TestDebugLineNumberArea(t *testing.T) {
 	t.Run("debug line number rendering", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "# Header\nLine 2\nLine 3")
-		te.buffer.FilePath = "test.md"
+		te.CurrentBuffer().FilePath = "test.md"
 
 		// Set up markdown
-        if te.buffer != nil && te.buffer.Highlighter != nil {
-            te.buffer.Highlighter.SetLanguageFromFile(te.buffer.FilePath)
+        if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
+            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
 		}
 
 		// Enter visual mode at start
@@ -175,7 +175,7 @@ func TestDebugLineNumberArea(t *testing.T) {
 		te.drawEditor()
 
 		// Debug output
-		t.Logf("Line number width: %d", te.buffer.LineNumberWidth)
+		t.Logf("Line number width: %d", te.CurrentBuffer().LineNumberWidth)
 
 		// Print first 10 characters of each line with their backgrounds
 		for lineIdx := 0; lineIdx < 3; lineIdx++ {

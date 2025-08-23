@@ -50,7 +50,7 @@ type AutoIndentInfo struct {
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen             Screen
-	buffer             *buffer.Buffer // Current buffer
+	// buffer field removed - use CurrentBuffer() accessor instead
 	config             *config.Config
 	mode               commands.Mode
 	temporaryNormal    bool // True when in temporary normal mode (Ctrl+O from insert)
@@ -216,7 +216,7 @@ type Editor struct {
 	dirCache map[string][]proxy.FileInfo
 
 	// Windows management
-	windows      []*Window // When empty, single-window mode using e.buffer
+	windows      []*Window // When empty, single-window mode using e.CurrentBuffer()
 	activeWindow int       // Index of active window in windows slice
 	lastWindow   int       // Index of previously active window (-1 if none)
 
@@ -271,7 +271,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 
 	editor := &Editor{
 		screen:               screen,
-		buffer:               nil, // No initial buffer - will show "[empty]" until file is opened
+		// buffer field removed - use CurrentBuffer() accessor instead
 		config:               config,
 		mode:                 commands.NormalMode,
 		commandLine:          commandLine,
@@ -342,8 +342,15 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	editor.autoIndentLines = make(map[string]AutoIndentInfo)
 	editor.lastCursorLine = -1
 
-	// No initial buffer - buffers map starts empty
-	// When no file arguments are provided, user can create new buffer with :new or by typing
+	// Create initial empty window - we always need at least one window
+	emptyBuffer := buffer.NewBuffer("", "[No Name]", config.DefaultIndentType, config.DefaultIndentWidth)
+	editor.buffers["[No Name]"] = emptyBuffer
+	editor.bufferOrder = append(editor.bufferOrder, "[No Name]")
+	
+	// Create initial window with the empty buffer
+	editor.windows = []*Window{newWindow(emptyBuffer)}
+	editor.activeWindow = 0
+	editor.recomputeWindowsLayout()
 
 	// LSP callbacks will be set up when buffers are created
 
@@ -375,6 +382,25 @@ func New() (*Editor, error) {
 	}
 
 	return NewWithScreen(screen)
+}
+
+// CurrentBuffer returns the current buffer from the active window.
+// Returns nil if there's no active window or the window has no buffer.
+func (e *Editor) CurrentBuffer() *buffer.Buffer {
+	if e.activeWindow < 0 || e.activeWindow >= len(e.windows) {
+		return nil
+	}
+	if e.windows[e.activeWindow] == nil {
+		return nil
+	}
+	return e.windows[e.activeWindow].Buffer
+}
+
+// SetCurrentBuffer sets the current buffer for the active window
+func (e *Editor) SetCurrentBuffer(buf *buffer.Buffer) {
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+		e.windows[e.activeWindow].Buffer = buf
+	}
 }
 
 // Run starts the editor's main event loop with unified rendering.
@@ -502,7 +528,7 @@ func (e *Editor) render() {
 	// Ensure there is at least one window to render into
 	if len(e.windows) == 0 {
 		// Create a default window covering the content area and attach current buffer
-		w := &Window{Buffer: e.buffer}
+		w := &Window{Buffer: e.CurrentBuffer()}
 		e.windows = []*Window{w}
 		e.activeWindow = 0
 		e.recomputeWindowsLayout()
@@ -511,10 +537,10 @@ func (e *Editor) render() {
 	// Persist active window's state from the live buffer before drawing windows,
 	// so any cursor/scroll changes made by event handlers are not lost.
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-		if w := e.windows[e.activeWindow]; w != nil && e.buffer != nil && w.Buffer == e.buffer {
-			w.ViewLine = e.buffer.ViewIterator.LineNumber()
-			w.CursorLine = e.buffer.CursorIterator.LineNumber()
-			w.CursorX = e.buffer.CursorX
+		if w := e.windows[e.activeWindow]; w != nil && e.CurrentBuffer() != nil && w.Buffer == e.CurrentBuffer() {
+			w.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
+			w.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
+			w.CursorX = e.CurrentBuffer().CursorX
 		}
 	}
 
@@ -548,7 +574,7 @@ func (e *Editor) render() {
 
         // Temporarily swap screen and buffer per window
 		realScreen := e.screen
-		realBuffer := e.buffer
+		realBuffer := e.CurrentBuffer()
 		e.screen = sub
 		// Temporarily map editor-wide iterators/state from window's own view/cursor
 		// Save buffer iterators/X
@@ -560,19 +586,19 @@ func (e *Editor) render() {
 		win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
 		// Do not special-case EOF here; EOF is a valid state for empty buffers
 		win.Buffer.CursorX = win.CursorX
-		e.buffer = win.Buffer
+		e.SetCurrentBuffer(win.Buffer)
         // Ensure per-buffer highlighter is initialized and parsed
-        if e.buffer.Highlighter != nil {
-            if e.buffer.IsInternal {
+        if e.CurrentBuffer().Highlighter != nil {
+            if e.CurrentBuffer().IsInternal {
                 // For internal buffers we often use markdown; ensure parsed
-                if e.buffer.Highlighter.GetTree() == nil {
-                    _ = e.buffer.Highlighter.SetLanguage("markdown")
-                    e.buffer.Highlighter.ParseFull([]byte(e.buffer.Rope.String()))
+                if e.CurrentBuffer().Highlighter.GetTree() == nil {
+                    _ = e.CurrentBuffer().Highlighter.SetLanguage("markdown")
+                    e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
                 }
-            } else if e.buffer.HasFile() {
-                if e.buffer.Highlighter.GetTree() == nil {
-                    _ = e.buffer.Highlighter.SetLanguageFromFile(e.buffer.FilePath)
-                    e.buffer.Highlighter.ParseFull([]byte(e.buffer.Rope.String()))
+            } else if e.CurrentBuffer().HasFile() {
+                if e.CurrentBuffer().Highlighter.GetTree() == nil {
+                    _ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
+                    e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
                 }
             }
         }
@@ -605,7 +631,7 @@ func (e *Editor) render() {
 		}
 		win.Buffer.CursorX = savedX
 		e.screen = realScreen
-		e.buffer = realBuffer
+		e.SetCurrentBuffer(realBuffer)
 		winTimer = e.perfTracker.ReportSince("drawWindows.window.restore", winTimer)
 		// Report total time for this window
 		if i == e.activeWindow {
@@ -621,7 +647,7 @@ func (e *Editor) render() {
 		win := e.windows[e.activeWindow]
 		activeBuf := win.Buffer
 		if activeBuf != nil {
-			realBuf := e.buffer
+			realBuf := e.CurrentBuffer()
 			// Temporarily sync active window's state to buffer to display correct line/col
 			w := win
 			savedView := activeBuf.ViewIterator
@@ -630,7 +656,7 @@ func (e *Editor) render() {
 			activeBuf.ViewIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.ViewLine))
 			activeBuf.CursorIterator = buffer.NewBufferIteratorAtLine(activeBuf, max(0, w.CursorLine))
 			activeBuf.CursorX = w.CursorX
-			e.buffer = activeBuf
+			e.SetCurrentBuffer(activeBuf)
 			// Signature above status bar
 			e.drawSignature()
 			e.drawErrorLine()
@@ -639,7 +665,7 @@ func (e *Editor) render() {
 			activeBuf.ViewIterator = savedView
 			activeBuf.CursorIterator = savedCursor
 			activeBuf.CursorX = savedX
-			e.buffer = realBuf
+			e.SetCurrentBuffer(realBuf)
 		} else {
 			e.drawSignature()
 			e.drawErrorLine()
@@ -686,7 +712,7 @@ func (e *Editor) render() {
 			if win.Buffer != nil {
 				sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
 				realScreen := e.screen
-				realBuffer := e.buffer
+				realBuffer := e.CurrentBuffer()
 				e.screen = sub
 				// Temporarily sync buffer to window state for correct cursor draw
 				savedView := win.Buffer.ViewIterator
@@ -695,14 +721,14 @@ func (e *Editor) render() {
 				win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
 				win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
 				win.Buffer.CursorX = win.CursorX
-				e.buffer = win.Buffer
+				e.SetCurrentBuffer(win.Buffer)
 				e.updateCursor()
 				// Restore
 				win.Buffer.ViewIterator = savedView
 				win.Buffer.CursorIterator = savedCursor
 				win.Buffer.CursorX = savedX
 				e.screen = realScreen
-				e.buffer = realBuffer
+				e.SetCurrentBuffer(realBuffer)
 			} else {
 				e.updateCursor()
 			}
@@ -741,8 +767,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 		if e.mode == commands.TerminalMode {
 			if ev.Key == events.KeyEscape {
 				// Leave terminal input mode to normal browsing
-				if e.buffer != nil {
-					if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+				if e.CurrentBuffer() != nil {
+					if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
 						ts.SavedCurX, ts.SavedCurY = ts.term.Cursor()
 						// Align buffer cursor to emulator cursor location for browsing
 						bannerOffset := 0
@@ -754,10 +780,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 						if bufRow < 0 {
 							bufRow = 0
 						}
-						if bufRow >= e.buffer.LineCount {
-							bufRow = e.buffer.LineCount - 1
+						if bufRow >= e.CurrentBuffer().LineCount {
+							bufRow = e.CurrentBuffer().LineCount - 1
 						}
-						it := buffer.NewBufferIteratorAtLine(e.buffer, bufRow)
+						it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), bufRow)
 						line := it.Line()
 						bytePos := e.bytePositionFromVisualColumn(line, ts.SavedCurX)
 						if bytePos < 0 {
@@ -766,16 +792,16 @@ func (e *Editor) handleEvent(ev events.Event) {
 						if bytePos > len(line) {
 							bytePos = len(line)
 						}
-						e.buffer.CursorIterator = it
-						e.buffer.CursorX = bytePos
+						e.CurrentBuffer().CursorIterator = it
+						e.CurrentBuffer().CursorX = bytePos
 					}
 				}
 				e.mode = commands.NormalMode
 				return
 			}
 			// Forward key to active terminal session
-			if e.buffer != nil {
-				if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.SessionID != "" {
+			if e.CurrentBuffer() != nil {
+				if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.SessionID != "" {
 					data := e.translateKeyToTerminal(ev)
 					if len(data) > 0 {
 						_ = e.proxyManager.WriteTerminal(ts.WorkingDir, ts.SessionID, data)
@@ -1078,7 +1104,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 							b.IsReadOnly = true
 						}
 						// For terminal snapshots, align view to show the prompt row
-						if e.buffer == b {
+						if e.CurrentBuffer() == b {
 							if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
 								curX, curY := ts.term.Cursor()
 								// Account for banner occupying the first buffer line
@@ -1172,10 +1198,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 					// Update window state after navigation
 					if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
 						win := e.windows[e.activeWindow]
-						if win != nil && win.Buffer == e.buffer {
-							win.ViewLine = e.buffer.ViewIterator.LineNumber()
-							win.CursorLine = e.buffer.CursorIterator.LineNumber()
-							win.CursorX = e.buffer.CursorX
+						if win != nil && win.Buffer == e.CurrentBuffer() {
+							win.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
+							win.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
+							win.CursorX = e.CurrentBuffer().CursorX
 						}
 					}
 				}
@@ -1191,20 +1217,20 @@ func (e *Editor) handleEvent(ev events.Event) {
 					e.pushNavigationHistory()
 					
 					// Open the file if different
-					if e.buffer == nil || filePath != e.buffer.FilePath {
+					if e.CurrentBuffer() == nil || filePath != e.CurrentBuffer().FilePath {
 						e.openFile(filePath)
 					}
 					
 					// Navigate to the location
-					if e.buffer != nil {
+					if e.CurrentBuffer() != nil {
 						e.navigateToLocation(line, character)
 						// Update window state after navigation
 						if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
 							win := e.windows[e.activeWindow]
-							if win != nil && win.Buffer == e.buffer {
-								win.ViewLine = e.buffer.ViewIterator.LineNumber()
-								win.CursorLine = e.buffer.CursorIterator.LineNumber()
-								win.CursorX = e.buffer.CursorX
+							if win != nil && win.Buffer == e.CurrentBuffer() {
+								win.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
+								win.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
+								win.CursorX = e.CurrentBuffer().CursorX
 							}
 						}
 					}
@@ -1466,22 +1492,22 @@ func (e *Editor) isTextModifyingCommand(command string) bool {
 // executeCommandForAllCursors executes a command for all cursors
 func (e *Editor) executeCommandForAllCursors(command string, args []string) error {
 	// Check if we have a buffer to work with
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil // No buffer, no cursors to execute command on
 	}
 
 	// Save view position and primary cursor position
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	primaryLineNum := e.buffer.CursorIterator.LineNumber()
-	primaryCursorX := e.buffer.CursorX
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	primaryLineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	primaryCursorX := e.CurrentBuffer().CursorX
 
 	// First execute for virtual cursors (in reverse order to maintain positions)
 	for i := len(e.virtualCursors) - 1; i >= 0; i-- {
 		cursor := e.virtualCursors[i]
 
 		// Temporarily set primary cursor to virtual cursor position
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
-		e.buffer.CursorX = cursor.X
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursor.Y)
+		e.CurrentBuffer().CursorX = cursor.X
 
 		// Execute command
 		if err := e.commandRegistry.Execute(command, args); err != nil {
@@ -1490,13 +1516,13 @@ func (e *Editor) executeCommandForAllCursors(command string, args []string) erro
 		}
 
 		// Update virtual cursor position after command
-		e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
-		e.virtualCursors[i].X = e.buffer.CursorX
+		e.virtualCursors[i].Y = e.CurrentBuffer().CursorIterator.LineNumber()
+		e.virtualCursors[i].X = e.CurrentBuffer().CursorX
 	}
 
 	// Restore primary cursor position
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
-	e.buffer.CursorX = primaryCursorX
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
+	e.CurrentBuffer().CursorX = primaryCursorX
 
 	// Execute for primary cursor
 	if err := e.commandRegistry.Execute(command, args); err != nil {
@@ -1504,7 +1530,7 @@ func (e *Editor) executeCommandForAllCursors(command string, args []string) erro
 	}
 
 	// Restore view iterator
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	return nil
 }
@@ -1512,17 +1538,17 @@ func (e *Editor) executeCommandForAllCursors(command string, args []string) erro
 // insertCharForAllCursors inserts a character at all cursor positions
 func (e *Editor) insertCharForAllCursors(ch rune) error {
 	// Save view position and primary cursor position
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
-	primaryLineNum := e.buffer.CursorIterator.LineNumber()
-	primaryCursorX := e.buffer.CursorX
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	primaryLineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	primaryCursorX := e.CurrentBuffer().CursorX
 
 	// First insert at virtual cursors (in reverse order to maintain positions)
 	for i := len(e.virtualCursors) - 1; i >= 0; i-- {
 		cursor := e.virtualCursors[i]
 
 		// Temporarily set primary cursor to virtual cursor position
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursor.Y)
-		e.buffer.CursorX = cursor.X
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursor.Y)
+		e.CurrentBuffer().CursorX = cursor.X
 
 		// Insert character
 		if err := e.insertChar(ch); err != nil {
@@ -1531,13 +1557,13 @@ func (e *Editor) insertCharForAllCursors(ch rune) error {
 		}
 
 		// Update virtual cursor position after insert
-		e.virtualCursors[i].Y = e.buffer.CursorIterator.LineNumber()
-		e.virtualCursors[i].X = e.buffer.CursorX
+		e.virtualCursors[i].Y = e.CurrentBuffer().CursorIterator.LineNumber()
+		e.virtualCursors[i].X = e.CurrentBuffer().CursorX
 	}
 
 	// Restore primary cursor position
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primaryLineNum)
-	e.buffer.CursorX = primaryCursorX
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
+	e.CurrentBuffer().CursorX = primaryCursorX
 
 	// Insert at primary cursor
 	if err := e.insertChar(ch); err != nil {
@@ -1545,7 +1571,7 @@ func (e *Editor) insertCharForAllCursors(ch rune) error {
 	}
 
 	// Restore view iterator
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	return nil
 }
@@ -1570,13 +1596,13 @@ func (e *Editor) updateCursor() {
 		// Show cursor in search line
 		cursorX, cursorY := e.searchLine.GetCursorPosition()
 		e.screen.ShowCursor(cursorX, cursorY)
-	} else if e.buffer == nil {
+	} else if e.CurrentBuffer() == nil {
 		// Empty window - hide the cursor or show it at top-left
 		e.screen.ShowCursor(0, e.getContentStartY())
 	} else {
 		// Terminal/internal buffers: position cursor directly from emulator state
-		if e.buffer.IsInternal {
-			if ts := e.terminalSessions[e.buffer.FilePath]; ts != nil && ts.term != nil {
+		if e.CurrentBuffer().IsInternal {
+			if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
 				if e.mode == commands.TerminalMode {
 					// In terminal mode, show at terminal cursor, accounting for scrollback and view top
 					curX, curY := ts.term.Cursor()
@@ -1585,7 +1611,7 @@ func (e *Editor) updateCursor() {
 						bannerOffset = 1
 					}
 					globalRow := bannerOffset + len(ts.term.scrollback) + curY
-					viewTop := e.buffer.ViewIterator.LineNumber()
+					viewTop := e.CurrentBuffer().ViewIterator.LineNumber()
 					relRow := globalRow - viewTop
 					// Clamp to visible content area
 					contentTop := e.getContentStartY()
@@ -1599,9 +1625,9 @@ func (e *Editor) updateCursor() {
 					screenY := contentTop + relRow
 					if ts.Closed {
 						// If closed, prefer to place cursor on last non-empty visible line
-						row := e.buffer.LineCount - 1
+						row := e.CurrentBuffer().LineCount - 1
 						for row > 0 {
-							it := buffer.NewBufferIteratorAtLine(e.buffer, row)
+							it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), row)
 							line := it.Line()
 							if len(line) > 0 {
 								break
@@ -1618,7 +1644,7 @@ func (e *Editor) updateCursor() {
 						screenY = contentTop + relRow
 						curX = 0
 					}
-					screenX := e.buffer.LineNumberWidth + curX
+					screenX := e.CurrentBuffer().LineNumberWidth + curX
 					e.screen.ShowCursor(screenX, screenY)
 					return
 				}
@@ -1629,7 +1655,7 @@ func (e *Editor) updateCursor() {
 		visualLine, visualCol := e.GetCursorVisualPosition()
 		cursorY := visualLine + e.getContentStartY()
 		LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
-			e.buffer.CursorIterator.LineNumber(), e.buffer.CursorX, e.buffer.ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
+			e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
 		e.screen.ShowCursor(visualCol, cursorY)
 	}
 }
@@ -1756,22 +1782,22 @@ func (e *Editor) bytePositionFromVisualColumn(line string, visualCol int) int {
 
 // getVisualCursorX calculates the visual cursor position accounting for tabs
 func (e *Editor) getVisualCursorX() int {
-	if e.buffer.CursorIterator.IsEOF() {
+	if e.CurrentBuffer().CursorIterator.IsEOF() {
 		return 0
 	}
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX >= len(line) {
+	line := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX >= len(line) {
 		return e.visualWidth(line)
 	}
-	return e.visualWidth(line[:e.buffer.CursorX])
+	return e.visualWidth(line[:e.CurrentBuffer().CursorX])
 }
 
 // getLineTokens returns syntax tokens for a line using iterator position
 func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
-    if e.buffer == nil || e.buffer.Highlighter == nil {
+    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
         return nil
     }
-    return e.buffer.Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+    return e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
 }
 
 // updateCursorState updates any state that depends on cursor position
@@ -1800,14 +1826,14 @@ func (e *Editor) actuallyQuit(args []string) error {
 // getSelectionRange returns the start and end byte offsets of the current selection
 // Returns (start, end, hasSelection)
 func (e *Editor) getSelectionRange() (int, int, bool) {
-	if (e.mode != commands.VisualMode && e.mode != commands.VisualLineMode) || e.buffer == nil || e.buffer.VisualAnchorOffset < 0 {
+	if (e.mode != commands.VisualMode && e.mode != commands.VisualLineMode) || e.CurrentBuffer() == nil || e.CurrentBuffer().VisualAnchorOffset < 0 {
 		return 0, 0, false
 	}
 
 	if e.mode == commands.VisualLineMode {
 		// For visual line mode, select entire lines
-		anchorLine := e.buffer.VisualAnchorLine
-		currentLine := e.buffer.CursorIterator.LineNumber()
+		anchorLine := e.CurrentBuffer().VisualAnchorLine
+		currentLine := e.CurrentBuffer().CursorIterator.LineNumber()
 
 		// Determine start and end lines
 		startLine := anchorLine
@@ -1818,13 +1844,13 @@ func (e *Editor) getSelectionRange() (int, int, bool) {
 		}
 
 		// Get byte offset for start of first line
-		startIter := buffer.NewBufferIteratorAtLine(e.buffer, startLine)
+		startIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), startLine)
 		startOffset := startIter.Position()
 
 		// Get byte offset for end of last line (including newline)
-		endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
+		endIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), endLine)
 		endOffset := endIter.LineEnd()
-		if endLine < e.buffer.LineCount-1 {
+		if endLine < e.CurrentBuffer().LineCount-1 {
 			endOffset++ // Include the newline character
 		}
 
@@ -1832,13 +1858,13 @@ func (e *Editor) getSelectionRange() (int, int, bool) {
 	}
 
 	// Character-wise visual mode
-	currentOffset := e.buffer.CursorIterator.Position() + e.buffer.CursorX
+	currentOffset := e.CurrentBuffer().CursorIterator.Position() + e.CurrentBuffer().CursorX
 
 	// Return in order (start, end)
-	if e.buffer.VisualAnchorOffset <= currentOffset {
-		return e.buffer.VisualAnchorOffset, currentOffset + 1, true // +1 for inclusive selection
+	if e.CurrentBuffer().VisualAnchorOffset <= currentOffset {
+		return e.CurrentBuffer().VisualAnchorOffset, currentOffset + 1, true // +1 for inclusive selection
 	} else {
-		return currentOffset, e.buffer.VisualAnchorOffset + 1, true // +1 for inclusive selection
+		return currentOffset, e.CurrentBuffer().VisualAnchorOffset + 1, true // +1 for inclusive selection
 	}
 }
 
@@ -1970,7 +1996,7 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 			}
 
 			// If this is the current buffer, invalidate context cache to trigger redraw
-            if buf == e.buffer {
+            if buf == e.CurrentBuffer() {
                 // Force context update for active buffer
                 buf.ContextLine = -1
             }
@@ -2007,18 +2033,18 @@ func (e *Editor) requestDiagnosticsRefresh(filePath string) {
 // appendAfterCursor enters insert mode after the current cursor position
 func (e *Editor) appendAfterCursor(args []string) error {
 	// Move cursor one position to the right if not at end of line
-	if !e.buffer.CursorIterator.IsEOF() {
-		line := e.buffer.CursorIterator.Line()
-		if e.buffer.CursorX < len(line) {
-			e.buffer.CursorX++
+	if !e.CurrentBuffer().CursorIterator.IsEOF() {
+		line := e.CurrentBuffer().CursorIterator.Line()
+		if e.CurrentBuffer().CursorX < len(line) {
+			e.CurrentBuffer().CursorX++
 		}
 	}
 
 	// Enter insert mode
 	e.switchToInsertMode()
 	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("a")
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
+		e.CurrentBuffer().History.StartInsertSession("a")
 	}
 	return nil
 }
@@ -2026,16 +2052,16 @@ func (e *Editor) appendAfterCursor(args []string) error {
 // appendAtEndOfLine enters insert mode at the end of the current line
 func (e *Editor) appendAtEndOfLine(args []string) error {
 	// Move cursor to end of line
-	if !e.buffer.CursorIterator.IsEOF() {
-		line := e.buffer.CursorIterator.Line()
-		e.buffer.CursorX = len(line)
+	if !e.CurrentBuffer().CursorIterator.IsEOF() {
+		line := e.CurrentBuffer().CursorIterator.Line()
+		e.CurrentBuffer().CursorX = len(line)
 	}
 
 	// Enter insert mode
 	e.switchToInsertMode()
 	// Start tracking insert mode changes
-	if e.buffer != nil && e.buffer.History != nil {
-		e.buffer.History.StartInsertSession("A")
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
+		e.CurrentBuffer().History.StartInsertSession("A")
 	}
 	return nil
 }
@@ -2067,22 +2093,22 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 
 // Undo/Redo commands
 func (e *Editor) undo(args []string) error {
-	if e.buffer == nil || e.buffer.History == nil {
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().History == nil {
 		return nil
 	}
 
 	// Remember current position; also attempt to restore multi-cursor snapshot
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Perform undo
-	if err := e.buffer.History.Undo(e.buffer); err != nil {
+	if err := e.CurrentBuffer().History.Undo(e.CurrentBuffer()); err != nil {
 		return err
 	}
 
 	// Ensure iterators are valid after undo
 	// If cursor line is beyond buffer, move to last line
-	maxLine := e.buffer.LineCount - 1
+	maxLine := e.CurrentBuffer().LineCount - 1
 	if lineNum > maxLine {
 		lineNum = maxLine
 	}
@@ -2091,22 +2117,22 @@ func (e *Editor) undo(args []string) error {
 	}
 
 	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// If the redo stack top is a composite with a cursor snapshot, restore it
-	if e.buffer.History != nil {
-		if primary, virtual, ok := e.buffer.History.GetTopRedoCompositeCursors(); ok {
+	if e.CurrentBuffer().History != nil {
+		if primary, virtual, ok := e.CurrentBuffer().History.GetTopRedoCompositeCursors(); ok {
 			// Restore primary cursor
-			if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
-				e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
-				e.buffer.CursorX = primary.Char
+			if primary.Line >= 0 && primary.Line < e.CurrentBuffer().LineCount {
+				e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primary.Line)
+				e.CurrentBuffer().CursorX = primary.Char
 			}
 			// Restore virtual cursors
 			restored := make([]VirtualCursor, 0, len(virtual))
 			for _, c := range virtual {
-				if c.Line >= 0 && c.Line < e.buffer.LineCount {
-					iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
+				if c.Line >= 0 && c.Line < e.CurrentBuffer().LineCount {
+					iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), c.Line)
 					line := iter.Line()
 					x := c.Char
 					if x < 0 {
@@ -2123,11 +2149,11 @@ func (e *Editor) undo(args []string) error {
 	}
 
 	// Ensure cursor X is within bounds
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(line) {
-		e.buffer.CursorX = len(line)
-		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-			e.buffer.CursorX--
+	line := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(line) {
+		e.CurrentBuffer().CursorX = len(line)
+		if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+			e.CurrentBuffer().CursorX--
 		}
 	}
 
@@ -2138,22 +2164,22 @@ func (e *Editor) undo(args []string) error {
 }
 
 func (e *Editor) redo(args []string) error {
-	if e.buffer == nil || e.buffer.History == nil {
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().History == nil {
 		return nil
 	}
 
 	// Remember current position
-	lineNum := e.buffer.CursorIterator.LineNumber()
-	viewLineNum := e.buffer.ViewIterator.LineNumber()
+	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Perform redo
-	if err := e.buffer.History.Redo(e.buffer); err != nil {
+	if err := e.CurrentBuffer().History.Redo(e.CurrentBuffer()); err != nil {
 		return err
 	}
 
 	// Ensure iterators are valid after redo
 	// If cursor line is beyond buffer, move to last line
-	maxLine := e.buffer.LineCount - 1
+	maxLine := e.CurrentBuffer().LineCount - 1
 	if lineNum > maxLine {
 		lineNum = maxLine
 	}
@@ -2162,20 +2188,20 @@ func (e *Editor) redo(args []string) error {
 	}
 
 	// Recreate iterators
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-	e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLineNum)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
 	// If the undo stack top is a composite with a post-cursor snapshot, restore it
-	if e.buffer.History != nil {
-		if primary, virtual, ok := e.buffer.History.GetTopUndoCompositePostCursors(); ok {
-			if primary.Line >= 0 && primary.Line < e.buffer.LineCount {
-				e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, primary.Line)
-				e.buffer.CursorX = primary.Char
+	if e.CurrentBuffer().History != nil {
+		if primary, virtual, ok := e.CurrentBuffer().History.GetTopUndoCompositePostCursors(); ok {
+			if primary.Line >= 0 && primary.Line < e.CurrentBuffer().LineCount {
+				e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primary.Line)
+				e.CurrentBuffer().CursorX = primary.Char
 			}
 			restored := make([]VirtualCursor, 0, len(virtual))
 			for _, c := range virtual {
-				if c.Line >= 0 && c.Line < e.buffer.LineCount {
-					iter := buffer.NewBufferIteratorAtLine(e.buffer, c.Line)
+				if c.Line >= 0 && c.Line < e.CurrentBuffer().LineCount {
+					iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), c.Line)
 					line := iter.Line()
 					x := c.Char
 					if x < 0 {
@@ -2192,11 +2218,11 @@ func (e *Editor) redo(args []string) error {
 	}
 
 	// Ensure cursor X is within bounds
-	line := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(line) {
-		e.buffer.CursorX = len(line)
-		if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-			e.buffer.CursorX--
+	line := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(line) {
+		e.CurrentBuffer().CursorX = len(line)
+		if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+			e.CurrentBuffer().CursorX--
 		}
 	}
 
@@ -2228,17 +2254,17 @@ func (e *Editor) yankMultipleLines(count int) error {
 	}
 
 	// Get starting line
-	startLine := e.buffer.CursorIterator.LineNumber()
+	startLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	endLine := startLine + count - 1
 
 	// Ensure we don't go past end of buffer
-	if endLine >= e.buffer.LineCount {
-		endLine = e.buffer.LineCount - 1
+	if endLine >= e.CurrentBuffer().LineCount {
+		endLine = e.CurrentBuffer().LineCount - 1
 	}
 
 	// Build the text to yank
 	var textToYank strings.Builder
-	iter := e.buffer.CursorIterator
+	iter := e.CurrentBuffer().CursorIterator
 
 	for i := 0; i <= endLine-startLine; i++ {
 		if i > 0 {
@@ -2264,7 +2290,7 @@ func (e *Editor) yankMultipleLines(count int) error {
 
 	// Flash the yanked lines
 	// Get end line length
-	endIter := buffer.NewBufferIteratorAtLine(e.buffer, endLine)
+	endIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), endLine)
 	endLineLen := 0
 	if !endIter.IsEOF() {
 		endLineLen = len(endIter.Line())
@@ -2313,8 +2339,8 @@ func (e *Editor) repeatLastChange(args []string) error {
 			// Exit insert mode without recording anything
 			if e.mode == commands.InsertMode {
 				e.mode = commands.NormalMode
-				if e.buffer != nil && e.buffer.History != nil {
-					e.buffer.History.EndInsertSession()
+				if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
+					e.CurrentBuffer().History.EndInsertSession()
 				}
 			}
 
@@ -2324,12 +2350,12 @@ func (e *Editor) repeatLastChange(args []string) error {
 			// Now replay the insert session
 			if insertEntry, ok := savedChange.(*buffer.InsertModeEntry); ok && len(insertEntry.Entries) > 0 {
 				// Save line numbers before iterators become invalid
-				savedCursorLine := e.buffer.CursorIterator.LineNumber()
-				savedViewLine := e.buffer.ViewIterator.LineNumber()
+				savedCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+				savedViewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 				// Get current cursor position
 				lineNum := savedCursorLine
-				cursorX := e.buffer.CursorX
+				cursorX := e.CurrentBuffer().CursorX
 
 				// Simply replay all the insert operations at the current position
 				for _, entry := range insertEntry.Entries {
@@ -2337,22 +2363,22 @@ func (e *Editor) repeatLastChange(args []string) error {
 					case *buffer.InsertTextEntry:
 						// Create new entry at current position
 						newEntry := buffer.NewInsertTextEntry(lineNum, cursorX, origEntry.Text)
-						if executed, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
+						if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), newEntry); err != nil {
 							return err
 						} else if executed != nil {
 							// Update cursor position based on the insert
-							e.buffer.CursorX = cursorX + len(origEntry.Text)
-							cursorX = e.buffer.CursorX
+							e.CurrentBuffer().CursorX = cursorX + len(origEntry.Text)
+							cursorX = e.CurrentBuffer().CursorX
 						}
 					}
 				}
 
 				// Recreate iterators after all inserts are complete
-				e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, lineNum)
-				if savedViewLine >= e.buffer.LineCount {
-					savedViewLine = e.buffer.LineCount - 1
+				e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+				if savedViewLine >= e.CurrentBuffer().LineCount {
+					savedViewLine = e.CurrentBuffer().LineCount - 1
 				}
-				e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, savedViewLine)
+				e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), savedViewLine)
 			}
 
 			return nil
@@ -2372,15 +2398,15 @@ func (e *Editor) repeatLastChange(args []string) error {
 		return nil // Nothing to repeat
 	}
 
-	if e.buffer == nil || e.buffer.History == nil {
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().History == nil {
 		return nil
 	}
 
 	// Repeat the change for the original count
 	for repeatIdx := 0; repeatIdx < count; repeatIdx++ {
 		// Get current cursor position
-		lineNum := e.buffer.CursorIterator.LineNumber()
-		cursorX := e.buffer.CursorX
+		lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
+		cursorX := e.CurrentBuffer().CursorX
 
 		// Create a new entry based on the type of the last change
 		var newEntry buffer.HistoryEntry
@@ -2399,7 +2425,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 			// For insert mode entries, check if we need to move cursor first
 			if original.InitCommand == "A" {
 				// Move to end of line first
-				line := e.buffer.CursorIterator.Line()
+				line := e.CurrentBuffer().CursorIterator.Line()
 				cursorX = len(line)
 			}
 
@@ -2506,10 +2532,10 @@ func (e *Editor) repeatLastChange(args []string) error {
 		originalLastChange := e.lastChange
 
 		// Remember the view position before we make changes
-		viewLine := e.buffer.ViewIterator.LineNumber()
+		viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 		// Execute the new entry (this will also update lastChange)
-		if _, err := e.buffer.History.Execute(e.buffer, newEntry); err != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), newEntry); err != nil {
 			return err
 		}
 
@@ -2520,30 +2546,30 @@ func (e *Editor) repeatLastChange(args []string) error {
 		// This is especially important for ViewIterator which can become invalid
 
 		// Recreate cursor iterator
-		cursorLine := e.buffer.CursorIterator.LineNumber()
-		if cursorLine >= e.buffer.LineCount {
-			cursorLine = e.buffer.LineCount - 1
+		cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+		if cursorLine >= e.CurrentBuffer().LineCount {
+			cursorLine = e.CurrentBuffer().LineCount - 1
 			if cursorLine < 0 {
 				cursorLine = 0
 			}
 		}
-		e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
 
 		// Recreate view iterator
-		if viewLine >= e.buffer.LineCount {
-			viewLine = e.buffer.LineCount - 1
+		if viewLine >= e.CurrentBuffer().LineCount {
+			viewLine = e.CurrentBuffer().LineCount - 1
 			if viewLine < 0 {
 				viewLine = 0
 			}
 		}
-		e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
 
 		// Ensure cursor X is within bounds
-		line := e.buffer.CursorIterator.Line()
-		if e.buffer.CursorX > len(line) {
-			e.buffer.CursorX = len(line)
-			if e.buffer.CursorX > 0 && e.mode == commands.NormalMode {
-				e.buffer.CursorX--
+		line := e.CurrentBuffer().CursorIterator.Line()
+		if e.CurrentBuffer().CursorX > len(line) {
+			e.CurrentBuffer().CursorX = len(line)
+			if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+				e.CurrentBuffer().CursorX--
 			}
 		}
 
@@ -2615,38 +2641,38 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 // notifyLSPFileChange sends a didChange notification to the LSP server if applicable
 func (e *Editor) notifyLSPFileChange() {
 	// Only send notification if buffer has LSP enabled and has a file path
-	if !e.buffer.HasLSP || e.buffer.FilePath == "" || e.buffer.IsInternal {
+	if !e.CurrentBuffer().HasLSP || e.CurrentBuffer().FilePath == "" || e.CurrentBuffer().IsInternal {
 		return
 	}
 
 	// Get the full content of the buffer
-	content := e.buffer.Rope.String()
+	content := e.CurrentBuffer().Rope.String()
 
 	// Send the notification asynchronously to avoid blocking
 	go func() {
-		if err := e.proxyManager.NotifyFileChange(e.buffer.FilePath, content); err != nil {
+		if err := e.proxyManager.NotifyFileChange(e.CurrentBuffer().FilePath, content); err != nil {
 			LL.Debug("Failed to notify LSP of file change: %v", err)
 		} else {
-			LL.Debug("notifyLSPFileChange: didChange sent for %s", e.buffer.FilePath)
+			LL.Debug("notifyLSPFileChange: didChange sent for %s", e.CurrentBuffer().FilePath)
 		}
 	}()
 }
 
 func (e *Editor) goToDefinition(args []string) error {
 	// Only works if we have a file open
-	if e.buffer == nil || !e.buffer.HasFile() {
+	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		e.errorManager.ShowError("No file open")
 		return fmt.Errorf("no file open")
 	}
 
 	// Get cursor position (LSP uses 0-based line numbers)
-	line := e.buffer.CursorIterator.LineNumber()
-	character := e.buffer.CursorX
+	line := e.CurrentBuffer().CursorIterator.LineNumber()
+	character := e.CurrentBuffer().CursorX
 
-	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.buffer.FilePath, line, character)
+	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.CurrentBuffer().FilePath, line, character)
 
 	// Get definition location from LSP
-	locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
+	locations, err := e.proxyManager.GoToDefinition(e.CurrentBuffer().FilePath, line, character)
 	if err != nil {
 		e.errorManager.ShowError("LSP error: %v", err)
 		LL.Debug("goToDefinition failed: %v", err)
@@ -2672,9 +2698,9 @@ func (e *Editor) goToDefinition(args []string) error {
 	filePath := strings.TrimPrefix(location.URI, "file://")
 
 	// If we're working with a remote file, preserve the host prefix
-	if strings.Contains(e.buffer.FilePath, ":") {
+	if strings.Contains(e.CurrentBuffer().FilePath, ":") {
 		// Extract host from current buffer path
-		parts := strings.SplitN(e.buffer.FilePath, ":", 2)
+		parts := strings.SplitN(e.CurrentBuffer().FilePath, ":", 2)
 		if len(parts) == 2 {
 			host := parts[0]
 			// Add host prefix to the file path from LSP
@@ -2682,13 +2708,13 @@ func (e *Editor) goToDefinition(args []string) error {
 		}
 	}
 
-	LL.Debug("goToDefinition: location URI=%s, filePath=%s, current buffer=%s", location.URI, filePath, e.buffer.FilePath)
+	LL.Debug("goToDefinition: location URI=%s, filePath=%s, current buffer=%s", location.URI, filePath, e.CurrentBuffer().FilePath)
 
 	// Push current position to navigation history before jumping
 	e.pushNavigationHistory()
 
 	// If it's a different file, open it
-	if filePath != e.buffer.FilePath {
+	if filePath != e.CurrentBuffer().FilePath {
 		LL.Debug("goToDefinition: opening different file: %s", filePath)
 		e.openFile(filePath)
 	} else {
@@ -2697,17 +2723,17 @@ func (e *Editor) goToDefinition(args []string) error {
 
 	// Jump to the location
 	targetLine := location.Range.Start.Line
-	e.buffer.CursorX = location.Range.Start.Character
+	e.CurrentBuffer().CursorX = location.Range.Start.Character
 
 	// Create iterator at the target line directly
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, targetLine)
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
 
 	// Ensure cursor X is within bounds
-	currentLine := e.buffer.CursorIterator.Line()
-	if e.buffer.CursorX > len(currentLine) {
-		e.buffer.CursorX = len(currentLine)
-		if e.buffer.CursorX > 0 {
-			e.buffer.CursorX-- // Don't go past last character in normal mode
+	currentLine := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(currentLine) {
+		e.CurrentBuffer().CursorX = len(currentLine)
+		if e.CurrentBuffer().CursorX > 0 {
+			e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
 		}
 	}
 
@@ -2717,10 +2743,10 @@ func (e *Editor) goToDefinition(args []string) error {
 	// Update window's cached state to match buffer
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
 		win := e.windows[e.activeWindow]
-		if win != nil && win.Buffer == e.buffer {
-			win.ViewLine = e.buffer.ViewIterator.LineNumber()
-			win.CursorLine = e.buffer.CursorIterator.LineNumber()
-			win.CursorX = e.buffer.CursorX
+		if win != nil && win.Buffer == e.CurrentBuffer() {
+			win.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
+			win.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
+			win.CursorX = e.CurrentBuffer().CursorX
 		}
 	}
 
@@ -2733,13 +2759,13 @@ func (e *Editor) goToDefinition(args []string) error {
 // goToDefinitionNewWindow opens the definition in a new right-hand window
 func (e *Editor) goToDefinitionNewWindow(args []string) error {
 	// Use the same lookup as goToDefinition, but open in a new window if target differs
-	if !e.buffer.HasFile() {
+	if !e.CurrentBuffer().HasFile() {
 		e.errorManager.ShowError("No file open")
 		return fmt.Errorf("no file open")
 	}
-	line := e.buffer.CursorIterator.LineNumber()
-	character := e.buffer.CursorX
-	locations, err := e.proxyManager.GoToDefinition(e.buffer.FilePath, line, character)
+	line := e.CurrentBuffer().CursorIterator.LineNumber()
+	character := e.CurrentBuffer().CursorX
+	locations, err := e.proxyManager.GoToDefinition(e.CurrentBuffer().FilePath, line, character)
 	if err != nil || len(locations) == 0 {
 		if err == nil {
 			e.errorManager.ShowError("No definition found")
@@ -2753,8 +2779,8 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
 		return fmt.Errorf("unsupported URI scheme: %s", loc.URI)
 	}
 	targetPath := strings.TrimPrefix(loc.URI, "file://")
-	if strings.Contains(e.buffer.FilePath, ":") {
-		parts := strings.SplitN(e.buffer.FilePath, ":", 2)
+	if strings.Contains(e.CurrentBuffer().FilePath, ":") {
+		parts := strings.SplitN(e.CurrentBuffer().FilePath, ":", 2)
 		if len(parts) == 2 {
 			targetPath = parts[0] + ":" + targetPath
 		}
@@ -2763,17 +2789,17 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
 	// Create a new window to the right and open the file there
 	insertAt := e.activeWindow + 1
 	if insertAt >= len(e.windows) {
-		e.windows = append(e.windows, newWindow(e.buffer))
+		e.windows = append(e.windows, newWindow(e.CurrentBuffer()))
 	} else {
 		e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-		e.windows[insertAt] = newWindow(e.buffer)
+		e.windows[insertAt] = newWindow(e.CurrentBuffer())
 	}
 	e.activateWindow(insertAt)
 
 	// Open file and jump to location
 	e.openFile(targetPath)
-	e.buffer.CursorX = loc.Range.Start.Character
-	e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, loc.Range.Start.Line)
+	e.CurrentBuffer().CursorX = loc.Range.Start.Character
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), loc.Range.Start.Line)
 	e.scrollToCenter()
 	return nil
 }
@@ -2898,11 +2924,11 @@ func (e *Editor) hasFlashHighlight() bool {
 // cleanupAllAutoIndentLines cleans up all tracked auto-indented lines for the current buffer
 // This should be called when exiting insert mode to clean up all empty auto-indented lines
 func (e *Editor) cleanupAllAutoIndentLines() {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return
 	}
 
-	currentBufferPath := e.buffer.FilePath
+	currentBufferPath := e.CurrentBuffer().FilePath
 	keysToCleanup := make([]string, 0)
 
 	// Collect all keys for the current buffer
@@ -2942,18 +2968,18 @@ func (e *Editor) makeAutoIndentKey(bufferPath string, lineNumber int) string {
 
 // trackAutoIndent records that auto-indent was applied to a line
 func (e *Editor) trackAutoIndent(lineNumber int, autoIndentLength int) {
-	key := e.makeAutoIndentKey(e.buffer.FilePath, lineNumber)
+	key := e.makeAutoIndentKey(e.CurrentBuffer().FilePath, lineNumber)
 	e.autoIndentLines[key] = AutoIndentInfo{
 		LineNumber:       lineNumber,
 		AutoIndentLength: autoIndentLength,
 		HasUserContent:   false,
-		BufferGeneration: e.buffer.Generation, // Track buffer generation for invalidation
+		BufferGeneration: e.CurrentBuffer().Generation, // Track buffer generation for invalidation
 	}
 }
 
 // markLineHasUserContent marks that the user has typed non-whitespace content on a line
 func (e *Editor) markLineHasUserContent(lineNumber int) {
-	key := e.makeAutoIndentKey(e.buffer.FilePath, lineNumber)
+	key := e.makeAutoIndentKey(e.CurrentBuffer().FilePath, lineNumber)
 	if info, exists := e.autoIndentLines[key]; exists {
 		info.HasUserContent = true
 		e.autoIndentLines[key] = info
@@ -2962,7 +2988,7 @@ func (e *Editor) markLineHasUserContent(lineNumber int) {
 
 // cleanupAutoIndentOnLine removes trailing auto-indent whitespace from a line if appropriate
 func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
-	key := e.makeAutoIndentKey(e.buffer.FilePath, lineNumber)
+	key := e.makeAutoIndentKey(e.CurrentBuffer().FilePath, lineNumber)
 	info, exists := e.autoIndentLines[key]
 	if !exists || info.HasUserContent {
 		return // Nothing to clean up
@@ -2976,7 +3002,7 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 	// from insert mode.
 
 	// Get the line content
-	iter := buffer.NewBufferIteratorAtLine(e.buffer, lineNumber)
+	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNumber)
 	if iter.IsEOF() {
 		delete(e.autoIndentLines, key)
 		return
@@ -3002,39 +3028,39 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 			var cursorX int
 
 			// Safely get cursor line, defaulting to 0 if iterator is invalid
-			if e.buffer.CursorIterator != nil {
-				if e.buffer.CursorIterator.Generation == e.buffer.Generation {
-					cursorLine = e.buffer.CursorIterator.LineNumber()
+			if e.CurrentBuffer().CursorIterator != nil {
+				if e.CurrentBuffer().CursorIterator.Generation == e.CurrentBuffer().Generation {
+					cursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
 				} else {
 					cursorLine = 0 // Default fallback
 				}
 			}
 
 			// Safely get view line, defaulting to 0 if iterator is invalid
-			if e.buffer.ViewIterator != nil {
-				if e.buffer.ViewIterator.Generation == e.buffer.Generation {
-					viewLine = e.buffer.ViewIterator.LineNumber()
+			if e.CurrentBuffer().ViewIterator != nil {
+				if e.CurrentBuffer().ViewIterator.Generation == e.CurrentBuffer().Generation {
+					viewLine = e.CurrentBuffer().ViewIterator.LineNumber()
 				} else {
 					viewLine = 0 // Default fallback
 				}
 			}
 
-			cursorX = e.buffer.CursorX
+			cursorX = e.CurrentBuffer().CursorX
 
 			// Remove the auto-indented whitespace
 			deleteEntry := buffer.NewDeleteTextEntry(lineNumber, 0, line)
-			if e.buffer.History != nil {
-				if executed, err := e.buffer.History.Execute(e.buffer, deleteEntry); err == nil && executed != nil {
+			if e.CurrentBuffer().History != nil {
+				if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), deleteEntry); err == nil && executed != nil {
 					e.setLastChange(executed)
 				}
 			} else {
-				deleteEntry.Execute(e.buffer)
+				deleteEntry.Execute(e.CurrentBuffer())
 			}
 
 			// Refresh iterators after buffer modification
-			e.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(e.buffer, cursorLine)
-			e.buffer.ViewIterator = buffer.NewBufferIteratorAtLine(e.buffer, viewLine)
-			e.buffer.CursorX = cursorX
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
+			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
+			e.CurrentBuffer().CursorX = cursorX
 		}
 	}
 
@@ -3044,14 +3070,14 @@ func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
 
 // cleanupAutoIndentOnCursorMove should be called when cursor moves to a different line
 func (e *Editor) cleanupAutoIndentOnCursorMove(oldLineNumber int) {
-	if oldLineNumber >= 0 && oldLineNumber != e.buffer.CursorIterator.LineNumber() {
+	if oldLineNumber >= 0 && oldLineNumber != e.CurrentBuffer().CursorIterator.LineNumber() {
 		e.cleanupAutoIndentOnLine(oldLineNumber)
 	}
 }
 
 // checkAndCleanupAutoIndent should be called after any cursor movement to handle auto-indent cleanup
 func (e *Editor) checkAndCleanupAutoIndent() {
-	currentLine := e.buffer.CursorIterator.LineNumber()
+	currentLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	if e.lastCursorLine != -1 && e.lastCursorLine != currentLine {
 		e.cleanupAutoIndentOnLine(e.lastCursorLine)
 	}

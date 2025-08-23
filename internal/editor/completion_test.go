@@ -12,7 +12,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Enable LSP for this buffer (simulate having LSP available)
-		te.buffer.HasLSP = true
+		te.CurrentBuffer().HasLSP = true
 
 		// Position cursor at end and enter insert mode
 		te.ExecuteCommand("end-of-line")
@@ -29,7 +29,7 @@ func TestAutomaticCompletion(t *testing.T) {
 
 		// Verify content includes the dot
 		expectedContent := "myStruct."
-		actualContent := te.buffer.Rope.String()
+		actualContent := te.CurrentBuffer().Rope.String()
 		if actualContent != expectedContent {
 			t.Errorf("Expected content '%s', got '%s'", expectedContent, actualContent)
 		}
@@ -41,7 +41,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Enable LSP for this buffer
-		te.buffer.HasLSP = true
+		te.CurrentBuffer().HasLSP = true
 
 		// Position cursor at end and enter insert mode
 		te.ExecuteCommand("end-of-line")
@@ -54,7 +54,7 @@ func TestAutomaticCompletion(t *testing.T) {
 
 		// Verify content includes the arrow operator
 		expectedContent := "myPtr->"
-		actualContent := te.buffer.Rope.String()
+		actualContent := te.CurrentBuffer().Rope.String()
 		if actualContent != expectedContent {
 			t.Errorf("Expected content '%s', got '%s'", expectedContent, actualContent)
 		}
@@ -66,7 +66,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Ensure LSP is NOT available for this buffer
-		te.buffer.HasLSP = false
+		te.CurrentBuffer().HasLSP = false
 
 		// Position cursor at end and enter insert mode
 		te.ExecuteCommand("end-of-line")
@@ -77,7 +77,7 @@ func TestAutomaticCompletion(t *testing.T) {
 
 		// Verify content includes the dot but no completion was attempted
 		expectedContent := "myStruct."
-		actualContent := te.buffer.Rope.String()
+		actualContent := te.CurrentBuffer().Rope.String()
 		if actualContent != expectedContent {
 			t.Errorf("Expected content '%s', got '%s'", expectedContent, actualContent)
 		}
@@ -91,7 +91,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Enable LSP for this buffer
-		te.buffer.HasLSP = true
+		te.CurrentBuffer().HasLSP = true
 
 		// Stay in normal mode (don't enter insert mode)
 		te.ExecuteCommand("end-of-line")
@@ -122,7 +122,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				te := NewTestEditorWithContent(80, 24, tc.content)
-				te.buffer.HasLSP = true
+				te.CurrentBuffer().HasLSP = true
 
 				// Position cursor at end and enter insert mode
 				if len(tc.content) > 0 {
@@ -137,7 +137,7 @@ func TestAutomaticCompletion(t *testing.T) {
 
 				// Verify the character was inserted (basic functionality works)
 				expectedContent := tc.content + string(tc.insertChar)
-				actualContent := te.buffer.Rope.String()
+				actualContent := te.CurrentBuffer().Rope.String()
 				if actualContent != expectedContent {
 					t.Errorf("Expected content '%s', got '%s'", expectedContent, actualContent)
 				}
