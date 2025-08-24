@@ -537,19 +537,22 @@ func removeFromSlice(slice []string, item string) []string {
 
 // newBuffer creates a new empty buffer
 func (e *Editor) newBuffer(args []string) error {
-	// Generate a unique buffer name for the new empty buffer
-	bufferName := ""
-	counter := 2 // Start from 2 since [No Name] is already used
-	for {
-		bufferName = fmt.Sprintf("[No Name %d]", counter)
-		if _, exists := e.buffers[bufferName]; !exists {
-			break
-		}
-		counter++
-	}
+    // Generate a unique buffer name for the new empty buffer
+    bufferName := "[No Name]"
+    if _, exists := e.buffers[bufferName]; exists {
+        counter := 2
+        for {
+            candidate := fmt.Sprintf("[No Name %d]", counter)
+            if _, exists := e.buffers[candidate]; !exists {
+                bufferName = candidate
+                break
+            }
+            counter++
+        }
+    }
 
-	// Create a new empty buffer
-	newBuffer := buffer.NewBuffer("", bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+    // Create a new empty buffer
+    newBuffer := buffer.NewBuffer("", bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 
 	// Add to buffers map and order
 	e.buffers[bufferName] = newBuffer
