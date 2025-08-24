@@ -1,9 +1,9 @@
 package editor
 
 import (
-    "strings"
-    "testing"
-    "veda/internal/syntax"
+	"strings"
+	"testing"
+	"veda/internal/syntax"
 )
 
 func TestVisualModeMarkdownRendering(t *testing.T) {
@@ -14,12 +14,12 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		// Set the file path to .md to trigger markdown highlighting
 		te.CurrentBuffer().FilePath = "test.md"
 
-        // Initialize markdown highlighter (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        if te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
-        }
+		// Initialize markdown highlighter (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		if te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+		}
 
 		// Get theme colors
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
@@ -67,12 +67,12 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Check out [this link](https://example.com) for more info.")
 		te.CurrentBuffer().FilePath = "test.md"
 
-        // Initialize markdown highlighter (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        if te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
-        }
+		// Initialize markdown highlighter (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		if te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+		}
 
 		// Get selection style
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
@@ -119,12 +119,12 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "This is a [test link](https://test.com) here.")
 		te.CurrentBuffer().FilePath = "test.md"
 
-        // Initialize markdown highlighter (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        if te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
-        }
+		// Initialize markdown highlighter (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		if te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+		}
 
 		// First check normal mode rendering
 		te.drawEditor()
@@ -186,12 +186,12 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "# Main Header\n## Sub Header\nNormal text")
 		te.CurrentBuffer().FilePath = "test.md"
 
-        // Initialize markdown highlighter (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        if te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
-        }
+		// Initialize markdown highlighter (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		if te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+		}
 
 		// Get selection style
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)

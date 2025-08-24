@@ -221,15 +221,15 @@ func TestTwoWindowEditing_PreservesLeftWindowTokenHighlighting(t *testing.T) {
 	}
 
 	// Put content into right window
-    right := te.windows[1]
-    if right.Buffer == nil {
-        right.Buffer = buffer.NewBuffer(rightContent, "right.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-    } else {
-        right.Buffer.Rope = buffer.NewRopeFromString(rightContent)
-        right.Buffer.LineCount = strings.Count(rightContent, "\n") + 1
-        right.Buffer.FilePath = "right.go"
-        right.Buffer.UpdateLineNumberWidth()
-    }
+	right := te.windows[1]
+	if right.Buffer == nil {
+		right.Buffer = buffer.NewBuffer(rightContent, "right.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	} else {
+		right.Buffer.Rope = buffer.NewRopeFromString(rightContent)
+		right.Buffer.LineCount = strings.Count(rightContent, "\n") + 1
+		right.Buffer.FilePath = "right.go"
+		right.Buffer.UpdateLineNumberWidth()
+	}
 	right.ViewLine = 0
 	right.CursorLine = 0
 	right.CursorX = 0

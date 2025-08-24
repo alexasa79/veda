@@ -14,8 +14,8 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 		te.CurrentBuffer().FilePath = "TODO.md"
 
 		// Initialize markdown highlighter
-        if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+		if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
 		}
 
 		// Get theme styles
@@ -162,8 +162,8 @@ func TestDebugLineNumberArea(t *testing.T) {
 		te.CurrentBuffer().FilePath = "test.md"
 
 		// Set up markdown
-        if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+		if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
 		}
 
 		// Enter visual mode at start

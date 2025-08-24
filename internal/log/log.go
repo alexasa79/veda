@@ -40,13 +40,13 @@ func SetupLogging(filename string) {
 		panic(fmt.Sprintf("Failed to open log file: %v", err))
 	}
 	logFile = f
-	
+
 	// Start background flusher goroutine
 	flushStopCh = make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
@@ -66,7 +66,7 @@ func CleanupLogging() {
 		close(flushStopCh)
 		flushStopCh = nil
 	}
-	
+
 	if logFile != nil {
 		logFile.Sync() // Final flush before closing
 		logFile.Close()

@@ -17,11 +17,11 @@ func TestPasteAutoIndent_Linewise_SpacesToSpaces(t *testing.T) {
 	}, "\n")
 	te := NewTestEditorWithContent(80, 24, initial)
 	te.CurrentBuffer().FilePath = "test.go"
-    te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-    if err := te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath); err != nil {
+	te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+	if err := te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath); err != nil {
 		t.Skipf("highlighter not available: %v", err)
 	}
-    te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+	te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
 
 	// Pasted block is at L2 (inside function) but with 8 spaces (L2)
 	// We expect it to be rebased to 4 spaces (L1) when pasted after current line
@@ -67,11 +67,11 @@ func TestPasteAutoIndent_Linewise_TabsToTabs(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, initial)
 	te.CurrentBuffer().FilePath = "test.c"
 	te.CurrentBuffer().SetIndentationType(te.CurrentBuffer().Indentation.Type) // keep defaults
-    te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-    if err := te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath); err != nil {
+	te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+	if err := te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath); err != nil {
 		t.Skipf("highlighter not available: %v", err)
 	}
-    te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+	te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
 
 	// Pasted block with two tabs common indent; expect it to rebase to one tab at target
 	pasted := strings.Join([]string{
@@ -113,11 +113,11 @@ func TestPasteAutoIndent_SkipsOnAmbiguousOrNonCode(t *testing.T) {
 	}, "\n")
 	te := NewTestEditorWithContent(80, 24, initial)
 	te.CurrentBuffer().FilePath = "doc.md"
-    te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-    if err := te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath); err != nil {
+	te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+	if err := te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath); err != nil {
 		t.Skipf("highlighter not available: %v", err)
 	}
-    te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+	te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
 
 	pasted := "    code block\n    more\n"
 	if err := clipboard.Copy(pasted); err != nil {
@@ -151,11 +151,11 @@ func TestPasteAutoIndent_SkipsOnAmbiguousOrNonCode(t *testing.T) {
 	}, "\n")
 	te2 := NewTestEditorWithContent(80, 24, initial2)
 	te2.CurrentBuffer().FilePath = "test.go"
-    te2.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-    if err := te2.CurrentBuffer().Highlighter.SetLanguageFromFile(te2.CurrentBuffer().FilePath); err != nil {
+	te2.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+	if err := te2.CurrentBuffer().Highlighter.SetLanguageFromFile(te2.CurrentBuffer().FilePath); err != nil {
 		t.Skipf("highlighter not available: %v", err)
 	}
-    te2.CurrentBuffer().Highlighter.ParseFull([]byte(te2.CurrentBuffer().Rope.String()))
+	te2.CurrentBuffer().Highlighter.ParseFull([]byte(te2.CurrentBuffer().Rope.String()))
 
 	// Mixed indent: tab then spaces on the next line
 	pasted2 := "\tline1\n    line2\n"

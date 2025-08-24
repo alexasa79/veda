@@ -20,7 +20,7 @@ func (e *Editor) moveUp(args []string) error {
 		e.desiredColumn = visualCol
 	}
 
-    if visualLine > 0 {
+	if visualLine > 0 {
 		// Map to new position one visual line up, using desired column
 		newVisualLine := visualLine - 1
 		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
@@ -38,11 +38,11 @@ func (e *Editor) moveUp(args []string) error {
 		}
 	}
 
-    // Debug printout: which buffer changed and new cursor position
-    if e.CurrentBuffer() != nil {
-        LL.Debug("moveUp: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	// Debug printout: which buffer changed and new cursor position
+	if e.CurrentBuffer() != nil {
+		LL.Debug("moveUp: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -81,10 +81,10 @@ func (e *Editor) moveDown(args []string) error {
 		}
 	}
 
-    if e.CurrentBuffer() != nil {
-        LL.Debug("moveDown: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	if e.CurrentBuffer() != nil {
+		LL.Debug("moveDown: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -95,10 +95,10 @@ func (e *Editor) moveLeft(args []string) error {
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("moveLeft: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	if e.CurrentBuffer() != nil {
+		LL.Debug("moveLeft: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -114,10 +114,10 @@ func (e *Editor) moveRight(args []string) error {
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("moveRight: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	if e.CurrentBuffer() != nil {
+		LL.Debug("moveRight: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -146,12 +146,12 @@ func (e *Editor) wordForward(args []string) error {
 		e.CurrentBuffer().CursorX = nextWord.StartChar
 	}
 
-    // Reset desired column when moving horizontally
-    e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("wordForward: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	if e.CurrentBuffer() != nil {
+		LL.Debug("wordForward: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -166,12 +166,12 @@ func (e *Editor) wordBackward(args []string) error {
 		e.CurrentBuffer().CursorX = prevWord.StartChar
 	}
 
-    // Reset desired column when moving horizontally
-    e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("wordBackward: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	if e.CurrentBuffer() != nil {
+		LL.Debug("wordBackward: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -200,12 +200,12 @@ func (e *Editor) wordForwardNoUnderscore(args []string) error {
 		e.CurrentBuffer().CursorX = nextWord.StartChar
 	}
 
-    // Reset desired column when moving horizontally
-    e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("wordForwardNoUnderscore: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	if e.CurrentBuffer() != nil {
+		LL.Debug("wordForwardNoUnderscore: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -221,24 +221,24 @@ func (e *Editor) wordBackwardNoUnderscore(args []string) error {
 		e.CurrentBuffer().CursorX = prevWord.StartChar
 	}
 
-    // Reset desired column when moving horizontally
-    e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("wordBackwardNoUnderscore: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	if e.CurrentBuffer() != nil {
+		LL.Debug("wordBackwardNoUnderscore: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
 // beginningOfLine moves cursor to the beginning of the current line
 func (e *Editor) beginningOfLine(args []string) error {
-    e.CurrentBuffer().CursorX = 0
-    // Reset desired column when moving horizontally
-    e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("bol: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	e.CurrentBuffer().CursorX = 0
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	if e.CurrentBuffer() != nil {
+		LL.Debug("bol: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -267,12 +267,12 @@ func (e *Editor) endOfLine(args []string) error {
 	} else {
 		e.CurrentBuffer().CursorX = 0
 	}
-    // Reset desired column when moving horizontally
-    e.desiredColumn = -1
-    if e.CurrentBuffer() != nil {
-        LL.Debug("eol: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
-    e.updateCursorState()
+	// Reset desired column when moving horizontally
+	e.desiredColumn = -1
+	if e.CurrentBuffer() != nil {
+		LL.Debug("eol: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -286,7 +286,7 @@ func (e *Editor) pageUp(args []string) error {
 		e.CurrentBuffer().CursorIterator = e.CurrentBuffer().CursorIterator.Previous()
 	}
 
-    // Adjust cursor X if needed
+	// Adjust cursor X if needed
 	line := e.CurrentBuffer().CursorIterator.Line()
 	if e.CurrentBuffer().CursorX > len(line) {
 		e.CurrentBuffer().CursorX = len(line)
@@ -294,9 +294,9 @@ func (e *Editor) pageUp(args []string) error {
 			e.CurrentBuffer().CursorX--
 		}
 	}
-    if e.CurrentBuffer() != nil {
-        LL.Debug("pageUp: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
+	if e.CurrentBuffer() != nil {
+		LL.Debug("pageUp: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
 	return nil
 }
 
@@ -311,7 +311,7 @@ func (e *Editor) pageDown(args []string) error {
 		e.CurrentBuffer().CursorIterator = e.CurrentBuffer().CursorIterator.Next()
 	}
 
-    // Adjust cursor X if needed
+	// Adjust cursor X if needed
 	line := e.CurrentBuffer().CursorIterator.Line()
 	if e.CurrentBuffer().CursorX > len(line) {
 		e.CurrentBuffer().CursorX = len(line)
@@ -319,9 +319,9 @@ func (e *Editor) pageDown(args []string) error {
 			e.CurrentBuffer().CursorX--
 		}
 	}
-    if e.CurrentBuffer() != nil {
-        LL.Debug("pageDown: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
+	if e.CurrentBuffer() != nil {
+		LL.Debug("pageDown: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
 	return nil
 }
 
@@ -330,9 +330,9 @@ func (e *Editor) goToBeginning(args []string) error {
 	e.CurrentBuffer().CursorX = 0
 	e.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(e.CurrentBuffer())
 	e.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(e.CurrentBuffer())
-    if e.CurrentBuffer() != nil {
-        LL.Debug("goToBeginning: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
+	if e.CurrentBuffer() != nil {
+		LL.Debug("goToBeginning: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
 	e.updateCursorState()
 	return nil
 }
@@ -366,11 +366,11 @@ func (e *Editor) goToEnd(args []string) error {
 		}
 	}
 
-    // Scroll to show the cursor
+	// Scroll to show the cursor
 	e.ScrollToShowAtBottom()
-    if e.CurrentBuffer() != nil {
-        LL.Debug("goToEnd: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
+	if e.CurrentBuffer() != nil {
+		LL.Debug("goToEnd: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
 
 	return nil
 }
@@ -388,11 +388,11 @@ func (e *Editor) goToLine(lineNum int) {
 	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 	e.CurrentBuffer().CursorX = 0
 
-    // Update the view to ensure the cursor is visible
+	// Update the view to ensure the cursor is visible
 	e.scrollToCenter()
-    if e.CurrentBuffer() != nil {
-        LL.Debug("goToLine: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-    }
+	if e.CurrentBuffer() != nil {
+		LL.Debug("goToLine: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+	}
 	e.updateCursorState()
 }
 
@@ -414,11 +414,11 @@ func (e *Editor) findCharacter(args []string) error {
 	for i := currentX + 1; i < len(line); i++ {
 		if string(line[i]) == char {
 			e.CurrentBuffer().CursorX = i
-            e.desiredColumn = -1
-            if e.CurrentBuffer() != nil {
-                LL.Debug("findCharacter '%s': buffer=%s -> line=%d, cursorX=%d", char, e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-            }
-            e.updateCursorState()
+			e.desiredColumn = -1
+			if e.CurrentBuffer() != nil {
+				LL.Debug("findCharacter '%s': buffer=%s -> line=%d, cursorX=%d", char, e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+			}
+			e.updateCursorState()
 			return nil
 		}
 	}
@@ -445,14 +445,14 @@ func (e *Editor) tillCharacter(args []string) error {
 	for i := currentX + 1; i < len(line); i++ {
 		if string(line[i]) == char {
 			// Move to the position before the character
-            if i > 0 {
-                e.CurrentBuffer().CursorX = i - 1
-                e.desiredColumn = -1
-                if e.CurrentBuffer() != nil {
-                    LL.Debug("tillCharacter '%s': buffer=%s -> line=%d, cursorX=%d", char, e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-                }
-                e.updateCursorState()
-            }
+			if i > 0 {
+				e.CurrentBuffer().CursorX = i - 1
+				e.desiredColumn = -1
+				if e.CurrentBuffer() != nil {
+					LL.Debug("tillCharacter '%s': buffer=%s -> line=%d, cursorX=%d", char, e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+				}
+				e.updateCursorState()
+			}
 			return nil
 		}
 	}

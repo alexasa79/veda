@@ -1,9 +1,9 @@
 package editor
 
 import (
-    "strings"
-    "testing"
-    "veda/internal/syntax"
+	"strings"
+	"testing"
+	"veda/internal/syntax"
 )
 
 func TestMarkdownRenderingWithSelection(t *testing.T) {
@@ -11,13 +11,13 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Check [this link](https://example.com) out")
 		te.CurrentBuffer().FilePath = "test.md"
 
-        // Initialize highlighter for markdown (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        if te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
-            t.Logf("Highlighter language after setup: %s", te.CurrentBuffer().Highlighter.GetCurrentLanguage())
-        }
+		// Initialize highlighter for markdown (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		if te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+			t.Logf("Highlighter language after setup: %s", te.CurrentBuffer().Highlighter.GetCurrentLanguage())
+		}
 
 		// Get selection style
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
@@ -72,12 +72,12 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Text [link](url) here")
 		te.CurrentBuffer().FilePath = "test.md"
 
-        // Initialize highlighter (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        if te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
-        }
+		// Initialize highlighter (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		if te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile(te.CurrentBuffer().FilePath)
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+		}
 
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")

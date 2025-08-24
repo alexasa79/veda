@@ -28,13 +28,13 @@ func main() {
 		te := NewTestEditorWithContent(120, 30, file1Content)
 		te.CurrentBuffer().FilePath = "test1.go"
 
-        // Initialize syntax highlighting for first file (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test1.go")
+		// Initialize syntax highlighting for first file (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test1.go")
 		if err != nil {
 			t.Skipf("Skipping test: Go syntax highlighting not available: %v", err)
 		}
-        te.CurrentBuffer().Highlighter.ParseFull([]byte(file1Content))
+		te.CurrentBuffer().Highlighter.ParseFull([]byte(file1Content))
 
 		// Force render to ensure syntax highlighting is applied
 		te.render()
@@ -99,12 +99,12 @@ func TestFunction() {
 		// Update the editor's active buffer to match the active window
 		te.SetCurrentBuffer(te.windows[te.activeWindow].Buffer)
 
-        // Set up syntax highlighting for the new buffer (per-buffer)
-        if te.CurrentBuffer() != nil {
-            te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile("test2.go")
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(file2Content))
-        }
+		// Set up syntax highlighting for the new buffer (per-buffer)
+		if te.CurrentBuffer() != nil {
+			te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile("test2.go")
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(file2Content))
+		}
 
 		// Force render after setting up second window
 		te.render()
@@ -139,12 +139,12 @@ func TestFunction() {
 		te.activeWindow = 0
 		te.SetCurrentBuffer(te.windows[te.activeWindow].Buffer)
 
-        // Update syntax highlighting for the first file (per-buffer)
-        if te.CurrentBuffer() != nil {
-            te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile("test1.go")
-            te.CurrentBuffer().Highlighter.ParseFull([]byte(file1Content))
-        }
+		// Update syntax highlighting for the first file (per-buffer)
+		if te.CurrentBuffer() != nil {
+			te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile("test1.go")
+			te.CurrentBuffer().Highlighter.ParseFull([]byte(file1Content))
+		}
 
 		te.render()
 
@@ -282,13 +282,13 @@ func TestFunction() {
 			t.Logf("Actual func color: %v", firstFuncFgAfterEditing)
 
 			// Check syntax highlighting tokens
-            funcIter := buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), firstFuncLineNum)
-            funcLineStart := funcIter.Position()
-            funcLineEnd := funcIter.LineEnd()
-            if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
-                funcTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(funcLineStart, funcLineEnd)
-                t.Logf("Syntax tokens for func line: %+v", funcTokens)
-            }
+			funcIter := buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), firstFuncLineNum)
+			funcLineStart := funcIter.Position()
+			funcLineEnd := funcIter.LineEnd()
+			if te.CurrentBuffer() != nil && te.CurrentBuffer().Highlighter != nil {
+				funcTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(funcLineStart, funcLineEnd)
+				t.Logf("Syntax tokens for func line: %+v", funcTokens)
+			}
 
 		} else {
 			t.Logf("SUCCESS: 'func' keyword maintained correct color after editing in left window: %v", firstFuncFgAfterEditing)

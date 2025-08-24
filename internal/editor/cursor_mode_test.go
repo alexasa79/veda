@@ -403,12 +403,12 @@ This is a **bold** text.
 		te := NewTestEditorWithContent(80, 24, markdownContent)
 
 		// Set the filename to trigger markdown syntax highlighting
-        te.CurrentBuffer().FilePath = "test.md"
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        if te.CurrentBuffer().Highlighter != nil {
-            te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.md")
-            te.CurrentBuffer().Highlighter.Parse([]byte(te.CurrentBuffer().Rope.String()))
-        }
+		te.CurrentBuffer().FilePath = "test.md"
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		if te.CurrentBuffer().Highlighter != nil {
+			te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.md")
+			te.CurrentBuffer().Highlighter.Parse([]byte(te.CurrentBuffer().Rope.String()))
+		}
 
 		// Enter cursor mode
 		te.TypeKeys("m")
@@ -440,10 +440,10 @@ This is a **bold** text.
 
 		// Log virtual cursor info for debugging
 		t.Logf("Virtual cursors: %+v", virtualCursors)
-        t.Logf("Highlighter active: %v", te.CurrentBuffer().Highlighter != nil)
-        if te.CurrentBuffer().Highlighter != nil {
-            t.Logf("Language: %s", te.CurrentBuffer().Highlighter.GetCurrentLanguage())
-        }
+		t.Logf("Highlighter active: %v", te.CurrentBuffer().Highlighter != nil)
+		if te.CurrentBuffer().Highlighter != nil {
+			t.Logf("Language: %s", te.CurrentBuffer().Highlighter.GetCurrentLanguage())
+		}
 
 		// Check first virtual cursor (at beginning of first line)
 		lineNumWidth := te.CurrentBuffer().LineNumberWidth

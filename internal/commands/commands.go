@@ -42,9 +42,9 @@ type HandlerFunc func(args []string) error
 
 // CommandInfo contains metadata about a command
 type CommandInfo struct {
-    Handler           HandlerFunc
-    ApplyToAllCursors bool // Whether this command should be applied to all cursors
-    RequiresBufferAndWindow bool // Whether command needs an active window with a current buffer
+	Handler                 HandlerFunc
+	ApplyToAllCursors       bool // Whether this command should be applied to all cursors
+	RequiresBufferAndWindow bool // Whether command needs an active window with a current buffer
 }
 
 // CommandRegistry manages commands and their handlers
@@ -61,11 +61,11 @@ func NewCommandRegistry() *CommandRegistry {
 
 // Register registers a command handler
 func (cr *CommandRegistry) Register(command string, handler HandlerFunc, applyToAllCursors bool, requiresBufferAndWindow bool) {
-    cr.commands[command] = CommandInfo{
-        Handler:           handler,
-        ApplyToAllCursors: applyToAllCursors,
-        RequiresBufferAndWindow: requiresBufferAndWindow,
-    }
+	cr.commands[command] = CommandInfo{
+		Handler:                 handler,
+		ApplyToAllCursors:       applyToAllCursors,
+		RequiresBufferAndWindow: requiresBufferAndWindow,
+	}
 }
 
 // Execute executes a command by name with arguments

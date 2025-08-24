@@ -13,26 +13,26 @@ import (
 // registerCommands registers all command handlers
 func (e *Editor) registerCommands() {
 	// Movement commands - apply to all cursors
-    e.commandRegistry.Register("up", e.moveUp, true, true)
-    e.commandRegistry.Register("down", e.moveDown, true, true)
-    e.commandRegistry.Register("left", e.moveLeft, true, true)
-    e.commandRegistry.Register("right", e.moveRight, true, true)
-    e.commandRegistry.Register("word-forward", e.wordForward, true, true)
-    e.commandRegistry.Register("word-backward", e.wordBackward, true, true)
-    e.commandRegistry.Register("word-forward-no-underscore", e.wordForwardNoUnderscore, true, true)   // W command
-    e.commandRegistry.Register("word-backward-no-underscore", e.wordBackwardNoUnderscore, true, true) // B command
-    e.commandRegistry.Register("find-character", e.findCharacter, true, true)
-    e.commandRegistry.Register("till-character", e.tillCharacter, true, true)
-    e.commandRegistry.Register("start-find-character", e.startFindCharacterOperation, true, true)
-    e.commandRegistry.Register("start-till-character", e.startTillCharacterOperation, true, true)
-    e.commandRegistry.Register("beginning-of-line", e.beginningOfLine, true, true)
-    e.commandRegistry.Register("end-of-line", e.endOfLine, true, true)
-    e.commandRegistry.Register("beginning-of-line-insert", e.beginningOfLineInsert, true, true)
-    e.commandRegistry.Register("end-of-line-insert", e.endOfLineInsert, true, true)
-    e.commandRegistry.Register("page-up", e.pageUp, true, true)
-    e.commandRegistry.Register("page-down", e.pageDown, true, true)
-    e.commandRegistry.Register("go-to-beginning", e.goToBeginning, true, true)
-    e.commandRegistry.Register("go-to-end", e.goToEnd, true, true)
+	e.commandRegistry.Register("up", e.moveUp, true, true)
+	e.commandRegistry.Register("down", e.moveDown, true, true)
+	e.commandRegistry.Register("left", e.moveLeft, true, true)
+	e.commandRegistry.Register("right", e.moveRight, true, true)
+	e.commandRegistry.Register("word-forward", e.wordForward, true, true)
+	e.commandRegistry.Register("word-backward", e.wordBackward, true, true)
+	e.commandRegistry.Register("word-forward-no-underscore", e.wordForwardNoUnderscore, true, true)   // W command
+	e.commandRegistry.Register("word-backward-no-underscore", e.wordBackwardNoUnderscore, true, true) // B command
+	e.commandRegistry.Register("find-character", e.findCharacter, true, true)
+	e.commandRegistry.Register("till-character", e.tillCharacter, true, true)
+	e.commandRegistry.Register("start-find-character", e.startFindCharacterOperation, true, true)
+	e.commandRegistry.Register("start-till-character", e.startTillCharacterOperation, true, true)
+	e.commandRegistry.Register("beginning-of-line", e.beginningOfLine, true, true)
+	e.commandRegistry.Register("end-of-line", e.endOfLine, true, true)
+	e.commandRegistry.Register("beginning-of-line-insert", e.beginningOfLineInsert, true, true)
+	e.commandRegistry.Register("end-of-line-insert", e.endOfLineInsert, true, true)
+	e.commandRegistry.Register("page-up", e.pageUp, true, true)
+	e.commandRegistry.Register("page-down", e.pageDown, true, true)
+	e.commandRegistry.Register("go-to-beginning", e.goToBeginning, true, true)
+	e.commandRegistry.Register("go-to-end", e.goToEnd, true, true)
 
 	// Insert mode movement commands - apply to all cursors
 	e.commandRegistry.Register("up-insert", e.moveUpInsert, true, true)
@@ -41,188 +41,188 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("right-insert", e.moveRightInsert, true, true)
 
 	// Mode commands
-    e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd, false, false)
-    e.commandRegistry.Register("enter-search-mode", e.enterSearchModeCmd, false, true)
-    e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode, false, true)
-    e.commandRegistry.Register("append-after-cursor", e.appendAfterCursor, true, true)   // Apply to all cursors for positioning
-    e.commandRegistry.Register("append-at-end-of-line", e.appendAtEndOfLine, true, true) // Apply to all cursors for positioning
-    e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode, true, true)         // Apply to all cursors for cursor adjustment
-    e.commandRegistry.Register("enter-visual-mode", e.enterVisualMode, false, true)
-    e.commandRegistry.Register("enter-visual-line-mode", e.enterVisualLineMode, false, true)
-    e.commandRegistry.Register("exit-visual-mode", e.exitVisualMode, false, true)
-    e.commandRegistry.Register("open-line-below", e.openLineBelow, false, true)
-    e.commandRegistry.Register("open-line-above", e.openLineAbove, false, true)
-    e.commandRegistry.Register("join-lines", e.joinLines, false, true)
-    e.commandRegistry.Register("rewrap-paragraph", e.rewrapParagraphCmd, false, true)
-    e.commandRegistry.Register("enter-cursor-mode", e.enterCursorModeCmd, false, true)
-    e.commandRegistry.Register("add-virtual-cursor", e.addVirtualCursorCmd, false, true)
+	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd, false, false)
+	e.commandRegistry.Register("enter-search-mode", e.enterSearchModeCmd, false, true)
+	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode, false, true)
+	e.commandRegistry.Register("append-after-cursor", e.appendAfterCursor, true, true)   // Apply to all cursors for positioning
+	e.commandRegistry.Register("append-at-end-of-line", e.appendAtEndOfLine, true, true) // Apply to all cursors for positioning
+	e.commandRegistry.Register("exit-insert-mode", e.exitInsertMode, true, true)         // Apply to all cursors for cursor adjustment
+	e.commandRegistry.Register("enter-visual-mode", e.enterVisualMode, false, true)
+	e.commandRegistry.Register("enter-visual-line-mode", e.enterVisualLineMode, false, true)
+	e.commandRegistry.Register("exit-visual-mode", e.exitVisualMode, false, true)
+	e.commandRegistry.Register("open-line-below", e.openLineBelow, false, true)
+	e.commandRegistry.Register("open-line-above", e.openLineAbove, false, true)
+	e.commandRegistry.Register("join-lines", e.joinLines, false, true)
+	e.commandRegistry.Register("rewrap-paragraph", e.rewrapParagraphCmd, false, true)
+	e.commandRegistry.Register("enter-cursor-mode", e.enterCursorModeCmd, false, true)
+	e.commandRegistry.Register("add-virtual-cursor", e.addVirtualCursorCmd, false, true)
 
 	// Insert mode commands - text modification applies to all cursors
-    e.commandRegistry.Register("insert-newline", e.insertNewline, true, true)
-    e.commandRegistry.Register("backspace", e.backspace, true, true)
-    e.commandRegistry.Register("delete-character-insert", e.deleteCharacterInsert, true, true)
-    e.commandRegistry.Register("delete-word-forward", e.deleteWordForward, true, true)
-    e.commandRegistry.Register("delete-word-backward", e.deleteWordBackward, true, true)
-    e.commandRegistry.Register("word-forward-insert", e.wordForwardInsert, true, true)   // Movement in insert mode
-    e.commandRegistry.Register("word-backward-insert", e.wordBackwardInsert, true, true) // Movement in insert mode
-    e.commandRegistry.Register("insert-tab", e.insertTab, true, true)
+	e.commandRegistry.Register("insert-newline", e.insertNewline, true, true)
+	e.commandRegistry.Register("backspace", e.backspace, true, true)
+	e.commandRegistry.Register("delete-character-insert", e.deleteCharacterInsert, true, true)
+	e.commandRegistry.Register("delete-word-forward", e.deleteWordForward, true, true)
+	e.commandRegistry.Register("delete-word-backward", e.deleteWordBackward, true, true)
+	e.commandRegistry.Register("word-forward-insert", e.wordForwardInsert, true, true)   // Movement in insert mode
+	e.commandRegistry.Register("word-backward-insert", e.wordBackwardInsert, true, true) // Movement in insert mode
+	e.commandRegistry.Register("insert-tab", e.insertTab, true, true)
 
 	// Delete commands - apply to all cursors
-    e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter, true, true)
-    e.commandRegistry.Register("delete-to-end-of-line", e.deleteToEndOfLine, true, true)
-    // Change to end of line (C)
-    e.commandRegistry.Register("change-to-end-of-line", e.changeToEndOfLine, true, true)
+	e.commandRegistry.Register("delete-current-character", e.deleteCurrentCharacter, true, true)
+	e.commandRegistry.Register("delete-to-end-of-line", e.deleteToEndOfLine, true, true)
+	// Change to end of line (C)
+	e.commandRegistry.Register("change-to-end-of-line", e.changeToEndOfLine, true, true)
 
 	// Visual mode operations
-    e.commandRegistry.Register("delete-selection", e.deleteSelection, false, true)
-    e.commandRegistry.Register("yank-selection", e.yankSelection, false, true)
-    e.commandRegistry.Register("change-selection", e.changeSelection, false, true)
+	e.commandRegistry.Register("delete-selection", e.deleteSelection, false, true)
+	e.commandRegistry.Register("yank-selection", e.yankSelection, false, true)
+	e.commandRegistry.Register("change-selection", e.changeSelection, false, true)
 	// Visual mode indentation
 	e.commandRegistry.Register("indent-selection", e.indentSelection, false, true)
 	e.commandRegistry.Register("unindent-selection", e.unindentSelection, false, true)
 
 	// Shift+Arrow helpers: start visual selection and move
-    e.commandRegistry.Register("start-visual-left", e.startVisualLeft, false, true)
-    e.commandRegistry.Register("start-visual-right", e.startVisualRight, false, true)
-    e.commandRegistry.Register("start-visual-up", e.startVisualUp, false, true)
-    e.commandRegistry.Register("start-visual-down", e.startVisualDown, false, true)
+	e.commandRegistry.Register("start-visual-left", e.startVisualLeft, false, true)
+	e.commandRegistry.Register("start-visual-right", e.startVisualRight, false, true)
+	e.commandRegistry.Register("start-visual-up", e.startVisualUp, false, true)
+	e.commandRegistry.Register("start-visual-down", e.startVisualDown, false, true)
 
 	// File commands
-    e.commandRegistry.Register("open-file", e.openFileCmd, false, false)
-    e.commandRegistry.Register("q", e.closeBuffer, false, true)     // Close current buffer
-    e.commandRegistry.Register("q!", e.actuallyQuit, false, false)   // Force quit
-    e.commandRegistry.Register("qa", e.actuallyQuit, false, false)   // Force quit (shortcut for :Q)
-    e.commandRegistry.Register("Quit", e.actuallyQuit, false, false) // Actually quit the editor
-    e.commandRegistry.Register("Q", e.actuallyQuit, false, false)    // Shortcut for Quit
-    e.commandRegistry.Register("write", e.writeFile, false, true)
-    e.commandRegistry.Register("w", e.writeFile, false, true)     // Shortcut for write
-    e.commandRegistry.Register("wq", e.writeAndQuit, false, true) // Write and quit
-    e.commandRegistry.Register("edit", e.editFile, false, false)
-    e.commandRegistry.Register("e", e.editFile, false, false) // Shortcut for edit
-    e.commandRegistry.Register("cd", e.changeDirectory, false, false)
+	e.commandRegistry.Register("open-file", e.openFileCmd, false, false)
+	e.commandRegistry.Register("q", e.closeBuffer, false, true)      // Close current buffer
+	e.commandRegistry.Register("q!", e.actuallyQuit, false, false)   // Force quit
+	e.commandRegistry.Register("qa", e.actuallyQuit, false, false)   // Force quit (shortcut for :Q)
+	e.commandRegistry.Register("Quit", e.actuallyQuit, false, false) // Actually quit the editor
+	e.commandRegistry.Register("Q", e.actuallyQuit, false, false)    // Shortcut for Quit
+	e.commandRegistry.Register("write", e.writeFile, false, true)
+	e.commandRegistry.Register("w", e.writeFile, false, true)     // Shortcut for write
+	e.commandRegistry.Register("wq", e.writeAndQuit, false, true) // Write and quit
+	e.commandRegistry.Register("edit", e.editFile, false, false)
+	e.commandRegistry.Register("e", e.editFile, false, false) // Shortcut for edit
+	e.commandRegistry.Register("cd", e.changeDirectory, false, false)
 
 	// LSP commands
-    e.commandRegistry.Register("go-to-definition", e.goToDefinition, false, true)
-    e.commandRegistry.Register("go-to-definition-new-window", e.goToDefinitionNewWindow, false, true)
-    e.commandRegistry.Register("find-references", e.findReferences, false, true)
-    e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo, false, true)
-    e.commandRegistry.Register("show-signature", e.showSignature, false, true)
-    e.commandRegistry.Register("jump-to-reference", e.jumpToReference, false, true)
+	e.commandRegistry.Register("go-to-definition", e.goToDefinition, false, true)
+	e.commandRegistry.Register("go-to-definition-new-window", e.goToDefinitionNewWindow, false, true)
+	e.commandRegistry.Register("find-references", e.findReferences, false, true)
+	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo, false, true)
+	e.commandRegistry.Register("show-signature", e.showSignature, false, true)
+	e.commandRegistry.Register("jump-to-reference", e.jumpToReference, false, true)
 
 	// Navigation commands
-    e.commandRegistry.Register("go-back", e.goBack, false, true)
-    e.commandRegistry.Register("next-reference", e.nextReference, false, true)
-    e.commandRegistry.Register("previous-reference", e.previousReference, false, true)
+	e.commandRegistry.Register("go-back", e.goBack, false, true)
+	e.commandRegistry.Register("next-reference", e.nextReference, false, true)
+	e.commandRegistry.Register("previous-reference", e.previousReference, false, true)
 
 	// Buffer commands
-    e.commandRegistry.Register("show-buffers", e.showBuffers, false, false)
-    e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious, false, false)
-    e.commandRegistry.Register("show-buffer-list-previous", e.showBufferListWithPrevious, false, false) // More descriptive alias
-    e.commandRegistry.Register("new-buffer", e.newBuffer, false, false)                                 // Create a new empty buffer
-    e.commandRegistry.Register("next-buffer", e.nextBufferInWindow, false, true)                       // Switch to next buffer in current window
-    e.commandRegistry.Register("previous-buffer", e.previousBufferInWindow, false, true)               // Switch to previous buffer in current window
+	e.commandRegistry.Register("show-buffers", e.showBuffers, false, false)
+	e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious, false, false)
+	e.commandRegistry.Register("show-buffer-list-previous", e.showBufferListWithPrevious, false, false) // More descriptive alias
+	e.commandRegistry.Register("new-buffer", e.newBuffer, false, false)                                 // Create a new empty buffer
+	e.commandRegistry.Register("next-buffer", e.nextBufferInWindow, false, true)                        // Switch to next buffer in current window
+	e.commandRegistry.Register("previous-buffer", e.previousBufferInWindow, false, true)                // Switch to previous buffer in current window
 
 	// Symbol commands
-    e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd, false, false)
-    e.commandRegistry.Register("list-document-symbols", e.listDocumentSymbolsCmd, false, true)
+	e.commandRegistry.Register("list-project-symbols", e.listProjectSymbolsCmd, false, false)
+	e.commandRegistry.Register("list-document-symbols", e.listDocumentSymbolsCmd, false, true)
 
 	// Undo/Redo commands
-    e.commandRegistry.Register("undo", e.undo, false, true)
-    e.commandRegistry.Register("redo", e.redo, false, true)
+	e.commandRegistry.Register("undo", e.undo, false, true)
+	e.commandRegistry.Register("redo", e.redo, false, true)
 
 	// Yank commands
-    e.commandRegistry.Register("yank-line", e.yankCurrentLine, false, true)
-    e.commandRegistry.Register("start-yank", e.startYankOperation, false, true)
-    // Yank to end of line (y$) - ensure character-wise yank without newline
-    e.commandRegistry.Register("yank-to-end-of-line", e.yankToEndOfLine, false, true)
+	e.commandRegistry.Register("yank-line", e.yankCurrentLine, false, true)
+	e.commandRegistry.Register("start-yank", e.startYankOperation, false, true)
+	// Yank to end of line (y$) - ensure character-wise yank without newline
+	e.commandRegistry.Register("yank-to-end-of-line", e.yankToEndOfLine, false, true)
 
 	// Paste commands
-    e.commandRegistry.Register("paste-after", e.pasteAfter, false, true)
-    e.commandRegistry.Register("paste-before", e.pasteBefore, false, true)
+	e.commandRegistry.Register("paste-after", e.pasteAfter, false, true)
+	e.commandRegistry.Register("paste-before", e.pasteBefore, false, true)
 
 	// Repeat command
-    e.commandRegistry.Register("repeat-last-change", e.repeatLastChange, false, true)
+	e.commandRegistry.Register("repeat-last-change", e.repeatLastChange, false, true)
 
 	// Delete commands
-    e.commandRegistry.Register("start-delete", e.startDeleteOperation, false, true)
+	e.commandRegistry.Register("start-delete", e.startDeleteOperation, false, true)
 
 	// Change commands
-    e.commandRegistry.Register("start-change", e.startChangeOperation, false, true)
+	e.commandRegistry.Register("start-change", e.startChangeOperation, false, true)
 
 	// Indentation commands
-    e.commandRegistry.Register("indent-line", e.indentLine, true, true)                 // Apply to all cursors
-    e.commandRegistry.Register("unindent-line", e.unindentLine, true, true)             // Apply to all cursors
-    e.commandRegistry.Register("reindent-line", e.reindentLine, true, true)             // Apply to all cursors
-    e.commandRegistry.Register("reindent-expression", e.reindentExpression, true, true) // Apply to all cursors
+	e.commandRegistry.Register("indent-line", e.indentLine, true, true)                 // Apply to all cursors
+	e.commandRegistry.Register("unindent-line", e.unindentLine, true, true)             // Apply to all cursors
+	e.commandRegistry.Register("reindent-line", e.reindentLine, true, true)             // Apply to all cursors
+	e.commandRegistry.Register("reindent-expression", e.reindentExpression, true, true) // Apply to all cursors
 
 	// Search commands
-    e.commandRegistry.Register("find-next", e.findNextCmd, true, true)         // Apply to all cursors for navigation
-    e.commandRegistry.Register("find-previous", e.findPreviousCmd, true, true) // Apply to all cursors for navigation
-    e.commandRegistry.Register("clear-search", e.clearSearchCmd, false, false)
-    e.commandRegistry.Register("search-word-under-cursor", e.searchWordUnderCursorCmd, false, true)
+	e.commandRegistry.Register("find-next", e.findNextCmd, true, true)         // Apply to all cursors for navigation
+	e.commandRegistry.Register("find-previous", e.findPreviousCmd, true, true) // Apply to all cursors for navigation
+	e.commandRegistry.Register("clear-search", e.clearSearchCmd, false, false)
+	e.commandRegistry.Register("search-word-under-cursor", e.searchWordUnderCursorCmd, false, true)
 
 	// Help commands
-    e.commandRegistry.Register("help", e.showHelp, false, false)
-    e.commandRegistry.Register("help-keys", e.showHelpKeys, false, false)
+	e.commandRegistry.Register("help", e.showHelp, false, false)
+	e.commandRegistry.Register("help-keys", e.showHelpKeys, false, false)
 
 	// Markdown commands
-    e.commandRegistry.Register("open-markdown-link-new-window", e.openMarkdownLinkInNewWindow, false, true)
+	e.commandRegistry.Register("open-markdown-link-new-window", e.openMarkdownLinkInNewWindow, false, true)
 
 	// Diagnostics commands
-    e.commandRegistry.Register("diagnostics", e.showDiagnostics, false, false)
+	e.commandRegistry.Register("diagnostics", e.showDiagnostics, false, false)
 
 	// Project changes commands
-    e.commandRegistry.Register("show-project-changes", e.showProjectChanges, false, false)
+	e.commandRegistry.Register("show-project-changes", e.showProjectChanges, false, false)
 
 	// Completion commands
-    e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() }, false, true)
+	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() }, false, true)
 
 	// Terminal commands
-    e.commandRegistry.Register("term", e.openTerminalCmd, false, false)
-    e.commandRegistry.Register("term-new-window", e.openTerminalInNewWindowCmd, false, false)
+	e.commandRegistry.Register("term", e.openTerminalCmd, false, false)
+	e.commandRegistry.Register("term-new-window", e.openTerminalInNewWindowCmd, false, false)
 
 	// Error testing command
-    e.commandRegistry.Register("error", e.errorCommand, false, false)
+	e.commandRegistry.Register("error", e.errorCommand, false, false)
 
 	// Messages command: append a line to *Messages*
-    e.commandRegistry.Register("message", e.messageCommand, false, false)
+	e.commandRegistry.Register("message", e.messageCommand, false, false)
 
 	// Calculator commands
-    e.commandRegistry.Register("calculate-append", e.calculateAppend, false, true)
-    e.commandRegistry.Register("calculate-replace", e.calculateReplace, false, true)
+	e.commandRegistry.Register("calculate-append", e.calculateAppend, false, true)
+	e.commandRegistry.Register("calculate-replace", e.calculateReplace, false, true)
 
 	// Temporary normal mode
-    e.commandRegistry.Register("enter-temporary-normal-mode", e.enterTemporaryNormalMode, false, false)
+	e.commandRegistry.Register("enter-temporary-normal-mode", e.enterTemporaryNormalMode, false, false)
 
 	// Window commands
-    e.commandRegistry.Register("vsplit", e.vsplit, false, false)
+	e.commandRegistry.Register("vsplit", e.vsplit, false, false)
 	// Numeric window switches (1-based)
-    e.commandRegistry.Register("window-1", func([]string) error { return e.switchToWindow(1) }, false, false)
-    e.commandRegistry.Register("window-2", func([]string) error { return e.switchToWindow(2) }, false, false)
-    e.commandRegistry.Register("window-3", func([]string) error { return e.switchToWindow(3) }, false, false)
-    e.commandRegistry.Register("window-4", func([]string) error { return e.switchToWindow(4) }, false, false)
-    e.commandRegistry.Register("window-5", func([]string) error { return e.switchToWindow(5) }, false, false)
-    e.commandRegistry.Register("window-6", func([]string) error { return e.switchToWindow(6) }, false, false)
-    e.commandRegistry.Register("window-7", func([]string) error { return e.switchToWindow(7) }, false, false)
-    e.commandRegistry.Register("window-8", func([]string) error { return e.switchToWindow(8) }, false, false)
-    e.commandRegistry.Register("window-9", func([]string) error { return e.switchToWindow(9) }, false, false)
-    e.commandRegistry.Register("window-last", e.switchToLastWindow, false, false)
-    e.commandRegistry.Register("window-next", e.switchToNextWindow, false, false)
+	e.commandRegistry.Register("window-1", func([]string) error { return e.switchToWindow(1) }, false, false)
+	e.commandRegistry.Register("window-2", func([]string) error { return e.switchToWindow(2) }, false, false)
+	e.commandRegistry.Register("window-3", func([]string) error { return e.switchToWindow(3) }, false, false)
+	e.commandRegistry.Register("window-4", func([]string) error { return e.switchToWindow(4) }, false, false)
+	e.commandRegistry.Register("window-5", func([]string) error { return e.switchToWindow(5) }, false, false)
+	e.commandRegistry.Register("window-6", func([]string) error { return e.switchToWindow(6) }, false, false)
+	e.commandRegistry.Register("window-7", func([]string) error { return e.switchToWindow(7) }, false, false)
+	e.commandRegistry.Register("window-8", func([]string) error { return e.switchToWindow(8) }, false, false)
+	e.commandRegistry.Register("window-9", func([]string) error { return e.switchToWindow(9) }, false, false)
+	e.commandRegistry.Register("window-last", e.switchToLastWindow, false, false)
+	e.commandRegistry.Register("window-next", e.switchToNextWindow, false, false)
 
 	// Window buffer move commands
-    e.commandRegistry.Register("move-buffer-left", e.moveBufferLeft, false, true)
-    e.commandRegistry.Register("move-buffer-right", e.moveBufferRight, false, true)
-    e.commandRegistry.Register("move-buffer-center", e.moveBufferCenter, false, true)
+	e.commandRegistry.Register("move-buffer-left", e.moveBufferLeft, false, true)
+	e.commandRegistry.Register("move-buffer-right", e.moveBufferRight, false, true)
+	e.commandRegistry.Register("move-buffer-center", e.moveBufferCenter, false, true)
 
 	// Window management commands
-    e.commandRegistry.Register("close-window", e.closeCurrentWindow, false, false)
+	e.commandRegistry.Register("close-window", e.closeCurrentWindow, false, false)
 
 	// Info commands
-    e.commandRegistry.Register("show-file-info", e.showFileInfoCommand, false, true)
+	e.commandRegistry.Register("show-file-info", e.showFileInfoCommand, false, true)
 
 	// Registers commands
-    e.commandRegistry.Register("regcopy", e.regcopyCmd, false, false)
-    e.commandRegistry.Register("reg", e.showRegistersCmd, false, false)
+	e.commandRegistry.Register("regcopy", e.regcopyCmd, false, false)
+	e.commandRegistry.Register("reg", e.showRegistersCmd, false, false)
 }
 
 // openTerminalCmd opens a terminal buffer and switches to terminal mode.

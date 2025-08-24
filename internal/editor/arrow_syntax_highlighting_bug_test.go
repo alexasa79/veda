@@ -56,13 +56,13 @@ def create_sample_tasks() -> List[Task]:
 		te := NewTestEditorWithContent(80, 24, pythonCode)
 		te.CurrentBuffer().FilePath = "main.py"
 
-        // Initialize syntax highlighting (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("main.py")
+		// Initialize syntax highlighting (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("main.py")
 		if err != nil {
 			t.Skipf("Skipping test: Python syntax highlighting not available: %v", err)
 		}
-        te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+		te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
 
 		// Force render to ensure syntax highlighting is applied
 		te.render()
@@ -155,7 +155,7 @@ def create_sample_tasks() -> List[Task]:
 			arrowLineStart := arrowIter.Position()
 			arrowLineEnd := arrowIter.LineEnd()
 			arrowLineContent := arrowIter.Line()
-            arrowTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(arrowLineStart, arrowLineEnd)
+			arrowTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(arrowLineStart, arrowLineEnd)
 			t.Logf("Arrow line content: %q", arrowLineContent)
 			t.Logf("Tokens for arrow line (line %d, range %d-%d): %+v", newArrowLineNum, arrowLineStart, arrowLineEnd, arrowTokens)
 
@@ -173,7 +173,7 @@ def create_sample_tasks() -> List[Task]:
 					t.Logf("FAILURE: Even manual updateSyntaxHighlighting doesn't fix the arrow. Got %v, expected %v", arrowFgAfterUpdate, expectedOpFg)
 
 					// Check tokens after manual update
-            arrowTokensAfterUpdate := te.CurrentBuffer().Highlighter.GetTokensForLine(arrowLineStart, arrowLineEnd)
+					arrowTokensAfterUpdate := te.CurrentBuffer().Highlighter.GetTokensForLine(arrowLineStart, arrowLineEnd)
 					t.Logf("Tokens for arrow line after manual update: %+v", arrowTokensAfterUpdate)
 				}
 			}
@@ -234,13 +234,13 @@ def create_sample_tasks() -> List[Task]:
 		te := NewTestEditorWithContent(80, 24, freshCode)
 		te.CurrentBuffer().FilePath = "main.py"
 
-        // Initialize syntax highlighting (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("main.py")
+		// Initialize syntax highlighting (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("main.py")
 		if err != nil {
 			t.Skipf("Skipping test: Python syntax highlighting not available: %v", err)
 		}
-        te.CurrentBuffer().Highlighter.ParseFull([]byte(freshCode))
+		te.CurrentBuffer().Highlighter.ParseFull([]byte(freshCode))
 
 		// Force render
 		te.render()
@@ -283,7 +283,7 @@ def create_sample_tasks() -> List[Task]:
 		arrowIter := buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), arrowLineNum)
 		arrowLineStart := arrowIter.Position()
 		arrowLineEnd := arrowIter.LineEnd()
-        arrowTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(arrowLineStart, arrowLineEnd)
+		arrowTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(arrowLineStart, arrowLineEnd)
 		t.Logf("Fresh parse - tokens for arrow line: %+v", arrowTokens)
 	})
 }
