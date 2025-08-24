@@ -49,7 +49,7 @@ type AutoIndentInfo struct {
 
 // Editor represents the state of the text editor.
 type Editor struct {
-	screen             Screen
+	screen Screen
 	// buffer field removed - use CurrentBuffer() accessor instead
 	config             *config.Config
 	mode               commands.Mode
@@ -59,7 +59,7 @@ type Editor struct {
 	proxyManager       *proxy.ProxyManager
 	commandRegistry    *commands.CommandRegistry
 	keyMapper          *commands.KeyMapper
-    bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
+	bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
 	perfTracker        *perf.TimeTracker
 
 	// Buffer management
@@ -71,8 +71,8 @@ type Editor struct {
 	navHistory    []NavigationEntry // Stack of previous positions
 	maxNavHistory int               // Maximum number of entries to keep
 
-    // Context display (showContext remains global preference; cache is per-buffer)
-    showContext  bool // Whether to show context
+	// Context display (showContext remains global preference; cache is per-buffer)
+	showContext bool // Whether to show context
 
 	// Async notifications
 	asyncEvents chan events.Event // Channel for async events
@@ -270,7 +270,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// LSP channels will be removed - using goroutines on demand instead
 
 	editor := &Editor{
-		screen:               screen,
+		screen: screen,
 		// buffer field removed - use CurrentBuffer() accessor instead
 		config:               config,
 		mode:                 commands.NormalMode,
@@ -280,13 +280,13 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		proxyManager:         proxyManager,
 		commandRegistry:      commands.NewCommandRegistry(),
 		keyMapper:            commands.NewKeyMapper(),
-        bufferHighlighters:   make(map[*buffer.Buffer]*syntax.Highlighter),
+		bufferHighlighters:   make(map[*buffer.Buffer]*syntax.Highlighter),
 		perfTracker:          perf.New(true, 30*time.Second), // Report every 30 seconds
 		buffers:              make(map[string]*buffer.Buffer),
 		bufferOrder:          []string{},
 		navHistory:           []NavigationEntry{},
-		maxNavHistory:        50,   // Keep last 50 navigation entries
-        showContext:          true, // Show context by default
+		maxNavHistory:        50,                           // Keep last 50 navigation entries
+		showContext:          true,                         // Show context by default
 		asyncEvents:          make(chan events.Event, 100), // Buffered channel for async events
 		flashStartLine:       -1,                           // -1 means no flash
 		flashStartChar:       -1,
@@ -320,10 +320,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		terminalSessions:     make(map[string]*TerminalSessionState),
 	}
 
-    // Initialize windows with a single empty window (always have a window)
-    editor.windows = []*Window{newWindow(nil)} // nil buffer shows "[empty]"
-    editor.activeWindow = 0
-    editor.recomputeWindowsLayout()
+	// Initialize windows with a single empty window (always have a window)
+	editor.windows = []*Window{newWindow(nil)} // nil buffer shows "[empty]"
+	editor.activeWindow = 0
+	editor.recomputeWindowsLayout()
 
 	// Initialize local history
 	localHistory, err := NewLocalHistory()
@@ -342,20 +342,20 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	editor.autoIndentLines = make(map[string]AutoIndentInfo)
 	editor.lastCursorLine = -1
 
-    // Do not create an initial unnamed buffer; leave the first window empty.
+	// Do not create an initial unnamed buffer; leave the first window empty.
 
 	// LSP callbacks will be set up when buffers are created
 
 	// Set up proxy status callback to update connection status
-    proxyManager.SetStatusCallback(func(status string) {
-        editor.connectionStatus = status
-        // Wake main loop so the status/spinner updates without keypress
-        editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
-        // If status becomes empty (completion), force a final render wake
-        if status == "" {
-            editor.asyncEvents <- events.NewCustomEvent("render", nil)
-        }
-    })
+	proxyManager.SetStatusCallback(func(status string) {
+		editor.connectionStatus = status
+		// Wake main loop so the status/spinner updates without keypress
+		editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
+		// If status becomes empty (completion), force a final render wake
+		if status == "" {
+			editor.asyncEvents <- events.NewCustomEvent("render", nil)
+		}
+	})
 
 	// Register commands
 	editor.registerCommands()
@@ -422,19 +422,19 @@ func (e *Editor) Run() {
 	// Get the screen event channel
 	screenEvents := e.screen.EventChannel()
 
-    // No always-on ticker. We'll wake the loop via asyncEvents for spinner/overlay updates.
+	// No always-on ticker. We'll wake the loop via asyncEvents for spinner/overlay updates.
 
 	// Event loop
 	for !e.shouldExit {
 		var ev events.Event
 
-        // Use select to handle multiple event sources
-        select {
-        case ev = <-screenEvents:
-            // Got a screen event
-        case ev = <-e.asyncEvents:
-            // Got an async event
-        }
+		// Use select to handle multiple event sources
+		select {
+		case ev = <-screenEvents:
+			// Got a screen event
+		case ev = <-e.asyncEvents:
+			// Got an async event
+		}
 
 		// Handle overlay events first
 		if e.renderingState.IsOverlayActive() && e.renderingState.GetOverlay() != nil {
@@ -564,7 +564,7 @@ func (e *Editor) render() {
 		// Measure prepare phase
 		winTimer = e.perfTracker.ReportSince("drawWindows.window.prepare", winTimer)
 
-        // Temporarily swap screen and buffer per window
+		// Temporarily swap screen and buffer per window
 		realScreen := e.screen
 		realBuffer := e.CurrentBuffer()
 		e.screen = sub
@@ -579,21 +579,21 @@ func (e *Editor) render() {
 		// Do not special-case EOF here; EOF is a valid state for empty buffers
 		win.Buffer.CursorX = win.CursorX
 		e.SetCurrentBuffer(win.Buffer)
-        // Ensure per-buffer highlighter is initialized and parsed
-        if e.CurrentBuffer().Highlighter != nil {
-            if e.CurrentBuffer().IsInternal {
-                // For internal buffers we often use markdown; ensure parsed
-                if e.CurrentBuffer().Highlighter.GetTree() == nil {
-                    _ = e.CurrentBuffer().Highlighter.SetLanguage("markdown")
-                    e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
-                }
-            } else if e.CurrentBuffer().HasFile() {
-                if e.CurrentBuffer().Highlighter.GetTree() == nil {
-                    _ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
-                    e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
-                }
-            }
-        }
+		// Ensure per-buffer highlighter is initialized and parsed
+		if e.CurrentBuffer().Highlighter != nil {
+			if e.CurrentBuffer().IsInternal {
+				// For internal buffers we often use markdown; ensure parsed
+				if e.CurrentBuffer().Highlighter.GetTree() == nil {
+					_ = e.CurrentBuffer().Highlighter.SetLanguage("markdown")
+					e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
+				}
+			} else if e.CurrentBuffer().HasFile() {
+				if e.CurrentBuffer().Highlighter.GetTree() == nil {
+					_ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
+					e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
+				}
+			}
+		}
 		// Draw editor content area then context (to match legacy order)
 		e.drawEditor()
 		// Measure drawEditor phase; split active vs inactive to keep label cardinality bounded
@@ -962,11 +962,11 @@ func (e *Editor) handleEvent(ev events.Event) {
 						e.pendingRegister = 0
 					case 'p':
 						// Paste-after from the specified register
-                    _ = e.executeWithRepeatCount("paste-after")
+						_ = e.executeWithRepeatCount("paste-after")
 						return
 					case 'P':
 						// Paste-before from the specified register
-                    _ = e.executeWithRepeatCount("paste-before")
+						_ = e.executeWithRepeatCount("paste-before")
 						return
 					}
 				}
@@ -1057,17 +1057,17 @@ func (e *Editor) handleEvent(ev events.Event) {
 		}
 	case *events.ResizeEvent:
 		e.handleResize()
-    case *events.CustomEvent:
-        LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
-        switch ev.Type {
-        case "apply":
-            if fn, ok := ev.Data.(func(*Editor)); ok {
-                // Execute mutation on main loop
-                fn(e)
-                e.render()
-            }
-            return
-        case "terminal-output":
+	case *events.CustomEvent:
+		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
+		switch ev.Type {
+		case "apply":
+			if fn, ok := ev.Data.(func(*Editor)); ok {
+				// Execute mutation on main loop
+				fn(e)
+				e.render()
+			}
+			return
+		case "terminal-output":
 			// Data is map[string]interface{}{ "buffer": string, "data": string }
 			if m, ok := ev.Data.(map[string]interface{}); ok {
 				bufPath, _ := m["buffer"].(string)
@@ -1211,15 +1211,15 @@ func (e *Editor) handleEvent(ev events.Event) {
 				if filePath, ok := data["file"].(string); ok {
 					line, _ := data["line"].(int)
 					character, _ := data["character"].(int)
-					
+
 					// Push navigation history before opening
 					e.pushNavigationHistory()
-					
+
 					// Open the file if different
 					if e.CurrentBuffer() == nil || filePath != e.CurrentBuffer().FilePath {
 						e.openFile(filePath)
 					}
-					
+
 					// Navigate to the location
 					if e.CurrentBuffer() != nil {
 						e.navigateToLocation(line, character)
@@ -1245,10 +1245,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 // Use this from goroutines (e.g., overlay result handlers) to serialize
 // state mutations and avoid races against e.activeWindow.
 func (e *Editor) Post(fn func(*Editor)) {
-    if fn == nil {
-        return
-    }
-    e.asyncEvents <- events.NewCustomEvent("apply", fn)
+	if fn == nil {
+		return
+	}
+	e.asyncEvents <- events.NewCustomEvent("apply", fn)
 }
 
 // sanitizeTerminalText converts common terminal control sequences into a text-only form
@@ -1433,42 +1433,42 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 		applyToAll := false
 		if e.mode != commands.CursorMode && len(e.virtualCursors) > 0 {
 			// Get command info from registry
-            if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists {
-                applyToAll = cmdInfo.ApplyToAllCursors
-            }
-        }
+			if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists {
+				applyToAll = cmdInfo.ApplyToAllCursors
+			}
+		}
 
-        // Central guard: commands that require a buffer+window
-        if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists && cmdInfo.RequiresBufferAndWindow {
-            if e.activeWindow < 0 || e.activeWindow >= len(e.windows) || e.windows[e.activeWindow] == nil || e.CurrentBuffer() == nil {
-                // No active buffer/window: ignore the command
-                return nil
-            }
-        }
+		// Central guard: commands that require a buffer+window
+		if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists && cmdInfo.RequiresBufferAndWindow {
+			if e.activeWindow < 0 || e.activeWindow >= len(e.windows) || e.windows[e.activeWindow] == nil || e.CurrentBuffer() == nil {
+				// No active buffer/window: ignore the command
+				return nil
+			}
+		}
 
-        if applyToAll {
-            // Execute for all cursors
-            for i := 0; i < count; i++ {
-                if err := e.executeCommandForAllCursors(command, nil); err != nil {
-                    return err
-                }
+		if applyToAll {
+			// Execute for all cursors
+			for i := 0; i < count; i++ {
+				if err := e.executeCommandForAllCursors(command, nil); err != nil {
+					return err
+				}
 			}
 		} else {
 			// Execute normally (single cursor)
 			for i := 0; i < count; i++ {
-                if err := e.commandRegistry.Execute(command, nil); err != nil {
-                    return err
-                }
-            }
-        }
+				if err := e.commandRegistry.Execute(command, nil); err != nil {
+					return err
+				}
+			}
+		}
 
 		// After executing a command in temporary normal mode, return to insert mode
 		// unless the command itself changes the mode
-        if wasTemporaryNormal && e.mode == commands.NormalMode {
-            LL.Debug("executeWithRepeatCount: Returning to insert mode after temporary normal command")
-            e.temporaryNormal = false
-            e.switchToInsertMode()
-        }
+		if wasTemporaryNormal && e.mode == commands.NormalMode {
+			LL.Debug("executeWithRepeatCount: Returning to insert mode after temporary normal command")
+			e.temporaryNormal = false
+			e.switchToInsertMode()
+		}
 
 		// Store the count for repeat command only for text-modifying commands
 		// Movement commands should not overwrite the repeat count
@@ -1811,10 +1811,10 @@ func (e *Editor) getVisualCursorX() int {
 
 // getLineTokens returns syntax tokens for a line using iterator position
 func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
-    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
-        return nil
-    }
-    return e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
+		return nil
+	}
+	return e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
 }
 
 // updateCursorState updates any state that depends on cursor position
@@ -2013,10 +2013,10 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 			}
 
 			// If this is the current buffer, invalidate context cache to trigger redraw
-            if buf == e.CurrentBuffer() {
-                // Force context update for active buffer
-                buf.ContextLine = -1
-            }
+			if buf == e.CurrentBuffer() {
+				// Force context update for active buffer
+				buf.ContextLine = -1
+			}
 		}
 	}()
 }

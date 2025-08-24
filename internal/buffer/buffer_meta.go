@@ -3,9 +3,9 @@ package buffer
 import (
 	"fmt"
 	"strings"
-	"veda/internal/syntax"
 	"veda/internal/config"
 	"veda/internal/proxy"
+	"veda/internal/syntax"
 )
 
 // calculateLineCount returns the number of lines in the rope,

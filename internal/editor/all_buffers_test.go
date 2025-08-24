@@ -20,21 +20,21 @@ func TestFindWindowContainingBuffer(t *testing.T) {
 
 	// Create windows and add buffers to them using the proper multi-buffer system
 	win1 := newWindow(buf1)
-    win1.addBufferToWindow(buf2)  // Add buf2 to window with buf1
-	win2 := newWindow(buf3) // buf3 in window 2
+	win1.addBufferToWindow(buf2) // Add buf2 to window with buf1
+	win2 := newWindow(buf3)      // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
 
-    // Test finding windows: both buf1 and buf2 should be in window 0
-    windowIdx1 := te.findWindowContainingBuffer("artifacts/file1.txt")
-    if windowIdx1 != 0 {
-        t.Errorf("Expected file1.txt to be in window 0, got %d", windowIdx1)
-    }
+	// Test finding windows: both buf1 and buf2 should be in window 0
+	windowIdx1 := te.findWindowContainingBuffer("artifacts/file1.txt")
+	if windowIdx1 != 0 {
+		t.Errorf("Expected file1.txt to be in window 0, got %d", windowIdx1)
+	}
 
-    windowIdx2 := te.findWindowContainingBuffer("artifacts/file2.txt")
-    if windowIdx2 != 0 {
-        t.Errorf("Expected file2.txt to be in window 0, got %d", windowIdx2)
-    }
+	windowIdx2 := te.findWindowContainingBuffer("artifacts/file2.txt")
+	if windowIdx2 != 0 {
+		t.Errorf("Expected file2.txt to be in window 0, got %d", windowIdx2)
+	}
 
 	windowIdx3 := te.findWindowContainingBuffer("artifacts/file3.txt")
 	if windowIdx3 != 1 {
@@ -63,8 +63,8 @@ func TestShowBuffersWithMultipleWindows(t *testing.T) {
 
 	// Create windows and add buffers to them using the proper multi-buffer system
 	win1 := newWindow(buf1)
-    win1.addBufferToWindow(buf2)  // Add buf2 to window with buf1
-	win2 := newWindow(buf3) // buf3 in window 2
+	win1.addBufferToWindow(buf2) // Add buf2 to window with buf1
+	win2 := newWindow(buf3)      // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
 	te.activeWindow = 0
@@ -103,8 +103,8 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 
 	// Create windows and add buffers to them using the proper multi-buffer system
 	win1 := newWindow(buf1)
-    win1.addBufferToWindow(buf2)  // Add buf2 to window with buf1
-	win2 := newWindow(buf3) // buf3 in window 2
+	win1.addBufferToWindow(buf2) // Add buf2 to window with buf1
+	win2 := newWindow(buf3)      // buf3 in window 2
 
 	te.windows = []*Window{win1, win2}
 	te.activeWindow = 0

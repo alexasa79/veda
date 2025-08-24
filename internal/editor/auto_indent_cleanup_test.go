@@ -17,7 +17,7 @@ func TestAutoIndentCleanupBasics(t *testing.T) {
 
 	// Create a test buffer
 	testBuffer := buffer.NewBuffer("", "test.go", config.IndentSpaces, 4)
-	
+
 	// Create a window with the buffer
 	editor.windows = append(editor.windows, &Window{Buffer: testBuffer})
 	editor.SetCurrentBuffer(testBuffer)

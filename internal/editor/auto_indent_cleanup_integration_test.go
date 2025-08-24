@@ -36,7 +36,7 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 
 	// Position cursor on line 2 (after the opening brace)
 	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 1) // Line with "{"
-	editor.CurrentBuffer().CursorX = 1                                                       // After the "{"
+	editor.CurrentBuffer().CursorX = 1                                                                // After the "{"
 
 	t.Logf("Initial buffer content:")
 	logBufferContent(t, editor.CurrentBuffer())

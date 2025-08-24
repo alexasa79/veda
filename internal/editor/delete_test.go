@@ -380,11 +380,11 @@ func TestDeleteOperations(t *testing.T) {
 		// Go code with tab-indented body (L1)
 		content := "package main\n\nfunc main() {\n\tprintln(\"hello\")\n\tprintln(\"world\")\n}\n"
 		te := NewTestEditorWithContent(80, 24, content)
-        // Set filename to .go so highlighter selects Go (enables auto-indent code path)
-        te.CurrentBuffer().FilePath = "test.go"
-        if te.CurrentBuffer().Highlighter != nil {
-            _ = te.CurrentBuffer().Highlighter.SetLanguage("go")
-        }
+		// Set filename to .go so highlighter selects Go (enables auto-indent code path)
+		te.CurrentBuffer().FilePath = "test.go"
+		if te.CurrentBuffer().Highlighter != nil {
+			_ = te.CurrentBuffer().Highlighter.SetLanguage("go")
+		}
 
 		// Move cursor to first line inside function body (line 3)
 		// Lines: 0:package,1:blank,2:func...,3:\tprintln("hello"),4:\tprintln("world"),5:}

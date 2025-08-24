@@ -34,7 +34,7 @@ func TestCursorHighlightDesyncWithContextLines(t *testing.T) {
 	te.render()
 
 	// Require that context is actually shown; otherwise this test isn't meaningful
-    if len(te.CurrentBuffer().ContextCache) == 0 {
+	if len(te.CurrentBuffer().ContextCache) == 0 {
 		t.Fatalf("expected contextCache > 0 to reproduce bug, got 0")
 	}
 
@@ -63,6 +63,6 @@ func TestCursorHighlightDesyncWithContextLines(t *testing.T) {
 	// After fix: the physical cursor Y must match the highlighted line Y.
 	diff := cursorY - highlightedY
 	if diff != 0 {
-        t.Fatalf("expected cursorY and highlightedY to match (diff=0), got diff=%d (cursorY=%d, highlightedY=%d, contextLines=%d)", diff, cursorY, highlightedY, len(te.CurrentBuffer().ContextCache))
+		t.Fatalf("expected cursorY and highlightedY to match (diff=0), got diff=%d (cursorY=%d, highlightedY=%d, contextLines=%d)", diff, cursorY, highlightedY, len(te.CurrentBuffer().ContextCache))
 	}
 }

@@ -356,7 +356,7 @@ func (e *Editor) jumpToLocation(location proxy.Location) error {
 		}
 	}
 
-	// Wake main loop to render the jump  
+	// Wake main loop to render the jump
 	e.asyncEvents <- events.NewCustomEvent("render", nil)
 
 	return nil

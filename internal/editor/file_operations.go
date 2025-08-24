@@ -7,11 +7,11 @@ import (
 	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
+	"veda/internal/events"
 	"veda/internal/proxy"
 	"veda/internal/proxyworker"
 	"veda/internal/utils"
 	"veda/internal/widgets"
-    "veda/internal/events"
 )
 
 // Package-level variables for efficient file filtering
@@ -84,12 +84,12 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 	if files, ok := e.getCachedDirectoryListing(e.workingDirectory); ok && useCache {
 		LL.Debug("Using cached directory listing for %s", e.workingDirectory)
 		result := e.processFileList(files)
-        if len(result.paths) == 0 {
-            contentUpdateChan <- []string{"No files found"}
-        } else {
-            contentUpdateChan <- result.paths
-        }
-        e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
+		if len(result.paths) == 0 {
+			contentUpdateChan <- []string{"No files found"}
+		} else {
+			contentUpdateChan <- result.paths
+		}
+		e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 		// End the async operation since we're serving from cache
 		e.endAsyncOperation(operationID)
 		e.connectionStatus = "" // Clear status when done
@@ -110,8 +110,8 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 			LL.Debug("Directory listing error: %v", err)
 			// Also show a banner so the user notices
 			e.ShowError("Directory listing failed: %v", err)
-            contentUpdateChan <- []string{fmt.Sprintf("Error: %v", err)}
-            e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
+			contentUpdateChan <- []string{fmt.Sprintf("Error: %v", err)}
+			e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 			resultChan <- fileListingResult{paths: []string{}, filePaths: nil}
 			return
 		}
@@ -121,12 +121,12 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 		e.setCachedDirectoryListing(e.workingDirectory, files)
 		result := e.processFileList(files)
 
-        if len(result.paths) == 0 {
-            contentUpdateChan <- []string{"No files found"}
-        } else {
-            contentUpdateChan <- result.paths
-        }
-        e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
+		if len(result.paths) == 0 {
+			contentUpdateChan <- []string{"No files found"}
+		} else {
+			contentUpdateChan <- result.paths
+		}
+		e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 
 		resultChan <- result
 	}()
@@ -319,40 +319,40 @@ func (e *Editor) ShowFuzzyListWidget() {
 	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
 	overlayResultChan := e.renderingState.SetOverlay(overlay)
 
-    // Wait for result in a goroutine; post a lambda to the main loop
-    go func() {
-        selectedPath := <-overlayResultChan
-        if selectedPath == "" {
-            return
-        }
-        openInNewWin := false
-        if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
-            openInNewWin = true
-            selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
-        }
-        fullPath := e.resolveSelectedPath(selectedPath, filePaths)
-        LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
-        e.Post(func(e *Editor) {
-            if openInNewWin {
-                insertAt := e.activeWindow + 1
-                // Seed the new window with the current buffer, matching existing behavior
-                seed := e.CurrentBuffer()
-                newWin := newWindow(seed)
-                if insertAt >= len(e.windows) {
-                    e.windows = append(e.windows, newWin)
-                } else {
-                    e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-                    e.windows[insertAt] = newWin
-                }
-                e.activateWindow(insertAt)
-                e.openFile(fullPath)
-                return
-            }
-            e.openFile(fullPath)
-        })
-        // Don't close contentUpdateChan - the sending goroutine might still be running
-        // The channel will be garbage collected when no longer referenced
-    }()
+	// Wait for result in a goroutine; post a lambda to the main loop
+	go func() {
+		selectedPath := <-overlayResultChan
+		if selectedPath == "" {
+			return
+		}
+		openInNewWin := false
+		if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
+			openInNewWin = true
+			selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
+		}
+		fullPath := e.resolveSelectedPath(selectedPath, filePaths)
+		LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
+		e.Post(func(e *Editor) {
+			if openInNewWin {
+				insertAt := e.activeWindow + 1
+				// Seed the new window with the current buffer, matching existing behavior
+				seed := e.CurrentBuffer()
+				newWin := newWindow(seed)
+				if insertAt >= len(e.windows) {
+					e.windows = append(e.windows, newWin)
+				} else {
+					e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+					e.windows[insertAt] = newWin
+				}
+				e.activateWindow(insertAt)
+				e.openFile(fullPath)
+				return
+			}
+			e.openFile(fullPath)
+		})
+		// Don't close contentUpdateChan - the sending goroutine might still be running
+		// The channel will be garbage collected when no longer referenced
+	}()
 }
 
 // startFuzzyFileListRefresh issues a fresh directory request bypassing cache
@@ -711,49 +711,49 @@ func (e *Editor) showProjectSymbolsList() {
 
 // navigateToLocation moves cursor to specific line and character position
 func (e *Editor) navigateToLocation(line, character int) {
-    // Log requested navigation
-    LL.Debug("navigateToLocation: request file=%s targetLine=%d targetChar=%d", e.CurrentBuffer().FilePath, line, character)
+	// Log requested navigation
+	LL.Debug("navigateToLocation: request file=%s targetLine=%d targetChar=%d", e.CurrentBuffer().FilePath, line, character)
 
-    targetLine := line // LSP line numbers are 0-based
-    e.CurrentBuffer().CursorX = character
+	targetLine := line // LSP line numbers are 0-based
+	e.CurrentBuffer().CursorX = character
 
-    // Create iterator and advance to target line
-    e.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(e.CurrentBuffer())
+	// Create iterator and advance to target line
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(e.CurrentBuffer())
 
-    // Move iterator to target line
-    for i := 0; i < targetLine && !e.CurrentBuffer().CursorIterator.IsEOF(); i++ {
-        e.CurrentBuffer().CursorIterator = e.CurrentBuffer().CursorIterator.Next()
-    }
+	// Move iterator to target line
+	for i := 0; i < targetLine && !e.CurrentBuffer().CursorIterator.IsEOF(); i++ {
+		e.CurrentBuffer().CursorIterator = e.CurrentBuffer().CursorIterator.Next()
+	}
 
-    // Ensure cursor X is within bounds
-    currentLine := e.CurrentBuffer().CursorIterator.Line()
-    if e.CurrentBuffer().CursorX > len(currentLine) {
-        e.CurrentBuffer().CursorX = len(currentLine)
-        if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
-            e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
-        }
-    }
+	// Ensure cursor X is within bounds
+	currentLine := e.CurrentBuffer().CursorIterator.Line()
+	if e.CurrentBuffer().CursorX > len(currentLine) {
+		e.CurrentBuffer().CursorX = len(currentLine)
+		if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+			e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
+		}
+	}
 
-    // Center the target for better visibility
-    e.scrollToCenter()
+	// Center the target for better visibility
+	e.scrollToCenter()
 
-    // Update window's cached state to match buffer
-    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-        win := e.windows[e.activeWindow]
-        if win != nil && win.Buffer == e.CurrentBuffer() {
-            win.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
-            win.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
-            win.CursorX = e.CurrentBuffer().CursorX
-        }
-    }
+	// Update window's cached state to match buffer
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		win := e.windows[e.activeWindow]
+		if win != nil && win.Buffer == e.CurrentBuffer() {
+			win.ViewLine = e.CurrentBuffer().ViewIterator.LineNumber()
+			win.CursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
+			win.CursorX = e.CurrentBuffer().CursorX
+		}
+	}
 
-    // Log result state
-    LL.Debug("navigateToLocation: result file=%s cursorLine=%d cursorX=%d viewTop=%d",
-        e.CurrentBuffer().FilePath,
-        e.CurrentBuffer().CursorIterator.LineNumber(),
-        e.CurrentBuffer().CursorX,
-        e.CurrentBuffer().ViewIterator.LineNumber(),
-    )
+	// Log result state
+	LL.Debug("navigateToLocation: result file=%s cursorLine=%d cursorX=%d viewTop=%d",
+		e.CurrentBuffer().FilePath,
+		e.CurrentBuffer().CursorIterator.LineNumber(),
+		e.CurrentBuffer().CursorX,
+		e.CurrentBuffer().ViewIterator.LineNumber(),
+	)
 }
 
 // listProjectSymbolsCmd implements the list-project-symbols command
@@ -825,15 +825,15 @@ func (e *Editor) showDocumentSymbolsList() {
 		defer func() { e.connectionStatus = "" }() // Clear status when done
 
 		select {
-        case response := <-symbolResponseChan:
+		case response := <-symbolResponseChan:
 			if response.Type == proxyworker.RequestDocumentSymbols {
 				if response.Error != nil {
 					LL.Debug("LSP document symbols error: %v", response.Error)
 					// Report error through editor's error system
 					e.ShowError("LSP error: %v", response.Error)
 					// Clear the list but don't show error in picker
-                    contentUpdateChan <- []string{}
-                    e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
+					contentUpdateChan <- []string{}
+					e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 				} else {
 					LL.Debug("Got %d document symbols from LSP", len(response.DocumentSymbols))
 
@@ -854,17 +854,17 @@ func (e *Editor) showDocumentSymbolsList() {
 					symbols = response.DocumentSymbols
 					symbolMap = newSymbolMap
 
-                    if len(displayNames) == 0 {
-                        contentUpdateChan <- []string{"No symbols found"}
-                    } else {
-                        contentUpdateChan <- displayNames
-                    }
-                    e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
+					if len(displayNames) == 0 {
+						contentUpdateChan <- []string{"No symbols found"}
+					} else {
+						contentUpdateChan <- displayNames
+					}
+					e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 				}
 			}
-        case <-time.After(5 * time.Second):
-            contentUpdateChan <- []string{"Error: Timeout waiting for symbols"}
-            e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
+		case <-time.After(5 * time.Second):
+			contentUpdateChan <- []string{"Error: Timeout waiting for symbols"}
+			e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 		}
 		// Don't close symbolResponseChan here - it's managed by the caller
 	}()
@@ -882,10 +882,10 @@ func (e *Editor) showDocumentSymbolsList() {
 
 		// If a symbol was selected, navigate to it
 		if selection != "" {
-                    // Find the selected symbol by display name
+			// Find the selected symbol by display name
 			if idx, exists := symbolMap[selection]; exists && idx < len(symbols) {
 				sym := symbols[idx]
-                        LL.Debug("doc-symbol-select: file=%s symbol=%q kind=%d at %d:%d", e.CurrentBuffer().FilePath, sym.Name, sym.Kind, sym.Range.Start.Line, sym.Range.Start.Character)
+				LL.Debug("doc-symbol-select: file=%s symbol=%q kind=%d at %d:%d", e.CurrentBuffer().FilePath, sym.Name, sym.Kind, sym.Range.Start.Line, sym.Range.Start.Character)
 				// Push current position to navigation history before jumping
 				e.pushNavigationHistory()
 				// Send navigation event to main loop instead of navigating directly

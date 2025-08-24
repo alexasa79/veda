@@ -397,16 +397,16 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	var x int
 
 	// Get syntax tokens for this line using iterator position
-    // Always use the buffer's own highlighter
-    var tokens []syntax.Token
-    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-        tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-    }
+	// Always use the buffer's own highlighter
+	var tokens []syntax.Token
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+		tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+	}
 
-    // If we have syntax tokens and a file-backed buffer, use syntax highlighting path
-    if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
+	// If we have syntax tokens and a file-backed buffer, use syntax highlighting path
+	if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
 		// Use syntax highlighting (this will be handled below)
-    } else if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
+	} else if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 		// Fill rest of line if we have background
@@ -467,7 +467,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	}
 
 	// Handle syntax highlighting path
-    if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
+	if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
 		// Draw with syntax highlighting
 		x = startX
 		lastEnd := 0
@@ -674,8 +674,8 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		}
 	}
 
-    // If no highlighter, draw without syntax highlighting
-    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil || !e.CurrentBuffer().HasFile() {
+	// If no highlighter, draw without syntax highlighting
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil || !e.CurrentBuffer().HasFile() {
 		x := startX
 		// Draw the wrapped segment
 		segmentOffset := lineStartOffset + segStart
@@ -742,10 +742,10 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	}
 
 	// Get syntax tokens for the full line
-    var tokens []syntax.Token
-    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-        tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-    }
+	var tokens []syntax.Token
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+		tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+	}
 
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
@@ -960,7 +960,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 
 // drawContext draws the context lines at the top of the editor
 func (e *Editor) drawContext() {
-    if e.CurrentBuffer() == nil || len(e.CurrentBuffer().ContextCache) == 0 {
+	if e.CurrentBuffer() == nil || len(e.CurrentBuffer().ContextCache) == 0 {
 		return
 	}
 
@@ -974,7 +974,7 @@ func (e *Editor) drawContext() {
 	width, _ := e.screen.Size()
 
 	// Draw context lines with line numbers and syntax highlighting
-    for i, lineNum := range e.CurrentBuffer().ContextCache {
+	for i, lineNum := range e.CurrentBuffer().ContextCache {
 		// Create an iterator at the context line
 		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 		if !iter.IsEOF() {
@@ -1538,11 +1538,11 @@ func (e *Editor) drawSignature() {
 	activeStart, activeEnd := e.getActiveParameterRange(sig)
 
 	// Draw the signature
-    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-        e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd)
-    } else {
-        e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd)
-    }
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+		e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+	} else {
+		e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+	}
 }
 
 // fillLine fills an entire line with the given style
@@ -1592,11 +1592,11 @@ func (e *Editor) getActiveParameterRange(sig *buffer.SignatureHelp) (int, int) {
 
 // drawSignatureWithHighlighting draws the signature with syntax highlighting and bold active parameter
 func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int) {
-    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
-        e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
-        return
-    }
-    tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
+		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+		return
+	}
+	tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
 	if len(tokens) == 0 {
 		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
 		return

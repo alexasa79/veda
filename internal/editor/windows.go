@@ -227,33 +227,33 @@ func clamp255(v float32) float32 {
 
 // createUnnamedBuffer creates and registers a new empty buffer without switching to it.
 func (e *Editor) createUnnamedBuffer() *buffer.Buffer {
-    // Prefer the base name "[No Name]" if not taken
-    base := "[No Name]"
-    if _, exists := e.buffers[base]; !exists {
-        newBuf := buffer.NewBuffer("", base, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-        e.buffers[base] = newBuf
-        e.bufferOrder = append(e.bufferOrder, base)
-        return newBuf
-    }
-    // Otherwise, find the next available suffix starting from 2
-    counter := 2
-    for {
-        name := fmt.Sprintf("[No Name %d]", counter)
-        if _, exists := e.buffers[name]; !exists {
-            newBuf := buffer.NewBuffer("", name, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-            e.buffers[name] = newBuf
-            e.bufferOrder = append(e.bufferOrder, name)
-            return newBuf
-        }
-        counter++
-    }
+	// Prefer the base name "[No Name]" if not taken
+	base := "[No Name]"
+	if _, exists := e.buffers[base]; !exists {
+		newBuf := buffer.NewBuffer("", base, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		e.buffers[base] = newBuf
+		e.bufferOrder = append(e.bufferOrder, base)
+		return newBuf
+	}
+	// Otherwise, find the next available suffix starting from 2
+	counter := 2
+	for {
+		name := fmt.Sprintf("[No Name %d]", counter)
+		if _, exists := e.buffers[name]; !exists {
+			newBuf := buffer.NewBuffer("", name, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+			e.buffers[name] = newBuf
+			e.bufferOrder = append(e.bufferOrder, name)
+			return newBuf
+		}
+		counter++
+	}
 }
 
 // vsplit splits the current window into two and opens a new empty buffer in the new window.
 func (e *Editor) vsplit(args []string) error {
-    // Insert a new empty window to the right of the active window (no auto-created buffer)
+	// Insert a new empty window to the right of the active window (no auto-created buffer)
 	insertAt := e.activeWindow + 1
-    newWin := newWindow(nil)
+	newWin := newWindow(nil)
 	if insertAt >= len(e.windows) {
 		e.windows = append(e.windows, newWin)
 	} else {
@@ -263,7 +263,7 @@ func (e *Editor) vsplit(args []string) error {
 
 	// Record last window as the one we are splitting from, then make new window active
 	e.lastWindow = e.activeWindow
-    e.activeWindow = insertAt
+	e.activeWindow = insertAt
 
 	// Recompute layout
 	e.recomputeWindowsLayout()
@@ -455,7 +455,7 @@ func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
 	if buf == nil {
 		return
 	}
-	
+
 	// Check if buffer is already in the window
 	for _, existing := range w.Buffers {
 		if existing == buf {
@@ -463,7 +463,7 @@ func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
 			return
 		}
 	}
-	
+
 	// Add new buffer to the list and make it active
 	w.Buffers = append(w.Buffers, buf)
 	w.Buffer = buf
@@ -474,13 +474,13 @@ func (w *Window) removeBufferFromWindow(buf *buffer.Buffer) {
 	if buf == nil {
 		return
 	}
-	
+
 	// Find and remove the buffer
 	for i, existing := range w.Buffers {
 		if existing == buf {
 			// Remove from slice
 			w.Buffers = append(w.Buffers[:i], w.Buffers[i+1:]...)
-			
+
 			// If this was the active buffer, switch to another or set to nil
 			if w.Buffer == buf {
 				if len(w.Buffers) > 0 {
@@ -500,13 +500,13 @@ func newWindow(buf *buffer.Buffer) *Window {
 	if buf != nil {
 		buffers = []*buffer.Buffer{buf}
 	}
-	
+
 	window := &Window{
-		Buffer:   buf,
-		Buffers:  buffers,
-		ViewLine: 0,
+		Buffer:     buf,
+		Buffers:    buffers,
+		ViewLine:   0,
 		CursorLine: 0,
-		CursorX:  0,
+		CursorX:    0,
 	}
 
 	return window
@@ -518,18 +518,18 @@ func (e *Editor) closeWindow(windowIndex int) error {
 		return nil
 	}
 
-    // If this is the last window, close the editor
-    if len(e.windows) <= 1 {
-        return e.actuallyQuit(nil)
-    }
-    // Capture buffer associated with the window to determine if it should be closed
-    var closedBuf *buffer.Buffer
-    if e.windows[windowIndex] != nil {
-        closedBuf = e.windows[windowIndex].Buffer
-    }
+	// If this is the last window, close the editor
+	if len(e.windows) <= 1 {
+		return e.actuallyQuit(nil)
+	}
+	// Capture buffer associated with the window to determine if it should be closed
+	var closedBuf *buffer.Buffer
+	if e.windows[windowIndex] != nil {
+		closedBuf = e.windows[windowIndex].Buffer
+	}
 
-    // Remove the window from the slice
-    e.windows = append(e.windows[:windowIndex], e.windows[windowIndex+1:]...)
+	// Remove the window from the slice
+	e.windows = append(e.windows[:windowIndex], e.windows[windowIndex+1:]...)
 
 	// Adjust active window index
 	if e.activeWindow >= windowIndex {
@@ -544,39 +544,39 @@ func (e *Editor) closeWindow(windowIndex int) error {
 		e.activeWindow = len(e.windows) - 1
 	}
 
-    // Update the editor's current buffer to match the new active window
-    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-        if e.windows[e.activeWindow] != nil {
-            // Buffer already synced via window
-        }
-    }
+	// Update the editor's current buffer to match the new active window
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		if e.windows[e.activeWindow] != nil {
+			// Buffer already synced via window
+		}
+	}
 
-    // Recompute layout so remaining windows expand to fill freed space
-    e.recomputeWindowsLayout()
+	// Recompute layout so remaining windows expand to fill freed space
+	e.recomputeWindowsLayout()
 
-    // If the closed window's buffer is not shown in any remaining window, close it globally
-    if closedBuf != nil {
-        stillInUse := false
-        for _, w := range e.windows {
-            if w != nil && w.Buffer == closedBuf {
-                stillInUse = true
-                break
-            }
-        }
-        if !stillInUse {
-            path := closedBuf.FilePath
-            // Close terminal session if any
-            if ts, ok := e.terminalSessions[path]; ok && ts != nil && ts.SessionID != "" {
-                _ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
-                delete(e.terminalSessions, path)
-            }
-            // Remove from global buffers registry
-            delete(e.buffers, path)
-            e.bufferOrder = removeFromSlice(e.bufferOrder, path)
-        }
-    }
+	// If the closed window's buffer is not shown in any remaining window, close it globally
+	if closedBuf != nil {
+		stillInUse := false
+		for _, w := range e.windows {
+			if w != nil && w.Buffer == closedBuf {
+				stillInUse = true
+				break
+			}
+		}
+		if !stillInUse {
+			path := closedBuf.FilePath
+			// Close terminal session if any
+			if ts, ok := e.terminalSessions[path]; ok && ts != nil && ts.SessionID != "" {
+				_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
+				delete(e.terminalSessions, path)
+			}
+			// Remove from global buffers registry
+			delete(e.buffers, path)
+			e.bufferOrder = removeFromSlice(e.bufferOrder, path)
+		}
+	}
 
-    return nil
+	return nil
 }
 
 // closeCurrentWindow closes the currently active window

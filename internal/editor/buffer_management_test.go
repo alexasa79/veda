@@ -18,7 +18,7 @@ func TestBufferManagement(t *testing.T) {
 	if te.CurrentBuffer() == nil {
 		t.Errorf("Expected initial buffer to exist, but got nil")
 	}
-	
+
 	// Should be the "[No Name]" buffer
 	if te.CurrentBuffer().FilePath != "[No Name]" {
 		t.Errorf("Expected initial buffer to be '[No Name]', got '%s'", te.CurrentBuffer().FilePath)

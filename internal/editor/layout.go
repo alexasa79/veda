@@ -23,10 +23,10 @@ func (e *Editor) getVisibleHeight() int {
 		return height - 1
 	}
 	reserved := 1 // Status bar
-    if e.shouldShowContext() {
-        if e.CurrentBuffer() != nil {
-            reserved += len(e.CurrentBuffer().ContextCache) // Context lines
-        }
+	if e.shouldShowContext() {
+		if e.CurrentBuffer() != nil {
+			reserved += len(e.CurrentBuffer().ContextCache) // Context lines
+		}
 	}
 	// Reserve space for signature if shown
 	if e.CurrentBuffer().CurrentSignature != nil {
@@ -62,11 +62,11 @@ func (e *Editor) getContentStartY() int {
 	if e.mode == commands.TerminalMode || (e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal) {
 		return 0
 	}
-    if e.shouldShowContext() {
-        if e.CurrentBuffer() != nil {
-            return len(e.CurrentBuffer().ContextCache)
-        }
-        return 0
+	if e.shouldShowContext() {
+		if e.CurrentBuffer() != nil {
+			return len(e.CurrentBuffer().ContextCache)
+		}
+		return 0
 	}
 	return 0
 }
@@ -90,46 +90,46 @@ func (e *Editor) updateContext() {
 	currentLine := cursorIter.LineNumber()
 
 	// Only update if line changed
-    if e.CurrentBuffer() != nil && currentLine == e.CurrentBuffer().ContextLine && len(e.CurrentBuffer().ContextCache) > 0 {
+	if e.CurrentBuffer() != nil && currentLine == e.CurrentBuffer().ContextLine && len(e.CurrentBuffer().ContextCache) > 0 {
 		return
 	}
 
 	// Suppress context for internal/terminal buffers
-    if e.mode == commands.TerminalMode || (e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal) {
-        if e.CurrentBuffer() != nil {
-            e.CurrentBuffer().ContextCache = nil
-            e.CurrentBuffer().ContextLine = currentLine
-        }
+	if e.mode == commands.TerminalMode || (e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal) {
+		if e.CurrentBuffer() != nil {
+			e.CurrentBuffer().ContextCache = nil
+			e.CurrentBuffer().ContextLine = currentLine
+		}
 		return
 	}
 	// Get file path
 	filePath := e.CurrentBuffer().FilePath
-    if filePath == "" {
-        if e.CurrentBuffer() != nil {
-            e.CurrentBuffer().ContextCache = nil
-        }
-        return
+	if filePath == "" {
+		if e.CurrentBuffer() != nil {
+			e.CurrentBuffer().ContextCache = nil
+		}
+		return
 	}
 
 	// Calculate visible range (per-window; entire region height)
 	viewStartLine := e.CurrentBuffer().ViewIterator.LineNumber()
 	viewEndLine := viewStartLine + e.getVisibleHeight() - 1
 
-    // Try to use tree-sitter for context if available (per-buffer highlighter)
-    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil && e.CurrentBuffer().Highlighter.GetTree() != nil {
+	// Try to use tree-sitter for context if available (per-buffer highlighter)
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil && e.CurrentBuffer().Highlighter.GetTree() != nil {
 		// Use tree-sitter based context detection
-        e.CurrentBuffer().ContextCache = getTreeSitterContext(e.CurrentBuffer(), e.CurrentBuffer().Highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
+		e.CurrentBuffer().ContextCache = getTreeSitterContext(e.CurrentBuffer(), e.CurrentBuffer().Highlighter, currentLine, viewStartLine, viewEndLine, e.config.ScrollOffset)
 	} else {
 		// No tree-sitter available, no context
-        if e.CurrentBuffer() != nil {
-            e.CurrentBuffer().ContextCache = nil
-        }
+		if e.CurrentBuffer() != nil {
+			e.CurrentBuffer().ContextCache = nil
+		}
 		return
 	}
 
-    if e.CurrentBuffer() != nil {
-        e.CurrentBuffer().ContextLine = currentLine
-    }
+	if e.CurrentBuffer() != nil {
+		e.CurrentBuffer().ContextLine = currentLine
+	}
 }
 
 // getStatusBarY returns the Y position of the status bar
@@ -167,13 +167,13 @@ func (e *Editor) updateSyntaxHighlighting() {
 	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		return
 	}
-    // Update the buffer's own highlighter in place
-    if e.CurrentBuffer().Highlighter == nil {
-        e.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        _ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
-    }
-    content := e.CurrentBuffer().Rope.String()
-    e.CurrentBuffer().Highlighter.ParseFull([]byte(content))
+	// Update the buffer's own highlighter in place
+	if e.CurrentBuffer().Highlighter == nil {
+		e.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		_ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
+	}
+	content := e.CurrentBuffer().Rope.String()
+	e.CurrentBuffer().Highlighter.ParseFull([]byte(content))
 }
 
 // getDiagnosticLineCount returns the number of lines needed to display a diagnostic message

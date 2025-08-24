@@ -23,13 +23,13 @@ def create_sample_tasks():
 		te := NewTestEditorWithContent(80, 24, pythonCode)
 		te.CurrentBuffer().FilePath = "test.py"
 
-        // Initialize syntax highlighting (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.py")
+		// Initialize syntax highlighting (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.py")
 		if err != nil {
 			t.Skipf("Skipping test: Python syntax highlighting not available: %v", err)
 		}
-        te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
+		te.CurrentBuffer().Highlighter.ParseFull([]byte(te.CurrentBuffer().Rope.String()))
 
 		// Force render to ensure syntax highlighting is applied
 		te.render()
@@ -115,12 +115,12 @@ def create_sample_tasks():
 		defLineStart := defIter.Position()
 		defLineEnd := defIter.LineEnd()
 		defLineContent := defIter.Line()
-        defTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(defLineStart, defLineEnd)
+		defTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(defLineStart, defLineEnd)
 		t.Logf("Def line content: %q", defLineContent)
 		t.Logf("Tokens for def line (line %d, range %d-%d): %+v", defLineNum, defLineStart, defLineEnd, defTokens)
 
 		// Check what the tree looks like
-        tree := te.CurrentBuffer().Highlighter.GetTree()
+		tree := te.CurrentBuffer().Highlighter.GetTree()
 		if tree != nil {
 			t.Logf("Tree root node type: %s", tree.RootNode().Type())
 			t.Logf("Tree root node range: %d-%d", tree.RootNode().StartByte(), tree.RootNode().EndByte())
@@ -152,7 +152,7 @@ def create_sample_tasks():
 					t.Logf("FAILURE: Even manual updateSyntaxHighlighting doesn't fix it. Got %v, expected %v", defFgAfterUpdate, expectedFg)
 
 					// Check tokens after manual update
-            defTokensAfterUpdate := te.CurrentBuffer().Highlighter.GetTokensForLine(defLineStart, defLineEnd)
+					defTokensAfterUpdate := te.CurrentBuffer().Highlighter.GetTokensForLine(defLineStart, defLineEnd)
 					t.Logf("Tokens for def line after manual update: %+v", defTokensAfterUpdate)
 				}
 			}
@@ -181,13 +181,13 @@ def create_sample_tasks():
 		te := NewTestEditorWithContent(80, 24, freshCode)
 		te.CurrentBuffer().FilePath = "test.py"
 
-        // Initialize syntax highlighting (per-buffer)
-        te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-        err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.py")
+		// Initialize syntax highlighting (per-buffer)
+		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		err := te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.py")
 		if err != nil {
 			t.Skipf("Skipping test: Python syntax highlighting not available: %v", err)
 		}
-        te.CurrentBuffer().Highlighter.ParseFull([]byte(freshCode))
+		te.CurrentBuffer().Highlighter.ParseFull([]byte(freshCode))
 
 		// Force render
 		te.render()
@@ -197,7 +197,7 @@ def create_sample_tasks():
 		defLineStart := defIter.Position()
 		defLineEnd := defIter.LineEnd()
 		defLineContent := defIter.Line()
-        defTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(defLineStart, defLineEnd)
+		defTokens := te.CurrentBuffer().Highlighter.GetTokensForLine(defLineStart, defLineEnd)
 
 		t.Logf("Fresh parse - def line content: %q", defLineContent)
 		t.Logf("Fresh parse - tokens for def line: %+v", defTokens)

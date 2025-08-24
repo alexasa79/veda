@@ -18,11 +18,11 @@ func (e *Editor) scroll() {
 	topLine := e.CurrentBuffer().ViewIterator.LineNumber()
 
 	// Adjust scroll offset for top margin only (to account for context lines)
-    ctx := 0
-    if e.CurrentBuffer() != nil {
-        ctx = len(e.CurrentBuffer().ContextCache)
-    }
-    topScrollOffset := e.config.ScrollOffset - ctx
+	ctx := 0
+	if e.CurrentBuffer() != nil {
+		ctx = len(e.CurrentBuffer().ContextCache)
+	}
+	topScrollOffset := e.config.ScrollOffset - ctx
 	if topScrollOffset < 0 {
 		topScrollOffset = 0
 	}
@@ -71,11 +71,11 @@ func (e *Editor) scrollToShowAtTop() {
 	e.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(e.CurrentBuffer())
 
 	// Adjust scroll offset for top margin only (to account for context lines)
-    ctx := 0
-    if e.CurrentBuffer() != nil {
-        ctx = len(e.CurrentBuffer().ContextCache)
-    }
-    topScrollOffset := e.config.ScrollOffset - ctx
+	ctx := 0
+	if e.CurrentBuffer() != nil {
+		ctx = len(e.CurrentBuffer().ContextCache)
+	}
+	topScrollOffset := e.config.ScrollOffset - ctx
 	if topScrollOffset < 0 {
 		topScrollOffset = 0
 	}
