@@ -320,10 +320,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		terminalSessions:     make(map[string]*TerminalSessionState),
 	}
 
-	// Initialize windows with a single empty window (always have a window)
-	editor.windows = []*Window{newWindow(nil)} // nil buffer shows "[empty]"
-	editor.activeWindow = 0
-	editor.recomputeWindowsLayout()
+    // Initialize windows with a single empty window (always have a window)
+    editor.windows = []*Window{newWindow(nil)} // nil buffer shows "[empty]"
+    editor.activeWindow = 0
+    editor.recomputeWindowsLayout()
 
 	// Initialize local history
 	localHistory, err := NewLocalHistory()
@@ -342,15 +342,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	editor.autoIndentLines = make(map[string]AutoIndentInfo)
 	editor.lastCursorLine = -1
 
-	// Create initial empty window - we always need at least one window
-	emptyBuffer := buffer.NewBuffer("", "[No Name]", config.DefaultIndentType, config.DefaultIndentWidth)
-	editor.buffers["[No Name]"] = emptyBuffer
-	editor.bufferOrder = append(editor.bufferOrder, "[No Name]")
-	
-	// Create initial window with the empty buffer
-	editor.windows = []*Window{newWindow(emptyBuffer)}
-	editor.activeWindow = 0
-	editor.recomputeWindowsLayout()
+    // Do not create an initial unnamed buffer; leave the first window empty.
 
 	// LSP callbacks will be set up when buffers are created
 

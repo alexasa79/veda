@@ -227,20 +227,26 @@ func clamp255(v float32) float32 {
 
 // createUnnamedBuffer creates and registers a new empty buffer without switching to it.
 func (e *Editor) createUnnamedBuffer() *buffer.Buffer {
-	// Generate a unique buffer name
-	bufferName := ""
-	counter := 2 // Start from 2 since [No Name] is already used
-	for {
-		bufferName = fmt.Sprintf("[No Name %d]", counter)
-		if _, exists := e.buffers[bufferName]; !exists {
-			break
-		}
-		counter++
-	}
-	newBuf := buffer.NewBuffer("", bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-	e.buffers[bufferName] = newBuf
-	e.bufferOrder = append(e.bufferOrder, bufferName)
-	return newBuf
+    // Prefer the base name "[No Name]" if not taken
+    base := "[No Name]"
+    if _, exists := e.buffers[base]; !exists {
+        newBuf := buffer.NewBuffer("", base, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+        e.buffers[base] = newBuf
+        e.bufferOrder = append(e.bufferOrder, base)
+        return newBuf
+    }
+    // Otherwise, find the next available suffix starting from 2
+    counter := 2
+    for {
+        name := fmt.Sprintf("[No Name %d]", counter)
+        if _, exists := e.buffers[name]; !exists {
+            newBuf := buffer.NewBuffer("", name, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+            e.buffers[name] = newBuf
+            e.bufferOrder = append(e.bufferOrder, name)
+            return newBuf
+        }
+        counter++
+    }
 }
 
 // vsplit splits the current window into two and opens a new empty buffer in the new window.

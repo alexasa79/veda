@@ -21,16 +21,38 @@ type TestEditor struct {
 
 // NewTestEditor creates a new editor configured for testing
 func NewTestEditor(width, height int) *TestEditor {
-	mockScreen := NewMockScreen(width, height)
-	editor, err := NewWithScreen(mockScreen)
-	if err != nil {
-		panic(err) // In tests, we panic on setup errors
-	}
+    mockScreen := NewMockScreen(width, height)
+    editor, err := NewWithScreen(mockScreen)
+    if err != nil {
+        panic(err) // In tests, we panic on setup errors
+    }
 
-	return &TestEditor{
-		Editor:     editor,
-		mockScreen: mockScreen,
-	}
+    te := &TestEditor{
+        Editor:     editor,
+        mockScreen: mockScreen,
+    }
+
+    // Ensure tests start with a default unnamed buffer as before, even if
+    // production does not create one by default.
+    if te.CurrentBuffer() == nil {
+        // Create unnamed buffer and attach to active window
+        buf := buffer.NewBuffer("", "[No Name]", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+        te.buffers["[No Name]"] = buf
+        te.bufferOrder = append(te.bufferOrder, "[No Name]")
+        if len(te.windows) == 0 {
+            te.windows = []*Window{newWindow(buf)}
+            te.activeWindow = 0
+        } else if te.activeWindow >= 0 && te.activeWindow < len(te.windows) {
+            if te.windows[te.activeWindow] == nil {
+                te.windows[te.activeWindow] = newWindow(buf)
+            } else {
+                te.windows[te.activeWindow].addBufferToWindow(buf)
+            }
+        }
+        te.SetCurrentBuffer(buf)
+    }
+
+    return te
 }
 
 // NewTestEditorWithContent creates a test editor with initial content
