@@ -1057,10 +1057,17 @@ func (e *Editor) handleEvent(ev events.Event) {
 		}
 	case *events.ResizeEvent:
 		e.handleResize()
-	case *events.CustomEvent:
-		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
-		switch ev.Type {
-		case "terminal-output":
+    case *events.CustomEvent:
+        LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
+        switch ev.Type {
+        case "apply":
+            if fn, ok := ev.Data.(func(*Editor)); ok {
+                // Execute mutation on main loop
+                fn(e)
+                e.render()
+            }
+            return
+        case "terminal-output":
 			// Data is map[string]interface{}{ "buffer": string, "data": string }
 			if m, ok := ev.Data.(map[string]interface{}); ok {
 				bufPath, _ := m["buffer"].(string)
@@ -1232,6 +1239,16 @@ func (e *Editor) handleEvent(ev events.Event) {
 	default:
 		LL.Debug("Unsupported event type: %+v", reflect.TypeOf(ev))
 	}
+}
+
+// Post enqueues a function to be executed on the editor's main loop.
+// Use this from goroutines (e.g., overlay result handlers) to serialize
+// state mutations and avoid races against e.activeWindow.
+func (e *Editor) Post(fn func(*Editor)) {
+    if fn == nil {
+        return
+    }
+    e.asyncEvents <- events.NewCustomEvent("apply", fn)
 }
 
 // sanitizeTerminalText converts common terminal control sequences into a text-only form
