@@ -509,6 +509,13 @@ func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *pr
 	// Switch to the new buffer
 	e.switchToBuffer(newBuffer)
 
+	// Ensure the active window owns this buffer so moves/removals work correctly
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		if win := e.windows[e.activeWindow]; win != nil {
+			win.addBufferToWindow(newBuffer)
+		}
+	}
+
 	// Detect indentation for the new file
 	newBuffer.Indentation = e.detectIndentation()
 

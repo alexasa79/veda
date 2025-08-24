@@ -74,14 +74,14 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
             buf.Highlighter = syntax.NewHighlighter()
         }
 
-        // Ensure the active window shows this buffer
+        // Ensure the active window owns this buffer (keeps Buffers in sync)
         if len(e.windows) > 0 {
             if e.activeWindow < 0 {
                 e.activeWindow = 0
             }
             if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
                 if e.windows[e.activeWindow] != nil {
-                    e.windows[e.activeWindow].Buffer = buf
+                    e.windows[e.activeWindow].addBufferToWindow(buf)
                 }
             }
         }
@@ -245,7 +245,7 @@ func (e *Editor) showBuffers(args []string) error {
                         if targetWindow != nil {
                             if buf, exists := e.buffers[path]; exists {
                                 e.activateWindow(targetWindowIdx)
-                                targetWindow.Buffer = buf
+                                targetWindow.addBufferToWindow(buf)
                                 e.switchToBuffer(buf)
                             }
                         }
@@ -254,7 +254,7 @@ func (e *Editor) showBuffers(args []string) error {
                         if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
                             if buf, exists := e.buffers[path]; exists {
                                 if e.windows[e.activeWindow] != nil {
-                                    e.windows[e.activeWindow].Buffer = buf
+                                    e.windows[e.activeWindow].addBufferToWindow(buf)
                                     e.switchToBuffer(buf)
                                 }
                             }
