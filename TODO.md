@@ -1,18 +1,13 @@
-- Terminal wide-character support (wcwidth/grapheme-aware)
+# Bugs
+- [ ] Multiple cursors appear in both windows.
+- [ ] panic when closing the editor:
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x2 addr=0xd0 pc=0x1008af7f8]
 
-  - Problem: Lines containing wide characters (e.g., emoji like 🐟 or CJK) can shift background/rulers by one column if we assume width 1. Terminals render many of these as width 2.
-  - Goal: Use a proper wcwidth implementation so our emulator, renderer, wrapping, and cursor math all agree with the terminal’s notion of display columns.
-  - Plan:
-    - Integrate a wcwidth/grapheme library (e.g., github.com/mattn/go-runewidth) across:
-      - TerminalEmulator.Write: advance by RuneWidth; mark trailing cell for width 2
-      - Renderer (terminal path and normal files): advance x by RuneWidth and paint trailing cell for width 2
-      - Wrapping/visual width/byte position conversions: base all on RuneWidth (and tabs)
-      - Ruler checks: compare against visual columns (sum of RuneWidth), not bytes/len
-    - Tests:
-      - Single emoji file: rulers align, cursor after emoji
-      - Fish prompt line with emoji: rulers align at configured columns
-      - Mixed CJK, emoji, tabs; wrapped lines
-  - Notes:
-    - Consider Variation Selector 15/16 edge cases
-    - Ensure consistent handling in both emulator and renderer paths
-
+goroutine 15 [running]:
+veda/internal/editor.(*Editor).writeFile.func1()
+        /Users/sasandl/hobbies/veda/internal/editor/file_operations.go:964 +0xe8
+created by veda/internal/editor.(*Editor).writeFile in goroutine 1
+        /Users/sasandl/hobbies/veda/internal/editor/file_operations.go:951 +0x3b8
+- [ ] Closing buffer also closes the window. The buffer in this case was a
+      terminal.
