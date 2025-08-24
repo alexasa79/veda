@@ -287,32 +287,27 @@ func (e *Editor) showBuffers(args []string) error {
 
 // closeBuffer closes the current buffer
 func (e *Editor) closeBuffer(args []string) error {
-	currentPath := e.CurrentBuffer().FilePath
+	cur := e.CurrentBuffer()
+	if cur == nil {
+		return nil
+	}
+	currentPath := cur.FilePath
 
-	// Remove buffer from current window
+	// Remove buffer from current window (close the window if it becomes empty)
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
-		window := e.windows[e.activeWindow]
-		// If the current window is showing this buffer, clear it
-		shouldCloseWindow := false
-		if window.Buffer != nil && window.Buffer.FilePath == currentPath {
-			window.Buffer = nil
-			shouldCloseWindow = true
+		w := e.windows[e.activeWindow]
+		// If this is the last buffer in the window, close the window first so cleanup can see the buffer
+		if len(w.Buffers) == 1 && w.Buffers[0] == cur {
+			// Close the window; closeWindow will handle global/terminal cleanup if no other window has the buffer
+			_ = e.closeWindow(e.activeWindow)
+			return nil
 		}
-
-		if shouldCloseWindow {
-			// No more buffers in this window - close the window (handles last-window exit)
-			return e.closeWindow(e.activeWindow)
-		} else {
-			// Window still has buffers, switched to the next one automatically
-			e.SetCurrentBuffer(window.Buffer)
-		}
+		// Otherwise, remove from per-window list and adjust active buffer
+		w.removeBufferFromWindow(cur)
+		// Sync editor's current buffer to the window's active buffer (may be nil)
+		e.SetCurrentBuffer(w.Buffer)
 	} else {
-		// Fallback to old behavior if windowing is not properly set up
-		if len(e.buffers) <= 1 {
-			return e.actuallyQuit(args)
-		}
-
-		// Find another buffer to switch to
+		// Fallback: if no proper windowing, switch to some other buffer (keep editor alive)
 		for path, buf := range e.buffers {
 			if path != currentPath {
 				e.switchToBuffer(buf)
@@ -326,22 +321,30 @@ func (e *Editor) closeBuffer(args []string) error {
 		e.autoSaveManager.CleanupAutoSave(currentPath)
 	}
 
-	// If terminal session is attached, close it via proxy
-	if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
-		_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
-		delete(e.terminalSessions, currentPath)
-	}
-
-	// Remove buffer from global buffers (only if no other window has it)
-	bufferStillInUse := false
-	for _, window := range e.windows {
-		if window != nil && window.Buffer != nil && window.Buffer.FilePath == currentPath {
-			bufferStillInUse = true
+	// If terminal session is attached, close it via proxy (only if buffer no longer shown anywhere)
+	// Determine if buffer is still in use in any window (scan window.Buffers)
+	stillInUse := false
+	for _, win := range e.windows {
+		if win == nil {
+			continue
+		}
+		for _, b := range win.Buffers {
+			if b == cur {
+				stillInUse = true
+				break
+			}
+		}
+		if stillInUse {
 			break
 		}
 	}
 
-	if !bufferStillInUse {
+	if !stillInUse {
+		if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
+			_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
+			delete(e.terminalSessions, currentPath)
+		}
+		// Remove from global buffers registry
 		delete(e.buffers, currentPath)
 		e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
 	}

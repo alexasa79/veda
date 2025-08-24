@@ -554,27 +554,35 @@ func (e *Editor) closeWindow(windowIndex int) error {
 	// Recompute layout so remaining windows expand to fill freed space
 	e.recomputeWindowsLayout()
 
-	// If the closed window's buffer is not shown in any remaining window, close it globally
-	if closedBuf != nil {
-		stillInUse := false
-		for _, w := range e.windows {
-			if w != nil && w.Buffer == closedBuf {
-				stillInUse = true
-				break
-			}
-		}
-		if !stillInUse {
-			path := closedBuf.FilePath
-			// Close terminal session if any
-			if ts, ok := e.terminalSessions[path]; ok && ts != nil && ts.SessionID != "" {
-				_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
-				delete(e.terminalSessions, path)
-			}
-			// Remove from global buffers registry
-			delete(e.buffers, path)
-			e.bufferOrder = removeFromSlice(e.bufferOrder, path)
-		}
-	}
+    // If the closed window's buffer is not shown in any remaining window, close it globally
+    if closedBuf != nil {
+        stillInUse := false
+        for _, w := range e.windows {
+            if w == nil {
+                continue
+            }
+            for _, b := range w.Buffers {
+                if b == closedBuf {
+                    stillInUse = true
+                    break
+                }
+            }
+            if stillInUse {
+                break
+            }
+        }
+        if !stillInUse {
+            path := closedBuf.FilePath
+            // Close terminal session if any
+            if ts, ok := e.terminalSessions[path]; ok && ts != nil && ts.SessionID != "" {
+                _ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
+                delete(e.terminalSessions, path)
+            }
+            // Remove from global buffers registry
+            delete(e.buffers, path)
+            e.bufferOrder = removeFromSlice(e.bufferOrder, path)
+        }
+    }
 
 	return nil
 }
