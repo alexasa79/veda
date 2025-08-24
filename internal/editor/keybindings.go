@@ -167,10 +167,10 @@ func (e *Editor) setupDefaultBindings() {
 	// Indentation operations
 	e.registerKeyBinding(commands.NormalMode, "> >", "indent-line")
 	e.registerKeyBinding(commands.NormalMode, "< <", "unindent-line")
-	// Reindent current line (vim '==')
-	e.registerKeyBinding(commands.NormalMode, "= =", "reindent-line")
-	// Reindent expression: change binding to '= -' to avoid conflict with '=='
-	e.registerKeyBinding(commands.NormalMode, "= -", "reindent-expression")
+    // Reindent expression (vim '==')
+    e.registerKeyBinding(commands.NormalMode, "= =", "reindent-expression")
+    // Reindent current line now bound to '=-'
+    e.registerKeyBinding(commands.NormalMode, "= -", "reindent-line")
 
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
