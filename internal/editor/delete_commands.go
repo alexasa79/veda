@@ -26,6 +26,11 @@ func (e *Editor) startYankOperation(args []string) error {
 
 // handlePendingOperation processes keys when there's a pending operation
 func (e *Editor) handlePendingOperation(key string) error {
+    // If there is no current buffer (empty window), ignore pending operations
+    if e.CurrentBuffer() == nil {
+        e.clearPendingOperation()
+        return nil
+    }
 	// Handle character search operations (f/t) when no operator is pending
 	if e.pendingOperator == nil && len(e.pendingKeys) > 0 {
 		if len(e.pendingKeys) == 1 {

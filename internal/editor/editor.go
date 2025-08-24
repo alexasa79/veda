@@ -962,11 +962,11 @@ func (e *Editor) handleEvent(ev events.Event) {
 						e.pendingRegister = 0
 					case 'p':
 						// Paste-after from the specified register
-						_ = e.commandRegistry.Execute("paste-after", nil)
+                    _ = e.executeWithRepeatCount("paste-after")
 						return
 					case 'P':
 						// Paste-before from the specified register
-						_ = e.commandRegistry.Execute("paste-before", nil)
+                    _ = e.executeWithRepeatCount("paste-before")
 						return
 					}
 				}
@@ -1433,34 +1433,42 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 		applyToAll := false
 		if e.mode != commands.CursorMode && len(e.virtualCursors) > 0 {
 			// Get command info from registry
-			if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists {
-				applyToAll = cmdInfo.ApplyToAllCursors
-			}
-		}
+            if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists {
+                applyToAll = cmdInfo.ApplyToAllCursors
+            }
+        }
 
-		if applyToAll {
-			// Execute for all cursors
-			for i := 0; i < count; i++ {
-				if err := e.executeCommandForAllCursors(command, nil); err != nil {
-					return err
-				}
+        // Central guard: commands that require a buffer+window
+        if cmdInfo, exists := e.commandRegistry.GetCommand(command); exists && cmdInfo.RequiresBufferAndWindow {
+            if e.activeWindow < 0 || e.activeWindow >= len(e.windows) || e.windows[e.activeWindow] == nil || e.CurrentBuffer() == nil {
+                // No active buffer/window: ignore the command
+                return nil
+            }
+        }
+
+        if applyToAll {
+            // Execute for all cursors
+            for i := 0; i < count; i++ {
+                if err := e.executeCommandForAllCursors(command, nil); err != nil {
+                    return err
+                }
 			}
 		} else {
 			// Execute normally (single cursor)
 			for i := 0; i < count; i++ {
-				if err := e.commandRegistry.Execute(command, nil); err != nil {
-					return err
-				}
-			}
-		}
+                if err := e.commandRegistry.Execute(command, nil); err != nil {
+                    return err
+                }
+            }
+        }
 
 		// After executing a command in temporary normal mode, return to insert mode
 		// unless the command itself changes the mode
-		if wasTemporaryNormal && e.mode == commands.NormalMode {
-			LL.Debug("executeWithRepeatCount: Returning to insert mode after temporary normal command")
-			e.temporaryNormal = false
-			e.switchToInsertMode()
-		}
+        if wasTemporaryNormal && e.mode == commands.NormalMode {
+            LL.Debug("executeWithRepeatCount: Returning to insert mode after temporary normal command")
+            e.temporaryNormal = false
+            e.switchToInsertMode()
+        }
 
 		// Store the count for repeat command only for text-modifying commands
 		// Movement commands should not overwrite the repeat count
