@@ -74,12 +74,12 @@ func main() {
 		}
 	}
 
-	ed, err := editor.New()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create editor: %v", err)
-		os.Exit(1)
-	}
-	defer ed.Close()
+    ed, err := editor.New()
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "failed to create editor: %v", err)
+        os.Exit(1)
+    }
+    // Do not defer Close; we need to close (exit alternate screen) before printing
 
 	// Check if a file was provided as command-line argument
 	args := flag.Args()
@@ -88,5 +88,14 @@ func main() {
 		ed.OpenPath(path)
 	}
 
-	ed.Run()
+    ed.Run()
+    // Close the editor (exit alternate screen) before printing any error
+    ed.Close()
+    // Honor editor-requested exit code (e.g., remote connect failure)
+    if code := ed.ExitCode(); code != 0 {
+        if msg := ed.ExitMessage(); msg != "" {
+            fmt.Fprintln(os.Stderr, msg)
+        }
+        os.Exit(code)
+    }
 }
