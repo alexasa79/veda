@@ -323,7 +323,7 @@ func (pm *ProxyManager) checkRemoteConnectivity(host string, timeout time.Durati
             return fmt.Errorf("host key verification failed")
         default:
             if out != "" {
-                return fmt.Errorf(out)
+                return fmt.Errorf("%s", out)
             }
             return fmt.Errorf("ssh error")
         }
