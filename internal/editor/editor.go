@@ -1,23 +1,23 @@
 package editor
 
 import (
-	"fmt"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
-	"unicode/utf8"
-	"veda/internal/buffer"
-	"veda/internal/clipboard"
-	"veda/internal/commands"
-	"veda/internal/config"
-	"veda/internal/events"
-	"veda/internal/log"
-	"veda/internal/perf"
-	"veda/internal/proxy"
-	"veda/internal/syntax"
-	"veda/internal/ui"
-	"veda/internal/widgets"
+    "fmt"
+    "reflect"
+    "strconv"
+    "strings"
+    "time"
+    "unicode/utf8"
+    "veda/internal/buffer"
+    "veda/internal/clipboard"
+    "veda/internal/commands"
+    "veda/internal/config"
+    "veda/internal/events"
+    "veda/internal/log"
+    "veda/internal/perf"
+    "veda/internal/proxy"
+    "veda/internal/syntax"
+    "veda/internal/ui"
+    "veda/internal/widgets"
 )
 
 var LL *log.Logger = log.NewLogger("EDITOR")
@@ -223,8 +223,14 @@ type Editor struct {
 	// Window sizing preferences
 	minActiveWindowWidth int // Minimum width (columns) for the active window
 
-	// Terminal sessions per buffer (PTY via proxy)
-	terminalSessions map[string]*TerminalSessionState
+    // Terminal sessions per buffer (PTY via proxy)
+    terminalSessions map[string]*TerminalSessionState
+
+    // Process exit code to be honored by main after Run() returns
+    exitCode int
+
+    // Optional exit message to print after closing alternate screen
+    exitMessage string
 }
 
 // TerminalSessionState tracks a PTY-backed terminal attached to a buffer
@@ -347,15 +353,28 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	// LSP callbacks will be set up when buffers are created
 
 	// Set up proxy status callback to update connection status
-	proxyManager.SetStatusCallback(func(status string) {
-		editor.connectionStatus = status
-		// Wake main loop so the status/spinner updates without keypress
-		editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
-		// If status becomes empty (completion), force a final render wake
-		if status == "" {
-			editor.asyncEvents <- events.NewCustomEvent("render", nil)
-		}
-	})
+    proxyManager.SetStatusCallback(func(status string) {
+        // Special sentinel: reconnect failed, exit the editor with the message
+        const failPrefix = "__RECONNECT_FAILED__:"
+        if strings.HasPrefix(status, failPrefix) {
+            msg := strings.TrimSpace(strings.TrimPrefix(status, failPrefix))
+            if msg == "" {
+                msg = "Failed to reconnect to proxy"
+            }
+            editor.exitMessage = msg
+            editor.exitCode = 1
+            _ = editor.actuallyQuit(nil)
+            return
+        }
+
+        editor.connectionStatus = status
+        // Wake main loop so the status/spinner updates without keypress
+        editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
+        // If status becomes empty (completion), force a final render wake
+        if status == "" {
+            editor.asyncEvents <- events.NewCustomEvent("render", nil)
+        }
+    })
 
 	// Register commands
 	editor.registerCommands()
@@ -1705,6 +1724,12 @@ func (e *Editor) Close() {
 	}
 }
 
+// ExitCode returns the desired process exit code after Run() completes.
+func (e *Editor) ExitCode() int { return e.exitCode }
+
+// ExitMessage returns an optional message to print on stderr after closing the UI.
+func (e *Editor) ExitMessage() string { return e.exitMessage }
+
 // parsePathComponents is a helper to parse HOST:PATH format
 func parsePathComponents(path string) (string, string, bool) {
 	colonIdx := strings.Index(path, ":")
@@ -2844,45 +2869,53 @@ func (e *Editor) handlePendingPath() {
 		e.connectionStatus = "Loading..."
 	}
 
-	// Try to list the path to determine if it's a directory
-	_, err := e.proxyManager.ListDirectoryRecursive(path)
-	LL.Debug("handlePendingPath: ListDirectoryRecursive returned err=%v", err)
+    // Try to list the path to determine if it's a directory
+    _, err := e.proxyManager.ListDirectoryRecursive(path)
+    LL.Debug("handlePendingPath: ListDirectoryRecursive returned err=%v", err)
 
 	// Clear connection status
 	e.connectionStatus = ""
 
-	if err == nil {
-		// It's a directory
+    if err == nil {
+        // It's a directory
 		e.workingDirectory = path
 		LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
 
 		// Send async event to show fuzzy list
 		LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
 		e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
-	} else {
-		// It's a file or doesn't exist - extract directory and open file
-		LL.Debug("handlePendingPath: Path is a file, will open it")
-		if isRemote {
-			// For remote paths, extract directory
-			lastSlash := strings.LastIndex(remotePath, "/")
-			if lastSlash > 0 {
-				dirPath := remotePath[:lastSlash]
-				e.workingDirectory = host + ":" + dirPath
-			} else {
-				e.workingDirectory = host + ":~/"
-			}
-		} else {
-			// For local paths, keep current directory
-			// We don't want to change the working directory just because
-			// we're opening a file in a subdirectory
-			e.workingDirectory = "."
-		}
-		LL.Debug("Set working directory to: %s", e.workingDirectory)
+    } else {
+        // It's a file or doesn't exist - extract directory and open file
+        LL.Debug("handlePendingPath: Path is a file, will open it")
+        if isRemote {
+            // For remote paths, extract directory
+            lastSlash := strings.LastIndex(remotePath, "/")
+            if lastSlash > 0 {
+                dirPath := remotePath[:lastSlash]
+                e.workingDirectory = host + ":" + dirPath
+            } else {
+                e.workingDirectory = host + ":~/"
+            }
+            // Before proceeding, ensure we can connect to the remote host; if not, exit with error
+            if _, pingErr := e.proxyManager.ListDirectory(host + ":~/"); pingErr != nil {
+                // Record exit message; main will print it after closing the UI
+                e.exitMessage = pingErr.Error()
+                e.exitCode = 1
+                _ = e.actuallyQuit(nil)
+                return
+            }
+        } else {
+            // For local paths, keep current directory
+            // We don't want to change the working directory just because
+            // we're opening a file in a subdirectory
+            e.workingDirectory = "."
+        }
+        LL.Debug("Set working directory to: %s", e.workingDirectory)
 
-		// Send async event to open the file
-		LL.Debug("handlePendingPath: Sending open-file event for path: %s", path)
-		e.asyncEvents <- events.NewCustomEvent("open-file", path)
-	}
+        // Send async event to open the file
+        LL.Debug("handlePendingPath: Sending open-file event for path: %s", path)
+        e.asyncEvents <- events.NewCustomEvent("open-file", path)
+    }
 }
 
 // setFlashHighlight sets a temporary highlight for a text range

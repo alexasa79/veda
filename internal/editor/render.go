@@ -1247,22 +1247,41 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1)
 		}
 
-		// Add connection status or spinner if async operations are in progress
-		if e.connectionStatus != "" || e.hasAsyncOperations() {
-			// Use inverted colors for spinner/status
-			spinnerStyle := statusBarStyle
-			spinnerStyle.Fg, spinnerStyle.Bg = spinnerStyle.Bg, spinnerStyle.Fg
+        // Add connection status and spinner handling
+        if e.connectionStatus != "" || e.hasAsyncOperations() {
+            // Consider certain phrases as "in-progress" and show spinner styling for those only.
+            // Terminal states like "Disconnected" render without a spinner.
+            showSpinner := e.hasAsyncOperations()
+            if !showSpinner && e.connectionStatus != "" {
+                lower := strings.ToLower(e.connectionStatus)
+                if strings.Contains(lower, "connecting") || strings.Contains(lower, "starting") ||
+                    strings.Contains(lower, "updating") || strings.Contains(lower, "reconnecting") ||
+                    strings.Contains(lower, "listing") || strings.Contains(lower, "saving") ||
+                    strings.Contains(lower, "loading") || strings.Contains(lower, "searching") {
+                    showSpinner = true
+                }
+            }
 
-			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1, 0, -1) // Spacing
+            x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1, 0, -1) // Spacing
 
-			if e.connectionStatus != "" {
-				statusText := fmt.Sprintf(" %s %s ", e.getSpinnerChar(), e.connectionStatus)
-				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil, -1, 0, -1)
-			} else {
-				statusText := fmt.Sprintf(" %s ", e.getSpinnerChar())
-				x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil, -1, 0, -1)
-			}
-		}
+            if e.connectionStatus != "" {
+                if showSpinner {
+                    spinnerStyle := statusBarStyle
+                    spinnerStyle.Fg, spinnerStyle.Bg = spinnerStyle.Bg, spinnerStyle.Fg
+                    statusText := fmt.Sprintf(" %s %s ", e.getSpinnerChar(), e.connectionStatus)
+                    x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil, -1, 0, -1)
+                } else {
+                    // Render plain status without spinner
+                    statusText := fmt.Sprintf(" %s ", e.connectionStatus)
+                    x += e.drawText(x, statusBarY, statusBarStyle, statusText, 0, nil, -1, 0, -1)
+                }
+            } else if showSpinner {
+                spinnerStyle := statusBarStyle
+                spinnerStyle.Fg, spinnerStyle.Bg = spinnerStyle.Bg, spinnerStyle.Fg
+                statusText := fmt.Sprintf(" %s ", e.getSpinnerChar())
+                x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil, -1, 0, -1)
+            }
+        }
 
 		// Add search indicator if there's an active search with matches
 		if e.searchPattern != "" && len(e.searchMatches) > 0 {

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bufio"
+	"context"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -33,9 +34,11 @@ type StatusCallback func(status string)
 
 // ProxyManager manages multiple proxy instances for different hosts
 type ProxyManager struct {
-	clients        map[string]*Client // key is hostname, empty string for local
-	mu             sync.Mutex         // mutex to ensure only one proxy call at a time
-	statusCallback StatusCallback     // callback for status updates
+    clients        map[string]*Client // key is hostname, empty string for local
+    // mu protects access to the clients map and related state.
+    // Do not hold mu while performing network I/O or long-running operations.
+    mu             sync.Mutex
+    statusCallback StatusCallback     // callback for status updates
 }
 
 // NewProxyManager creates a new proxy manager
@@ -69,27 +72,43 @@ func (pm *ProxyManager) reportStatus(status string) {
 
 // getClient returns the appropriate client for the given path
 func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
-	host, actualPath, isRemote := parseRemotePath(path)
+    host, actualPath, isRemote := parseRemotePath(path)
 
-	LL.Debug("getClient: path=%s, host=%s, actualPath=%s, isRemote=%v", path, host, actualPath, isRemote)
+    LL.Debug("getClient: path=%s, host=%s, actualPath=%s, isRemote=%v", path, host, actualPath, isRemote)
 
-	if !isRemote {
-		return pm.clients[""], path, nil
-	}
+    // Local client fast-path
+    if !isRemote {
+        pm.mu.Lock()
+        c := pm.clients[""]
+        pm.mu.Unlock()
+        return c, path, nil
+    }
 
-	// Check if we already have a client for this host
-	if client, exists := pm.clients[host]; exists {
-		return client, actualPath, nil
-	}
+    // Check if we already have a client for this host
+    pm.mu.Lock()
+    if client, exists := pm.clients[host]; exists {
+        pm.mu.Unlock()
+        return client, actualPath, nil
+    }
+    pm.mu.Unlock()
 
-	// Create a new remote proxy for this host
-	client, err := pm.createRemoteClient(host)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create remote proxy for %s: %w", host, err)
-	}
+    // Create a new remote proxy for this host (no lock held during network I/O)
+    client, err := pm.createRemoteClient(host)
+    if err != nil {
+        return nil, "", err
+    }
 
-	pm.clients[host] = client
-	return client, actualPath, nil
+    // Store the client (handle possible race with another creator)
+    pm.mu.Lock()
+    if existing, exists := pm.clients[host]; exists {
+        pm.mu.Unlock()
+        // Another goroutine won the race; close ours and return existing
+        _ = client.Close()
+        return existing, actualPath, nil
+    }
+    pm.clients[host] = client
+    pm.mu.Unlock()
+    return client, actualPath, nil
 }
 
 // createRemoteClient creates a new proxy client connected to a remote host
@@ -97,20 +116,30 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	startTime := time.Now()
 	LL.Info("Creating remote proxy connection to %s", host)
 
-	// Report initial connection status
+	// Step 1: connectivity check (fast-fail, no prompts)
 	pm.reportStatus(fmt.Sprintf("Connecting to %s...", host))
+    if err := pm.checkRemoteConnectivity(host, 5*time.Second); err != nil {
+        return nil, fmt.Errorf("Failed to connect to %s: %s", host, err.Error())
+    }
 
 	// Helper to start a remote proxy instance and perform version handshake
-	startRemote := func() (*Client, *exec.Cmd, error) {
-		pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
-		sshArgs := []string{
-			"-T",
-			"-o", "ControlMaster=no",
-			"-o", "ControlPath=none",
-			host,
-			"python3", "/tmp/veda-proxy.py",
-		}
-		cmd := exec.Command("ssh", sshArgs...)
+    startRemote := func() (*Client, *exec.Cmd, error) {
+        pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
+        sshArgs := []string{
+            "-T",
+            // Connectivity + keepalive + non-interactive
+            "-o", "ConnectTimeout=5",
+            "-o", "ConnectionAttempts=1",
+            "-o", "BatchMode=yes",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ServerAliveInterval=15",
+            "-o", "ServerAliveCountMax=3",
+            "-o", "ControlMaster=no",
+            "-o", "ControlPath=none",
+            host,
+            "python3", "/tmp/veda-proxy.py",
+        }
+        cmd := exec.Command("ssh", sshArgs...)
 
 		stdinPipe, err := cmd.StdinPipe()
 		if err != nil {
@@ -169,41 +198,46 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		return client, cmd, nil
 	}
 
-	// First try without copying (assume proxy exists on remote). If it fails or
-	// version mismatches, copy and retry once.
-	client, cmd, err := startRemote()
-	if err != nil {
-		if cmd != nil && cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		pm.reportStatus(fmt.Sprintf("Updating proxy on %s...", host))
-		if errCopy := pm.copyProxyToRemote(host); errCopy != nil {
-			return nil, fmt.Errorf("failed to copy proxy to remote: %w", errCopy)
-		}
-		client, cmd, err = startRemote()
-		if err != nil {
-			if cmd != nil && cmd.Process != nil {
-				_ = cmd.Process.Kill()
-			}
-			return nil, fmt.Errorf("failed to start proxy on %s after update: %w", host, err)
-		}
-	}
+    // First try without copying (assume proxy exists on remote). If it fails or
+    // version mismatches, copy and retry once.
+    client, cmd, err := startRemote()
+    if err != nil {
+        if cmd != nil && cmd.Process != nil {
+            _ = cmd.Process.Kill()
+        }
+        // Re-verify connectivity before attempting to update/copy
+        if errConn := pm.checkRemoteConnectivity(host, 5*time.Second); errConn != nil {
+            return nil, fmt.Errorf("ssh connect failed: %w", errConn)
+        }
+        pm.reportStatus(fmt.Sprintf("Updating proxy on %s...", host))
+        if errCopy := pm.copyProxyToRemote(host, 10*time.Second); errCopy != nil {
+            return nil, fmt.Errorf("failed to copy proxy to remote: %w", errCopy)
+        }
+        client, cmd, err = startRemote()
+        if err != nil {
+            if cmd != nil && cmd.Process != nil {
+                _ = cmd.Process.Kill()
+            }
+            return nil, fmt.Errorf("failed to start proxy on %s after update: %w", host, err)
+        }
+    }
 
 	duration := time.Since(startTime)
 	LL.Info("Created remote proxy connection to %s in %v", host, duration)
 
-	// Report successful connection
-	pm.reportStatus(fmt.Sprintf("Connected to %s", host))
+    // Report successful connection and then clear status
+    pm.reportStatus(fmt.Sprintf("Connected to %s", host))
+    pm.reportStatus("")
 
-	return client, nil
+    return client, nil
 }
 
-// copyProxyToRemote copies the embedded proxy script to the remote host
-func (pm *ProxyManager) copyProxyToRemote(host string) error {
-	startTime := time.Now()
+// copyProxyToRemote copies the embedded proxy script to the remote host (with timeout)
+func (pm *ProxyManager) copyProxyToRemote(host string, timeout time.Duration) error {
+    startTime := time.Now()
 
-	// Create a temporary file with the proxy script
-	tmpFile, err := os.CreateTemp("", "veda-proxy-*.py")
+    // Create a temporary file with the proxy script
+    tmpFile, err := os.CreateTemp("", "veda-proxy-*.py")
 	if err != nil {
 		return err
 	}
@@ -216,12 +250,18 @@ func (pm *ProxyManager) copyProxyToRemote(host string) error {
 	}
 	tmpFile.Close()
 
-	// Use scp to copy the file to remote /tmp/
-	scpCmd := exec.Command("scp",
-		"-o", "ControlMaster=no",
-		"-o", "ControlPath=none",
-		tmpFile.Name(),
-		fmt.Sprintf("%s:/tmp/veda-proxy.py", host))
+    // Use scp to copy the file to remote /tmp/ with fast-fail options
+    ctx, cancel := context.WithTimeout(context.Background(), timeout)
+    defer cancel()
+    scpCmd := exec.CommandContext(ctx, "scp",
+        "-o", "ConnectTimeout=5",
+        "-o", "ConnectionAttempts=1",
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "ControlMaster=no",
+        "-o", "ControlPath=none",
+        tmpFile.Name(),
+        fmt.Sprintf("%s:/tmp/veda-proxy.py", host))
 
 	// Capture output for debugging
 	output, err := scpCmd.CombinedOutput()
@@ -231,11 +271,15 @@ func (pm *ProxyManager) copyProxyToRemote(host string) error {
 
 	// Make the script executable on the remote host
 	pm.reportStatus(fmt.Sprintf("Setting up proxy on %s...", host))
-	chmodCmd := exec.Command("ssh",
-		host,
-		"-o", "ControlMaster=no",
-		"-o", "ControlPath=none",
-		"chmod", "+x", "/tmp/veda-proxy.py")
+    chmodCmd := exec.CommandContext(ctx, "ssh",
+        "-o", "ConnectTimeout=5",
+        "-o", "ConnectionAttempts=1",
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=no",
+        host,
+        "-o", "ControlMaster=no",
+        "-o", "ControlPath=none",
+        "chmod", "+x", "/tmp/veda-proxy.py")
 
 	output, err = chmodCmd.CombinedOutput()
 	if err != nil {
@@ -245,6 +289,46 @@ func (pm *ProxyManager) copyProxyToRemote(host string) error {
 	duration := time.Since(startTime)
 	LL.Info("Copied proxy script to %s:/tmp/veda-proxy.py in %v", host, duration)
 	return nil
+}
+
+// checkRemoteConnectivity attempts a short ssh to verify host reachability
+func (pm *ProxyManager) checkRemoteConnectivity(host string, timeout time.Duration) error {
+    ctx, cancel := context.WithTimeout(context.Background(), timeout)
+    defer cancel()
+    cmd := exec.CommandContext(ctx, "ssh",
+        "-o", "ConnectTimeout=5",
+        "-o", "ConnectionAttempts=1",
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=no",
+        host,
+        "echo", "ok")
+    output, err := cmd.CombinedOutput()
+    if err != nil {
+        // Map common failure modes to friendly messages
+        if ctx.Err() != nil {
+            return fmt.Errorf("connection timed out after %v", timeout)
+        }
+        out := strings.TrimSpace(string(output))
+        lo := strings.ToLower(out)
+        switch {
+        case strings.Contains(lo, "permission denied"):
+            return fmt.Errorf("permission denied")
+        case strings.Contains(lo, "could not resolve hostname") || strings.Contains(lo, "name or service not known"):
+            return fmt.Errorf("unknown host")
+        case strings.Contains(lo, "no route to host"):
+            return fmt.Errorf("no route to host")
+        case strings.Contains(lo, "connection timed out"):
+            return fmt.Errorf("connection timed out")
+        case strings.Contains(lo, "host key verification failed"):
+            return fmt.Errorf("host key verification failed")
+        default:
+            if out != "" {
+                return fmt.Errorf(out)
+            }
+            return fmt.Errorf("ssh error")
+        }
+    }
+    return nil
 }
 
 // Close shuts down all proxy instances
@@ -261,241 +345,328 @@ func (pm *ProxyManager) Close() error {
 
 // GetFile reads the contents of a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
+    startTime := time.Now()
 
-	startTime := time.Now()
+    client, actualPath, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
 
-	client, actualPath, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
+    LL.Debug("ProxyManager.GetFile: path=%s, actualPath=%s", path, actualPath)
 
-	LL.Debug("ProxyManager.GetFile: path=%s, actualPath=%s", path, actualPath)
-
-	// Call the original GetFile with the actual path (without HOST: prefix)
-	fileContent, err := client.GetFile(actualPath)
-	if err == nil {
-		duration := time.Since(startTime)
-		LL.Info("Read file %s (%d bytes) in %v", path, len(fileContent.Content), duration)
-	}
-
-	return fileContent, err
+    fileContent, err := client.GetFile(actualPath)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            // Retry once with a fresh client
+            if client2, _, gerr := pm.getClient(path); gerr == nil {
+                fileContent, err = client2.GetFile(actualPath)
+            }
+        }
+    }
+    if err == nil {
+        duration := time.Since(startTime)
+        LL.Info("Read file %s (%d bytes) in %v", path, len(fileContent.Content), duration)
+    }
+    return fileContent, err
 }
 
 // WriteFile writes content to a file (local or remote) and returns diagnostics
 func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
+    startTime := time.Now()
 
-	startTime := time.Now()
+    client, actualPath, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
 
-	client, actualPath, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
+    LL.Debug("ProxyManager.WriteFile: path=%s, actualPath=%s", path, actualPath)
 
-	LL.Debug("ProxyManager.WriteFile: path=%s, actualPath=%s", path, actualPath)
-
-	// Call the client's WriteFile with the actual path (without HOST: prefix)
-	diagnostics, err := client.WriteFile(actualPath, content)
-	if err == nil {
-		duration := time.Since(startTime)
-		LL.Info("Wrote file %s in %v", path, duration)
-	}
-	return diagnostics, err
+    diagnostics, err := client.WriteFile(actualPath, content)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(path); gerr == nil {
+                diagnostics, err = client2.WriteFile(actualPath, content)
+            }
+        }
+    }
+    if err == nil {
+        duration := time.Since(startTime)
+        LL.Info("Wrote file %s in %v", path, duration)
+    }
+    return diagnostics, err
 }
 
 // ListDirectory lists directory contents (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
+    startTime := time.Now()
 
-	startTime := time.Now()
+    client, actualPath, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
 
-	client, actualPath, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
-
-	files, err := client.ListDirectory(actualPath)
-	if err == nil {
-		duration := time.Since(startTime)
-		LL.Info("Listed directory %s (%d files) in %v", path, len(files), duration)
-	}
-
-	return files, err
+    files, err := client.ListDirectory(actualPath)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(path); gerr == nil {
+                files, err = client2.ListDirectory(actualPath)
+            }
+        }
+    }
+    if err == nil {
+        duration := time.Since(startTime)
+        LL.Info("Listed directory %s (%d files) in %v", path, len(files), duration)
+    }
+    return files, err
 }
 
 // ListDirectoryRecursive lists directory contents recursively (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
+    startTime := time.Now()
 
-	startTime := time.Now()
+    client, actualPath, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
 
-	client, actualPath, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
-
-	files, err := client.ListDirectoryRecursive(actualPath)
-	if err == nil {
-		duration := time.Since(startTime)
-		LL.Info("Listed directory recursively %s (%d files) in %v", path, len(files), duration)
-	}
-
-	return files, err
+    files, err := client.ListDirectoryRecursive(actualPath)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(path); gerr == nil {
+                files, err = client2.ListDirectoryRecursive(actualPath)
+            }
+        }
+    }
+    if err == nil {
+        duration := time.Since(startTime)
+        LL.Info("Listed directory recursively %s (%d files) in %v", path, len(files), duration)
+    }
+    return files, err
 }
 
 // GoToDefinition gets the definition location for a symbol (supports HOST:PATH format)
 func (pm *ProxyManager) GoToDefinition(filePath string, line int, character int) ([]Location, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.GoToDefinition(actualPath, line, character)
+    client, actualPath, err := pm.getClient(filePath)
+    if err != nil {
+        return nil, err
+    }
+    locations, err := client.GoToDefinition(actualPath, line, character)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(filePath)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(filePath); gerr == nil {
+                locations, err = client2.GoToDefinition(actualPath2, line, character)
+            }
+        }
+    }
+    return locations, err
 }
 
 // FindReferences finds all references to a symbol (supports HOST:PATH format)
 func (pm *ProxyManager) FindReferences(filePath string, line int, character int, includeDeclaration bool) ([]Location, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.FindReferences(actualPath, line, character, includeDeclaration)
+    client, actualPath, err := pm.getClient(filePath)
+    if err != nil {
+        return nil, err
+    }
+    locations, err := client.FindReferences(actualPath, line, character, includeDeclaration)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(filePath)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(filePath); gerr == nil {
+                locations, err = client2.FindReferences(actualPath2, line, character, includeDeclaration)
+            }
+        }
+    }
+    return locations, err
 }
 
 // GetCompletions gets completion suggestions at the given position (supports HOST:PATH format)
 func (pm *ProxyManager) GetCompletions(filePath string, line int, character int) (interface{}, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.GetCompletions(actualPath, line, character)
+    client, actualPath, err := pm.getClient(filePath)
+    if err != nil {
+        return nil, err
+    }
+    result, err := client.GetCompletions(actualPath, line, character)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(filePath)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(filePath); gerr == nil {
+                result, err = client2.GetCompletions(actualPath2, line, character)
+            }
+        }
+    }
+    return result, err
 }
 
 // GetDiagnostics gets all diagnostics from all open files
 func (pm *ProxyManager) GetDiagnostics(path string) (map[string][]interface{}, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, _, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.GetDiagnostics()
+    client, _, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
+    res, err := client.GetDiagnostics()
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(path); gerr == nil {
+                res, err = client2.GetDiagnostics()
+            }
+        }
+    }
+    return res, err
 }
 
 // GetDocumentSymbols gets document symbols for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.GetDocumentSymbols(actualPath)
+    client, actualPath, err := pm.getClient(filePath)
+    if err != nil {
+        return nil, err
+    }
+    symbols, err := client.GetDocumentSymbols(actualPath)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(filePath)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(filePath); gerr == nil {
+                symbols, err = client2.GetDocumentSymbols(actualPath2)
+            }
+        }
+    }
+    return symbols, err
 }
 
 // GetLSPMessages gets LSP messages for a language
 func (pm *ProxyManager) GetLSPMessages(path string, language string) ([]interface{}, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, _, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.GetLSPMessages(language)
+    client, _, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
+    msgs, err := client.GetLSPMessages(language)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(path); gerr == nil {
+                msgs, err = client2.GetLSPMessages(language)
+            }
+        }
+    }
+    return msgs, err
 }
 
 // GetFoldingRanges gets folding ranges for a file (supports HOST:PATH format)
 func (pm *ProxyManager) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.GetFoldingRanges(actualPath)
+    client, actualPath, err := pm.getClient(filePath)
+    if err != nil {
+        return nil, err
+    }
+    ranges, err := client.GetFoldingRanges(actualPath)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(filePath)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(filePath); gerr == nil {
+                ranges, err = client2.GetFoldingRanges(actualPath2)
+            }
+        }
+    }
+    return ranges, err
 }
 
 // NotifyFileChange notifies the LSP server about file content changes (supports HOST:PATH format)
 func (pm *ProxyManager) NotifyFileChange(filePath string, content string) error {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(filePath)
-	if err != nil {
-		return err
-	}
-
-	return client.NotifyFileChange(actualPath, content)
+    client, actualPath, err := pm.getClient(filePath)
+    if err != nil {
+        return err
+    }
+    err = client.NotifyFileChange(actualPath, content)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(filePath)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(filePath); gerr == nil {
+                err = client2.NotifyFileChange(actualPath2, content)
+            }
+        }
+    }
+    return err
 }
 
 // GetSignatureHelp gets signature help for a function (supports HOST:PATH format)
 func (pm *ProxyManager) GetSignatureHelp(filePath string, line int, character int) (interface{}, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.GetSignatureHelp(actualPath, line, character)
+    client, actualPath, err := pm.getClient(filePath)
+    if err != nil {
+        return nil, err
+    }
+    resp, err := client.GetSignatureHelp(actualPath, line, character)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(filePath)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(filePath); gerr == nil {
+                resp, err = client2.GetSignatureHelp(actualPath2, line, character)
+            }
+        }
+    }
+    return resp, err
 }
 
 // ListProjectSymbols gets all symbols across the project
 func (pm *ProxyManager) ListProjectSymbols(path string, query string) ([]ProjectSymbol, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, _, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.ListProjectSymbols(query)
+    client, _, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
+    symbols, err := client.ListProjectSymbols(query)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(path); gerr == nil {
+                symbols, err = client2.ListProjectSymbols(query)
+            }
+        }
+    }
+    return symbols, err
 }
 
 // GetProjectChanges gets all changed files in the project
 func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
-	client, actualPath, err := pm.getClient(path)
-	if err != nil {
-		return nil, err
-	}
-
-	// For project changes, we need to pass the directory path
-	// If actualPath is empty (local proxy), use the original path
-	workingDir := actualPath
-	if actualPath == "" || actualPath == "." {
-		workingDir = path
-	}
-
-	return client.GetProjectChanges(workingDir)
+    client, actualPath, err := pm.getClient(path)
+    if err != nil {
+        return nil, err
+    }
+    workingDir := actualPath
+    if actualPath == "" || actualPath == "." {
+        workingDir = path
+    }
+    changes, err := client.GetProjectChanges(workingDir)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(path)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(path); gerr == nil {
+                wd := actualPath2
+                if wd == "" || wd == "." {
+                    wd = path
+                }
+                changes, err = client2.GetProjectChanges(wd)
+            }
+        }
+    }
+    return changes, err
 }
 
 //go:embed veda-proxy.py
@@ -644,58 +815,158 @@ type Client struct {
 	readerOnce sync.Once
 }
 
+// shouldReconnect determines if an error suggests a dead proxy connection
+func shouldReconnect(err error) bool {
+    if err == nil {
+        return false
+    }
+    s := err.Error()
+    if strings.Contains(s, "proxy reader error") {
+        return true
+    }
+    if strings.Contains(s, "proxy EOF") {
+        return true
+    }
+    if strings.Contains(s, "failed to write request") || strings.Contains(s, "failed to flush request") {
+        return true
+    }
+    return false
+}
+
+// reconnect drops and recreates a client for a host ("" for local)
+func (pm *ProxyManager) reconnect(host string) (*Client, error) {
+    pm.mu.Lock()
+    old := pm.clients[host]
+    delete(pm.clients, host)
+    pm.mu.Unlock()
+    if old != nil && old.cmd != nil && old.cmd.Process != nil {
+        _ = old.cmd.Process.Kill()
+    }
+    if host == "" {
+        pm.reportStatus("Restarting local proxy...")
+    } else {
+        pm.reportStatus(fmt.Sprintf("Reconnecting to %s...", host))
+    }
+    var (
+        client *Client
+        err error
+    )
+    if host == "" {
+        client, err = NewClient()
+    } else {
+        client, err = pm.createRemoteClient(host)
+    }
+    if err != nil {
+        pm.reportStatus("Disconnected")
+        // Emit a special failure status so the editor can react (exit with message)
+        pm.reportStatus(fmt.Sprintf("__RECONNECT_FAILED__: %s", err.Error()))
+        return nil, err
+    }
+    pm.mu.Lock()
+    pm.clients[host] = client
+    pm.mu.Unlock()
+    if host == "" {
+        pm.reportStatus("Connected")
+    } else {
+        pm.reportStatus(fmt.Sprintf("Connected to %s", host))
+    }
+    // Clear status so the spinner stops once connected
+    pm.reportStatus("")
+    return client, nil
+}
+
 // ---- Terminal (PTY) session RPCs ----
 
 // StartTerminal starts a PTY-backed terminal session on the proxy host.
 // workingDir decides locality via existing client selection.
 func (pm *ProxyManager) StartTerminal(workingDir string, command []string, env map[string]string, cols, rows int) (string, int, error) {
-	pm.mu.Lock()
-	client, actualPath, err := pm.getClient(workingDir)
-	pm.mu.Unlock()
-	if err != nil {
-		return "", 0, err
-	}
-	return client.startTerminal(actualPath, command, env, cols, rows)
+    client, actualPath, err := pm.getClient(workingDir)
+    if err != nil {
+        return "", 0, err
+    }
+    sid, pid, err := client.startTerminal(actualPath, command, env, cols, rows)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(workingDir)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, actualPath2, gerr := pm.getClient(workingDir); gerr == nil {
+                sid, pid, err = client2.startTerminal(actualPath2, command, env, cols, rows)
+            }
+        }
+    }
+    return sid, pid, err
 }
 
 func (pm *ProxyManager) WriteTerminal(workingDir, sessionID string, data []byte) error {
-	pm.mu.Lock()
-	client, _, err := pm.getClient(workingDir)
-	pm.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	return client.writeTerminal(sessionID, data)
+    client, _, err := pm.getClient(workingDir)
+    if err != nil {
+        return err
+    }
+    err = client.writeTerminal(sessionID, data)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(workingDir)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(workingDir); gerr == nil {
+                err = client2.writeTerminal(sessionID, data)
+            }
+        }
+    }
+    return err
 }
 
 func (pm *ProxyManager) ReadTerminal(workingDir, sessionID string, maxBytes int) ([]byte, bool, *int, error) {
-	pm.mu.Lock()
-	client, _, err := pm.getClient(workingDir)
-	pm.mu.Unlock()
-	if err != nil {
-		return nil, false, nil, err
-	}
-	return client.readTerminal(sessionID, maxBytes)
+    client, _, err := pm.getClient(workingDir)
+    if err != nil {
+        return nil, false, nil, err
+    }
+    data, closed, exitCode, err := client.readTerminal(sessionID, maxBytes)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(workingDir)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(workingDir); gerr == nil {
+                data, closed, exitCode, err = client2.readTerminal(sessionID, maxBytes)
+            }
+        }
+    }
+    return data, closed, exitCode, err
 }
 
 func (pm *ProxyManager) ResizeTerminal(workingDir, sessionID string, cols, rows int) error {
-	pm.mu.Lock()
-	client, _, err := pm.getClient(workingDir)
-	pm.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	return client.resizeTerminal(sessionID, cols, rows)
+    client, _, err := pm.getClient(workingDir)
+    if err != nil {
+        return err
+    }
+    err = client.resizeTerminal(sessionID, cols, rows)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(workingDir)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(workingDir); gerr == nil {
+                err = client2.resizeTerminal(sessionID, cols, rows)
+            }
+        }
+    }
+    return err
 }
 
 func (pm *ProxyManager) CloseTerminal(workingDir, sessionID string) error {
-	pm.mu.Lock()
-	client, _, err := pm.getClient(workingDir)
-	pm.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	return client.closeTerminal(sessionID)
+    client, _, err := pm.getClient(workingDir)
+    if err != nil {
+        return err
+    }
+    err = client.closeTerminal(sessionID)
+    if shouldReconnect(err) {
+        host, _, _ := parseRemotePath(workingDir)
+        pm.reportStatus("Disconnected")
+        if _, rerr := pm.reconnect(host); rerr == nil {
+            if client2, _, gerr := pm.getClient(workingDir); gerr == nil {
+                err = client2.closeTerminal(sessionID)
+            }
+        }
+    }
+    return err
 }
 
 // Client-side request helpers
