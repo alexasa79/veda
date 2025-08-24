@@ -142,6 +142,9 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 			return err
 		}
 
+		// Sync updated virtual cursor positions for current buffer
+		e.syncCurrentVirtualCursors()
+
 		// Restore view iterator
 		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
@@ -243,6 +246,10 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
 		e.CurrentBuffer().CursorX = primaryCursorX
 	}
+
+	// Sync updated virtual cursor positions for current buffer (no structural
+	// changes here, but keep map/shim consistent across operations)
+	e.syncCurrentVirtualCursors()
 
 	// Restore view iterator
 	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
