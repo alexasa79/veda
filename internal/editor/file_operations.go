@@ -907,6 +907,12 @@ func (e *Editor) listDocumentSymbolsCmd(args []string) error {
 
 // writeFile writes the current buffer to disk asynchronously with spinner
 func (e *Editor) writeFile(args []string) error {
+	// Capture the target buffer at invocation time; the current buffer may change later.
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return fmt.Errorf("no active buffer")
+	}
+
 	var filePath string
 	var saveAs bool
 
@@ -915,17 +921,17 @@ func (e *Editor) writeFile(args []string) error {
 		// Save as - use the provided filename
 		filePath = e.resolvePath(args[0])
 		saveAs = true
-	} else if e.CurrentBuffer().HasFile() {
+	} else if buf.HasFile() {
 		// Save to current file
-		filePath = e.CurrentBuffer().FilePath
+		filePath = buf.FilePath
 		saveAs = false
 	} else {
 		// No filename and buffer has no file
 		return fmt.Errorf("no file name")
 	}
 
-	// Get the content from the buffer
-	content := e.CurrentBuffer().Rope.String()
+	// Get the content from the captured buffer
+	content := buf.Rope.String()
 
 	// Save to local history first (don't fail the save if history fails)
 	if e.localHistory != nil {
@@ -948,7 +954,7 @@ func (e *Editor) writeFile(args []string) error {
 	}
 
 	// Perform the save operation asynchronously
-	go func() {
+	go func(target *buffer.Buffer) {
 		defer e.endAsyncOperation(operationID)
 		defer func() { e.connectionStatus = "" }() // Clear status when done
 
@@ -961,16 +967,16 @@ func (e *Editor) writeFile(args []string) error {
 		}
 
 		// Update buffer diagnostics with the returned diagnostics
-		e.CurrentBuffer().Diagnostics = diagnostics
+		target.Diagnostics = diagnostics
 
 		// If this is a "save as" operation, update the buffer's file path
 		if saveAs {
 			// Remove old buffer from maps if it had a file
-			if e.CurrentBuffer().HasFile() {
-				delete(e.buffers, e.CurrentBuffer().FilePath)
+			if target.HasFile() {
+				delete(e.buffers, target.FilePath)
 				// Update buffer order
 				for i, path := range e.bufferOrder {
-					if path == e.CurrentBuffer().FilePath {
+					if path == target.FilePath {
 						e.bufferOrder[i] = filePath
 						break
 					}
@@ -987,14 +993,14 @@ func (e *Editor) writeFile(args []string) error {
 			}
 
 			// Update buffer's file path
-			e.CurrentBuffer().FilePath = filePath
+			target.FilePath = filePath
 
 			// Add buffer with new path
-			e.buffers[filePath] = e.CurrentBuffer()
+			e.buffers[filePath] = target
 		}
 
 		// Mark buffer as saved
-		e.CurrentBuffer().MarkSaved()
+		target.MarkSaved()
 
 		// Clean up auto-save since file was successfully saved
 		if e.autoSaveManager != nil {
@@ -1004,7 +1010,7 @@ func (e *Editor) writeFile(args []string) error {
 		// Show success message
 		LL.Info("Wrote %s", filePath)
 		e.ShowInfo("File saved: %s", filePath)
-	}()
+	}(buf)
 
 	return nil
 }
