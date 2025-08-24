@@ -145,7 +145,7 @@ func (e *Editor) executeOperatorWithTextObjectForAllCursors(op Operator, textObj
 		}
 
 		// Update virtual cursors to their new positions
-		e.virtualCursors = newVirtualCursors
+		e.setVirtualCursorsFor(e.CurrentBuffer(), newVirtualCursors)
 
 		// Only enter insert mode for change operations, not delete operations
 		if isChangeOp {

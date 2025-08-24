@@ -347,6 +347,8 @@ func (e *Editor) closeBuffer(args []string) error {
 		// Remove from global buffers registry
 		delete(e.buffers, currentPath)
 		e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
+		// Drop any per-buffer virtual cursors for this buffer
+		delete(e.virtualCursorsByBuffer, cur)
 	}
 
 	return nil

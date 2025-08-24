@@ -143,14 +143,15 @@ func (e *Editor) clearVirtualCursors() {
 		e.CurrentBuffer().History.StartComposite("Clear virtual cursors")
 		// Pre-state: current cursors
 		primary := buffer.CursorPos{Line: e.CurrentBuffer().CursorIterator.LineNumber(), Char: e.CurrentBuffer().CursorX}
-		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-		for _, vc := range e.virtualCursors {
+		vlist := e.GetVirtualCursors()
+		v := make([]buffer.CursorPos, 0, len(vlist))
+		for _, vc := range vlist {
 			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
 		}
 		e.CurrentBuffer().History.SetActiveCompositeCursors(primary, v)
 	}
 	// Apply the state change
-	e.virtualCursors = []VirtualCursor{}
+	e.clearVirtualCursorsFor(e.CurrentBuffer())
 	// Post-state: no virtual cursors
 	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil && e.CurrentBuffer().History.HasActiveComposite() {
 		primary := buffer.CursorPos{Line: e.CurrentBuffer().CursorIterator.LineNumber(), Char: e.CurrentBuffer().CursorX}
@@ -165,7 +166,7 @@ func (e *Editor) addVirtualCursor() {
 	currentX := e.CurrentBuffer().CursorX
 	currentY := e.CurrentBuffer().CursorIterator.LineNumber()
 
-	for _, existing := range e.virtualCursors {
+	for _, existing := range e.GetVirtualCursors() {
 		if existing.X == currentX && existing.Y == currentY {
 			// Already have a cursor here, just move down
 			if err := e.commandRegistry.Execute("down", nil); err != nil {
@@ -187,13 +188,14 @@ func (e *Editor) addVirtualCursor() {
 		// (this covers programmatic calls/tests)
 		e.CurrentBuffer().History.StartComposite("Add virtual cursors")
 		primary := buffer.CursorPos{Line: e.CurrentBuffer().CursorIterator.LineNumber(), Char: e.CurrentBuffer().CursorX}
-		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-		for _, vc := range e.virtualCursors {
+		vlist := e.GetVirtualCursors()
+		v := make([]buffer.CursorPos, 0, len(vlist))
+		for _, vc := range vlist {
 			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
 		}
 		e.CurrentBuffer().History.SetActiveCompositeCursors(primary, v)
 	}
-	e.virtualCursors = append(e.virtualCursors, cursor)
+	e.appendVirtualCursorFor(e.CurrentBuffer(), cursor)
 
 	// Move primary cursor down one line
 	if err := e.commandRegistry.Execute("down", nil); err != nil {
@@ -203,8 +205,9 @@ func (e *Editor) addVirtualCursor() {
 	// state after the entire add sequence.
 	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil && e.CurrentBuffer().History.HasActiveComposite() {
 		primary := buffer.CursorPos{Line: e.CurrentBuffer().CursorIterator.LineNumber(), Char: e.CurrentBuffer().CursorX}
-		v := make([]buffer.CursorPos, 0, len(e.virtualCursors))
-		for _, vc := range e.virtualCursors {
+		vlist := e.GetVirtualCursors()
+		v := make([]buffer.CursorPos, 0, len(vlist))
+		for _, vc := range vlist {
 			v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
 		}
 		e.CurrentBuffer().History.SetActiveCompositePostCursors(primary, v)
