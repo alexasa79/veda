@@ -319,40 +319,40 @@ func (e *Editor) ShowFuzzyListWidget() {
 	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
 	overlayResultChan := e.renderingState.SetOverlay(overlay)
 
-	// Wait for result in a goroutine
-	go func() {
-		selectedPath := <-overlayResultChan
-		if selectedPath != "" {
-			openInNewWin := false
-			if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
-				openInNewWin = true
-				selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
-			}
-			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
-			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
-			if openInNewWin {
-				// Create a new window and open file into it
-				insertAt := e.activeWindow + 1
-				// Temporarily switch active window to new one for openFile side effects
-				if insertAt >= len(e.windows) {
-					e.windows = append(e.windows, newWindow(e.CurrentBuffer()))
-				} else {
-					e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-					e.windows[insertAt] = newWindow(e.CurrentBuffer())
-				}
-				e.activateWindow(insertAt)
-				e.openFile(fullPath)
-				// Wake main loop to render the opened file
-				e.asyncEvents <- events.NewCustomEvent("render", nil)
-			} else {
-				e.openFile(fullPath)
-				// Wake main loop to render the opened file
-				e.asyncEvents <- events.NewCustomEvent("render", nil)
-			}
-		}
-		// Don't close contentUpdateChan - the sending goroutine might still be running
-		// The channel will be garbage collected when no longer referenced
-	}()
+    // Wait for result in a goroutine; post a lambda to the main loop
+    go func() {
+        selectedPath := <-overlayResultChan
+        if selectedPath == "" {
+            return
+        }
+        openInNewWin := false
+        if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
+            openInNewWin = true
+            selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
+        }
+        fullPath := e.resolveSelectedPath(selectedPath, filePaths)
+        LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
+        e.Post(func(e *Editor) {
+            if openInNewWin {
+                insertAt := e.activeWindow + 1
+                // Seed the new window with the current buffer, matching existing behavior
+                seed := e.CurrentBuffer()
+                newWin := newWindow(seed)
+                if insertAt >= len(e.windows) {
+                    e.windows = append(e.windows, newWin)
+                } else {
+                    e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+                    e.windows[insertAt] = newWin
+                }
+                e.activateWindow(insertAt)
+                e.openFile(fullPath)
+                return
+            }
+            e.openFile(fullPath)
+        })
+        // Don't close contentUpdateChan - the sending goroutine might still be running
+        // The channel will be garbage collected when no longer referenced
+    }()
 }
 
 // startFuzzyFileListRefresh issues a fresh directory request bypassing cache

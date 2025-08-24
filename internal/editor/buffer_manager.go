@@ -200,70 +200,80 @@ func (e *Editor) showBuffers(args []string) error {
 
 	fuzzyListWidget.SetContent(bufferDisplays)
 
-	// Create overlay and get result channel
+    // Create overlay and get result channel
     overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
-	resultChan := e.renderingState.SetOverlay(overlay)
+    resultChan := e.renderingState.SetOverlay(overlay)
 
-	// Wait for result in a goroutine
-	go func() {
+    // Wait for result in a goroutine; post a lambda to the main loop
+    go func() {
         selection := <-resultChan
+        if selection == "" {
+            return
+        }
+        openInNewWin := false
+        if strings.HasPrefix(selection, "__SHIFT__\n") {
+            openInNewWin = true
+            selection = strings.TrimPrefix(selection, "__SHIFT__\n")
+        }
+        // String-only resolution; actual state mutations happen on main loop
+        path, ok := pathToDisplay[selection]
+        if !ok {
+            return
+        }
+        e.Post(func(e *Editor) {
+            // Save current buffer state before switching
+            e.saveCurrentBufferState()
 
-		// If a buffer was selected, switch to it
-		if selection != "" {
-			openInNewWin := false
-			if strings.HasPrefix(selection, "__SHIFT__\n") {
-				openInNewWin = true
-				selection = strings.TrimPrefix(selection, "__SHIFT__\n")
-			}
-
-			// Save current buffer state before switching
-			e.saveCurrentBufferState()
-
-            // Look up the actual path from the display name
-			if path, ok := pathToDisplay[selection]; ok {
-				// Find which window contains this buffer
-				targetWindowIdx := pathToWindow[path]
-
-				if openInNewWin {
-					// Create a new window to the right and assign buffer
-					insertAt := e.activeWindow + 1
-					if buf, exists := e.buffers[path]; exists {
-						newWin := newWindow(buf)
-						if insertAt >= len(e.windows) {
-							e.windows = append(e.windows, newWin)
-						} else {
-							e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-							e.windows[insertAt] = newWin
-						}
-						e.activateWindow(insertAt)
-						e.switchToBuffer(buf)
-					}
-                } else {
-                    // If the buffer exists in a window, activate that window; otherwise attach to active window
-                    if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
-                        targetWindow := e.windows[targetWindowIdx]
-                        if targetWindow != nil {
-                            if buf, exists := e.buffers[path]; exists {
-                                e.activateWindow(targetWindowIdx)
-                                targetWindow.addBufferToWindow(buf)
-                                e.switchToBuffer(buf)
-                            }
-                        }
-                    } else {
-                        // Not present in any window: attach to the active window and switch
-                        if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-                            if buf, exists := e.buffers[path]; exists {
-                                if e.windows[e.activeWindow] != nil {
-                                    e.windows[e.activeWindow].addBufferToWindow(buf)
-                                    e.switchToBuffer(buf)
-                                }
-                            }
-                        }
+            // Resolve buffer pointer; fallback: scan window lists
+            var bufPtr *buffer.Buffer
+            if b, exists := e.buffers[path]; exists {
+                bufPtr = b
+            } else {
+                for _, w := range e.windows {
+                    if w == nil { continue }
+                    for _, b := range w.Buffers {
+                        if b != nil && b.FilePath == path { bufPtr = b; break }
                     }
+                    if bufPtr != nil { break }
                 }
-			}
-		}
-	}()
+            }
+            if bufPtr == nil {
+                return
+            }
+
+            if openInNewWin {
+                insertAt := e.activeWindow + 1
+                newWin := newWindow(bufPtr)
+                if insertAt >= len(e.windows) {
+                    e.windows = append(e.windows, newWin)
+                } else {
+                    e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+                    e.windows[insertAt] = newWin
+                }
+                e.activateWindow(insertAt)
+                e.switchToBuffer(bufPtr)
+                return
+            }
+
+            // Recompute current window for this buffer dynamically
+            targetWindowIdx := e.findWindowContainingBuffer(path)
+            if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
+                if tw := e.windows[targetWindowIdx]; tw != nil {
+                    tw.addBufferToWindow(bufPtr)
+                    e.activateWindow(targetWindowIdx)
+                    e.switchToBuffer(bufPtr)
+                    return
+                }
+            }
+            // Not present in any window: attach to active window and switch
+            if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+                if aw := e.windows[e.activeWindow]; aw != nil {
+                    aw.addBufferToWindow(bufPtr)
+                    e.switchToBuffer(bufPtr)
+                }
+            }
+        })
+    }()
 
 	return nil
 }
@@ -446,71 +456,86 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 		fuzzyListWidget.SetSelectedIndex(1)
 	}
 
-	// Create overlay and get result channel
-	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
-	resultChan := e.renderingState.SetOverlay(overlay)
+    // Create overlay and get result channel
+    overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, nil)
+    resultChan := e.renderingState.SetOverlay(overlay)
 
-	// Wait for result in a goroutine
-	go func() {
-		selection := <-resultChan
-
-		// If a buffer was selected, switch to it
-		if selection != "" {
-			openInNewWin := false
-			if strings.HasPrefix(selection, "__SHIFT__\n") {
-				openInNewWin = true
-				selection = strings.TrimPrefix(selection, "__SHIFT__\n")
-			}
-
-			// Save current buffer state before switching
-			e.saveCurrentBufferState()
-
-			// Look up the actual path from the display name
-            if path, ok := pathToDisplay[selection]; ok {
-                LL.Debug("showBuffers selection: display='%s' path='%s' targetWindowIdx=%d", selection, path, pathToWindow[path])
-                // Find which window contains this buffer
-                targetWindowIdx := pathToWindow[path]
-
-                if openInNewWin {
-                    // Create a new window to the right and assign buffer
-                    insertAt := e.activeWindow + 1
-                    if buf, exists := e.buffers[path]; exists {
-                        newWin := newWindow(buf)
-                        if insertAt >= len(e.windows) {
-                            e.windows = append(e.windows, newWin)
-                        } else {
-                            e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-                            e.windows[insertAt] = newWin
-                        }
-                        e.activateWindow(insertAt)
-                        e.switchToBuffer(buf)
+    // Wait for result in a goroutine; post a lambda to the main loop
+    go func() {
+        selection := <-resultChan
+        if selection == "" {
+            return
+        }
+        openInNewWin := false
+        if strings.HasPrefix(selection, "__SHIFT__\n") {
+            openInNewWin = true
+            selection = strings.TrimPrefix(selection, "__SHIFT__\n")
+        }
+        // Resolve path from display name snapshot (string-only data), but do
+        // all state mutations in the main loop lambda below.
+        path, ok := pathToDisplay[selection]
+        if !ok {
+            return
+        }
+        e.Post(func(e *Editor) {
+            // Save current buffer state before switching
+            e.saveCurrentBufferState()
+            // Resolve buffer pointer from registry; fallback: scan windows
+            var bufPtr *buffer.Buffer
+            if b, exists := e.buffers[path]; exists {
+                bufPtr = b
+            } else {
+                for _, w := range e.windows {
+                    if w == nil {
+                        continue
                     }
-                } else {
-                    // If the buffer exists in a window, activate that window; otherwise attach to active window
-                    if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
-                        targetWindow := e.windows[targetWindowIdx]
-                        if targetWindow != nil {
-                            if buf, exists := e.buffers[path]; exists {
-                                e.activateWindow(targetWindowIdx)
-                                targetWindow.addBufferToWindow(buf)
-                                e.switchToBuffer(buf)
-                            }
+                    for _, b := range w.Buffers {
+                        if b != nil && b.FilePath == path {
+                            bufPtr = b
+                            break
                         }
-                    } else {
-                        // Not present in any window: attach to the active window and switch
-                        if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-                            if buf, exists := e.buffers[path]; exists {
-                                if e.windows[e.activeWindow] != nil {
-                                    e.windows[e.activeWindow].addBufferToWindow(buf)
-                                    e.switchToBuffer(buf)
-                                }
-                            }
-                        }
+                    }
+                    if bufPtr != nil {
+                        break
                     }
                 }
             }
-		}
-	}()
+            if bufPtr == nil {
+                return
+            }
+            if openInNewWin {
+                insertAt := e.activeWindow + 1
+                newWin := newWindow(bufPtr)
+                if insertAt >= len(e.windows) {
+                    e.windows = append(e.windows, newWin)
+                } else {
+                    e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
+                    e.windows[insertAt] = newWin
+                }
+                // Activate after the buffer is owned by the window
+                e.activateWindow(insertAt)
+                e.switchToBuffer(bufPtr)
+                return
+            }
+            // Recompute target window dynamically to avoid stale snapshot
+            targetWindowIdx := e.findWindowContainingBuffer(path)
+            if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
+                if tw := e.windows[targetWindowIdx]; tw != nil {
+                    tw.addBufferToWindow(bufPtr)
+                    e.activateWindow(targetWindowIdx)
+                    e.switchToBuffer(bufPtr)
+                    return
+                }
+            }
+            // Not present in any window: attach to active window and switch
+            if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+                if aw := e.windows[e.activeWindow]; aw != nil {
+                    aw.addBufferToWindow(bufPtr)
+                    e.switchToBuffer(bufPtr)
+                }
+            }
+        })
+    }()
 
 	return nil
 }
