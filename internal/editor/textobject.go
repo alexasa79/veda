@@ -30,23 +30,29 @@ const (
 type LineTextObject struct{}
 
 func (l LineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	// For line object, we select the entire current line including newline
-	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
-	if iter.IsEOF() {
-		return 0, 0, 0, 0, false
-	}
-
-	line := iter.Line()
+    // For line object, we select the entire current line including newline
+    iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+    // Treat the implicit last empty line (EOF) as a valid zero-length line
+    var line string
+    if iter.IsEOF() {
+        // Only acceptable EOF case is when pointing at the last logical line
+        if cursorLine != buf.LineCount-1 {
+            return 0, 0, 0, 0, false
+        }
+        line = ""
+    } else {
+        line = iter.Line()
+    }
 
 	// Check if this is the last line in the buffer
-	if cursorLine == buf.LineCount-1 {
-		// For the last line, delete from beginning of line to end of line content
-		return cursorLine, 0, cursorLine, len(line), true
-	} else {
-		// For non-last lines, delete from beginning of this line to beginning of next line
-		// This effectively includes the newline character
-		return cursorLine, 0, cursorLine + 1, 0, true
-	}
+    if cursorLine == buf.LineCount-1 {
+        // For the last line, delete from beginning of line to end of line content
+        return cursorLine, 0, cursorLine, len(line), true
+    } else {
+        // For non-last lines, delete from beginning of this line to beginning of next line
+        // This effectively includes the newline character
+        return cursorLine, 0, cursorLine + 1, 0, true
+    }
 }
 
 func (l LineTextObject) GetType() string {
@@ -177,11 +183,17 @@ func (m MultiLineTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar
 	}
 
 	// Get length of last line
-	iter := buffer.NewBufferIteratorAtLine(buf, endLine)
-	if iter.IsEOF() {
-		return 0, 0, 0, 0, false
-	}
-	lastLine := iter.Line()
+    iter := buffer.NewBufferIteratorAtLine(buf, endLine)
+    // Allow selecting the implicit last empty line at EOF
+    var lastLine string
+    if iter.IsEOF() {
+        if endLine != buf.LineCount-1 {
+            return 0, 0, 0, 0, false
+        }
+        lastLine = ""
+    } else {
+        lastLine = iter.Line()
+    }
 
 	return startLine, 0, endLine, len(lastLine), true
 }
