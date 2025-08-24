@@ -376,34 +376,38 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 	seenBuffers := make(map[string]bool) // Track already seen buffers to avoid duplicates
 	previousBufferIndex := -1
 
-    // Collect buffers from all windows (single owner per buffer: where Window.Buffer == buf)
+    // Collect buffers from all windows using each window's buffer list
     for windowIdx, window := range e.windows {
-        if window == nil || window.Buffer == nil {
+        if window == nil {
             continue
         }
-        path := window.Buffer.FilePath
-        if path == "" || seenBuffers[path] {
-            continue
-        }
-        seenBuffers[path] = true
-        pathToWindow[path] = windowIdx
-
-        buf := window.Buffer
-        displayName := buf.DisplayName()
-        windowInfo := fmt.Sprintf("W%d", windowIdx+1)
-
-        var fullDisplayName string
-        if path == e.CurrentBuffer().FilePath {
-            fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
-        } else {
-            fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
-            if e.previousBuffer != nil && path == e.previousBuffer.FilePath {
-                previousBufferIndex = len(bufferDisplays)
+        for _, buf := range window.Buffers {
+            if buf == nil {
+                continue
             }
-        }
+            path := buf.FilePath
+            if path == "" || seenBuffers[path] {
+                continue
+            }
+            seenBuffers[path] = true
+            pathToWindow[path] = windowIdx
 
-        bufferDisplays = append(bufferDisplays, fullDisplayName)
-        pathToDisplay[fullDisplayName] = path
+            displayName := buf.DisplayName()
+            windowInfo := fmt.Sprintf("W%d", windowIdx+1)
+
+            var fullDisplayName string
+            if e.CurrentBuffer() != nil && path == e.CurrentBuffer().FilePath {
+                fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
+            } else {
+                fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
+                if e.previousBuffer != nil && path == e.previousBuffer.FilePath {
+                    previousBufferIndex = len(bufferDisplays)
+                }
+            }
+
+            bufferDisplays = append(bufferDisplays, fullDisplayName)
+            pathToDisplay[fullDisplayName] = path
+        }
     }
 
     // Include global buffers not attached to any window (e.g., *Messages*)
@@ -488,7 +492,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
                         if targetWindow != nil {
                             if buf, exists := e.buffers[path]; exists {
                                 e.activateWindow(targetWindowIdx)
-                                targetWindow.Buffer = buf
+                                targetWindow.addBufferToWindow(buf)
                                 e.switchToBuffer(buf)
                             }
                         }
@@ -497,7 +501,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
                         if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
                             if buf, exists := e.buffers[path]; exists {
                                 if e.windows[e.activeWindow] != nil {
-                                    e.windows[e.activeWindow].Buffer = buf
+                                    e.windows[e.activeWindow].addBufferToWindow(buf)
                                     e.switchToBuffer(buf)
                                 }
                             }
