@@ -61,6 +61,7 @@ type Editor struct {
 	commandRegistry    *commands.CommandRegistry
 	keyMapper          *commands.KeyMapper
 	bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
+	diffLineInfo       map[*buffer.Buffer][]DiffLine // Stores diff line information for diff buffers
 	perfTracker        *perf.TimeTracker
 
 	// Buffer management
@@ -302,6 +303,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		commandRegistry:        commands.NewCommandRegistry(),
 		keyMapper:              commands.NewKeyMapper(),
 		bufferHighlighters:     make(map[*buffer.Buffer]*syntax.Highlighter),
+		diffLineInfo:           make(map[*buffer.Buffer][]DiffLine), // Added for diff view support
 		perfTracker:            perf.New(true, 30*time.Second), // Report every 30 seconds
 		buffers:                make(map[string]*buffer.Buffer),
 		virtualCursorsByBuffer: make(map[*buffer.Buffer][]VirtualCursor),
@@ -596,7 +598,8 @@ func (e *Editor) render() {
 		}
 	}
 
-	// Draw each window using a windowScreen. Inactive windows are dimmed.
+	// Draw each window using a windowScreen. Inactive windows are dimmed unless in diff view.
+	diffViewActive := e.isDiffViewActive()
 	for i, win := range e.windows {
 		// Per-window performance breakdown to analyze drawWindows cost
 		winTimer := e.perfTracker.Start()
@@ -613,13 +616,13 @@ func (e *Editor) render() {
 
 		// Handle empty windows (Buffer == nil)
 		if win.Buffer == nil {
-			dim := i != e.activeWindow
+			dim := !diffViewActive && (i != e.activeWindow)
 			sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
 			e.drawEmptyWindow(sub, i == e.activeWindow)
 			continue
 		}
 		// Prepare sub-screen
-		dim := i != e.activeWindow
+		dim := !diffViewActive && (i != e.activeWindow)
 		sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
 		// Measure prepare phase
 		winTimer = e.perfTracker.ReportSince("drawWindows.window.prepare", winTimer)
@@ -1961,6 +1964,9 @@ func (e *Editor) updateCursorState() {
 	e.checkSignatureUpdate()
 	// Update matching pair highlight for current buffer
 	e.updateMatchHighlight()
+	
+	// Sync cursor position for diff buffers
+	e.syncDiffCursors()
 }
 
 // updateMatchHighlight computes matching bracket/quote for cursor position.

@@ -1,0 +1,59 @@
+I would like you to implement the diff feature. With this feature we will be
+comparing the current version of the file (on the right) and the previously
+committed version of the file on the left. 
+
+To render both sides of the feature I would like to utilize veda's windows
+feature. When asking for a diff view, we:
+
+1. Open the original version of the file (the HEAD version) in the current
+   window. We will call this buffer <file>@HEAD
+2. We will make sure there is at least one window to the right of the current
+   window. If there is no window, we will create a new one.
+3. We will then open a copy of the current buffer. Note that we will open
+   another buffer for the current file, not the original file. We will call this
+   buffer <file>@current.
+
+When opening the HEAD version of the file, we obviously want to use the proxy
+server. I think it makes sense to extend the existing API to open a file to
+support opening the HEAD version of the file. For example opening <file>@HEAD
+will open the head while opening <file> will open the current version.
+
+The windows and the buffers that we open for the sake of diff will not be
+special in any way. We can, if we want to, move either buffer to any other open
+window. However, the idea is that although it should be possible to scramble
+this, we will want to show the current version of the file and the HEAD, side by
+side.
+
+The cursors in two buffers should be synchronized. When I move the cursor in one
+buffer, it should move in another. 
+
+The HEAD version of the file should be read-only. Changes to the current version
+of the file should be immediately visible with differences compared to the HEAD.
+Note that this only applies to the right diff side. It does not apply to a
+normal buffer.
+
+To compare the two files we will have our own diff algorithm implementation.
+Lines that are different should have yellowish background. Lines that were
+deleted will have reddish background and lines that were added greenish
+background. To make it all visible and vivid, we have to make sure create extra
+empty lines in both buffers, where needed.
+
+The feature will be available via "s c" keyboard shortcut. Note that currently
+"s c" opens a list of project-wide differences. We want to change "s C" to show
+the project-wide list and "s c" to show the current file.
+
+I would like to break this project up into parts. 
+1. We need a diff algorithm implementation.
+2. We need the proxy integration.
+3. We need the rendering part, where we open the windows and the buffers.
+4. Rendering of differences between two halfs.
+5. There is the two halfs synchronization.
+6. Key bindings handling.
+
+As a side note, I need a recommendation for the top level key binding that I
+could use for various commands that we will perform on the diff. For instance,
+stage a line, stage a hunk, restore original line/hunk, etc.
+
+
+
+
