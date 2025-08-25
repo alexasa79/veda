@@ -102,7 +102,6 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "space T", "term-new-window")
 
 	// Buffer operations
-	e.registerKeyBinding(commands.NormalMode, "s b", "show-buffers")
 	e.registerKeyBinding(commands.NormalMode, "space space", "switch-to-previous-buffer")
 	e.registerKeyBinding(commands.NormalMode, "space n", "new-buffer")
 	e.registerKeyBinding(commands.NormalMode, "space x", "q")
