@@ -207,7 +207,6 @@ func TestDiffLineNumbers(t *testing.T) {
 	})
 }
 
-// TestDiffLineNumbersRealExample tests line numbering with a more realistic diff scenario
 func TestDiffLineNumbersRealExample(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "")
 	
