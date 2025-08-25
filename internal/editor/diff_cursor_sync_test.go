@@ -13,7 +13,7 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 	currentContent := "line1\nmodified line2\nline3\nline4\nline5\nextra line6"
 	
 	te := NewTestEditorWithContent(120, 30, currentContent)
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 	
 	// Mock the git functionality by creating the head buffer manually
 	headBufferName := "test.go@HEAD"
@@ -136,7 +136,7 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 		
 		// Set up a smaller screen to force scrolling
 		te := NewTestEditorWithContent(80, 10, manyLinesContent) // Only 10 lines tall
-		te.buffer.FilePath = "test.go"
+		te.CurrentBuffer().FilePath = "test.go"
 		
 		headBufferName := "test.go@HEAD"
 		currentBufferName := "test.go@current"

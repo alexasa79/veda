@@ -71,7 +71,7 @@ func TestDiffRendering(t *testing.T) {
 		
 		// Move cursor away from current line to avoid current line highlighting interference
 		// Move cursor to line 3 to test other lines without current line interference
-		te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 3)
+		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 3)
 		
 		te.drawEditor()
 		
@@ -85,7 +85,7 @@ func TestDiffRendering(t *testing.T) {
 		// Note: We need to account for gutter and window layout
 		
 		// Find the content area (skip gutter columns)
-		contentStartX := te.buffer.LineNumberWidth
+		contentStartX := te.CurrentBuffer().LineNumberWidth
 		t.Logf("Using content start X: %d (line number width)", contentStartX)
 		
 		// Get diff lines for verification
@@ -162,13 +162,13 @@ func TestDiffRendering(t *testing.T) {
 		}
 		
 		// Move cursor away from current line to avoid current line highlighting interference
-		te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 3)
+		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 3)
 		
 		
 		te.drawEditor()
 		
 		// Find the content area (skip gutter columns)
-		contentStartX := te.buffer.LineNumberWidth
+		contentStartX := te.CurrentBuffer().LineNumberWidth
 		t.Logf("Using content start X: %d (line number width)", contentStartX)
 		
 		// Test each line type in current buffer

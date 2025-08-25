@@ -76,7 +76,7 @@ func TestDiffLineNumbers(t *testing.T) {
 			
 			// Extract line number from screen (first few characters before space)
 			var lineNumStr string
-			for x := 0; x < te.buffer.LineNumberWidth; x++ {
+			for x := 0; x < te.CurrentBuffer().LineNumberWidth; x++ {
 				ch, _ := mockScreen.GetCell(x, screenY)
 				if ch == ' ' {
 					break
@@ -133,7 +133,7 @@ func TestDiffLineNumbers(t *testing.T) {
 			
 			// Extract line number from screen (first few characters before space)
 			var lineNumStr string
-			for x := 0; x < te.buffer.LineNumberWidth; x++ {
+			for x := 0; x < te.CurrentBuffer().LineNumberWidth; x++ {
 				ch, _ := mockScreen.GetCell(x, screenY)
 				if ch == ' ' {
 					break
@@ -181,7 +181,7 @@ func TestDiffLineNumbers(t *testing.T) {
 		for screenY := 0; screenY < 3; screenY++ {
 			var lineNumStr string
 			var fullLine string
-			for x := 0; x < te.buffer.LineNumberWidth; x++ {
+			for x := 0; x < te.CurrentBuffer().LineNumberWidth; x++ {
 				ch, _ := mockScreen.GetCell(x, screenY)
 				fullLine += string(ch)
 				if ch == ' ' && lineNumStr != "" {
@@ -269,7 +269,7 @@ func TestDiffLineNumbersRealExample(t *testing.T) {
 	
 	// Extract line number for the comment line
 	var lineNumStr string
-	for x := 0; x < te.buffer.LineNumberWidth; x++ {
+	for x := 0; x < te.CurrentBuffer().LineNumberWidth; x++ {
 		ch, _ := mockScreen.GetCell(x, commentLineIndex)
 		if ch == ' ' {
 			break

@@ -742,16 +742,12 @@ func (e *Editor) closeDiffBufferPair(bufferPath string) error {
 		shouldCloseWindow := false
 		
 		// Remove both diff buffers from this window
-		if _, exists := window.Buffers[bufferPath]; exists {
-			removed := window.removeBuffer(bufferPath)
-			if removed {
-				shouldCloseWindow = true
-			}
-		}
-		if _, exists := window.Buffers[pairedPath]; exists {
-			removed := window.removeBuffer(pairedPath)
-			if removed && !shouldCloseWindow {
-				shouldCloseWindow = true
+		for _, buf := range window.Buffers {
+			if buf != nil && (buf.FilePath == bufferPath || buf.FilePath == pairedPath) {
+				window.removeBufferFromWindow(buf)
+				if len(window.Buffers) == 0 {
+					shouldCloseWindow = true
+				}
 			}
 		}
 		
@@ -801,7 +797,7 @@ func (e *Editor) closeDiffBufferPair(bufferPath string) error {
 			e.windows = append(e.windows, newWin)
 			e.activeWindow = 0
 		} else {
-			e.windows[0].addBuffer(newBuf)
+			e.windows[0].addBufferToWindow(newBuf)
 		}
 		e.switchToBuffer(newBuf)
 	}
