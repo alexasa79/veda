@@ -32,6 +32,7 @@ type Theme struct {
 	Context         StyleDef // Style for context lines and signature help
 	SearchHighlight StyleDef // Style for search matches
 	FlashHighlight  StyleDef // Style for flashing yanked/changed text
+	MatchHighlight  StyleDef // Style for matching bracket/quote highlight
 	Whitespace      StyleDef // Style for whitespace indicators (tabs, trailing spaces)
 	VerticalRuler   StyleDef // Style for vertical rulers
 	VirtualCursor   StyleDef // Style for virtual cursors in cursor mode
@@ -193,6 +194,11 @@ func NewTheme() *Theme {
 			Foreground: "#f8f8f2",
 			Background: "#364462",
 		},
+
+        MatchHighlight: StyleDef{
+            Foreground: "",         // keep existing foreground
+            Background: "#2f5968", // darker teal for better contrast with light text
+        },
 
 		Whitespace: StyleDef{
 			Foreground: "#2b2a24",

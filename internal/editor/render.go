@@ -186,6 +186,13 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			}
 		}
 
+		// Matching pair highlight (only for active window/buffer)
+    useMatchStyle := false
+    // Only apply in the text area (not when drawing line numbers), mirror selection's x>0 guard
+    if e.CurrentBuffer() != nil && lineNum >= 0 && x > 0 && e.matchBuf == e.CurrentBuffer() && lineNum == e.matchLine && charPosInLine == e.matchChar {
+        useMatchStyle = true
+    }
+
 		// Note: Do not apply vertical ruler background on characters themselves.
 		// Ruler background is rendered in background fill phases to avoid per-character
 		// style variation within tokens (important for multi-window consistency tests).
@@ -196,6 +203,10 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		} else if inSelection {
 			// Selection takes precedence over search
 			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
+		} else if useMatchStyle {
+			// Matching bracket/quote highlight
+			matchStyle := e.config.Theme.GetStyle(e.config.Theme.MatchHighlight)
+			currentStyle = theme.ApplyBackgroundStyle(style, matchStyle)
 		} else if hasVirtualCursor {
 			// Virtual cursor gets a distinct background color
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
