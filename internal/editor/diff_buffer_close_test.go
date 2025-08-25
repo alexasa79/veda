@@ -36,8 +36,8 @@ func TestDiffBufferClosing(t *testing.T) {
 
 	// Set up two windows with diff buffers (simulating diff view)
 	te.createSecondWindow()
-	te.windows[0].addBuffer(headBuffer)
-	te.windows[1].addBuffer(currentBuffer)
+	te.windows[0].addBufferToWindow(headBuffer)
+	te.windows[1].addBufferToWindow(currentBuffer)
 	
 	// Switch to one of the diff buffers
 	te.activeWindow = 1
@@ -112,7 +112,7 @@ func TestDiffBufferClosing(t *testing.T) {
 		}
 
 		// Verify editor still has a valid buffer (should create an unnamed buffer)
-		if te.buffer == nil {
+		if te.CurrentBuffer() == nil {
 			t.Error("Editor should still have a buffer after closing diff buffers")
 		}
 		if len(te.buffers) == 0 {
@@ -208,9 +208,9 @@ func TestDiffBufferClosingWithMultipleWindows(t *testing.T) {
 	thirdWin := newWindow(normalBuffer)
 	te.windows = append(te.windows, thirdWin)
 
-	te.windows[0].addBuffer(headBuffer)
-	te.windows[1].addBuffer(currentBuffer)
-	te.windows[2].addBuffer(normalBuffer)
+	te.windows[0].addBufferToWindow(headBuffer)
+	te.windows[1].addBufferToWindow(currentBuffer)
+	te.windows[2].addBufferToWindow(normalBuffer)
 
 	// Switch to one of the diff buffers
 	te.activeWindow = 1
@@ -241,7 +241,7 @@ func TestDiffBufferClosingWithMultipleWindows(t *testing.T) {
 	}
 
 	// Verify the editor has a valid buffer (it should be the normal buffer, but could also be a newly created one)
-	if te.buffer == nil {
+	if te.CurrentBuffer() == nil {
 		t.Error("Editor should have a valid buffer")
 	}
 	
@@ -251,7 +251,7 @@ func TestDiffBufferClosingWithMultipleWindows(t *testing.T) {
 	}
 	
 	// Verify that it's not one of the closed diff buffers
-	if te.buffer.FilePath == "test.go@HEAD" || te.buffer.FilePath == "test.go@current" {
+	if te.CurrentBuffer().FilePath == "test.go@HEAD" || te.CurrentBuffer().FilePath == "test.go@current" {
 		t.Error("Editor should not be using a closed diff buffer")
 	}
 }

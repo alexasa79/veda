@@ -10,7 +10,7 @@ import (
 func TestDiffView_WindowDimmingDisabled(t *testing.T) {
 	// Create test editor with two windows
 	te := NewTestEditorWithContent(80, 24, "line1\nline2\nline3")
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 	
 	// Create second window
 	te.createSecondWindow()
@@ -102,7 +102,7 @@ func TestDiffView_WindowDimmingDisabled(t *testing.T) {
 	t.Run("dimming_reenabled_after_diff_view", func(t *testing.T) {
 		// Remove diff buffers from windows (simulating closing diff view)
 		te.windows[0].Buffer = nil
-		te.windows[1].Buffer = te.buffer // Back to normal buffer
+		te.windows[1].Buffer = te.CurrentBuffer() // Back to normal buffer
 		te.activeWindow = 1
 		
 		// Check that isDiffViewActive returns false again

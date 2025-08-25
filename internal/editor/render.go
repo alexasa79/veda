@@ -24,12 +24,12 @@ func isInWordRange(pos int, ranges []DiffRange) bool {
 
 // getWordLevelDiffBg returns the background color for word-level diff highlighting if the token intersects with diff ranges
 func getWordLevelDiffBg(e *Editor, lineIndex, tokenStart, tokenEnd int) *ui.Color {
-	if e.buffer == nil {
+	if e.CurrentBuffer() == nil {
 		return nil
 	}
 	
 	// Check if this buffer has diff line info
-	diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]
+	diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]
 	if !isDiffBuffer || lineIndex < 0 || lineIndex >= len(diffLines) {
 		return nil
 	}
@@ -376,8 +376,8 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	
 	// Check for diff highlighting first (if not overridden and not current line)
 	var diffBg *ui.Color
-	if bgOverride == nil && e.buffer != nil {
-		if diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]; isDiffBuffer {
+	if bgOverride == nil && e.CurrentBuffer() != nil {
+		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
 			if lineIndex >= 0 && lineIndex < len(diffLines) {
 				diffLine := diffLines[lineIndex]
 				switch diffLine.LineType {
@@ -676,8 +676,8 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	
 	// Check for diff highlighting first
 	var diffBg *ui.Color
-	if e.buffer != nil {
-		if diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]; isDiffBuffer {
+	if e.CurrentBuffer() != nil {
+		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
 			if lineIndex >= 0 && lineIndex < len(diffLines) {
 				diffLine := diffLines[lineIndex]
 				switch diffLine.LineType {
@@ -1179,8 +1179,8 @@ func (e *Editor) drawEditor() {
 
 		// Determine if this line needs diff highlighting
 		var diffFillStyle *ui.Style
-		if e.buffer != nil {
-			if diffLines, isDiffBuffer := e.diffLineInfo[e.buffer]; isDiffBuffer {
+		if e.CurrentBuffer() != nil {
+			if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
 				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
 					diffLine := diffLines[wl.LogicalLineNum]
 					switch diffLine.LineType {
@@ -1256,7 +1256,7 @@ func (e *Editor) drawEditor() {
 						
 						// Debug logging (uncomment for debugging)
 						// fmt.Printf("DIFF LINE %d: buffer=%s, LeftLine=%d, RightLine=%d, originalLineNum=%d, lineType=%v, filler=%v\n", 
-						//     wl.LogicalLineNum, e.buffer.FilePath, diffLine.LeftLine, diffLine.RightLine, originalLineNum, diffLine.LineType, diffLine.IsFillerLine)
+						//     wl.LogicalLineNum, e.CurrentBuffer().FilePath, diffLine.LeftLine, diffLine.RightLine, originalLineNum, diffLine.LineType, diffLine.IsFillerLine)
 						
 						if originalLineNum > 0 {
 							// Compute digit area width (exclude 2 indicator columns and 1 space padding)

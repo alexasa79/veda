@@ -175,7 +175,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	currentBufferName := filePath + "@current"
 	
 	// Create or update HEAD buffer
-	if headBuffer, exists := e.CurrentBuffer()s[headBufferName]; exists {
+	if headBuffer, exists := e.buffers[headBufferName]; exists {
 		// Update existing buffer
 		headBuffer.Rope = buffer.NewRopeFromString(alignedHeadContent)
 		headBuffer.CursorX = 0
@@ -186,20 +186,20 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		headBuffer.IsReadOnly = true
 		headBuffer.IsInternal = false // Can be moved between windows
-		e.CurrentBuffer()s[headBufferName] = headBuffer
-		e.CurrentBuffer()Order = append(e.CurrentBuffer()Order, headBufferName)
+		e.buffers[headBufferName] = headBuffer
+		e.bufferOrder = append(e.bufferOrder, headBufferName)
 	}
 	
 	// Ensure syntax highlighter exists for HEAD buffer
-	headBuffer := e.CurrentBuffer()s[headBufferName]
-	if e.CurrentBuffer()Highlighters == nil {
-		e.CurrentBuffer()Highlighters = make(map[*buffer.Buffer]*syntax.Highlighter)
+	headBuffer := e.buffers[headBufferName]
+	if e.bufferHighlighters == nil {
+		e.bufferHighlighters = make(map[*buffer.Buffer]*syntax.Highlighter)
 	}
-	if _, exists := e.CurrentBuffer()Highlighters[headBuffer]; !exists {
+	if _, exists := e.bufferHighlighters[headBuffer]; !exists {
 		headHighlighter := syntax.NewHighlighter()
 		headHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
 		headHighlighter.ParseFull([]byte(alignedHeadContent))
-		e.CurrentBuffer()Highlighters[headBuffer] = headHighlighter
+		e.bufferHighlighters[headBuffer] = headHighlighter
 		
 		// Store diff line information for head buffer
 		e.diffLineInfo[headBuffer] = diffResult.LeftLines
@@ -209,7 +209,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	currentCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	
 	// Create or update current buffer copy
-	if currentBuffer, exists := e.CurrentBuffer()s[currentBufferName]; exists {
+	if currentBuffer, exists := e.buffers[currentBufferName]; exists {
 		// Update existing buffer
 		currentBuffer.Rope = buffer.NewRopeFromString(alignedCurrentContent)
 		currentBuffer.CursorX = e.CurrentBuffer().CursorX
@@ -223,17 +223,17 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		currentBuffer.CursorX = e.CurrentBuffer().CursorX
 		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
 		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-		e.CurrentBuffer()s[currentBufferName] = currentBuffer
-		e.CurrentBuffer()Order = append(e.CurrentBuffer()Order, currentBufferName)
+		e.buffers[currentBufferName] = currentBuffer
+		e.bufferOrder = append(e.bufferOrder, currentBufferName)
 	}
 	
 	// Ensure syntax highlighter exists for current buffer
-	currentBuffer := e.CurrentBuffer()s[currentBufferName]
-	if _, exists := e.CurrentBuffer()Highlighters[currentBuffer]; !exists {
+	currentBuffer := e.buffers[currentBufferName]
+	if _, exists := e.bufferHighlighters[currentBuffer]; !exists {
 		currentHighlighter := syntax.NewHighlighter()
 		currentHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
 		currentHighlighter.ParseFull([]byte(alignedCurrentContent))
-		e.CurrentBuffer()Highlighters[currentBuffer] = currentHighlighter
+		e.bufferHighlighters[currentBuffer] = currentHighlighter
 		
 		// Store diff line information for current buffer
 		e.diffLineInfo[currentBuffer] = diffResult.RightLines
@@ -264,17 +264,17 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	
 	// Set up the windows - HEAD on left, current on right
 	if headWindow >= 0 && headWindow < len(e.windows) {
-		e.windows[headWindow].Buffer = e.CurrentBuffer()s[headBufferName]
+		e.windows[headWindow].Buffer = e.buffers[headBufferName]
 	}
 	if currentWindow >= 0 && currentWindow < len(e.windows) {
-		e.windows[currentWindow].Buffer = e.CurrentBuffer()s[currentBufferName]
+		e.windows[currentWindow].Buffer = e.buffers[currentBufferName]
 	}
 	
 	// Update active window to the current buffer (right side)
 	e.activeWindow = currentWindow
 	
 	// Switch to the current buffer 
-	e.switchToBuffer(e.CurrentBuffer()s[currentBufferName])
+	e.switchToBuffer(e.buffers[currentBufferName])
 	
 	LL.Debug("StartDiffViewForCurrentBuffer: Diff view setup complete")
 	
@@ -317,11 +317,11 @@ func (e *Editor) getDiffPairBuffer(buf *buffer.Buffer) *buffer.Buffer {
 	if strings.HasSuffix(buf.FilePath, "@HEAD") {
 		// This is HEAD buffer, find the @current pair
 		currentPath := strings.TrimSuffix(buf.FilePath, "@HEAD") + "@current"
-		return e.CurrentBuffer()s[currentPath]
+		return e.buffers[currentPath]
 	} else if strings.HasSuffix(buf.FilePath, "@current") {
 		// This is current buffer, find the @HEAD pair
 		headPath := strings.TrimSuffix(buf.FilePath, "@current") + "@HEAD"
-		return e.CurrentBuffer()s[headPath]
+		return e.buffers[headPath]
 	}
 	
 	return nil

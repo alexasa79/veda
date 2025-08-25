@@ -52,12 +52,12 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 		te.switchToBuffer(currentBuffer)
 
 		// Move cursor away from current line to avoid interference
-		te.buffer.CursorIterator = buffer.NewBufferIteratorAtLine(te.buffer, 2)
+		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 2)
 
 		te.drawEditor()
 
 		// Find the content area (skip gutter columns)
-		contentStartX := te.buffer.LineNumberWidth
+		contentStartX := te.CurrentBuffer().LineNumberWidth
 		t.Logf("Using content start X: %d (line number width)", contentStartX)
 
 		// Check first line - should have word-level highlighting
@@ -154,7 +154,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 		te.switchToBuffer(currentBuffer)
 		te.drawEditor()
 
-		contentStartX := te.buffer.LineNumberWidth
+		contentStartX := te.CurrentBuffer().LineNumberWidth
 		mockScreen := te.screen.(*MockScreen)
 
 		// Check that context lines (unchanged lines) are not highlighted

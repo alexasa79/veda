@@ -11,7 +11,7 @@ import (
 func TestDiffHighlighting(t *testing.T) {
 	// Create test editor
 	te := NewTestEditorWithContent(80, 24, "line1\nline2\nline3")
-	te.buffer.FilePath = "test.go"
+	te.CurrentBuffer().FilePath = "test.go"
 	
 	// Create diff buffers manually to test highlighting
 	headBufferName := "test.go@HEAD"
@@ -166,12 +166,12 @@ func TestNonDiffBufferHighlighting(t *testing.T) {
 	te.render()
 	
 	// Verify that buffer is not considered a diff buffer
-	if te.isDiffBuffer(te.buffer) {
+	if te.isDiffBuffer(te.CurrentBuffer()) {
 		t.Error("Normal buffer should not be identified as diff buffer")
 	}
 	
 	// Verify no diff line info exists for normal buffer
-	if _, exists := te.diffLineInfo[te.buffer]; exists {
+	if _, exists := te.diffLineInfo[te.CurrentBuffer()]; exists {
 		t.Error("Normal buffer should not have diff line info")
 	}
 }
