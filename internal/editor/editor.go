@@ -137,6 +137,11 @@ type Editor struct {
 	flashEndChar   int   // End char of flashed region
 	flashEndTime   int64 // When to stop flashing (unix millis)
 
+	// Matching pair highlight (applies to current buffer only)
+	matchBuf  *buffer.Buffer // Buffer this match applies to (nil if none)
+	matchLine int            // 0-based line of matching char, -1 if none
+	matchChar int            // 0-based byte index within line
+
 	// Multiple cursors
 	// Keep a per-buffer set of virtual cursors so multiple windows rendering
 	// different buffers do not share cursor decorations.
@@ -304,6 +309,9 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		flashStartLine:         -1,                           // -1 means no flash
 		flashStartChar:         -1,
 		flashEndLine:           -1,
+		matchBuf:               nil,
+		matchLine:              -1,
+		matchChar:              -1,
 		desiredColumn:          -1, // -1 means unset
 		currentMatch:           -1, // -1 means no current match
 		flashEndChar:           -1,
@@ -428,6 +436,12 @@ func (e *Editor) SetCurrentBuffer(buf *buffer.Buffer) {
 		}
 	} else {
 		e.virtualCursors = nil
+	}
+	// Invalidate match highlight when switching buffers
+	if e.matchBuf != buf {
+		e.matchBuf = nil
+		e.matchLine = -1
+		e.matchChar = -1
 	}
 }
 
@@ -1924,6 +1938,139 @@ func (e *Editor) getLineTokens(iter *buffer.BufferIterator) []syntax.Token {
 func (e *Editor) updateCursorState() {
 	// Check if we need to update signature help
 	e.checkSignatureUpdate()
+	// Update matching pair highlight for current buffer
+	e.updateMatchHighlight()
+}
+
+// updateMatchHighlight computes matching bracket/quote for cursor position.
+func (e *Editor) updateMatchHighlight() {
+	e.matchBuf = nil
+	e.matchLine = -1
+	e.matchChar = -1
+	if e.CurrentBuffer() == nil {
+		return
+	}
+	line := e.CurrentBuffer().CursorIterator.Line()
+	x := e.CurrentBuffer().CursorX
+	if x < 0 || x >= len(line) {
+		return
+	}
+	ch := line[x]
+	// Quotes (same-line search with simple escape handling)
+	if ch == '\'' || ch == '"' {
+		if _, mc, ok := matchQuoteOnLine(line, x, ch); ok {
+			e.matchBuf = e.CurrentBuffer()
+			e.matchLine = e.CurrentBuffer().CursorIterator.LineNumber()
+			e.matchChar = mc
+		}
+		return
+	}
+	// Brackets
+	var open, close byte
+	dir := 0 // +1 forward, -1 backward
+	switch ch {
+	case '(':
+		open, close, dir = '(', ')', +1
+	case '[':
+		open, close, dir = '[', ']', +1
+	case '{':
+		open, close, dir = '{', '}', +1
+	case ')':
+		open, close, dir = '(', ')', -1
+	case ']':
+		open, close, dir = '[', ']', -1
+	case '}':
+		open, close, dir = '{', '}', -1
+	default:
+		return
+	}
+	depth := 1
+	lnum := e.CurrentBuffer().CursorIterator.LineNumber()
+	if dir == +1 {
+		cx := x + 1
+		cur := line
+		for {
+			for cx < len(cur) {
+				c := cur[cx]
+				if c == open {
+					depth++
+				} else if c == close {
+					depth--
+					if depth == 0 {
+						e.matchBuf = e.CurrentBuffer()
+						e.matchLine = lnum
+						e.matchChar = cx
+						return
+					}
+				}
+				cx++
+			}
+			lnum++
+			if lnum >= e.CurrentBuffer().LineCount {
+				break
+			}
+			it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lnum)
+			cur = it.Line()
+			cx = 0
+		}
+	} else if dir == -1 {
+		cx := x - 1
+		cur := line
+		for {
+			for cx >= 0 {
+				c := cur[cx]
+				if c == close {
+					depth++
+				} else if c == open {
+					depth--
+					if depth == 0 {
+						e.matchBuf = e.CurrentBuffer()
+						e.matchLine = lnum
+						e.matchChar = cx
+						return
+					}
+				}
+				cx--
+			}
+			lnum--
+			if lnum < 0 {
+				break
+			}
+			it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lnum)
+			cur = it.Line()
+			cx = len(cur) - 1
+		}
+	}
+}
+
+// matchQuoteOnLine finds matching quote on same line; respects simple escapes
+func matchQuoteOnLine(line string, idx int, quote byte) (int, int, bool) {
+	// Search forward first
+	for i := idx + 1; i < len(line); i++ {
+		if line[i] == quote {
+			// Count backslashes before i
+			bs := 0
+			for j := i - 1; j >= 0 && line[j] == '\\'; j-- {
+				bs++
+			}
+			if bs%2 == 0 {
+				return 0, i, true
+			}
+		}
+	}
+	// Then backward
+	for i := idx - 1; i >= 0; i-- {
+		if line[i] == quote {
+			bs := 0
+			for j := i - 1; j >= 0 && line[j] == '\\'; j-- {
+				bs++
+			}
+			if bs%2 == 0 {
+				return 0, i, true
+			}
+		}
+	}
+	return 0, 0, false
 }
 
 // actuallyQuit exits the editor completely
