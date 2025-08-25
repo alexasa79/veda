@@ -43,6 +43,7 @@ func (e *Editor) registerCommands() {
 	// Mode commands
 	e.commandRegistry.Register("enter-command-mode", e.enterCommandModeCmd, false, false)
 	e.commandRegistry.Register("enter-search-mode", e.enterSearchModeCmd, false, true)
+	e.commandRegistry.Register("enter-search-mode-backward", e.enterSearchModeBackwardCmd, false, true)
 	e.commandRegistry.Register("enter-insert-mode", e.enterInsertMode, false, true)
 	e.commandRegistry.Register("append-after-cursor", e.appendAfterCursor, true, true)   // Apply to all cursors for positioning
 	e.commandRegistry.Register("append-at-end-of-line", e.appendAtEndOfLine, true, true) // Apply to all cursors for positioning

@@ -1299,11 +1299,17 @@ func (e *Editor) drawStatusBar() {
 		if e.searchPattern != "" && len(e.searchMatches) > 0 {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
 
-			// Use SearchHighlight style for search indicator
-			searchHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+			// Derive an indicator style that matches the status bar background but uses
+			// the theme's search accent color for foreground to improve readability.
+			statusBarStyle := statusBarStyle // base
+			sh := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+			_, shBg, _ := sh.Decompose()
+			indicator := statusBarStyle.Foreground(shBg)
+			indicator.Attrs |= ui.AttrBold
 
-			searchText := fmt.Sprintf(" /%s %d/%d ", e.searchPattern, e.currentMatch+1, len(e.searchMatches))
-			x += e.drawText(x, statusBarY, searchHighlightStyle, searchText, 0, nil, -1, 0, -1)
+			// Do not show '/' or '?' prefix in the status bar; just the pattern and position
+			searchText := fmt.Sprintf(" %s %d/%d ", e.searchPattern, e.currentMatch+1, len(e.searchMatches))
+			x += e.drawText(x, statusBarY, indicator, searchText, 0, nil, -1, 0, -1)
 		}
 
 		// Add count prefix indicator if building a numeric prefix

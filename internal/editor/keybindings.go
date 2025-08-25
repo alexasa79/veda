@@ -52,6 +52,7 @@ func (e *Editor) setupDefaultBindings() {
 	// Mode switching
 	e.registerKeyBinding(commands.NormalMode, ":", "enter-command-mode")
 	e.registerKeyBinding(commands.NormalMode, "/", "enter-search-mode")
+	e.registerKeyBinding(commands.NormalMode, "?", "enter-search-mode-backward")
 	e.registerKeyBinding(commands.NormalMode, "i", "enter-insert-mode")
 	e.registerKeyBinding(commands.NormalMode, "a", "append-after-cursor")
 	e.registerKeyBinding(commands.NormalMode, "A", "append-at-end-of-line")

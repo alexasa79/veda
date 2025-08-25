@@ -38,6 +38,15 @@ func (e *Editor) enterSearchMode() {
 	e.searchDirection = true // Forward search by default
 }
 
+// enterSearchModeBackward switches to search mode for backward search ('?')
+func (e *Editor) enterSearchModeBackward() {
+	e.mode = commands.SearchMode
+	e.searchLine.SetText("?")
+	// Position cursor after the question mark
+	e.searchLine.SetCursor(1)
+	e.searchDirection = false // Backward search for initial execution
+}
+
 // exitSearchMode switches back to normal mode
 func (e *Editor) exitSearchMode() {
 	e.mode = commands.NormalMode
@@ -46,48 +55,73 @@ func (e *Editor) exitSearchMode() {
 
 // executeSearch performs the search operation
 func (e *Editor) executeSearch() {
-	fullSearch := e.searchLine.GetText()
+    fullSearch := e.searchLine.GetText()
 
-	// Remove the leading "/"
-	pattern := fullSearch
-	if len(pattern) > 1 {
-		pattern = pattern[1:]
-	} else {
-		// Empty search, do nothing
-		return
-	}
+    if fullSearch == "" {
+        return
+    }
 
-	// Store the search pattern
-	e.searchPattern = pattern
+    // Determine direction from prefix and extract pattern
+    searchForward := true
+    if fullSearch[0] == '?' {
+        searchForward = false
+    } else if fullSearch[0] != '/' {
+        // Unknown prefix; default to forward and treat whole as pattern
+        searchForward = true
+    }
+
+    // Extract pattern after the leading '/' or '?'
+    pattern := fullSearch
+    if len(fullSearch) >= 1 {
+        pattern = fullSearch[1:]
+    }
+    if pattern == "" {
+        return
+    }
+
+    // Store the search pattern and last direction (used for UI only)
+    e.searchPattern = pattern
+    e.searchDirection = searchForward
 
 	// Find all matches
 	e.updateSearchMatches()
 
-	// Move to the next match from cursor position
-	if len(e.searchMatches) > 0 {
-		// Get current position
-		currentPos := e.getAbsolutePosition()
-
-		// Find the first match at or after the cursor
-		nextIndex := -1
-		for i, matchPos := range e.searchMatches {
-			if matchPos >= currentPos {
-				nextIndex = i
-				break
-			}
-		}
-
-		// If no match found after cursor, wrap to beginning
-		if nextIndex == -1 {
-			nextIndex = 0
-		}
-
-		e.currentMatch = nextIndex
-		e.moveCursorToPosition(e.searchMatches[nextIndex])
-	} else {
-		// No matches found - show error
-		e.ShowError("Pattern not found: %s", pattern)
-	}
+    // Move to the initial match from cursor position based on direction
+    if len(e.searchMatches) > 0 {
+        currentPos := e.getAbsolutePosition()
+        if searchForward {
+            // First match at or after cursor, wrap to beginning if none
+            nextIndex := -1
+            for i, matchPos := range e.searchMatches {
+                if matchPos >= currentPos {
+                    nextIndex = i
+                    break
+                }
+            }
+            if nextIndex == -1 {
+                nextIndex = 0
+            }
+            e.currentMatch = nextIndex
+            e.moveCursorToPosition(e.searchMatches[nextIndex])
+        } else {
+            // Last match strictly before cursor, wrap to last if none
+            prevIndex := -1
+            for i := len(e.searchMatches) - 1; i >= 0; i-- {
+                if e.searchMatches[i] < currentPos {
+                    prevIndex = i
+                    break
+                }
+            }
+            if prevIndex == -1 {
+                prevIndex = len(e.searchMatches) - 1
+            }
+            e.currentMatch = prevIndex
+            e.moveCursorToPosition(e.searchMatches[prevIndex])
+        }
+    } else {
+        // No matches found - show error
+        e.ShowError("Pattern not found: %s", pattern)
+    }
 }
 
 // findNext finds the next occurrence of the search pattern
@@ -307,8 +341,14 @@ func (e *Editor) moveCursorToPosition(pos int) {
 
 // enterSearchModeCmd is the command handler for entering search mode
 func (e *Editor) enterSearchModeCmd(args []string) error {
-	e.enterSearchMode()
-	return nil
+    e.enterSearchMode()
+    return nil
+}
+
+// enterSearchModeBackwardCmd is the command handler for '?' key
+func (e *Editor) enterSearchModeBackwardCmd(args []string) error {
+    e.enterSearchModeBackward()
+    return nil
 }
 
 // updateSearchMatches finds all occurrences of the search pattern
