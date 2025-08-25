@@ -575,7 +575,7 @@ func alignLines(leftLines, rightLines []string) *DiffResult {
 			})
 			result.RightLines = append(result.RightLines, DiffLine{
 				Content:      "",
-				LineType:     DiffLineAdded, // Fixed: right side should be added when left is deleted
+				LineType:     DiffLineDeleted, // Both sides should have same type for alignment
 				LeftLine:     -1,
 				RightLine:    -1,
 				IsFillerLine: true,
@@ -585,7 +585,7 @@ func alignLines(leftLines, rightLines []string) *DiffResult {
 			// Line only in right (added)
 			result.LeftLines = append(result.LeftLines, DiffLine{
 				Content:      "",
-				LineType:     DiffLineDeleted, // Fixed: left side should be deleted when right is added
+				LineType:     DiffLineAdded, // Both sides should have same type for alignment
 				LeftLine:     -1,
 				RightLine:    -1,
 				IsFillerLine: true,
