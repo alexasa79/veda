@@ -2907,22 +2907,22 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 
 // notifyLSPFileChange sends a didChange notification to the LSP server if applicable
 func (e *Editor) notifyLSPFileChange() {
-	// Only send notification if buffer has LSP enabled and has a file path
-	if !e.CurrentBuffer().HasLSP || e.CurrentBuffer().FilePath == "" || e.CurrentBuffer().IsInternal {
-		return
-	}
+    // Only send notification if buffer has LSP enabled and has a file path
+    if e.proxyManager == nil || e.CurrentBuffer() == nil || !e.CurrentBuffer().HasLSP || e.CurrentBuffer().FilePath == "" || e.CurrentBuffer().IsInternal {
+        return
+    }
 
 	// Get the full content of the buffer
 	content := e.CurrentBuffer().Rope.String()
 
 	// Send the notification asynchronously to avoid blocking
-	go func() {
-		if err := e.proxyManager.NotifyFileChange(e.CurrentBuffer().FilePath, content); err != nil {
-			LL.Debug("Failed to notify LSP of file change: %v", err)
-		} else {
-			LL.Debug("notifyLSPFileChange: didChange sent for %s", e.CurrentBuffer().FilePath)
-		}
-	}()
+    go func(filePath, body string) {
+        if err := e.proxyManager.NotifyFileChange(filePath, body); err != nil {
+            LL.Debug("Failed to notify LSP of file change: %v", err)
+        } else {
+            LL.Debug("notifyLSPFileChange: didChange sent for %s", filePath)
+        }
+    }(e.CurrentBuffer().FilePath, content)
 }
 
 func (e *Editor) goToDefinition(args []string) error {

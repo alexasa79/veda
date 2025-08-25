@@ -76,13 +76,16 @@ func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 
 	LL.Debug("getClient: path=%s, host=%s, actualPath=%s, isRemote=%v", path, host, actualPath, isRemote)
 
-	// Local client fast-path
-	if !isRemote {
-		pm.mu.Lock()
-		c := pm.clients[""]
-		pm.mu.Unlock()
-		return c, path, nil
-	}
+    // Local client fast-path
+    if !isRemote {
+        pm.mu.Lock()
+        c := pm.clients[""]
+        pm.mu.Unlock()
+        if c == nil {
+            return nil, "", fmt.Errorf("local proxy client not initialized")
+        }
+        return c, path, nil
+    }
 
 	// Check if we already have a client for this host
 	pm.mu.Lock()
