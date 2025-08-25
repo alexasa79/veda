@@ -27,7 +27,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.8"
+const ProxyVersion = "1.0.9"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -93,10 +93,10 @@ func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 	pm.mu.Unlock()
 
 	// Create a new remote proxy for this host (no lock held during network I/O)
-	client, err := pm.createRemoteClient(host)
-	if err != nil {
-		return nil, "", err
-	}
+    client, err := pm.createRemoteClient(host)
+    if err != nil {
+        return nil, "", fmt.Errorf("failed to create remote proxy: %w", err)
+    }
 
 	// Store the client (handle possible race with another creator)
 	pm.mu.Lock()

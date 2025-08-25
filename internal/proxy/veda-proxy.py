@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.8"
+PROXY_VERSION = "1.0.9"
 
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
@@ -1585,12 +1585,16 @@ class VedaProxy:
         except KeyError:
             group_name = str(stat_info.st_gid)
 
-        # Handle symlinks
+        # Handle symlinks (compatible with older Python versions without Path.readlink)
         symlink_target = None
         if path.is_symlink():
             try:
-                symlink_target = str(path.readlink())
-            except OSError:
+                # Prefer pathlib's readlink when available (Py>=3.9), otherwise fallback to os.readlink
+                if hasattr(path, 'readlink'):
+                    symlink_target = str(path.readlink())  # type: ignore[attr-defined]
+                else:
+                    symlink_target = os.readlink(str(path))
+            except Exception:
                 symlink_target = None
 
         return {
