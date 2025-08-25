@@ -3150,6 +3150,18 @@ func (e *Editor) setFlashHighlight(startLine, startChar, endLine, endChar int) {
 	e.flashEndLine = endLine
 	e.flashEndChar = endChar
 	e.flashEndTime = time.Now().UnixMilli() + 500 // Flash for 500ms
+
+	// Schedule an async render when the flash should expire to force a redraw
+	// This replaces the old periodic ticker and ensures the highlight disappears.
+	delay := time.Until(time.UnixMilli(e.flashEndTime))
+	if delay < 0 {
+		delay = 0
+	}
+	go func(ch chan events.Event, d time.Duration) {
+		time.Sleep(d)
+		// Wake the event loop to trigger render; clearFlashHighlight() runs at render start
+		ch <- events.NewCustomEvent("render", nil)
+	}(e.asyncEvents, delay)
 }
 
 // clearFlashHighlight clears the flash highlight if it has expired

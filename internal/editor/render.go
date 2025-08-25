@@ -143,8 +143,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		// Only apply selection style if we're not drawing line numbers (x parameter is 0 for line numbers)
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd && x > 0
 		// Check if this character is part of the flash highlight
+		// Only apply flash highlight in the text area, not in the gutter/line numbers (x == 0)
 		var inFlash bool
-		if lineNum >= 0 && e.hasFlashHighlight() {
+		if lineNum >= 0 && x > 0 && e.hasFlashHighlight() {
 			charPosInLine := charPos - lineStartPos
 			inFlash = e.isInFlashRange(lineNum, charPosInLine)
 		}
