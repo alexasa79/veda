@@ -48,7 +48,7 @@ func TestFindWindowContainingBuffer(t *testing.T) {
 	}
 }
 
-func TestShowBuffersWithMultipleWindows(t *testing.T) {
+func TestBufferPickerWithMultipleWindows(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create some buffers
@@ -70,15 +70,9 @@ func TestShowBuffersWithMultipleWindows(t *testing.T) {
 	te.activeWindow = 0
 	te.SetCurrentBuffer(buf1)
 
-	// Test that showBuffers doesn't crash and returns no error
-	err := te.showBuffers([]string{})
-	if err != nil {
-		t.Errorf("showBuffers returned error: %v", err)
-	}
-
-	// Test showBufferListWithPrevious as well
+	// Test showBufferListWithPrevious as primary buffer picker
 	te.previousBuffer = buf2
-	err = te.showBufferListWithPrevious([]string{})
+	err := te.showBufferListWithPrevious([]string{})
 	if err != nil {
 		t.Errorf("showBufferListWithPrevious returned error: %v", err)
 	}

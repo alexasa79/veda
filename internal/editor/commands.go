@@ -115,7 +115,6 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("previous-reference", e.previousReference, false, true)
 
 	// Buffer commands
-	e.commandRegistry.Register("show-buffers", e.showBuffers, false, false)
 	e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious, false, false)
 	e.commandRegistry.Register("show-buffer-list-previous", e.showBufferListWithPrevious, false, false) // More descriptive alias
 	e.commandRegistry.Register("new-buffer", e.newBuffer, false, false)                                 // Create a new empty buffer
