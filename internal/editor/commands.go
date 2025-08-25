@@ -175,6 +175,9 @@ func (e *Editor) registerCommands() {
 	// Project changes commands
 	e.commandRegistry.Register("show-project-changes", e.showProjectChanges, false, false)
 
+	// Diff commands
+	e.commandRegistry.Register("diff-current-buffer", e.diffCurrentBuffer, false)
+
 	// Completion commands
 	e.commandRegistry.Register("show-completions", func([]string) error { return e.showCompletions() }, false, true)
 

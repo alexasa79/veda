@@ -702,6 +702,19 @@ func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) 
 	return changes, err
 }
 
+// GetGitFileVersion gets a specific git version of a file
+func (pm *ProxyManager) GetGitFileVersion(path string, revision string) (string, error) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return "", err
+	}
+
+	return client.GetGitFileVersion(actualPath, revision)
+}
+
 //go:embed veda-proxy.py
 var embeddedProxy string
 
@@ -2303,6 +2316,41 @@ func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
 	}
 
 	return nil, fmt.Errorf("no changes found")
+}
+
+// GetGitFileVersion gets a specific git version of a file
+func (c *Client) GetGitFileVersion(path string, revision string) (string, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_git_file_version",
+		Params: map[string]interface{}{
+			"path":     path,
+			"revision": revision,
+		},
+		ID: c.requestID,
+	}
+
+	response, err := c.sendRequestWithTimeout(request)
+	if err != nil {
+		return "", err
+	}
+
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return "", fmt.Errorf("proxy error: %s", errorMsg)
+	}
+
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if content, ok := result["content"].(string); ok {
+				return content, nil
+			}
+		}
+		if errMsg, ok := result["error"].(string); ok {
+			return "", fmt.Errorf("git error: %s", errMsg)
+		}
+	}
+
+	return "", fmt.Errorf("failed to get git file version")
 }
 
 func (c *Client) Close() error {

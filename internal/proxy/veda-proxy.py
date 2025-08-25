@@ -1160,6 +1160,7 @@ class VedaProxy:
             'get_completions': self.get_completions,
             'get_diagnostics': self.get_diagnostics,
             'get_project_changes': self.get_project_changes,
+            'get_git_file_version': self.get_git_file_version,
             'notify_file_change': self.notify_file_change,
             # Terminal methods
             'start_terminal': self.start_terminal,
@@ -2120,6 +2121,50 @@ class VedaProxy:
             
         except Exception as e:
             logger.error(f"Error in get_project_changes: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_git_file_version(self, path: str, revision: str = "HEAD") -> Dict[str, Any]:
+        """
+        Get a specific git version of a file.
+        """
+        try:
+            # Resolve the file path
+            file_path = Path(path).expanduser().resolve()
+            
+            # Get the git root directory
+            result = subprocess.run(['git', 'rev-parse', '--show-toplevel'], 
+                                 capture_output=True, text=True, cwd=file_path.parent)
+            if result.returncode != 0:
+                return {'success': False, 'error': 'Not a git repository'}
+            
+            git_root = Path(result.stdout.strip())
+            
+            # Get relative path from git root
+            try:
+                relative_path = file_path.relative_to(git_root)
+            except ValueError:
+                return {'success': False, 'error': 'File is not in git repository'}
+            
+            # Get file content at specified revision
+            cmd = ['git', 'show', f"{revision}:{relative_path}"]
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=git_root)
+            
+            if result.returncode != 0:
+                error_msg = result.stderr.strip()
+                if "does not exist" in error_msg or "Path" in error_msg:
+                    return {'success': False, 'error': f'File does not exist at revision {revision}'}
+                elif "bad revision" in error_msg.lower():
+                    return {'success': False, 'error': f'Invalid revision: {revision}'}
+                else:
+                    return {'success': False, 'error': f'Git error: {error_msg}'}
+            
+            return {
+                'success': True,
+                'content': result.stdout
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in get_git_file_version: {e}")
             return {'success': False, 'error': str(e)}
     
     def _parse_git_diff(self, diff_output: str) -> Dict[str, Any]:
