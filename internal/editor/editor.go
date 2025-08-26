@@ -1400,9 +1400,17 @@ func sanitizeTerminalText(input string) string {
 // This function handles the translation of keyboard input into the appropriate
 // byte sequences that terminals expect, including control characters like Ctrl+C
 func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
-	// Basic mapping: runes, Enter, Backspace, Tab, arrows
-	switch ev.Key {
-	case events.KeyRune:
+    // Basic mapping: runes, Enter, Backspace, Tab, arrows
+    // Determine if the active terminal session has Application Cursor Keys enabled
+    appCursor := false
+    if e.CurrentBuffer() != nil {
+        if ts, ok := e.terminalSessions[e.CurrentBuffer().FilePath]; ok && ts != nil && ts.term != nil {
+            appCursor = ts.term.AppCursorKeys
+        }
+    }
+
+    switch ev.Key {
+    case events.KeyRune:
 		if ev.Rune == 0 {
 			return nil
 		}
@@ -1425,21 +1433,39 @@ func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
 		return []byte{0x0c} // FF (clear-screen in many shells)
 	case events.KeyCtrlN:
 		return []byte{0x0e} // SO (next-history/forward in readline/fish bindings)
-	case events.KeyHome:
-		return []byte{0x1b, '[', 'H'}
-	case events.KeyEnd:
-		return []byte{0x1b, '[', 'F'}
-	case events.KeyUp:
-		return []byte{'\x1b', '[', 'A'}
-	case events.KeyDown:
-		return []byte{'\x1b', '[', 'B'}
-	case events.KeyRight:
-		return []byte{'\x1b', '[', 'C'}
-	case events.KeyLeft:
-		return []byte{'\x1b', '[', 'D'}
-	default:
-		return nil
-	}
+    case events.KeyHome:
+        if appCursor {
+            return []byte{0x1b, 'O', 'H'}
+        }
+        return []byte{0x1b, '[', 'H'}
+    case events.KeyEnd:
+        if appCursor {
+            return []byte{0x1b, 'O', 'F'}
+        }
+        return []byte{0x1b, '[', 'F'}
+    case events.KeyUp:
+        if appCursor {
+            return []byte{0x1b, 'O', 'A'}
+        }
+        return []byte{0x1b, '[', 'A'}
+    case events.KeyDown:
+        if appCursor {
+            return []byte{0x1b, 'O', 'B'}
+        }
+        return []byte{0x1b, '[', 'B'}
+    case events.KeyRight:
+        if appCursor {
+            return []byte{0x1b, 'O', 'C'}
+        }
+        return []byte{0x1b, '[', 'C'}
+    case events.KeyLeft:
+        if appCursor {
+            return []byte{0x1b, 'O', 'D'}
+        }
+        return []byte{0x1b, '[', 'D'}
+    default:
+        return nil
+    }
 }
 
 // executeWithRepeatCount executes a command with the current repeat count
