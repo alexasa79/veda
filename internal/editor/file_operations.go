@@ -69,14 +69,6 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
 	e.startAsyncOperation(operationID, "listing directory: "+e.workingDirectory)
 
-	// Set connection status
-	host, _, isRemote := parsePathComponents(e.workingDirectory)
-	if isRemote {
-		e.connectionStatus = fmt.Sprintf("Listing files on %s", host)
-	} else {
-		e.connectionStatus = "Listing files"
-	}
-
 	// Create a channel for the result
 	resultChan := make(chan fileListingResult, 1)
 
@@ -92,7 +84,6 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 		e.asyncEvents <- events.NewCustomEvent("overlay-update", nil)
 		// End the async operation since we're serving from cache
 		e.endAsyncOperation(operationID)
-		e.connectionStatus = "" // Clear status when done
 		// Return result immediately
 		resultChan <- result
 		return resultChan
@@ -101,7 +92,6 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 	// Start goroutine to fetch directory listing (and populate cache)
 	go func() {
 		defer e.endAsyncOperation(operationID)
-		defer func() { e.connectionStatus = "" }() // Clear status when done
 
 		LL.Debug("Fetching directory listing for %s", e.workingDirectory)
 		files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
