@@ -1,0 +1,22 @@
+[
+  {
+    "directory": "/Users/sasandl/hobbies/veda/artifacts/calculator",
+    "command": "gcc -Wall -Wextra -g -c main.c",
+    "file": "main.c"
+  },
+  {
+    "directory": "/Users/sasandl/hobbies/veda/artifacts/calculator",
+    "command": "gcc -Wall -Wextra -g -c arithmetic.c",
+    "file": "arithmetic.c"
+  },
+  {
+    "directory": "/Users/sasandl/hobbies/veda/artifacts/calculator",
+    "command": "gcc -Wall -Wextra -g -c advanced.c",
+    "file": "advanced.c"
+  },
+  {
+    "directory": "/Users/sasandl/hobbies/veda/artifacts/calculator",
+    "command": "gcc -Wall -Wextra -g -c utils.c",
+    "file": "utils.c"
+  }
+]
