@@ -1030,6 +1030,71 @@ class LSPManager:
         return self.diagnostics.copy()
 
 
+def log_proxy_method(func):
+    """Decorator to log proxy method calls with parameters, results, and timing."""
+    def wrapper(*args, **kwargs):
+        method_name = func.__name__
+        start_time = time.time()
+        
+        # Format parameters (skip 'self' which is args[0])
+        params = []
+        if len(args) > 1:
+            # Get parameter names from function signature
+            import inspect
+            sig = inspect.signature(func)
+            param_names = list(sig.parameters.keys())[1:]  # Skip 'self'
+            for i, (param_name, value) in enumerate(zip(param_names, args[1:])):
+                # Truncate long values for logging
+                str_value = str(value)
+                if len(str_value) > 100:
+                    str_value = str_value[:100] + "..."
+                params.append(f"{param_name}={str_value}")
+        
+        # Add keyword arguments
+        for key, value in kwargs.items():
+            str_value = str(value)
+            if len(str_value) > 100:
+                str_value = str_value[:100] + "..."
+            params.append(f"{key}={str_value}")
+        
+        param_str = ", ".join(params) if params else "no parameters"
+        logger.info(f"[{method_name}] Starting with {param_str}")
+        
+        try:
+            result = func(*args, **kwargs)
+            elapsed = time.time() - start_time
+            
+            # Log result summary
+            if isinstance(result, dict):
+                if 'success' in result:
+                    summary = f"success={result['success']}"
+                    if 'error' in result:
+                        summary += f", error={result['error']}"
+                    elif 'result' in result and isinstance(result['result'], list):
+                        summary += f", items={len(result['result'])}"
+                    elif 'diagnostics' in result:
+                        summary += f", diagnostics={len(result['diagnostics'])}"
+                elif 'content' in result:
+                    summary = f"content_size={len(result.get('content', ''))}"
+                elif 'session_id' in result:
+                    summary = f"session_id={result['session_id']}"
+                else:
+                    summary = f"keys={list(result.keys())}"
+            elif isinstance(result, list):
+                summary = f"{len(result)} items"
+            else:
+                summary = str(result)[:100]
+            
+            logger.info(f"[{method_name}] Completed in {elapsed:.3f}s: {summary}")
+            return result
+            
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"[{method_name}] Failed in {elapsed:.3f}s: {e}")
+            raise
+    
+    return wrapper
+
 class VedaProxy:
     """Main proxy class handling JSON RPC requests for various operations."""
 
@@ -1062,6 +1127,63 @@ class VedaProxy:
             'resize_terminal': self.resize_terminal,
             'close_terminal': self.close_terminal,
         }
+
+    def _run_shell_command(self, cmd, cwd=None, timeout=None):
+        """Run a shell command with comprehensive logging."""
+        # Log the command being executed
+        cmd_str = ' '.join(cmd) if isinstance(cmd, list) else cmd
+        logger.info(f"Running shell command: {cmd_str}")
+        if cwd:
+            logger.info(f"  Working directory: {cwd}")
+        
+        try:
+            result = subprocess.run(
+                cmd, 
+                capture_output=True, 
+                text=True, 
+                cwd=cwd,
+                timeout=timeout
+            )
+            
+            # Log stdout information
+            stdout_lines = result.stdout.splitlines() if result.stdout else []
+            stdout_char_count = len(result.stdout) if result.stdout else 0
+            logger.info(f"  Exit code: {result.returncode}")
+            logger.info(f"  Stdout: {len(stdout_lines)} lines, {stdout_char_count} characters")
+            
+            # Log first 5 lines of output
+            if stdout_lines:
+                preview_lines = stdout_lines[:5]
+                for i, line in enumerate(preview_lines, 1):
+                    # Truncate long lines to 200 characters
+                    if len(line) > 200:
+                        line = line[:200] + "..."
+                    logger.info(f"    Line {i}: {line}")
+                if len(stdout_lines) > 5:
+                    logger.info(f"    ... and {len(stdout_lines) - 5} more lines")
+            
+            # Log stderr if present
+            if result.stderr:
+                stderr_lines = result.stderr.splitlines()
+                logger.warning(f"  Stderr: {len(stderr_lines)} lines, {len(result.stderr)} characters")
+                # Log first 5 lines of stderr
+                for i, line in enumerate(stderr_lines[:5], 1):
+                    if len(line) > 200:
+                        line = line[:200] + "..."
+                    logger.warning(f"    Stderr line {i}: {line}")
+                if len(stderr_lines) > 5:
+                    logger.warning(f"    ... and {len(stderr_lines) - 5} more stderr lines")
+            
+            return result
+            
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"  Command timed out after {timeout} seconds")
+            logger.error(f"  Partial stdout: {e.stdout[:500] if e.stdout else 'None'}")
+            logger.error(f"  Partial stderr: {e.stderr[:500] if e.stderr else 'None'}")
+            raise
+        except Exception as e:
+            logger.error(f"  Command failed with exception: {e}")
+            raise
 
     # ---- Terminal (PTY) support ----
     class _TerminalSession:
@@ -1190,6 +1312,7 @@ class VedaProxy:
                 except Exception:
                     pass
 
+    @log_proxy_method
     def start_terminal(self, working_dir: str = '', command: Optional[List[str]] = None, env: Optional[Dict[str,str]] = None, cols: int = 80, rows: int = 24) -> Dict[str, Any]:
         try:
             sid, pid = self.term.start(working_dir, command, env, cols, rows)
@@ -1197,6 +1320,7 @@ class VedaProxy:
         except Exception as e:
             return { 'error': str(e) }
 
+    @log_proxy_method
     def write_terminal(self, session_id: str, data_b64: str) -> Dict[str, Any]:
         try:
             data = base64.b64decode(data_b64)
@@ -1205,6 +1329,7 @@ class VedaProxy:
         except Exception as e:
             return { 'error': str(e) }
 
+    @log_proxy_method
     def read_terminal(self, session_id: str, max_bytes: int = 65536) -> Dict[str, Any]:
         try:
             data, closed, exit_code = self.term.read(session_id, max_bytes)
@@ -1212,6 +1337,7 @@ class VedaProxy:
         except Exception as e:
             return { 'error': str(e) }
 
+    @log_proxy_method
     def resize_terminal(self, session_id: str, cols: int, rows: int) -> Dict[str, Any]:
         try:
             self.term.resize(session_id, cols, rows)
@@ -1219,6 +1345,7 @@ class VedaProxy:
         except Exception as e:
             return { 'error': str(e) }
 
+    @log_proxy_method
     def close_terminal(self, session_id: str) -> Dict[str, Any]:
         try:
             self.term.close(session_id)
@@ -1226,6 +1353,7 @@ class VedaProxy:
         except Exception as e:
             return { 'error': str(e) }
 
+    @log_proxy_method
     def list_directory(self, path: str) -> List[Dict[str, Any]]:
         """
         List files and directories in the specified path with detailed information.
@@ -1265,6 +1393,7 @@ class VedaProxy:
 
         return entries
 
+    @log_proxy_method
     def list_directory_recursive(self, path: str) -> List[Dict[str, Any]]:
         """
         Recursively list all files and directories in the specified path and its subdirectories.
@@ -1330,6 +1459,7 @@ class VedaProxy:
         
         return entries
 
+    @log_proxy_method
     def get_file(self, path: str) -> Dict[str, str]:
         """
         Read the contents of a file.
@@ -1356,9 +1486,6 @@ class VedaProxy:
             raise ValueError(f"Path is not a file: {path}")
             
         try:
-            import time
-            start_time = time.time()
-            
             content = file_path.read_text(encoding='utf-8')
             read_time = time.time()
             logger.info(f"Read file content in {(read_time - start_time) * 1000:.1f}ms")
@@ -1384,7 +1511,7 @@ class VedaProxy:
             branch = "main"  # default
             try:
                 cmd_branch = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
-                result_branch = subprocess.run(cmd_branch, capture_output=True, text=True, cwd=file_path.parent)
+                result_branch = self._run_shell_command(cmd_branch, cwd=file_path.parent)
                 if result_branch.returncode == 0:
                     branch = result_branch.stdout.strip()
             except Exception as e:
@@ -1398,19 +1525,19 @@ class VedaProxy:
             try:
                 # Run git diff for the file
                 cmd = ['git', 'diff', 'HEAD', '--', str(file_path)]
-                result = subprocess.run(cmd, capture_output=True, text=True, cwd=file_path.parent)
+                result = self._run_shell_command(cmd, cwd=file_path.parent)
                 
                 if result.returncode != 0:
                     # Try unstaged changes
                     cmd = ['git', 'diff', '--', str(file_path)]
-                    result = subprocess.run(cmd, capture_output=True, text=True, cwd=file_path.parent)
+                    result = self._run_shell_command(cmd, cwd=file_path.parent)
                 
                 if result.returncode == 0 and result.stdout:
                     changes = self._parse_git_diff(result.stdout)
                 
                 # Also check staged changes
                 cmd_staged = ['git', 'diff', '--cached', '--', str(file_path)]
-                result_staged = subprocess.run(cmd_staged, capture_output=True, text=True, cwd=file_path.parent)
+                result_staged = self._run_shell_command(cmd_staged, cwd=file_path.parent)
                 
                 if result_staged.returncode == 0 and result_staged.stdout:
                     staged_changes = self._parse_git_diff(result_staged.stdout)
@@ -1471,6 +1598,7 @@ class VedaProxy:
         except PermissionError:
             raise PermissionError(f"Permission denied: {path}")
 
+    @log_proxy_method
     def write_file(self, path: str, content: str) -> Dict[str, Any]:
         """
         Write content to a file and return diagnostics.
@@ -1483,7 +1611,6 @@ class VedaProxy:
             Dictionary with 'success' key and 'diagnostics' list
         """
         file_path = Path(path).expanduser().resolve()
-        logger.info(f"Writing file: {path} (resolved to {file_path})")
         
         try:
             # Create parent directories if they don't exist
@@ -1622,16 +1749,19 @@ class VedaProxy:
             'symlink_target': symlink_target
         }
     
+    @log_proxy_method
     def start_lsp_server(self, language: str) -> Dict[str, Any]:
         """Start the LSP server for the specified language."""
         success = self.lsp.start_server(language)
         return {'success': success}
     
+    @log_proxy_method
     def stop_lsp_server(self, language: str) -> Dict[str, Any]:
         """Stop the LSP server for the specified language."""
         success = self.lsp.stop_server(language)
         return {'success': success}
     
+    @log_proxy_method
     def go_to_definition(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get the definition location for a symbol at the given position."""
         try:
@@ -1643,16 +1773,19 @@ class VedaProxy:
             logger.error(f"Error in go_to_definition: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def get_lsp_messages(self, language: str) -> Dict[str, Any]:
         """Get all LSP messages for a specific language."""
         messages = self.lsp.get_message_buffer(language)
         return {'success': True, 'messages': messages}
     
+    @log_proxy_method
     def get_lsp_notifications(self, language: str) -> Dict[str, Any]:
         """Get pending showMessage notifications for a language."""
         notifications = self.lsp.get_pending_notifications(language)
         return {'success': True, 'notifications': notifications}
     
+    @log_proxy_method
     def get_document_symbols(self, file_path: str, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get document symbols (functions, classes, etc.) for a file."""
         try:
@@ -1664,6 +1797,7 @@ class VedaProxy:
             logger.error(f"Error in get_document_symbols: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def get_folding_ranges(self, file_path: str, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get folding ranges for a file."""
         try:
@@ -1675,6 +1809,7 @@ class VedaProxy:
             logger.error(f"Error in get_folding_ranges: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def get_signature_help(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get signature help for a function at the given position."""
         try:
@@ -1686,6 +1821,7 @@ class VedaProxy:
             logger.error(f"Error in get_signature_help: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def list_project_symbols(self, query: str = "", timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get all symbols across the entire project workspace."""
         try:
@@ -1736,6 +1872,7 @@ class VedaProxy:
             logger.error(f"Error in list_project_symbols: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def find_references(self, file_path: str, line: int, character: int, include_declaration: bool = True, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Find all references to a symbol at the given position."""
         try:
@@ -1747,6 +1884,7 @@ class VedaProxy:
             logger.error(f"Error in find_references: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def get_completions(self, file_path: str, line: int, character: int, timeout_ms: Optional[int] = None) -> Dict[str, Any]:
         """Get completion suggestions at the given position."""
         try:
@@ -1758,6 +1896,7 @@ class VedaProxy:
             logger.error(f"Error in get_completions: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def get_diagnostics(self) -> Dict[str, Any]:
         """Get all diagnostics from all open files."""
         try:
@@ -1767,6 +1906,7 @@ class VedaProxy:
             logger.error(f"Error in get_diagnostics: {e}")
             return {'success': False, 'error': str(e)}
     
+    @log_proxy_method
     def notify_file_change(self, file_path: str, content: str) -> Dict[str, Any]:
         """
         Notify LSP server about file content changes.
@@ -1798,6 +1938,7 @@ class VedaProxy:
             logger.error(f"Failed to notify file change: {e}")
             return {"error": str(e)}
     
+    @log_proxy_method
     def get_project_changes(self, working_dir: str = None) -> Dict[str, Any]:
         """
         Get all changed files in the project with their diff information.
@@ -1808,7 +1949,7 @@ class VedaProxy:
             
             # Get list of changed files
             cmd = ['git', 'diff', '--name-status', 'HEAD']
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+            result = self._run_shell_command(cmd, cwd=cwd)
             
             unstaged_files = {}
             if result.returncode == 0:
@@ -1821,7 +1962,7 @@ class VedaProxy:
             
             # Get staged files
             cmd_staged = ['git', 'diff', '--cached', '--name-status']
-            result_staged = subprocess.run(cmd_staged, capture_output=True, text=True, cwd=cwd)
+            result_staged = self._run_shell_command(cmd_staged, cwd=cwd)
             
             staged_files = {}
             if result_staged.returncode == 0:
@@ -1852,7 +1993,7 @@ class VedaProxy:
                     else:
                         cmd = ['git', 'diff', 'HEAD', '--', filepath]
                     
-                    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+                    result = self._run_shell_command(cmd, cwd=cwd)
                     if result.returncode == 0:
                         diff_info = self._parse_git_diff(result.stdout)
                         changes.append({

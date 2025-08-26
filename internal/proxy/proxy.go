@@ -114,6 +114,82 @@ func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 	return client, actualPath, nil
 }
 
+// startRemoteProxy starts a remote proxy instance and performs version handshake
+func (pm *ProxyManager) startRemoteProxy(host string) (*Client, *exec.Cmd, error) {
+	pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
+	sshArgs := []string{
+		"-T",
+		// Connectivity + keepalive + non-interactive
+		"-o", "ConnectTimeout=5",
+		"-o", "ConnectionAttempts=1",
+		"-o", "BatchMode=yes",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "ServerAliveInterval=15",
+		"-o", "ServerAliveCountMax=3",
+		"-o", "ControlMaster=no",
+		"-o", "ControlPath=none",
+		host,
+		"python3", "/tmp/veda-proxy.py",
+	}
+	cmd := exec.Command("ssh", sshArgs...)
+
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, nil, err
+	}
+
+	// Log any stderr output from SSH/proxy
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			LL.Debug("Remote proxy stderr [%s]: %s", host, line)
+			fmt.Fprintf(os.Stderr, "REMOTE PROXY STDERR [%s]: %s\n", host, line)
+		}
+	}()
+
+	stdin := bufio.NewWriter(stdinPipe)
+	stdout := bufio.NewScanner(stdoutPipe)
+
+	// Increase scanner buffer size to handle large responses
+	buf := make([]byte, 0, maxScanTokenSize)
+	stdout.Buffer(buf, maxScanTokenSize)
+
+	// Wait for the hello/version line with a timeout
+	version, err := readProxyHello(stdout, 5*time.Second)
+	if err != nil {
+		LL.Debug("Failed to read proxy hello on %s: %v", host, err)
+		return nil, cmd, err
+	}
+	if version != ProxyVersion {
+		LL.Info("Proxy version mismatch on %s (got %s, want %s)", host, version, ProxyVersion)
+		return nil, cmd, fmt.Errorf("version mismatch: got=%s, want=%s", version, ProxyVersion)
+	}
+
+	client := &Client{
+		cmd:       cmd,
+		stdin:     stdin,
+		stdout:    stdout,
+		requestID: 0,
+		pending:   make(map[int]chan map[string]interface{}),
+		readerErr: make(chan error, 1),
+	}
+	client.readerOnce.Do(func() { go client.readerLoop() })
+	return client, cmd, nil
+}
+
 // createRemoteClient creates a new proxy client connected to a remote host
 func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	startTime := time.Now()
@@ -125,85 +201,9 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		return nil, fmt.Errorf("Failed to connect to %s: %s", host, err.Error())
 	}
 
-	// Helper to start a remote proxy instance and perform version handshake
-	startRemote := func() (*Client, *exec.Cmd, error) {
-		pm.reportStatus(fmt.Sprintf("Starting proxy on %s...", host))
-		sshArgs := []string{
-			"-T",
-			// Connectivity + keepalive + non-interactive
-			"-o", "ConnectTimeout=5",
-			"-o", "ConnectionAttempts=1",
-			"-o", "BatchMode=yes",
-			"-o", "StrictHostKeyChecking=no",
-			"-o", "ServerAliveInterval=15",
-			"-o", "ServerAliveCountMax=3",
-			"-o", "ControlMaster=no",
-			"-o", "ControlPath=none",
-			host,
-			"python3", "/tmp/veda-proxy.py",
-		}
-		cmd := exec.Command("ssh", sshArgs...)
-
-		stdinPipe, err := cmd.StdinPipe()
-		if err != nil {
-			return nil, nil, err
-		}
-		stdoutPipe, err := cmd.StdoutPipe()
-		if err != nil {
-			return nil, nil, err
-		}
-		stderrPipe, err := cmd.StderrPipe()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := cmd.Start(); err != nil {
-			return nil, nil, err
-		}
-
-		// Log any stderr output from SSH/proxy
-		go func() {
-			scanner := bufio.NewScanner(stderrPipe)
-			for scanner.Scan() {
-				line := scanner.Text()
-				LL.Debug("Remote proxy stderr [%s]: %s", host, line)
-				fmt.Fprintf(os.Stderr, "REMOTE PROXY STDERR [%s]: %s\n", host, line)
-			}
-		}()
-
-		stdin := bufio.NewWriter(stdinPipe)
-		stdout := bufio.NewScanner(stdoutPipe)
-
-		// Increase scanner buffer size to handle large responses
-		buf := make([]byte, 0, maxScanTokenSize)
-		stdout.Buffer(buf, maxScanTokenSize)
-
-		// Wait for the hello/version line with a timeout
-		version, err := readProxyHello(stdout, 5*time.Second)
-		if err != nil {
-			LL.Debug("Failed to read proxy hello on %s: %v", host, err)
-			return nil, cmd, err
-		}
-		if version != ProxyVersion {
-			LL.Info("Proxy version mismatch on %s (got %s, want %s)", host, version, ProxyVersion)
-			return nil, cmd, fmt.Errorf("version mismatch: got=%s, want=%s", version, ProxyVersion)
-		}
-
-		client := &Client{
-			cmd:       cmd,
-			stdin:     stdin,
-			stdout:    stdout,
-			requestID: 0,
-			pending:   make(map[int]chan map[string]interface{}),
-			readerErr: make(chan error, 1),
-		}
-		client.readerOnce.Do(func() { go client.readerLoop() })
-		return client, cmd, nil
-	}
-
 	// First try without copying (assume proxy exists on remote). If it fails or
 	// version mismatches, copy and retry once.
-	client, cmd, err := startRemote()
+	client, cmd, err := pm.startRemoteProxy(host)
 	if err != nil {
 		if cmd != nil && cmd.Process != nil {
 			_ = cmd.Process.Kill()
@@ -216,7 +216,7 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 		if errCopy := pm.copyProxyToRemote(host, 10*time.Second); errCopy != nil {
 			return nil, fmt.Errorf("failed to copy proxy to remote: %w", errCopy)
 		}
-		client, cmd, err = startRemote()
+		client, cmd, err = pm.startRemoteProxy(host)
 		if err != nil {
 			if cmd != nil && cmd.Process != nil {
 				_ = cmd.Process.Kill()
@@ -228,10 +228,7 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 	duration := time.Since(startTime)
 	LL.Info("Created remote proxy connection to %s in %v", host, duration)
 
-	// Report successful connection and then clear status
-	pm.reportStatus(fmt.Sprintf("Connected to %s", host))
-	pm.reportStatus("")
-
+	// Don't clear status - let the calling operation set its own status
 	return client, nil
 }
 
@@ -438,6 +435,14 @@ func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) 
 		return nil, err
 	}
 
+	// Report status for the actual directory listing operation
+	host, _, isRemote := parseRemotePath(path)
+	if isRemote {
+		pm.reportStatus(fmt.Sprintf("Listing files on %s...", host))
+	} else {
+		pm.reportStatus("Listing files...")
+	}
+
 	files, err := client.ListDirectoryRecursive(actualPath)
 	if shouldReconnect(err) {
 		host, _, _ := parseRemotePath(path)
@@ -452,6 +457,8 @@ func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) 
 		duration := time.Since(startTime)
 		LL.Info("Listed directory recursively %s (%d files) in %v", path, len(files), duration)
 	}
+	// Clear status after operation completes
+	pm.reportStatus("")
 	return files, err
 }
 
