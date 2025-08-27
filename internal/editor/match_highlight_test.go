@@ -11,7 +11,10 @@ func TestMatchHighlight_BracketsAcrossLines(t *testing.T) {
     // Place cursor on the opening bracket at (x=0,y=0)
     te.SetCursorPosition(0, 0)
 
-    // Render to compute match and draw
+    // Update cursor state to compute match highlight
+    te.Editor.updateCursorState()
+
+    // Render to draw with match highlight
     te.render()
 
     // Expected background color for match highlight
@@ -51,6 +54,10 @@ func TestMatchHighlight_QuotesSameLine(t *testing.T) {
 
     // Place cursor on the first quote
     te.SetCursorPosition(first, 0)
+    
+    // Update cursor state to compute match highlight
+    te.Editor.updateCursorState()
+    
     te.render()
 
     matchBg := te.config.Theme.GetStyle(te.config.Theme.MatchHighlight).Bg
