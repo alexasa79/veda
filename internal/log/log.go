@@ -35,7 +35,14 @@ var AllLoggers []*Logger = make([]*Logger, 0)
 var flushStopCh chan struct{}
 
 func SetupLogging(filename string) {
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND|os.O_TRUNC, 0666)
+	// Ensure the directory exists
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		panic(fmt.Sprintf("Failed to create log directory: %v", err))
+	}
+	
+	// Note: We remove O_TRUNC to append to the file instead of truncating
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to open log file: %v", err))
 	}

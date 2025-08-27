@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"time"
 	"veda/internal/editor"
 	"veda/internal/log"
 )
@@ -20,7 +21,15 @@ func main() {
 	helpFlag := flag.Bool("h", false, "Show help message")
 	helpLongFlag := flag.Bool("help", false, "Show help message")
 	cpuprofile := flag.String("cpuprofile", "", "Write CPU profile to file")
-	logFile := flag.String("log", "/tmp/veda.log", "Path to log file")
+	
+	// Generate default log path with timestamp
+	homeDir, _ := os.UserHomeDir()
+	cacheDir := fmt.Sprintf("%s/.cache/veda", homeDir)
+	// Ensure cache directory exists early
+	os.MkdirAll(cacheDir, 0755)
+	timestamp := time.Now().Format("20060102_150405")
+	defaultLogPath := fmt.Sprintf("%s/logs/veda_%s.log", cacheDir, timestamp)
+	logFile := flag.String("log", defaultLogPath, "Path to log file")
 
 	// Set custom usage function
 	flag.Usage = func() {
