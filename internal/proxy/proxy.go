@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -129,7 +130,7 @@ func (pm *ProxyManager) startRemoteProxy(host string) (*Client, *exec.Cmd, error
 		"-o", "ControlMaster=no",
 		"-o", "ControlPath=none",
 		host,
-		"python3", "/tmp/veda-proxy.py",
+		"python3", "~/.cache/veda/veda-proxy.py",
 	}
 	cmd := exec.Command("ssh", sshArgs...)
 
@@ -233,6 +234,7 @@ func (pm *ProxyManager) createRemoteClient(host string) (*Client, error) {
 }
 
 // copyProxyToRemote copies the embedded proxy script to the remote host (with timeout)
+// This is called only when the proxy start fails, so we ensure all prerequisites are met
 func (pm *ProxyManager) copyProxyToRemote(host string, timeout time.Duration) error {
 	startTime := time.Now()
 
@@ -250,9 +252,26 @@ func (pm *ProxyManager) copyProxyToRemote(host string, timeout time.Duration) er
 	}
 	tmpFile.Close()
 
-	// Use scp to copy the file to remote /tmp/ with fast-fail options
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	
+	// Step 1: Ensure ~/.cache/veda directory exists on the remote host
+	mkdirCmd := exec.CommandContext(ctx, "ssh",
+		"-o", "ConnectTimeout=5",
+		"-o", "ConnectionAttempts=1",
+		"-o", "BatchMode=yes",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "ControlMaster=no",
+		"-o", "ControlPath=none",
+		host,
+		"mkdir", "-p", "~/.cache/veda")
+	
+	output, err := mkdirCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("mkdir failed: %w, output: %s", err, output)
+	}
+	
+	// Step 2: Copy the proxy script to remote ~/.cache/veda/ directory
 	scpCmd := exec.CommandContext(ctx, "scp",
 		"-o", "ConnectTimeout=5",
 		"-o", "ConnectionAttempts=1",
@@ -261,25 +280,24 @@ func (pm *ProxyManager) copyProxyToRemote(host string, timeout time.Duration) er
 		"-o", "ControlMaster=no",
 		"-o", "ControlPath=none",
 		tmpFile.Name(),
-		fmt.Sprintf("%s:/tmp/veda-proxy.py", host))
+		fmt.Sprintf("%s:~/.cache/veda/veda-proxy.py", host))
 
-	// Capture output for debugging
-	output, err := scpCmd.CombinedOutput()
+	output, err = scpCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("scp failed: %w, output: %s", err, output)
 	}
 
-	// Make the script executable on the remote host
+	// Step 3: Make the script executable on the remote host
 	pm.reportStatus(fmt.Sprintf("Setting up proxy on %s...", host))
 	chmodCmd := exec.CommandContext(ctx, "ssh",
 		"-o", "ConnectTimeout=5",
 		"-o", "ConnectionAttempts=1",
 		"-o", "BatchMode=yes",
 		"-o", "StrictHostKeyChecking=no",
-		host,
 		"-o", "ControlMaster=no",
 		"-o", "ControlPath=none",
-		"chmod", "+x", "/tmp/veda-proxy.py")
+		host,
+		"chmod", "+x", "~/.cache/veda/veda-proxy.py")
 
 	output, err = chmodCmd.CombinedOutput()
 	if err != nil {
@@ -287,7 +305,7 @@ func (pm *ProxyManager) copyProxyToRemote(host string, timeout time.Duration) er
 	}
 
 	duration := time.Since(startTime)
-	LL.Info("Copied proxy script to %s:/tmp/veda-proxy.py in %v", host, duration)
+	LL.Info("Copied proxy script to %s:~/.cache/veda/veda-proxy.py in %v", host, duration)
 	return nil
 }
 
@@ -682,11 +700,29 @@ func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) 
 //go:embed veda-proxy.py
 var embeddedProxy string
 
-// proxyScriptPath is the fixed path to the proxy script
-var proxyScriptPath = "/tmp/veda-proxy.py"
+// proxyScriptPath is the expanded path to the proxy script for local execution
+var proxyScriptPath string
 
-// init extracts the embedded proxy script to /tmp
+// init extracts the embedded proxy script to ~/.cache/veda/ for local execution
 func init() {
+	// Get the home directory
+	home, err := os.UserHomeDir()
+	if err != nil {
+		LL.Error("Failed to get home directory: %v", err)
+		return
+	}
+	
+	// Use ~/.cache/veda/ directory
+	cacheDir := filepath.Join(home, ".cache", "veda")
+	
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		LL.Error("Failed to create cache directory %s: %v", cacheDir, err)
+		return
+	}
+	
+	proxyScriptPath = filepath.Join(cacheDir, "veda-proxy.py")
+	
 	// Write the embedded proxy script to the fixed location
 	if err := os.WriteFile(proxyScriptPath, []byte(embeddedProxy), 0755); err != nil {
 		LL.Error("Failed to write proxy script to %s: %v", proxyScriptPath, err)
@@ -817,12 +853,24 @@ type Client struct {
 	cmd       *exec.Cmd
 	stdin     *bufio.Writer
 	stdout    *bufio.Scanner
+	
+	// Request ID and writer access must be synchronized
+	mu        sync.Mutex   // Protects requestID and stdin writes
 	requestID int
+	
 	// concurrent routing
 	pendingMu  sync.Mutex
 	pending    map[int]chan map[string]interface{}
 	readerErr  chan error
 	readerOnce sync.Once
+}
+
+// getNextRequestID safely increments and returns the next request ID
+func (c *Client) getNextRequestID() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.requestID++
+	return c.requestID
 }
 
 // shouldReconnect determines if an error suggests a dead proxy connection
@@ -981,7 +1029,7 @@ func (pm *ProxyManager) CloseTerminal(workingDir, sessionID string) error {
 
 // Client-side request helpers
 func (c *Client) startTerminal(workingDir string, command []string, env map[string]string, cols, rows int) (string, int, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	params := map[string]interface{}{"working_dir": workingDir, "cols": cols, "rows": rows}
 	if len(command) > 0 {
 		params["command"] = command
@@ -989,7 +1037,7 @@ func (c *Client) startTerminal(workingDir string, command []string, env map[stri
 	if len(env) > 0 {
 		params["env"] = env
 	}
-	req := JSONRPCRequest{Method: "start_terminal", Params: params, ID: c.requestID}
+	req := JSONRPCRequest{Method: "start_terminal", Params: params, ID: id}
 	resp, err := c.sendRequestWithTimeout(req)
 	if err != nil {
 		return "", 0, err
@@ -1011,9 +1059,9 @@ func (c *Client) startTerminal(workingDir string, command []string, env map[stri
 }
 
 func (c *Client) writeTerminal(sessionID string, data []byte) error {
-	c.requestID++
+	id := c.getNextRequestID()
 	b64 := base64StdEncode(data)
-	req := JSONRPCRequest{Method: "write_terminal", Params: map[string]interface{}{"session_id": sessionID, "data_b64": b64}, ID: c.requestID}
+	req := JSONRPCRequest{Method: "write_terminal", Params: map[string]interface{}{"session_id": sessionID, "data_b64": b64}, ID: id}
 	resp, err := c.sendRequestWithTimeout(req)
 	if err != nil {
 		return err
@@ -1025,11 +1073,11 @@ func (c *Client) writeTerminal(sessionID string, data []byte) error {
 }
 
 func (c *Client) readTerminal(sessionID string, maxBytes int) ([]byte, bool, *int, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	if maxBytes <= 0 {
 		maxBytes = 65536
 	}
-	req := JSONRPCRequest{Method: "read_terminal", Params: map[string]interface{}{"session_id": sessionID, "max_bytes": maxBytes}, ID: c.requestID}
+	req := JSONRPCRequest{Method: "read_terminal", Params: map[string]interface{}{"session_id": sessionID, "max_bytes": maxBytes}, ID: id}
 	resp, err := c.sendRequestWithTimeout(req)
 	if err != nil {
 		return nil, false, nil, err
@@ -1056,8 +1104,8 @@ func (c *Client) readTerminal(sessionID string, maxBytes int) ([]byte, bool, *in
 }
 
 func (c *Client) resizeTerminal(sessionID string, cols, rows int) error {
-	c.requestID++
-	req := JSONRPCRequest{Method: "resize_terminal", Params: map[string]interface{}{"session_id": sessionID, "cols": cols, "rows": rows}, ID: c.requestID}
+	id := c.getNextRequestID()
+	req := JSONRPCRequest{Method: "resize_terminal", Params: map[string]interface{}{"session_id": sessionID, "cols": cols, "rows": rows}, ID: id}
 	resp, err := c.sendRequestWithTimeout(req)
 	if err != nil {
 		return err
@@ -1069,8 +1117,8 @@ func (c *Client) resizeTerminal(sessionID string, cols, rows int) error {
 }
 
 func (c *Client) closeTerminal(sessionID string) error {
-	c.requestID++
-	req := JSONRPCRequest{Method: "close_terminal", Params: map[string]interface{}{"session_id": sessionID}, ID: c.requestID}
+	id := c.getNextRequestID()
+	req := JSONRPCRequest{Method: "close_terminal", Params: map[string]interface{}{"session_id": sessionID}, ID: id}
 	resp, err := c.sendRequestWithTimeout(req)
 	if err != nil {
 		return err
@@ -1109,18 +1157,19 @@ func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]inte
 	c.pending[request.ID] = respCh
 	c.pendingMu.Unlock()
 
-	// Send the request
-	if _, err := c.stdin.WriteString(string(requestBytes) + "\n"); err != nil {
-		c.pendingMu.Lock()
-		delete(c.pending, request.ID)
-		c.pendingMu.Unlock()
-		return nil, fmt.Errorf("failed to write request: %w", err)
+	// Send the request (protect stdin writes with mutex)
+	c.mu.Lock()
+	_, writeErr := c.stdin.WriteString(string(requestBytes) + "\n")
+	if writeErr == nil {
+		writeErr = c.stdin.Flush()
 	}
-	if err := c.stdin.Flush(); err != nil {
+	c.mu.Unlock()
+	
+	if writeErr != nil {
 		c.pendingMu.Lock()
 		delete(c.pending, request.ID)
 		c.pendingMu.Unlock()
-		return nil, fmt.Errorf("failed to flush request: %w", err)
+		return nil, fmt.Errorf("failed to send request: %w", writeErr)
 	}
 
 	timer := time.NewTimer(ProxyRequestTimeout)
@@ -1293,11 +1342,11 @@ func NewClient() (*Client, error) {
 
 // ListDirectory sends a JSON RPC request to get directory listing
 func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "list_directory",
 		Params: map[string]interface{}{"path": path},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1341,11 +1390,11 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 
 // ListDirectoryRecursive sends a JSON RPC request to get recursive directory listing
 func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "list_directory_recursive",
 		Params: map[string]interface{}{"path": path},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1412,11 +1461,11 @@ func parseRemotePath(path string) (string, string, bool) {
 func (c *Client) GetFile(path string) (*FileContent, error) {
 	LL.Debug("Client.GetFile: path=%s", path)
 
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_file",
 		Params: map[string]interface{}{"path": path},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1510,11 +1559,11 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 
 // StartLSPServer starts an LSP server for the specified language
 func (c *Client) StartLSPServer(language string) error {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "start_lsp_server",
 		Params: map[string]interface{}{"language": language},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1537,11 +1586,11 @@ func (c *Client) StartLSPServer(language string) error {
 
 // StopLSPServer stops the LSP server for the specified language
 func (c *Client) StopLSPServer(language string) error {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "stop_lsp_server",
 		Params: map[string]interface{}{"language": language},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1564,7 +1613,7 @@ func (c *Client) StopLSPServer(language string) error {
 
 // GoToDefinition gets the definition location for a symbol at the given position
 func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Location, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "go_to_definition",
 		Params: map[string]interface{}{
@@ -1574,7 +1623,7 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 			// propagate timeout to proxy (milliseconds)
 			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1661,7 +1710,7 @@ func (c *Client) GoToDefinition(filePath string, line int, character int) ([]Loc
 
 // FindReferences finds all references to a symbol at the given position
 func (c *Client) FindReferences(filePath string, line int, character int, includeDeclaration bool) ([]Location, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "find_references",
 		Params: map[string]interface{}{
@@ -1671,7 +1720,7 @@ func (c *Client) FindReferences(filePath string, line int, character int, includ
 			"include_declaration": includeDeclaration,
 			"timeout_ms":          int(ProxyRequestTimeout / time.Millisecond),
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1731,11 +1780,11 @@ func (c *Client) FindReferences(filePath string, line int, character int, includ
 
 // GetLSPMessages gets all LSP messages for a specific language
 func (c *Client) GetLSPMessages(language string) ([]interface{}, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_lsp_messages",
 		Params: map[string]interface{}{"language": language},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1760,11 +1809,11 @@ func (c *Client) GetLSPMessages(language string) ([]interface{}, error) {
 
 // GetLSPNotifications gets pending showMessage notifications for a language
 func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{}, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_lsp_notifications",
 		Params: map[string]interface{}{"language": language},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1795,14 +1844,14 @@ func (c *Client) GetLSPNotifications(language string) ([]map[string]interface{},
 
 // GetDocumentSymbols gets document symbols (functions, classes, etc.) for a file
 func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_document_symbols",
 		Params: map[string]interface{}{
 			"file_path":  filePath,
 			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1850,14 +1899,14 @@ func (c *Client) GetDocumentSymbols(filePath string) ([]DocumentSymbol, error) {
 
 // GetFoldingRanges gets folding ranges for a file
 func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_folding_ranges",
 		Params: map[string]interface{}{
 			"file_path":  filePath,
 			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1899,14 +1948,14 @@ func (c *Client) GetFoldingRanges(filePath string) ([]FoldingRange, error) {
 
 // NotifyFileChange notifies the LSP server about file content changes
 func (c *Client) NotifyFileChange(filePath string, content string) error {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "notify_file_change",
 		Params: map[string]interface{}{
 			"file_path": filePath,
 			"content":   content,
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1938,7 +1987,7 @@ func (c *Client) NotifyFileChange(filePath string, content string) error {
 
 // GetSignatureHelp gets signature help for a function at the given position
 func (c *Client) GetSignatureHelp(filePath string, line int, character int) (interface{}, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_signature_help",
 		Params: map[string]interface{}{
@@ -1947,7 +1996,7 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 			"character":  character,
 			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -1973,14 +2022,14 @@ func (c *Client) GetSignatureHelp(filePath string, line int, character int) (int
 
 // ListProjectSymbols gets all symbols across the entire project
 func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "list_project_symbols",
 		Params: map[string]interface{}{
 			"query":      query,
 			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -2022,14 +2071,14 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 
 // WriteFile writes content to a file and returns diagnostics
 func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "write_file",
 		Params: map[string]interface{}{
 			"path":    path,
 			"content": content,
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -2080,7 +2129,7 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
 
 // GetCompletions gets completion suggestions at the given position
 func (c *Client) GetCompletions(filePath string, line int, character int) (interface{}, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_completions",
 		Params: map[string]interface{}{
@@ -2089,7 +2138,7 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 			"character":  character,
 			"timeout_ms": int(ProxyRequestTimeout / time.Millisecond),
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -2114,11 +2163,11 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 
 // GetDiagnostics retrieves all diagnostics from all open files
 func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_diagnostics",
 		Params: map[string]interface{}{},
-		ID:     c.requestID,
+		ID:     id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
@@ -2150,13 +2199,13 @@ func (c *Client) GetDiagnostics() (map[string][]interface{}, error) {
 
 // GetProjectChanges retrieves all changes in the project
 func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
-	c.requestID++
+	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_project_changes",
 		Params: map[string]interface{}{
 			"working_dir": workingDir,
 		},
-		ID: c.requestID,
+		ID: id,
 	}
 
 	response, err := c.sendRequestWithTimeout(request)
