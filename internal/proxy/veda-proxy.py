@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.9"
+PROXY_VERSION = "1.0.10"
 
 # Set up logging directory
 from datetime import datetime
@@ -1113,7 +1113,7 @@ class VedaProxy:
         self.lsp = LSPManager()
         self.term = VedaProxy.TerminalManager()
         self.methods = {
-            'list_directory': self.list_directory,
+            'get_file_attributes': self.get_file_attributes,
             'list_directory_recursive': self.list_directory_recursive,
             'get_file': self.get_file,
             'write_file': self.write_file,
@@ -1365,44 +1365,54 @@ class VedaProxy:
             return { 'error': str(e) }
 
     @log_proxy_method
-    def list_directory(self, path: str) -> List[Dict[str, Any]]:
+    def get_file_attributes(self, path: str) -> Dict[str, Any]:
         """
-        List files and directories in the specified path with detailed information.
-
+        Get attributes of a file or directory.
+        
         Args:
-            path: Directory path to list
-
+            path: File or directory path
+            
         Returns:
-            List of file/directory information dictionaries
+            Dictionary with file/directory attributes
         """
-        directory_path = Path(path).expanduser().resolve()
-
-        if not directory_path.exists():
-            raise FileNotFoundError(f"Directory does not exist: {path}")
-
-        if not directory_path.is_dir():
-            raise NotADirectoryError(f"Path is not a directory: {path}")
-
-        entries = []
-
-        for entry in directory_path.iterdir():
-            try:
-                file_info = self._get_file_info(entry, directory_path)
-                entries.append(file_info)
-            except (OSError, PermissionError) as e:
-                logger.warning(f"Could not get info for {entry}: {e}")
-                # Add basic info even if we can't get all details
-                entries.append({
-                    'name': entry.name,
-                    'path': str(entry.absolute()),
-                    'type': 'unknown',
-                    'error': str(e)
-                })
-
-        # Sort entries: directories first, then files, both alphabetically
-        entries.sort(key=lambda x: (x.get('type') != 'directory', x['name'].lower()))
-
-        return entries
+        file_path = Path(path).expanduser().resolve()
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"Path does not exist: {path}")
+        
+        stat_info = file_path.stat()
+        
+        # Determine file type
+        if file_path.is_dir():
+            file_type = 'directory'
+        elif file_path.is_file():
+            file_type = 'file'
+        elif file_path.is_symlink():
+            file_type = 'symlink'
+        else:
+            file_type = 'unknown'
+        
+        attributes = {
+            'name': file_path.name,
+            'path': str(file_path),
+            'type': file_type,
+            'size': stat_info.st_size,
+            'mode': oct(stat_info.st_mode),
+            'modified': stat_info.st_mtime,
+            'created': getattr(stat_info, 'st_birthtime', stat_info.st_ctime),
+            'accessed': stat_info.st_atime,
+            'is_directory': file_path.is_dir(),
+            'is_file': file_path.is_file(),
+            'is_symlink': file_path.is_symlink(),
+            'exists': True
+        }
+        
+        # Add permissions info
+        attributes['readable'] = os.access(str(file_path), os.R_OK)
+        attributes['writable'] = os.access(str(file_path), os.W_OK)
+        attributes['executable'] = os.access(str(file_path), os.X_OK)
+        
+        return attributes
 
     @log_proxy_method
     def list_directory_recursive(self, path: str) -> List[Dict[str, Any]]:
