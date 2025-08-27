@@ -30,12 +30,23 @@ import time
 # Proxy version must match the Go client's ProxyVersion constant.
 PROXY_VERSION = "1.0.9"
 
+# Set up logging directory
+from datetime import datetime
+cache_dir = os.path.expanduser('~/.cache/veda')
+os.makedirs(cache_dir, exist_ok=True)  # Ensure base cache directory exists
+log_dir = os.path.join(cache_dir, 'logs')
+os.makedirs(log_dir, exist_ok=True)  # Ensure logs subdirectory exists
+
+# Generate log filename with timestamp
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+log_file = os.path.join(log_dir, f'veda-proxy_{timestamp}.log')
+
 # Configure logging to file so it doesn't interfere with JSON RPC communication
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='/tmp/veda-proxy.log',
-    filemode='w'  # Truncate log at start of each proxy session
+    filename=log_file,
+    filemode='a'  # Append mode instead of truncate
 )
 logger = logging.getLogger(__name__)
 
@@ -1470,6 +1481,7 @@ class VedaProxy:
         Returns:
             Dictionary with 'content' key containing the file contents
         """
+        start_time = time.time()  # Initialize start_time for performance tracking
         file_path = Path(path).expanduser().resolve()
         
         if not file_path.exists():

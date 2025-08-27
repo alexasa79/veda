@@ -189,8 +189,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 		// Matching pair highlight (only for active window/buffer)
     useMatchStyle := false
-    // Only apply in the text area (not when drawing line numbers), mirror selection's x>0 guard
-    if e.CurrentBuffer() != nil && lineNum >= 0 && x > 0 && e.matchBuf == e.CurrentBuffer() && lineNum == e.matchLine && charPosInLine == e.matchChar {
+    // Only apply in the text area (not when drawing line numbers)
+    // The guard x >= e.CurrentBuffer().LineNumberWidth ensures we're in the text area, not the gutter
+    if e.CurrentBuffer() != nil && lineNum >= 0 && x >= e.CurrentBuffer().LineNumberWidth && e.matchBuf == e.CurrentBuffer() && lineNum == e.matchLine && charPosInLine == e.matchChar {
         useMatchStyle = true
     }
 
