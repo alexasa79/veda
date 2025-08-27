@@ -2173,11 +2173,15 @@ func (e *Editor) changeDirectory(args []string) error {
 			newPath = e.resolvePath(newPath)
 		}
 
-		// Try to list the directory to verify it exists
-		_, err := e.proxyManager.ListDirectory(newPath)
+		// Try to get attributes to verify it exists and is a directory
+		attrs, err := e.proxyManager.GetFileAttributes(newPath)
 		if err != nil {
 			LL.Error("Failed to change directory to %s: %v", newPath, err)
 			return err
+		}
+		if !attrs.IsDirectory {
+			LL.Error("Path is not a directory: %s", newPath)
+			return fmt.Errorf("path is not a directory: %s", newPath)
 		} else {
 			e.workingDirectory = newPath
 			LL.Info("Changed directory to: %s", e.workingDirectory)
@@ -3146,14 +3150,6 @@ func (e *Editor) handlePendingPath() {
 				e.workingDirectory = host + ":" + dirPath
 			} else {
 				e.workingDirectory = host + ":~/"
-			}
-			// Before proceeding, ensure we can connect to the remote host; if not, exit with error
-			if _, pingErr := e.proxyManager.ListDirectory(host + ":~/"); pingErr != nil {
-				// Record exit message; main will print it after closing the UI
-				e.exitMessage = pingErr.Error()
-				e.exitCode = 1
-				_ = e.actuallyQuit(nil)
-				return
 			}
 		} else {
 			// For local paths, keep current directory

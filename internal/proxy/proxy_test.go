@@ -87,26 +87,21 @@ func TestProxyBasic(t *testing.T) {
 	}
 	defer client.Close()
 
-	// Try a simple operation - list current directory
-	t.Log("Attempting to list directory...")
-	files, err := client.ListDirectory("../../")
+	// Try a simple operation - get attributes of current directory
+	t.Log("Attempting to get directory attributes...")
+	attrs, err := client.GetFileAttributes("../../")
 	if err != nil {
-		t.Fatalf("ListDirectory failed: %v", err)
+		t.Fatalf("GetFileAttributes failed: %v", err)
 	}
 
-	t.Logf("Listed %d files in current directory", len(files))
+	t.Logf("Got attributes for: %s", attrs.Path)
 
-	// Should at least find main.go
-	foundMain := false
-	for _, file := range files {
-		if file.Name == "main.go" {
-			foundMain = true
-			break
-		}
+	// Verify it's a directory
+	if !attrs.IsDirectory {
+		t.Error("Expected path to be a directory, but it wasn't")
 	}
-
-	if !foundMain {
-		t.Error("Expected to find main.go in current directory")
+	if !attrs.Exists {
+		t.Error("Expected path to exist, but it doesn't")
 	}
 }
 

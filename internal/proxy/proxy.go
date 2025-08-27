@@ -28,7 +28,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.9"
+const ProxyVersion = "1.0.10"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -418,8 +418,8 @@ func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, er
 	return diagnostics, err
 }
 
-// ListDirectory lists directory contents (supports HOST:PATH format)
-func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
+// GetFileAttributes gets attributes of a file or directory (supports HOST:PATH format)
+func (pm *ProxyManager) GetFileAttributes(path string) (*FileAttributes, error) {
 	startTime := time.Now()
 
 	client, actualPath, err := pm.getClient(path)
@@ -427,21 +427,21 @@ func (pm *ProxyManager) ListDirectory(path string) ([]FileInfo, error) {
 		return nil, err
 	}
 
-	files, err := client.ListDirectory(actualPath)
+	attrs, err := client.GetFileAttributes(actualPath)
 	if shouldReconnect(err) {
 		host, _, _ := parseRemotePath(path)
 		pm.reportStatus("Disconnected")
 		if _, rerr := pm.reconnect(host); rerr == nil {
 			if client2, _, gerr := pm.getClient(path); gerr == nil {
-				files, err = client2.ListDirectory(actualPath)
+				attrs, err = client2.GetFileAttributes(actualPath)
 			}
 		}
 	}
 	if err == nil {
 		duration := time.Since(startTime)
-		LL.Info("Listed directory %s (%d files) in %v", path, len(files), duration)
+		LL.Info("Got attributes for %s in %v", path, duration)
 	}
-	return files, err
+	return attrs, err
 }
 
 // ListDirectoryRecursive lists directory contents recursively (supports HOST:PATH format)
@@ -753,6 +753,25 @@ type FileInfo struct {
 	Size  int64   `json:"size"`
 	Path  string  `json:"path"`
 	Mtime float64 `json:"mtime"`
+}
+
+// FileAttributes represents detailed file/directory attributes
+type FileAttributes struct {
+	Name       string    `json:"name"`
+	Path       string    `json:"path"`
+	Type       string    `json:"type"`
+	Size       int64     `json:"size"`
+	Mode       string    `json:"mode"`
+	Modified   time.Time `json:"modified"`
+	Created    time.Time `json:"created"`
+	Accessed   time.Time `json:"accessed"`
+	IsDirectory bool     `json:"is_directory"`
+	IsFile      bool     `json:"is_file"`
+	IsSymlink   bool     `json:"is_symlink"`
+	Exists      bool     `json:"exists"`
+	Readable    bool     `json:"readable"`
+	Writable    bool     `json:"writable"`
+	Executable  bool     `json:"executable"`
 }
 
 // FileContent represents file content with change information
@@ -1340,11 +1359,11 @@ func NewClient() (*Client, error) {
 	return client, nil
 }
 
-// ListDirectory sends a JSON RPC request to get directory listing
-func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
+// GetFileAttributes sends a JSON RPC request to get file/directory attributes
+func (c *Client) GetFileAttributes(path string) (*FileAttributes, error) {
 	id := c.getNextRequestID()
 	request := JSONRPCRequest{
-		Method: "list_directory",
+		Method: "get_file_attributes",
 		Params: map[string]interface{}{"path": path},
 		ID:     id,
 	}
@@ -1358,34 +1377,56 @@ func (c *Client) ListDirectory(path string) ([]FileInfo, error) {
 		return nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
 
-	var files []FileInfo
-	if result, ok := response["result"].([]interface{}); ok {
-		for _, item := range result {
-			if fileMap, ok := item.(map[string]interface{}); ok {
-				file := FileInfo{}
-
-				// Safely extract fields with type checking
-				if name, ok := fileMap["name"].(string); ok {
-					file.Name = name
-				}
-				if fileType, ok := fileMap["type"].(string); ok {
-					file.Type = fileType
-				}
-				if path, ok := fileMap["path"].(string); ok {
-					file.Path = path
-				}
-				if size, ok := fileMap["size"].(float64); ok {
-					file.Size = int64(size)
-				}
-
-				// Skip entries with missing required fields
-				if file.Name != "" && file.Type != "" {
-					files = append(files, file)
-				}
-			}
+	attrs := &FileAttributes{}
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		// Safely extract fields with type checking
+		if name, ok := result["name"].(string); ok {
+			attrs.Name = name
+		}
+		if path, ok := result["path"].(string); ok {
+			attrs.Path = path
+		}
+		if fileType, ok := result["type"].(string); ok {
+			attrs.Type = fileType
+		}
+		if size, ok := result["size"].(float64); ok {
+			attrs.Size = int64(size)
+		}
+		if isDir, ok := result["is_directory"].(bool); ok {
+			attrs.IsDirectory = isDir
+		}
+		if isFile, ok := result["is_file"].(bool); ok {
+			attrs.IsFile = isFile
+		}
+		if isSymlink, ok := result["is_symlink"].(bool); ok {
+			attrs.IsSymlink = isSymlink
+		}
+		if exists, ok := result["exists"].(bool); ok {
+			attrs.Exists = exists
+		}
+		if readable, ok := result["readable"].(bool); ok {
+			attrs.Readable = readable
+		}
+		if writable, ok := result["writable"].(bool); ok {
+			attrs.Writable = writable
+		}
+		if executable, ok := result["executable"].(bool); ok {
+			attrs.Executable = executable
+		}
+		if mode, ok := result["mode"].(string); ok {
+			attrs.Mode = mode
+		}
+		if modified, ok := result["modified"].(float64); ok {
+			attrs.Modified = time.Unix(int64(modified), 0)
+		}
+		if created, ok := result["created"].(float64); ok {
+			attrs.Created = time.Unix(int64(created), 0)
+		}
+		if accessed, ok := result["accessed"].(float64); ok {
+			attrs.Accessed = time.Unix(int64(accessed), 0)
 		}
 	}
-	return files, nil
+	return attrs, nil
 }
 
 // ListDirectoryRecursive sends a JSON RPC request to get recursive directory listing

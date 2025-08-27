@@ -1024,9 +1024,9 @@ func (e *Editor) editFile(args []string) error {
 
 	path := args[0]
 
-	// Check if it's a directory by attempting to list it
-	_, err := e.proxyManager.ListDirectory(path)
-	if err == nil {
+	// Check if it's a directory by getting its attributes
+	attrs, err := e.proxyManager.GetFileAttributes(path)
+	if err == nil && attrs.IsDirectory {
 		// It's a directory - update working directory and show file browser
 		e.workingDirectory = path
 		LL.Info("Changed directory to: %s", e.workingDirectory)
