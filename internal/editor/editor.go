@@ -3122,22 +3122,22 @@ func (e *Editor) handlePendingPath() {
 		e.connectionStatus = "Loading..."
 	}
 
-	// Try to list the path to determine if it's a directory
-	_, err := e.proxyManager.ListDirectoryRecursive(path)
-	LL.Debug("handlePendingPath: ListDirectoryRecursive returned err=%v", err)
+    // Fetch attributes to determine if it's a directory (lightweight vs full listing)
+    attrs, err := e.proxyManager.GetFileAttributes(path)
+    LL.Debug("handlePendingPath: GetFileAttributes returned err=%v attrs=%v", err, attrs)
 
 	// Clear connection status
 	e.connectionStatus = ""
 
-	if err == nil {
-		// It's a directory
-		e.workingDirectory = path
-		LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
+    if err == nil && attrs != nil && attrs.IsDirectory {
+        // It's a directory
+        e.workingDirectory = path
+        LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
 
-		// Send async event to show fuzzy list
-		LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
-		e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
-	} else {
+        // Send async event to show fuzzy list
+        LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
+        e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
+    } else {
 		// It's a file or doesn't exist - extract directory and open file
 		LL.Debug("handlePendingPath: Path is a file, will open it")
 		if isRemote {
