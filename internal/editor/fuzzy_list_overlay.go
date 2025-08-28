@@ -10,6 +10,7 @@ type FuzzyListOverlay struct {
 	widget            *widgets.FuzzyListWidget
 	onTextChanged     func(string)
 	contentUpdateChan <-chan []string
+	filterMode        string // "supported" or "all"
 }
 
 // NewFuzzyListOverlay creates a new fuzzy list overlay
@@ -18,6 +19,18 @@ func NewFuzzyListOverlay(widget *widgets.FuzzyListWidget, onTextChanged func(str
 		widget:            widget,
 		onTextChanged:     onTextChanged,
 		contentUpdateChan: contentUpdateChan,
+		filterMode:        "supported", // Default to supported files
+	}
+}
+
+// SetFilterMode sets the current filter mode
+func (flo *FuzzyListOverlay) SetFilterMode(mode string) {
+	flo.filterMode = mode
+	// Update the widget title to show current mode
+	if mode == "all" {
+		flo.widget.SetTitle("Files (All)")
+	} else {
+		flo.widget.SetTitle("Files (Supported)")
 	}
 }
 
@@ -97,6 +110,9 @@ func (flo *FuzzyListOverlay) HandleEvent(event interface{}) (bool, string) {
 		case events.KeyCtrlR:
 			// Signal refresh by returning a special token that editor will handle
 			return false, "__REFRESH__"
+		case events.KeyTab:
+			// Signal tab key to toggle filter mode
+			return false, "__TAB__"
 		case events.KeyRune:
 			switch keyEv.Rune {
 			default:

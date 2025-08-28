@@ -28,7 +28,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.10"
+const ProxyVersion = "1.0.12"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -446,6 +446,11 @@ func (pm *ProxyManager) GetFileAttributes(path string) (*FileAttributes, error) 
 
 // ListDirectoryRecursive lists directory contents recursively (supports HOST:PATH format)
 func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) {
+	return pm.ListDirectoryRecursiveFiltered(path, "supported")
+}
+
+// ListDirectoryRecursiveFiltered lists directory contents recursively with filtering (supports HOST:PATH format)
+func (pm *ProxyManager) ListDirectoryRecursiveFiltered(path string, filterMode string) ([]FileInfo, error) {
 	startTime := time.Now()
 
 	client, actualPath, err := pm.getClient(path)
@@ -461,19 +466,19 @@ func (pm *ProxyManager) ListDirectoryRecursive(path string) ([]FileInfo, error) 
 		pm.reportStatus("Listing files...")
 	}
 
-	files, err := client.ListDirectoryRecursive(actualPath)
+	files, err := client.ListDirectoryRecursiveFiltered(actualPath, filterMode)
 	if shouldReconnect(err) {
 		host, _, _ := parseRemotePath(path)
 		pm.reportStatus("Disconnected")
 		if _, rerr := pm.reconnect(host); rerr == nil {
 			if client2, _, gerr := pm.getClient(path); gerr == nil {
-				files, err = client2.ListDirectoryRecursive(actualPath)
+				files, err = client2.ListDirectoryRecursiveFiltered(actualPath, filterMode)
 			}
 		}
 	}
 	if err == nil {
 		duration := time.Since(startTime)
-		LL.Info("Listed directory recursively %s (%d files) in %v", path, len(files), duration)
+		LL.Info("Listed directory recursively %s (%d files, filter=%s) in %v", path, len(files), filterMode, duration)
 	}
 	// Clear status after operation completes
 	pm.reportStatus("")
@@ -1431,10 +1436,15 @@ func (c *Client) GetFileAttributes(path string) (*FileAttributes, error) {
 
 // ListDirectoryRecursive sends a JSON RPC request to get recursive directory listing
 func (c *Client) ListDirectoryRecursive(path string) ([]FileInfo, error) {
+	return c.ListDirectoryRecursiveFiltered(path, "supported")
+}
+
+// ListDirectoryRecursiveFiltered sends a JSON RPC request to get recursive directory listing with filtering
+func (c *Client) ListDirectoryRecursiveFiltered(path string, filterMode string) ([]FileInfo, error) {
 	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "list_directory_recursive",
-		Params: map[string]interface{}{"path": path},
+		Params: map[string]interface{}{"path": path, "filter_mode": filterMode},
 		ID:     id,
 	}
 

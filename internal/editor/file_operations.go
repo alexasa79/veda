@@ -65,16 +65,24 @@ func (e *Editor) createFuzzyListWidget() *widgets.FuzzyListWidget {
 
 // sendDirectoryListingRequest sends an async request for directory listing
 func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, useCache bool) chan fileListingResult {
+	return e.sendDirectoryListingRequestFiltered(contentUpdateChan, useCache, "supported")
+}
+
+// sendDirectoryListingRequestFiltered sends an async request for directory listing with filter mode
+func (e *Editor) sendDirectoryListingRequestFiltered(contentUpdateChan chan []string, useCache bool, filterMode string) chan fileListingResult {
 	// Start async operation tracking
-	operationID := fmt.Sprintf("dir-list-%s", e.workingDirectory)
+	operationID := fmt.Sprintf("dir-list-%s-%s", e.workingDirectory, filterMode)
 	e.startAsyncOperation(operationID, "listing directory: "+e.workingDirectory)
 
 	// Create a channel for the result
 	resultChan := make(chan fileListingResult, 1)
 
+	// Cache key includes filter mode
+	cacheKey := e.workingDirectory + ":" + filterMode
+	
 	// If we can satisfy from cache, do so synchronously
-	if files, ok := e.getCachedDirectoryListing(e.workingDirectory); ok && useCache {
-		LL.Debug("Using cached directory listing for %s", e.workingDirectory)
+	if files, ok := e.getCachedDirectoryListing(cacheKey); ok && useCache {
+		LL.Debug("Using cached directory listing for %s (filter=%s)", e.workingDirectory, filterMode)
 		result := e.processFileList(files)
 		if len(result.paths) == 0 {
 			contentUpdateChan <- []string{"No files found"}
@@ -93,8 +101,8 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 	go func() {
 		defer e.endAsyncOperation(operationID)
 
-		LL.Debug("Fetching directory listing for %s", e.workingDirectory)
-		files, err := e.proxyManager.ListDirectoryRecursive(e.workingDirectory)
+		LL.Debug("Fetching directory listing for %s (filter=%s)", e.workingDirectory, filterMode)
+		files, err := e.proxyManager.ListDirectoryRecursiveFiltered(e.workingDirectory, filterMode)
 
 		if err != nil {
 			LL.Debug("Directory listing error: %v", err)
@@ -107,8 +115,8 @@ func (e *Editor) sendDirectoryListingRequest(contentUpdateChan chan []string, us
 		}
 
 		LL.Debug("Got %d files from proxy", len(files))
-		// Store in cache
-		e.setCachedDirectoryListing(e.workingDirectory, files)
+		// Store in cache with filter mode as part of the key
+		e.setCachedDirectoryListing(cacheKey, files)
 		result := e.processFileList(files)
 
 		if len(result.paths) == 0 {
@@ -292,8 +300,11 @@ func (e *Editor) ShowFuzzyListWidget() {
 	// Create a channel for content updates
 	contentUpdateChan := make(chan []string, 1)
 
+	// Start with supported files filter by default
+	filterMode := "supported"
+	
 	// Send async request for directory listing and get result channel
-	resultChan := e.sendDirectoryListingRequest(contentUpdateChan, true)
+	resultChan := e.sendDirectoryListingRequestFiltered(contentUpdateChan, true, filterMode)
 
 	// Store file paths for mapping back from display names
 	var filePaths map[string]string
@@ -307,22 +318,50 @@ func (e *Editor) ShowFuzzyListWidget() {
 
 	// Create overlay and get result channel
 	overlay := NewFuzzyListOverlay(fuzzyListWidget, nil, contentUpdateChan)
+	overlay.SetFilterMode(filterMode)
 	overlayResultChan := e.renderingState.SetOverlay(overlay)
 
 	// Wait for result in a goroutine; post a lambda to the main loop
 	go func() {
-		selectedPath := <-overlayResultChan
-		if selectedPath == "" {
-			return
-		}
-		openInNewWin := false
-		if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
-			openInNewWin = true
-			selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
-		}
-		fullPath := e.resolveSelectedPath(selectedPath, filePaths)
-		LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
-		e.Post(func(e *Editor) {
+		for {
+			selectedPath := <-overlayResultChan
+			if selectedPath == "" {
+				return
+			}
+			
+			// Handle tab key to switch filter mode
+			if selectedPath == "__TAB__" {
+				// Toggle filter mode
+				if filterMode == "supported" {
+					filterMode = "all"
+				} else {
+					filterMode = "supported"
+				}
+				overlay.SetFilterMode(filterMode)
+				
+				// Clear cache and request new listing with new filter
+				if e.dirCache != nil {
+					delete(e.dirCache, e.workingDirectory)
+				}
+				newResultChan := e.sendDirectoryListingRequestFiltered(contentUpdateChan, false, filterMode)
+				
+				// Update file paths in a goroutine
+				go func() {
+					result := <-newResultChan
+					filePaths = result.filePaths
+					close(newResultChan)
+				}()
+				continue
+			}
+			
+			openInNewWin := false
+			if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
+				openInNewWin = true
+				selectedPath = strings.TrimPrefix(selectedPath, "__SHIFT__\n")
+			}
+			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
+			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
+			e.Post(func(e *Editor) {
 			if openInNewWin {
 				insertAt := e.activeWindow + 1
 				// Seed the new window with the current buffer, matching existing behavior
@@ -340,6 +379,8 @@ func (e *Editor) ShowFuzzyListWidget() {
 			}
 			e.openFile(fullPath)
 		})
+		break // Exit the loop after opening a file
+		}
 		// Don't close contentUpdateChan - the sending goroutine might still be running
 		// The channel will be garbage collected when no longer referenced
 	}()
@@ -347,11 +388,17 @@ func (e *Editor) ShowFuzzyListWidget() {
 
 // startFuzzyFileListRefresh issues a fresh directory request bypassing cache
 func (e *Editor) startFuzzyFileListRefresh(contentUpdateChan chan []string) chan fileListingResult {
-	// Clear any cached entry for this directory to force fetch
+	return e.startFuzzyFileListRefreshFiltered(contentUpdateChan, "supported")
+}
+
+// startFuzzyFileListRefreshFiltered issues a fresh directory request with filter mode bypassing cache
+func (e *Editor) startFuzzyFileListRefreshFiltered(contentUpdateChan chan []string, filterMode string) chan fileListingResult {
+	// Clear any cached entry for this directory and filter combination to force fetch
 	if e.dirCache != nil {
-		delete(e.dirCache, e.workingDirectory)
+		cacheKey := e.workingDirectory + ":" + filterMode
+		delete(e.dirCache, cacheKey)
 	}
-	return e.sendDirectoryListingRequest(contentUpdateChan, false)
+	return e.sendDirectoryListingRequestFiltered(contentUpdateChan, false, filterMode)
 }
 
 // OpenFile loads a file's content into the editor buffer (exported for main.go)
