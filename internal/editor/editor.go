@@ -927,23 +927,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 				}
 			}
 
-			// Normal and Insert modes
-			if e.mode == commands.NormalMode && ev.Key == events.KeyEscape {
-				// Always hide key hints popup when escape is pressed
-				e.keyHintsPopup.Hide()
-
-				// Clear any pending keys in the key mapper
-				e.keyMapper.ResetPending()
-
-				if e.hasPendingOperation() {
-					e.cancelPendingOperation()
-					e.countPrefix = "" // Clear count prefix on escape
-					e.repeatCount = 0
-				} else if len(e.virtualCursors) > 0 {
-					// Clear virtual cursors on escape in normal mode
-					e.clearVirtualCursors()
-				}
-			} else if e.mode == commands.NormalMode && e.hasPendingOperation() {
+			// Normal mode: let Escape be handled via key bindings (clear-state)
+			if e.mode == commands.NormalMode && e.hasPendingOperation() {
 				// Handle pending operations for both regular keys and special keys
 				keyStr := ""
 				if ev.Key == events.KeyRune {
