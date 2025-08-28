@@ -1676,8 +1676,27 @@ class VedaProxy:
             # Create parent directories if they don't exist
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Write the content
-            file_path.write_text(content, encoding='utf-8')
+            # Write to a temporary file first for atomic operation
+            # Create temp file in same directory with random suffix
+            import random
+            import string
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            temp_path = file_path.parent / f"{file_path.name}.{random_suffix}.tmp"
+            
+            try:
+                # Write content to temp file
+                temp_path.write_text(content, encoding='utf-8')
+                
+                # Atomically replace the original file
+                # On POSIX systems, this is atomic
+                temp_path.replace(file_path)
+            except:
+                # Clean up temp file if something goes wrong
+                try:
+                    temp_path.unlink()
+                except:
+                    pass
+                raise
             
             # Notify LSP server about the file change
             language = self.lsp.get_language_for_file(str(file_path))

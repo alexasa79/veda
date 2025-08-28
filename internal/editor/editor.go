@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 	"veda/internal/buffer"
@@ -199,6 +200,9 @@ type Editor struct {
 
 	// Exit control
 	shouldExit bool // Flag to signal the editor should exit
+	
+	// Async operation tracking
+	pendingSaves sync.WaitGroup // Tracks pending save operations
 
 	// Error management
 	errorManager *ErrorManager // Manages error display and logging
@@ -2107,6 +2111,9 @@ func matchQuoteOnLine(line string, idx int, quote byte) (int, int, bool) {
 
 // actuallyQuit exits the editor completely
 func (e *Editor) actuallyQuit(args []string) error {
+	// Wait for all pending save operations to complete
+	e.pendingSaves.Wait()
+	
 	// Clean up auto-save files for all open buffers since user is quitting without saving
 	if e.autoSaveManager != nil {
 		for filePath := range e.buffers {
