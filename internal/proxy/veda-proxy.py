@@ -69,12 +69,12 @@ class LSPManager:
                 'install_hint': 'go install golang.org/x/tools/gopls@latest'
             },
             'c': {
-                'command': ['clangd'],
+                'command': ['clangd', '--log=verbose', '--pretty'],
                 'extensions': ['.c', '.h'],
                 'install_hint': 'Install clangd from your package manager or https://clangd.llvm.org/'
             },
             'cpp': {
-                'command': ['clangd'],
+                'command': ['clangd', '--log=verbose', '--pretty'],
                 'extensions': ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx'],
                 'install_hint': 'Install clangd from your package manager or https://clangd.llvm.org/'
             },
@@ -142,11 +142,22 @@ class LSPManager:
         
         try:
             logger.info(f"Starting {cmd[0]} for {language}")
+            # Route clangd stderr to a dedicated log file for diagnostics
+            stderr_target = subprocess.DEVNULL
+            try:
+                if len(cmd) > 0 and os.path.basename(cmd[0]) == 'clangd':
+                    from datetime import datetime as _dt
+                    clangd_log = os.path.join(log_dir, f"clangd_{_dt.now().strftime('%Y%m%d_%H%M%S')}.log")
+                    fh = open(clangd_log, 'a')
+                    stderr_target = fh
+            except Exception as _e:
+                logger.warning(f"Failed to prepare clangd stderr log: {_e}")
+
             process = subprocess.Popen(
                 cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,  # Discard stderr since gopls logs to file
+                stderr=stderr_target,
                 text=True,
                 bufsize=0  # Unbuffered
             )
@@ -156,7 +167,9 @@ class LSPManager:
                 'request_id': 0,
                 'initialized': False,
                 'open_files': set(),
-                'file_versions': {}  # file_path -> version number
+                'file_versions': {},  # file_path -> version number
+                # Keep handle to stderr log (if any) so we can close it on shutdown
+                'stderr_log': (fh if 'fh' in locals() else None)
             }
             
             # Initialize message buffer for this language
@@ -260,6 +273,13 @@ class LSPManager:
             
         del self.servers[language]
         logger.info(f"LSP server for {language} stopped")
+        # Close any stderr log handle we opened
+        try:
+            fh = server.get('stderr_log')
+            if fh is not None:
+                fh.close()
+        except Exception:
+            pass
         return True
     
     def _send_initialize(self, language: str) -> bool:
