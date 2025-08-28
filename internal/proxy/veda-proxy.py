@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.10"
+PROXY_VERSION = "1.0.12"
 
 # Set up logging directory
 from datetime import datetime
@@ -1415,16 +1415,46 @@ class VedaProxy:
         return attributes
 
     @log_proxy_method
-    def list_directory_recursive(self, path: str) -> List[Dict[str, Any]]:
+    def list_directory_recursive(self, path: str, filter_mode: str = "supported") -> List[Dict[str, Any]]:
         """
         Recursively list all files and directories in the specified path and its subdirectories.
         
         Args:
             path: Directory path to start from
+            filter_mode: "supported" to list only supported files, "all" to list all files
             
         Returns:
             List of file/directory information dictionaries with absolute paths
         """
+        # Define supported file extensions for programming languages we can edit
+        supported_extensions = {
+            # Python
+            '.py', '.pyw', '.pyi',
+            # Go
+            '.go', '.mod', '.sum',
+            # C/C++
+            '.c', '.h', '.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx', '.C', '.H',
+            # Shell scripts
+            '.sh', '.bash', '.zsh', '.fish', '.ksh', '.csh', '.tcsh',
+            # Makefiles and build files
+            '.mk', '.make',
+            # Common text formats and templates
+            '.txt', '.md', '.markdown', '.rst', '.yaml', '.yml', '.json', '.toml', '.ini', '.cfg', '.conf',
+            '.j2',  # Jinja2 templates
+            # Web files
+            '.html', '.htm', '.css', '.js', '.jsx', '.ts', '.tsx',
+            # Other programming languages (for future LSP support)
+            '.rs', '.java', '.rb', '.php', '.swift', '.kt', '.scala', '.clj',
+            # Configuration and documentation
+            '.xml', '.gitignore', '.dockerignore', '.env', '.properties',
+        }
+        
+        # Also include files without extensions that are commonly editable
+        supported_filenames = {
+            'Makefile', 'makefile', 'GNUmakefile', 'Dockerfile', 'docker-compose.yml',
+            'README', 'LICENSE', 'CHANGELOG', 'AUTHORS', 'CONTRIBUTORS',
+            '.bashrc', '.zshrc', '.vimrc', '.gitconfig', '.profile'
+        }
         directory_path = Path(path).expanduser().resolve()
         
         if not directory_path.exists():
@@ -1450,6 +1480,14 @@ class VedaProxy:
                         # Skip certain directories
                         if entry.is_dir() and entry.name in skip_dirs:
                             continue
+                            
+                        # Apply filter for files (always include directories)
+                        if filter_mode == "supported" and entry.is_file():
+                            # Check if file extension or name is supported
+                            ext = entry.suffix.lower()
+                            name = entry.name
+                            if ext not in supported_extensions and name not in supported_filenames:
+                                continue
                             
                         # Create simplified file info for fuzzy listing
                         stat_info = entry.stat()

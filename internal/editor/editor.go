@@ -502,13 +502,19 @@ func (e *Editor) Run() {
 						if fuzzyOverlay, ok := overlay.(*FuzzyListOverlay); ok {
 							// Create a new update channel and swap it in by creating a new overlay
 							contentUpdateChan := make(chan []string, 1)
-							// Kick off fresh request
-							_ = e.startFuzzyFileListRefresh(contentUpdateChan)
+							// Kick off fresh request with current filter mode
+							_ = e.startFuzzyFileListRefreshFiltered(contentUpdateChan, fuzzyOverlay.filterMode)
 							// Replace overlay with a new one that uses the same widget and new channel
 							// Keep same widget instance so selection and text persist
 							newOverlay := NewFuzzyListOverlay(fuzzyOverlay.widget, fuzzyOverlay.onTextChanged, contentUpdateChan)
+							newOverlay.SetFilterMode(fuzzyOverlay.filterMode)
 							e.renderingState.SetOverlay(newOverlay)
 						}
+					}
+				} else if result == "__TAB__" {
+					// Handle tab key without completing overlay - just send the signal
+					if e.renderingState.overlayResult != nil {
+						e.renderingState.overlayResult <- result
 					}
 				}
 				if done {
