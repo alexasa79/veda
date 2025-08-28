@@ -411,8 +411,10 @@ func (e *Editor) clearSearchCmd(args []string) error {
 // clearStateCmd clears pending operations, search, and virtual cursors in one action.
 // It is intended to be bound to Escape in Normal mode so Escape routes via keymap.
 func (e *Editor) clearStateCmd(args []string) error {
-    // Cancel any pending operator or count/register prefixes
-    if e.hasPendingOperation() {
+    // Cancel any pending operator first. If there was one, do NOT clear
+    // search or virtual cursors on this press (matches prior UX: Esc cancels first).
+    hadPending := e.hasPendingOperation()
+    if hadPending {
         e.cancelPendingOperation()
     }
     e.countPrefix = ""
@@ -421,16 +423,18 @@ func (e *Editor) clearStateCmd(args []string) error {
     e.registerReadyForAction = false
     e.pendingRegister = 0
 
-    // Clear search and virtual cursors
-    e.clearSearch()
-    if len(e.virtualCursors) > 0 {
-        e.clearVirtualCursors()
-    }
+    if !hadPending {
+        // Clear search and virtual cursors only when nothing was pending
+        e.clearSearch()
+        if len(e.virtualCursors) > 0 {
+            e.clearVirtualCursors()
+        }
 
-    // Handle temporary normal mode (Ctrl+O from insert)
-    if e.temporaryNormal {
-        e.temporaryNormal = false
-        e.switchToInsertMode()
+        // Handle temporary normal mode (Ctrl+O from insert)
+        if e.temporaryNormal {
+            e.temporaryNormal = false
+            e.switchToInsertMode()
+        }
     }
 
     // Hide key hints and reset any partial sequences
