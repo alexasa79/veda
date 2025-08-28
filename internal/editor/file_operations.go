@@ -998,8 +998,12 @@ func (e *Editor) writeFile(args []string) error {
 		e.connectionStatus = "Saving file"
 	}
 
+	// Track this save operation
+	e.pendingSaves.Add(1)
+	
 	// Perform the save operation asynchronously
 	go func(target *buffer.Buffer) {
+		defer e.pendingSaves.Done() // Always mark save as done
 		defer e.endAsyncOperation(operationID)
 		defer func() { e.connectionStatus = "" }() // Clear status when done
 
