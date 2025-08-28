@@ -119,7 +119,7 @@ func TestFuzzyFileListCacheAndRefresh(t *testing.T) {
 		{Name: "a.txt", Type: "file", Path: "/home/user/a.txt"},
 		{Name: "b.txt", Type: "file", Path: "/home/user/b.txt"},
 	}
-	te.setCachedDirectoryListing(te.workingDirectory, cached)
+	te.setCachedDirectoryListing(te.workingDirectory+":supported", cached)
 
 	// Create fuzzy widget and overlay using cached results
 	contentUpdates := make(chan []string, 2)
@@ -144,11 +144,11 @@ func TestFuzzyFileListCacheAndRefresh(t *testing.T) {
 		{Name: "d.txt", Type: "file", Path: "/home/user/d.txt"},
 		{Name: "e.txt", Type: "file", Path: "/home/user/e.txt"},
 	}
-	delete(te.dirCache, te.workingDirectory)
+	delete(te.dirCache, te.workingDirectory+":supported")
 
 	// Spy on proxy manager by directly pushing updated content to processing
 	// In tests we call setCachedDirectoryListing to simulate refresh arrival
-	te.setCachedDirectoryListing(te.workingDirectory, updated)
+	te.setCachedDirectoryListing(te.workingDirectory+":supported", updated)
 
 	// Ask again with useCache=true; since we've set cache to updated, the channel should receive new list
 	te.sendDirectoryListingRequest(contentUpdates, true)

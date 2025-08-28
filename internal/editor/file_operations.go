@@ -363,18 +363,25 @@ func (e *Editor) ShowFuzzyListWidget() {
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
 			e.Post(func(e *Editor) {
 			if openInNewWin {
-				insertAt := e.activeWindow + 1
-				// Seed the new window with the current buffer, matching existing behavior
-				seed := e.CurrentBuffer()
-				newWin := newWindow(seed)
-				if insertAt >= len(e.windows) {
-					e.windows = append(e.windows, newWin)
+				// Shift+Enter: open file in window to the right
+				cur := e.activeWindow
+				utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
+				
+				// Check if there's a window to the right
+				if cur+1 < len(e.windows) {
+					// Use existing right window
+					right := cur + 1
+					e.activateWindow(right)
+					e.openFile(fullPath)
 				} else {
-					e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-					e.windows[insertAt] = newWin
+					// Create new window to the right
+					// Seed the new window with nil since we're about to load a new file
+					newWin := newWindow(nil)
+					e.windows = append(e.windows, newWin)
+					e.activateWindow(len(e.windows) - 1)
+					e.openFile(fullPath)
 				}
-				e.activateWindow(insertAt)
-				e.openFile(fullPath)
+				e.recomputeWindowsLayout()
 				return
 			}
 			e.openFile(fullPath)
@@ -550,6 +557,7 @@ func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *pr
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
 		if win := e.windows[e.activeWindow]; win != nil {
 			win.addBufferToWindow(newBuffer)
+			e.assertBufferInWindow(newBuffer, e.activeWindow)
 		}
 	}
 
