@@ -69,6 +69,7 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"find-next":                "find next",
 		"find-previous":            "find previous",
 		"clear-search":             "clear search",
+		"clear-state":              "clear search and cursors",
 		"search-word-under-cursor": "search word under cursor",
 
 		// Symbol commands

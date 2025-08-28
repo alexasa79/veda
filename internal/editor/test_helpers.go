@@ -184,21 +184,14 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 		te.handleEvent(ev)
 		return
 	}
-	// Handle cursor mode specially
-	if te.mode == commands.CursorMode {
-		te.handleCursorMode(ev)
-	} else if te.mode == commands.NormalMode && key == events.KeyEscape {
-		if te.hasPendingOperation() {
-			te.cancelPendingOperation()
-		} else if len(te.virtualCursors) > 0 {
-			// Clear virtual cursors on escape in normal mode
-			te.clearVirtualCursors()
-		}
-		// In normal mode, ESC should hide key hints popup
-		te.keyHintsPopup.Hide()
-		// Also clear any pending key sequence to match real event path
-		te.keyMapper.ResetPending()
-	} else if te.mode == commands.NormalMode && te.hasPendingOperation() {
+    // Handle cursor mode specially
+    if te.mode == commands.CursorMode {
+        te.handleCursorMode(ev)
+    } else if te.mode == commands.NormalMode && key == events.KeyEscape {
+        // Route Escape through the main event handler so keymap binding runs
+        te.handleEvent(ev)
+        return
+    } else if te.mode == commands.NormalMode && te.hasPendingOperation() {
 		// Handle pending operations for special keys
 		keyStr := ""
 		switch key {

@@ -394,18 +394,49 @@ func (e *Editor) getCurrentMatchIndex(pos int) int {
 
 // clearSearchCmd is the command handler for clearing the search
 func (e *Editor) clearSearchCmd(args []string) error {
-	e.clearSearch()
+    e.clearSearch()
 
-	// If we're in temporary normal mode, return to insert mode
-	if e.temporaryNormal {
-		e.temporaryNormal = false
-		e.switchToInsertMode()
-	}
+    // If we're in temporary normal mode, return to insert mode
+    if e.temporaryNormal {
+        e.temporaryNormal = false
+        e.switchToInsertMode()
+    }
 
-	// Also reset any pending key sequences
-	e.keyMapper.ResetPending()
+    // Also reset any pending key sequences
+    e.keyMapper.ResetPending()
 
-	return nil
+    return nil
+}
+
+// clearStateCmd clears pending operations, search, and virtual cursors in one action.
+// It is intended to be bound to Escape in Normal mode so Escape routes via keymap.
+func (e *Editor) clearStateCmd(args []string) error {
+    // Cancel any pending operator or count/register prefixes
+    if e.hasPendingOperation() {
+        e.cancelPendingOperation()
+    }
+    e.countPrefix = ""
+    e.repeatCount = 0
+    e.registerPrefixActive = false
+    e.registerReadyForAction = false
+    e.pendingRegister = 0
+
+    // Clear search and virtual cursors
+    e.clearSearch()
+    if len(e.virtualCursors) > 0 {
+        e.clearVirtualCursors()
+    }
+
+    // Handle temporary normal mode (Ctrl+O from insert)
+    if e.temporaryNormal {
+        e.temporaryNormal = false
+        e.switchToInsertMode()
+    }
+
+    // Hide key hints and reset any partial sequences
+    e.keyHintsPopup.Hide()
+    e.keyMapper.ResetPending()
+    return nil
 }
 
 // updateSearchMatchesOnContentChange updates search matches when buffer content changes
