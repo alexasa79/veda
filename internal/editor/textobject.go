@@ -634,16 +634,11 @@ func NewArgumentTextObject(modifier TextObjectModifier) *ArgumentTextObject {
 }
 
 func (a ArgumentTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	// Find the enclosing parentheses
-	openLine, openChar := a.findOpeningParen(buf, cursorLine, cursorChar)
-	if openLine == -1 {
-		return 0, 0, 0, 0, false
-	}
-
-	closeLine, closeChar := a.findClosingParen(buf, openLine, openChar)
-	if closeLine == -1 {
-		return 0, 0, 0, 0, false
-	}
+    // Find the nearest enclosing delimiter pair among (), [], {}
+    openLine, openChar, closeLine, closeChar, ok := a.findEnclosingDelimiters(buf, cursorLine, cursorChar)
+    if !ok {
+        return 0, 0, 0, 0, false
+    }
 
 	// Parse arguments within the parentheses and find the one containing the cursor
 	argStart, argEnd := a.findCurrentArgument(buf, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar)
@@ -672,77 +667,105 @@ type position struct {
 	char int
 }
 
-func (a ArgumentTextObject) findOpeningParen(buf *buffer.Buffer, startLine, startChar int) (int, int) {
-	// Search backwards for opening parenthesis, handling nesting
-	depth := 0
-	line := startLine
-	char := startChar
+// findEnclosingDelimiters locates the nearest enclosing pair among (), [], {}
+func (a ArgumentTextObject) findEnclosingDelimiters(buf *buffer.Buffer, startLine, startChar int) (int, int, int, int, bool) {
+    type cand struct{ ol, oc, cl, cc int }
+    best := cand{ol: -1}
 
-	for line >= 0 {
-		iter := buffer.NewBufferIteratorAtLine(buf, line)
-		if iter.IsEOF() {
-			break
-		}
+    try := func(open, close rune) {
+        ol, oc := a.findOpeningFor(buf, startLine, startChar, open, close)
+        if ol == -1 {
+            return
+        }
+        cl, cc := a.findClosingFor(buf, ol, oc, open, close)
+        if cl == -1 {
+            return
+        }
+        // Prefer the innermost (largest position) opener
+        if best.ol == -1 || ol > best.ol || (ol == best.ol && oc > best.oc) {
+            best = cand{ol: ol, oc: oc, cl: cl, cc: cc}
+        }
+    }
 
-		lineStr := iter.Line()
-		if line == startLine {
-			char = min(char, len(lineStr)-1)
-		} else {
-			char = len(lineStr) - 1
-		}
+    try('(', ')')
+    try('[', ']')
+    try('{', '}')
 
-		for char >= 0 {
-			if char < len(lineStr) {
-				ch := rune(lineStr[char])
-				if ch == ')' {
-					depth++
-				} else if ch == '(' {
-					if depth == 0 {
-						return line, char
-					}
-					depth--
-				}
-			}
-			char--
-		}
-
-		line--
-	}
-
-	return -1, -1
+    if best.ol == -1 {
+        return 0, 0, 0, 0, false
+    }
+    return best.ol, best.oc, best.cl, best.cc, true
 }
 
-func (a ArgumentTextObject) findClosingParen(buf *buffer.Buffer, startLine, startChar int) (int, int) {
-	// Search forwards for closing parenthesis, handling nesting
-	depth := 1 // Start inside the parentheses
-	line := startLine
-	char := startChar + 1
+func (a ArgumentTextObject) findOpeningFor(buf *buffer.Buffer, startLine, startChar int, open, close rune) (int, int) {
+    depth := 0
+    line := startLine
+    char := startChar
 
-	for {
-		iter := buffer.NewBufferIteratorAtLine(buf, line)
-		if iter.IsEOF() {
-			break
-		}
+    for line >= 0 {
+        iter := buffer.NewBufferIteratorAtLine(buf, line)
+        if iter.IsEOF() {
+            break
+        }
 
-		lineStr := iter.Line()
-		for char < len(lineStr) {
-			ch := rune(lineStr[char])
-			if ch == '(' {
-				depth++
-			} else if ch == ')' {
-				depth--
-				if depth == 0 {
-					return line, char
-				}
-			}
-			char++
-		}
+        lineStr := iter.Line()
+        if line == startLine {
+            if len(lineStr) == 0 {
+                char = 0
+            } else {
+                char = min(char, len(lineStr)-1)
+            }
+        } else {
+            char = len(lineStr) - 1
+        }
 
-		line++
-		char = 0
-	}
+        for char >= 0 {
+            if char < len(lineStr) {
+                ch := rune(lineStr[char])
+                if ch == close {
+                    depth++
+                } else if ch == open {
+                    if depth == 0 {
+                        return line, char
+                    }
+                    depth--
+                }
+            }
+            char--
+        }
 
-	return -1, -1
+        line--
+    }
+    return -1, -1
+}
+
+func (a ArgumentTextObject) findClosingFor(buf *buffer.Buffer, startLine, startChar int, open, close rune) (int, int) {
+    depth := 1
+    line := startLine
+    char := startChar + 1
+
+    for {
+        iter := buffer.NewBufferIteratorAtLine(buf, line)
+        if iter.IsEOF() {
+            break
+        }
+        lineStr := iter.Line()
+        for char < len(lineStr) {
+            ch := rune(lineStr[char])
+            if ch == open {
+                depth++
+            } else if ch == close {
+                depth--
+                if depth == 0 {
+                    return line, char
+                }
+            }
+            char++
+        }
+        line++
+        char = 0
+    }
+    return -1, -1
 }
 
 func (a ArgumentTextObject) findCurrentArgument(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar int) (position, position) {
