@@ -5,8 +5,25 @@ import (
 	"strings"
 	"veda/internal/buffer"
 	"veda/internal/syntax"
+	"veda/internal/utils"
 	"veda/internal/widgets"
 )
+
+// assertBufferInWindow asserts that a buffer belongs to the specified window
+func (e *Editor) assertBufferInWindow(buf *buffer.Buffer, windowIdx int) {
+	utils.Assert(windowIdx >= 0 && windowIdx < len(e.windows), fmt.Sprintf("Invalid window index: %d (windows: %d)", windowIdx, len(e.windows)))
+	utils.Assert(e.windows[windowIdx] != nil, fmt.Sprintf("Window %d is nil", windowIdx))
+	utils.Assert(buf != nil, "Buffer is nil")
+	
+	bufferFound := false
+	for _, b := range e.windows[windowIdx].Buffers {
+		if b == buf {
+			bufferFound = true
+			break
+		}
+	}
+	utils.Assert(bufferFound, fmt.Sprintf("Buffer %s not found in window %d's buffer list", buf.FilePath, windowIdx))
+}
 
 // saveCurrentBufferState saves the current buffer's state before switching
 func (e *Editor) saveCurrentBufferState() {
@@ -82,6 +99,9 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 			if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
 				if e.windows[e.activeWindow] != nil {
 					e.windows[e.activeWindow].addBufferToWindow(buf)
+					
+					// Assert invariant: buffer must belong to the active window
+					e.assertBufferInWindow(buf, e.activeWindow)
 				}
 			}
 		}
@@ -249,16 +269,46 @@ func (e *Editor) showBuffers(args []string) error {
 			}
 
 			if openInNewWin {
-				insertAt := e.activeWindow + 1
-				newWin := newWindow(bufPtr)
-				if insertAt >= len(e.windows) {
-					e.windows = append(e.windows, newWin)
+				// Shift+Enter: open buffer in window to the right
+				cur := e.activeWindow
+				utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
+				
+				// Check if there's a window to the right
+				if cur+1 < len(e.windows) {
+					// Use existing right window
+					right := cur + 1
+					
+					// Remove buffer from its current window if it's in one
+					sourceWindow := e.findWindowContainingBuffer(path)
+					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
+						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
+					}
+					
+					// Add buffer to right window
+					e.windows[right].addBufferToWindow(bufPtr)
+					e.assertBufferInWindow(bufPtr, right)
+					
+					// Activate the right window
+					e.activateWindow(right)
+					e.switchToBuffer(bufPtr)
 				} else {
-					e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-					e.windows[insertAt] = newWin
+					// Create new window to the right
+					newWin := newWindow(bufPtr)
+					
+					// Remove buffer from its current window if it's in one
+					sourceWindow := e.findWindowContainingBuffer(path)
+					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
+						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
+					}
+					
+					// Append new window
+					e.windows = append(e.windows, newWin)
+					
+					// Activate the new window
+					e.activateWindow(len(e.windows) - 1)
+					e.switchToBuffer(bufPtr)
 				}
-				e.activateWindow(insertAt)
-				e.switchToBuffer(bufPtr)
+				e.recomputeWindowsLayout()
 				return
 			}
 
@@ -516,17 +566,46 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 				return
 			}
 			if openInNewWin {
-				insertAt := e.activeWindow + 1
-				newWin := newWindow(bufPtr)
-				if insertAt >= len(e.windows) {
-					e.windows = append(e.windows, newWin)
+				// Shift+Enter: open buffer in window to the right
+				cur := e.activeWindow
+				utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
+				
+				// Check if there's a window to the right
+				if cur+1 < len(e.windows) {
+					// Use existing right window
+					right := cur + 1
+					
+					// Remove buffer from its current window if it's in one
+					sourceWindow := e.findWindowContainingBuffer(path)
+					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
+						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
+					}
+					
+					// Add buffer to right window
+					e.windows[right].addBufferToWindow(bufPtr)
+					e.assertBufferInWindow(bufPtr, right)
+					
+					// Activate the right window
+					e.activateWindow(right)
+					e.switchToBuffer(bufPtr)
 				} else {
-					e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-					e.windows[insertAt] = newWin
+					// Create new window to the right
+					newWin := newWindow(bufPtr)
+					
+					// Remove buffer from its current window if it's in one
+					sourceWindow := e.findWindowContainingBuffer(path)
+					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
+						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
+					}
+					
+					// Append new window
+					e.windows = append(e.windows, newWin)
+					
+					// Activate the new window
+					e.activateWindow(len(e.windows) - 1)
+					e.switchToBuffer(bufPtr)
 				}
-				// Activate after the buffer is owned by the window
-				e.activateWindow(insertAt)
-				e.switchToBuffer(bufPtr)
+				e.recomputeWindowsLayout()
 				return
 			}
 			// Recompute target window dynamically to avoid stale snapshot
