@@ -66,7 +66,19 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 	}
 
     // Count delimiter balance up to cursor first (before continuation line check)
-    balance, lastOpenCol, hasCharsAfter := analyzeDelimiters(line, cursorCol)
+    // In Normal mode, the cursor sits on the last character; if it's an opening
+    // delimiter, include it in the analysis so newline after it indents.
+    analyzeCol := cursorCol
+    if analyzeCol >= 0 && analyzeCol < len(line) {
+        ch := line[analyzeCol]
+        // Include '(' or '[' under the cursor only when it's the last character
+        // (Normal mode cursor on opener at EOL). Avoid including when cursor is
+        // before an opener in the middle of text.
+        if (ch == '(' || ch == '[') && analyzeCol == len(line)-1 {
+            analyzeCol++
+        }
+    }
+    balance, lastOpenCol, hasCharsAfter := analyzeDelimiters(line, analyzeCol)
 
 	// Check if this line appears to be a continuation line
 	// A continuation line has unusual indentation that doesn't match standard indent levels
@@ -154,8 +166,19 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		// If already at a standard indent level, maintain it (fall through)
 	}
 
-	// Rule 5: Default - maintain same indentation level
-	indentStr := strings.Repeat(b.GetIndentationString(), baseIndentInfo.Level)
+    // Python safeguard: even if earlier checks missed, indent after ':'
+    if isPythonFile(b.FilePath) && endsWithColonBeforeCursor(line, cursorCol) {
+        indentLevel := baseIndentInfo.Level + 1
+        indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
+        visualCol := len(indentStr)
+        if b.Indentation.Type == config.IndentTabs {
+            visualCol = indentLevel * 8
+        }
+        return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+    }
+
+    // Rule 5: Default - maintain same indentation level
+    indentStr := strings.Repeat(b.GetIndentationString(), baseIndentInfo.Level)
 
 	// Calculate visual column for this indentation
 	visualCol := len(indentStr)
@@ -198,7 +221,8 @@ func analyzeDelimiters(line string, upToCol int) (balance int, lastOpenCol int, 
 		upToCol = len(line)
 	}
 
-    // Track open delimiter positions ((), [], {})
+    // Track open delimiter positions for alignment: only parentheses and brackets
+    // Braces are handled by dedicated brace rules and should not drive alignment.
     openStack := []rune{}
     openPos := []int{}
 
@@ -206,10 +230,10 @@ func analyzeDelimiters(line string, upToCol int) (balance int, lastOpenCol int, 
     for i := 0; i < upToCol; i++ {
         ch := rune(line[i])
         switch ch {
-        case '(', '[', '{':
+        case '(', '[': // exclude '{'
             openStack = append(openStack, ch)
             openPos = append(openPos, i)
-        case ')', ']', '}':
+        case ')', ']': // exclude '}'
             if len(openStack) > 0 {
                 // Pop matching if types correspond; otherwise still pop conservatively
                 openStack = openStack[:len(openStack)-1]
@@ -239,6 +263,12 @@ func analyzeDelimiters(line string, upToCol int) (balance int, lastOpenCol int, 
     return balance, lastOpenCol, hasCharsAfter
 }
 
+// analyzeParentheses is kept for backward-compatibility with existing tests.
+// It now delegates to analyzeDelimiters which handles (), [], {} uniformly.
+func analyzeParentheses(line string, upToCol int) (int, int, bool) {
+    return analyzeDelimiters(line, upToCol)
+}
+
 func isPythonFile(path string) bool {
     if path == "" {
         return false
@@ -253,6 +283,15 @@ func endsWithColonBeforeCursor(line string, cursorCol int) bool {
     if cursorCol > len(line) {
         cursorCol = len(line)
     }
+    // If cursor is on a ':' character, consider it a block opener
+    if cursorCol >= 0 && cursorCol < len(line) && line[cursorCol] == ':' {
+        return true
+    }
+    // Also consider the character immediately before the cursor
+    if cursorCol > 0 && line[cursorCol-1] == ':' {
+        return true
+    }
+    // Otherwise, scan backward from just before the cursor for the last non-space
     i := cursorCol - 1
     if i >= len(line) {
         i = len(line) - 1
