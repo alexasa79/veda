@@ -79,7 +79,7 @@ func (e *Editor) sendDirectoryListingRequestFiltered(contentUpdateChan chan []st
 
 	// Cache key includes filter mode
 	cacheKey := e.workingDirectory + ":" + filterMode
-	
+
 	// If we can satisfy from cache, do so synchronously
 	if files, ok := e.getCachedDirectoryListing(cacheKey); ok && useCache {
 		LL.Debug("Using cached directory listing for %s (filter=%s)", e.workingDirectory, filterMode)
@@ -302,7 +302,7 @@ func (e *Editor) ShowFuzzyListWidget() {
 
 	// Start with supported files filter by default
 	filterMode := "supported"
-	
+
 	// Send async request for directory listing and get result channel
 	resultChan := e.sendDirectoryListingRequestFiltered(contentUpdateChan, true, filterMode)
 
@@ -328,7 +328,7 @@ func (e *Editor) ShowFuzzyListWidget() {
 			if selectedPath == "" {
 				return
 			}
-			
+
 			// Handle tab key to switch filter mode
 			if selectedPath == "__TAB__" {
 				// Toggle filter mode
@@ -338,13 +338,13 @@ func (e *Editor) ShowFuzzyListWidget() {
 					filterMode = "supported"
 				}
 				overlay.SetFilterMode(filterMode)
-				
+
 				// Clear cache and request new listing with new filter
 				if e.dirCache != nil {
 					delete(e.dirCache, e.workingDirectory)
 				}
 				newResultChan := e.sendDirectoryListingRequestFiltered(contentUpdateChan, false, filterMode)
-				
+
 				// Update file paths in a goroutine
 				go func() {
 					result := <-newResultChan
@@ -353,7 +353,7 @@ func (e *Editor) ShowFuzzyListWidget() {
 				}()
 				continue
 			}
-			
+
 			openInNewWin := false
 			if strings.HasPrefix(selectedPath, "__SHIFT__\n") {
 				openInNewWin = true
@@ -362,31 +362,31 @@ func (e *Editor) ShowFuzzyListWidget() {
 			fullPath := e.resolveSelectedPath(selectedPath, filePaths)
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
 			e.Post(func(e *Editor) {
-			if openInNewWin {
-				// Shift+Enter: open file in window to the right
-				cur := e.activeWindow
-				utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
-				
-				// Check if there's a window to the right
-				if cur+1 < len(e.windows) {
-					// Use existing right window
-					right := cur + 1
-					e.activateWindow(right)
-					e.openFile(fullPath)
-				} else {
-					// Create new window to the right
-					// Seed the new window with nil since we're about to load a new file
-					newWin := newWindow(nil)
-					e.windows = append(e.windows, newWin)
-					e.activateWindow(len(e.windows) - 1)
-					e.openFile(fullPath)
+				if openInNewWin {
+					// Shift+Enter: open file in window to the right
+					cur := e.activeWindow
+					utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
+
+					// Check if there's a window to the right
+					if cur+1 < len(e.windows) {
+						// Use existing right window
+						right := cur + 1
+						e.activateWindow(right)
+						e.openFile(fullPath)
+					} else {
+						// Create new window to the right
+						// Seed the new window with nil since we're about to load a new file
+						newWin := newWindow(nil)
+						e.windows = append(e.windows, newWin)
+						e.activateWindow(len(e.windows) - 1)
+						e.openFile(fullPath)
+					}
+					e.recomputeWindowsLayout()
+					return
 				}
-				e.recomputeWindowsLayout()
-				return
-			}
-			e.openFile(fullPath)
-		})
-		break // Exit the loop after opening a file
+				e.openFile(fullPath)
+			})
+			break // Exit the loop after opening a file
 		}
 		// Don't close contentUpdateChan - the sending goroutine might still be running
 		// The channel will be garbage collected when no longer referenced
@@ -1000,7 +1000,7 @@ func (e *Editor) writeFile(args []string) error {
 
 	// Track this save operation
 	e.pendingSaves.Add(1)
-	
+
 	// Perform the save operation asynchronously
 	go func(target *buffer.Buffer) {
 		defer e.pendingSaves.Done() // Always mark save as done

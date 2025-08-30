@@ -40,7 +40,7 @@ func SetupLogging(filename string) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		panic(fmt.Sprintf("Failed to create log directory: %v", err))
 	}
-	
+
 	// Note: We remove O_TRUNC to append to the file instead of truncating
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {

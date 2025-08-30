@@ -59,6 +59,30 @@ func (l LineTextObject) GetType() string {
 	return "line"
 }
 
+// WholeBufferTextObject represents the entire buffer content
+type WholeBufferTextObject struct{}
+
+func (w WholeBufferTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	if buf == nil {
+		return 0, 0, 0, 0, false
+	}
+	if buf.LineCount <= 0 {
+		// Empty buffer; operate on 0,0 as a no-op range
+		return 0, 0, 0, 0, true
+	}
+	endLine := buf.LineCount - 1
+	iter := buffer.NewBufferIteratorAtLine(buf, endLine)
+	endChar := 0
+	if !iter.IsEOF() {
+		endChar = len(iter.Line())
+	}
+	return 0, 0, endLine, endChar, true
+}
+
+func (w WholeBufferTextObject) GetType() string {
+	return "buffer"
+}
+
 // EndOfLineTextObject represents text from the cursor to the end of the current line
 // This is used for commands like 'C' (change to end of line). It is not yet
 // exposed via the '$' motion for operators; that support can be added later.
@@ -634,11 +658,11 @@ func NewArgumentTextObject(modifier TextObjectModifier) *ArgumentTextObject {
 }
 
 func (a ArgumentTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-    // Find the nearest enclosing delimiter pair among (), [], {}
-    openLine, openChar, closeLine, closeChar, ok := a.findEnclosingDelimiters(buf, cursorLine, cursorChar)
-    if !ok {
-        return 0, 0, 0, 0, false
-    }
+	// Find the nearest enclosing delimiter pair among (), [], {}
+	openLine, openChar, closeLine, closeChar, ok := a.findEnclosingDelimiters(buf, cursorLine, cursorChar)
+	if !ok {
+		return 0, 0, 0, 0, false
+	}
 
 	// Parse arguments within the parentheses and find the one containing the cursor
 	argStart, argEnd := a.findCurrentArgument(buf, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar)
@@ -669,103 +693,103 @@ type position struct {
 
 // findEnclosingDelimiters locates the nearest enclosing pair among (), [], {}
 func (a ArgumentTextObject) findEnclosingDelimiters(buf *buffer.Buffer, startLine, startChar int) (int, int, int, int, bool) {
-    type cand struct{ ol, oc, cl, cc int }
-    best := cand{ol: -1}
+	type cand struct{ ol, oc, cl, cc int }
+	best := cand{ol: -1}
 
-    try := func(open, close rune) {
-        ol, oc := a.findOpeningFor(buf, startLine, startChar, open, close)
-        if ol == -1 {
-            return
-        }
-        cl, cc := a.findClosingFor(buf, ol, oc, open, close)
-        if cl == -1 {
-            return
-        }
-        // Prefer the innermost (largest position) opener
-        if best.ol == -1 || ol > best.ol || (ol == best.ol && oc > best.oc) {
-            best = cand{ol: ol, oc: oc, cl: cl, cc: cc}
-        }
-    }
+	try := func(open, close rune) {
+		ol, oc := a.findOpeningFor(buf, startLine, startChar, open, close)
+		if ol == -1 {
+			return
+		}
+		cl, cc := a.findClosingFor(buf, ol, oc, open, close)
+		if cl == -1 {
+			return
+		}
+		// Prefer the innermost (largest position) opener
+		if best.ol == -1 || ol > best.ol || (ol == best.ol && oc > best.oc) {
+			best = cand{ol: ol, oc: oc, cl: cl, cc: cc}
+		}
+	}
 
-    try('(', ')')
-    try('[', ']')
-    try('{', '}')
+	try('(', ')')
+	try('[', ']')
+	try('{', '}')
 
-    if best.ol == -1 {
-        return 0, 0, 0, 0, false
-    }
-    return best.ol, best.oc, best.cl, best.cc, true
+	if best.ol == -1 {
+		return 0, 0, 0, 0, false
+	}
+	return best.ol, best.oc, best.cl, best.cc, true
 }
 
 func (a ArgumentTextObject) findOpeningFor(buf *buffer.Buffer, startLine, startChar int, open, close rune) (int, int) {
-    depth := 0
-    line := startLine
-    char := startChar
+	depth := 0
+	line := startLine
+	char := startChar
 
-    for line >= 0 {
-        iter := buffer.NewBufferIteratorAtLine(buf, line)
-        if iter.IsEOF() {
-            break
-        }
+	for line >= 0 {
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
 
-        lineStr := iter.Line()
-        if line == startLine {
-            if len(lineStr) == 0 {
-                char = 0
-            } else {
-                char = min(char, len(lineStr)-1)
-            }
-        } else {
-            char = len(lineStr) - 1
-        }
+		lineStr := iter.Line()
+		if line == startLine {
+			if len(lineStr) == 0 {
+				char = 0
+			} else {
+				char = min(char, len(lineStr)-1)
+			}
+		} else {
+			char = len(lineStr) - 1
+		}
 
-        for char >= 0 {
-            if char < len(lineStr) {
-                ch := rune(lineStr[char])
-                if ch == close {
-                    depth++
-                } else if ch == open {
-                    if depth == 0 {
-                        return line, char
-                    }
-                    depth--
-                }
-            }
-            char--
-        }
+		for char >= 0 {
+			if char < len(lineStr) {
+				ch := rune(lineStr[char])
+				if ch == close {
+					depth++
+				} else if ch == open {
+					if depth == 0 {
+						return line, char
+					}
+					depth--
+				}
+			}
+			char--
+		}
 
-        line--
-    }
-    return -1, -1
+		line--
+	}
+	return -1, -1
 }
 
 func (a ArgumentTextObject) findClosingFor(buf *buffer.Buffer, startLine, startChar int, open, close rune) (int, int) {
-    depth := 1
-    line := startLine
-    char := startChar + 1
+	depth := 1
+	line := startLine
+	char := startChar + 1
 
-    for {
-        iter := buffer.NewBufferIteratorAtLine(buf, line)
-        if iter.IsEOF() {
-            break
-        }
-        lineStr := iter.Line()
-        for char < len(lineStr) {
-            ch := rune(lineStr[char])
-            if ch == open {
-                depth++
-            } else if ch == close {
-                depth--
-                if depth == 0 {
-                    return line, char
-                }
-            }
-            char++
-        }
-        line++
-        char = 0
-    }
-    return -1, -1
+	for {
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			break
+		}
+		lineStr := iter.Line()
+		for char < len(lineStr) {
+			ch := rune(lineStr[char])
+			if ch == open {
+				depth++
+			} else if ch == close {
+				depth--
+				if depth == 0 {
+					return line, char
+				}
+			}
+			char++
+		}
+		line++
+		char = 0
+	}
+	return -1, -1
 }
 
 func (a ArgumentTextObject) findCurrentArgument(buf *buffer.Buffer, openLine, openChar, closeLine, closeChar, cursorLine, cursorChar int) (position, position) {

@@ -28,4 +28,3 @@ func TestDaaOnPythonInnerListElement(t *testing.T) {
 	want := "VARIABLES = [\n    Variable(\"bdl-bev\",    \"bdl_bev\",    \"boolint\", \"bdl_bev_default\",    [\"storage\"])\n]"
 	AssertBufferEquals(t, te, want)
 }
-

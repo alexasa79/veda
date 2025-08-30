@@ -21,7 +21,7 @@ func main() {
 	helpFlag := flag.Bool("h", false, "Show help message")
 	helpLongFlag := flag.Bool("help", false, "Show help message")
 	cpuprofile := flag.String("cpuprofile", "", "Write CPU profile to file")
-	
+
 	// Generate default log path with timestamp
 	homeDir, _ := os.UserHomeDir()
 	cacheDir := fmt.Sprintf("%s/.cache/veda", homeDir)

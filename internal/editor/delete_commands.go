@@ -156,6 +156,9 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 	case "$":
 		// End of line motion for operators (e.g., d$, c$, y$)
 		return EndOfLineTextObject{}
+	case "A":
+		// Whole buffer motion (entire file)
+		return WholeBufferTextObject{}
 	case "left":
 		return CharacterTextObject{Direction: "left"}
 	case "right":
