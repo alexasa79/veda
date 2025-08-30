@@ -110,18 +110,18 @@ func TestProxyBasic(t *testing.T) {
 func TestListDirectoryFiltered(t *testing.T) {
 	// Create a temporary directory with mixed file types
 	tempDir := t.TempDir()
-	
+
 	// Create some supported files
 	supportedTestFiles := []string{
 		"test.go",
-		"script.py", 
+		"script.py",
 		"code.c",
 		"Makefile",
 		"README.md",
 		"config.json",
 		"template.j2",
 	}
-	
+
 	// Create some unsupported files
 	unsupportedTestFiles := []string{
 		"image.png",
@@ -130,7 +130,7 @@ func TestListDirectoryFiltered(t *testing.T) {
 		"archive.zip",
 		"video.mp4",
 	}
-	
+
 	// Create all test files
 	for _, f := range supportedTestFiles {
 		if err := os.WriteFile(filepath.Join(tempDir, f), []byte("test"), 0644); err != nil {
@@ -142,7 +142,7 @@ func TestListDirectoryFiltered(t *testing.T) {
 			t.Fatalf("Failed to create test file %s: %v", f, err)
 		}
 	}
-	
+
 	// Start proxy client
 	client, err := NewClient()
 	if err != nil {
@@ -167,18 +167,18 @@ func TestListDirectoryFiltered(t *testing.T) {
 
 	// Verify that supported files is a subset of all files
 	if len(supportedFiles) > len(allFiles) {
-		t.Errorf("Expected supported files (%d) to be less than or equal to all files (%d)", 
+		t.Errorf("Expected supported files (%d) to be less than or equal to all files (%d)",
 			len(supportedFiles), len(allFiles))
 	}
 
 	// Check that filtering is working correctly
 	expectedSupportedCount := len(supportedTestFiles)
 	expectedAllCount := len(supportedTestFiles) + len(unsupportedTestFiles)
-	
+
 	if len(supportedFiles) != expectedSupportedCount {
 		t.Errorf("Expected %d supported files, got %d", expectedSupportedCount, len(supportedFiles))
 	}
-	
+
 	if len(allFiles) != expectedAllCount {
 		t.Errorf("Expected %d total files, got %d", expectedAllCount, len(allFiles))
 	}
@@ -187,16 +187,16 @@ func TestListDirectoryFiltered(t *testing.T) {
 	supportedExts := map[string]bool{
 		".go": true, ".mod": true, ".sum": true,
 		".py": true, ".pyw": true, ".pyi": true,
-		".c": true, ".h": true, ".cpp": true, ".cc": true, ".cxx": true, 
+		".c": true, ".h": true, ".cpp": true, ".cc": true, ".cxx": true,
 		".hpp": true, ".hh": true, ".hxx": true,
 		".sh": true, ".bash": true, ".zsh": true,
 		".txt": true, ".md": true, ".json": true, ".yaml": true, ".yml": true,
 		".toml": true, ".ini": true, ".cfg": true, ".conf": true,
-		".j2": true,
+		".j2":   true,
 		".html": true, ".htm": true, ".css": true, ".js": true,
 		".xml": true, ".gitignore": true, ".dockerignore": true, ".env": true,
 	}
-	
+
 	for _, file := range supportedFiles {
 		if file.Type == "file" {
 			// Check file extension
@@ -207,7 +207,7 @@ func TestListDirectoryFiltered(t *testing.T) {
 					break
 				}
 			}
-			
+
 			// Some files don't have extensions (like Makefile)
 			if ext != "" && !supportedExts[ext] {
 				// Check if it's a known filename without extension

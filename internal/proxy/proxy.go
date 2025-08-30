@@ -77,16 +77,16 @@ func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 
 	LL.Debug("getClient: path=%s, host=%s, actualPath=%s, isRemote=%v", path, host, actualPath, isRemote)
 
-    // Local client fast-path
-    if !isRemote {
-        pm.mu.Lock()
-        c := pm.clients[""]
-        pm.mu.Unlock()
-        if c == nil {
-            return nil, "", fmt.Errorf("local proxy client not initialized")
-        }
-        return c, path, nil
-    }
+	// Local client fast-path
+	if !isRemote {
+		pm.mu.Lock()
+		c := pm.clients[""]
+		pm.mu.Unlock()
+		if c == nil {
+			return nil, "", fmt.Errorf("local proxy client not initialized")
+		}
+		return c, path, nil
+	}
 
 	// Check if we already have a client for this host
 	pm.mu.Lock()
@@ -97,10 +97,10 @@ func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 	pm.mu.Unlock()
 
 	// Create a new remote proxy for this host (no lock held during network I/O)
-    client, err := pm.createRemoteClient(host)
-    if err != nil {
-        return nil, "", fmt.Errorf("failed to create remote proxy: %w", err)
-    }
+	client, err := pm.createRemoteClient(host)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create remote proxy: %w", err)
+	}
 
 	// Store the client (handle possible race with another creator)
 	pm.mu.Lock()
@@ -254,7 +254,7 @@ func (pm *ProxyManager) copyProxyToRemote(host string, timeout time.Duration) er
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	
+
 	// Step 1: Ensure ~/.cache/veda directory exists on the remote host
 	mkdirCmd := exec.CommandContext(ctx, "ssh",
 		"-o", "ConnectTimeout=5",
@@ -265,12 +265,12 @@ func (pm *ProxyManager) copyProxyToRemote(host string, timeout time.Duration) er
 		"-o", "ControlPath=none",
 		host,
 		"mkdir", "-p", "~/.cache/veda")
-	
+
 	output, err := mkdirCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("mkdir failed: %w, output: %s", err, output)
 	}
-	
+
 	// Step 2: Copy the proxy script to remote ~/.cache/veda/ directory
 	scpCmd := exec.CommandContext(ctx, "scp",
 		"-o", "ConnectTimeout=5",
@@ -716,18 +716,18 @@ func init() {
 		LL.Error("Failed to get home directory: %v", err)
 		return
 	}
-	
+
 	// Use ~/.cache/veda/ directory
 	cacheDir := filepath.Join(home, ".cache", "veda")
-	
+
 	// Create the directory if it doesn't exist
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		LL.Error("Failed to create cache directory %s: %v", cacheDir, err)
 		return
 	}
-	
+
 	proxyScriptPath = filepath.Join(cacheDir, "veda-proxy.py")
-	
+
 	// Write the embedded proxy script to the fixed location
 	if err := os.WriteFile(proxyScriptPath, []byte(embeddedProxy), 0755); err != nil {
 		LL.Error("Failed to write proxy script to %s: %v", proxyScriptPath, err)
@@ -762,21 +762,21 @@ type FileInfo struct {
 
 // FileAttributes represents detailed file/directory attributes
 type FileAttributes struct {
-	Name       string    `json:"name"`
-	Path       string    `json:"path"`
-	Type       string    `json:"type"`
-	Size       int64     `json:"size"`
-	Mode       string    `json:"mode"`
-	Modified   time.Time `json:"modified"`
-	Created    time.Time `json:"created"`
-	Accessed   time.Time `json:"accessed"`
-	IsDirectory bool     `json:"is_directory"`
-	IsFile      bool     `json:"is_file"`
-	IsSymlink   bool     `json:"is_symlink"`
-	Exists      bool     `json:"exists"`
-	Readable    bool     `json:"readable"`
-	Writable    bool     `json:"writable"`
-	Executable  bool     `json:"executable"`
+	Name        string    `json:"name"`
+	Path        string    `json:"path"`
+	Type        string    `json:"type"`
+	Size        int64     `json:"size"`
+	Mode        string    `json:"mode"`
+	Modified    time.Time `json:"modified"`
+	Created     time.Time `json:"created"`
+	Accessed    time.Time `json:"accessed"`
+	IsDirectory bool      `json:"is_directory"`
+	IsFile      bool      `json:"is_file"`
+	IsSymlink   bool      `json:"is_symlink"`
+	Exists      bool      `json:"exists"`
+	Readable    bool      `json:"readable"`
+	Writable    bool      `json:"writable"`
+	Executable  bool      `json:"executable"`
 }
 
 // FileContent represents file content with change information
@@ -874,14 +874,14 @@ type ProjectSymbol struct {
 
 // Client represents a proxy client
 type Client struct {
-	cmd       *exec.Cmd
-	stdin     *bufio.Writer
-	stdout    *bufio.Scanner
-	
+	cmd    *exec.Cmd
+	stdin  *bufio.Writer
+	stdout *bufio.Scanner
+
 	// Request ID and writer access must be synchronized
-	mu        sync.Mutex   // Protects requestID and stdin writes
+	mu        sync.Mutex // Protects requestID and stdin writes
 	requestID int
-	
+
 	// concurrent routing
 	pendingMu  sync.Mutex
 	pending    map[int]chan map[string]interface{}
@@ -1188,7 +1188,7 @@ func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]inte
 		writeErr = c.stdin.Flush()
 	}
 	c.mu.Unlock()
-	
+
 	if writeErr != nil {
 		c.pendingMu.Lock()
 		delete(c.pending, request.ID)

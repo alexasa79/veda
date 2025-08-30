@@ -77,12 +77,12 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Any editing command exits cursor mode\n\n")
 
 	helpText.WriteString("= Search =\n")
-    helpText.WriteString("/            - Enter search mode (forward)\n")
-    helpText.WriteString("?            - Enter search mode (backward; n=forward, N=backward)\n")
-    helpText.WriteString("*            - Search for word under cursor\n")
-    helpText.WriteString("n            - Find next occurrence\n")
-    helpText.WriteString("N            - Find previous occurrence\n")
-    helpText.WriteString("ESC          - Clear search and virtual cursors\n\n")
+	helpText.WriteString("/            - Enter search mode (forward)\n")
+	helpText.WriteString("?            - Enter search mode (backward; n=forward, N=backward)\n")
+	helpText.WriteString("*            - Search for word under cursor\n")
+	helpText.WriteString("n            - Find next occurrence\n")
+	helpText.WriteString("N            - Find previous occurrence\n")
+	helpText.WriteString("ESC          - Clear search and virtual cursors\n\n")
 
 	helpText.WriteString("= File Operations =\n")
 	helpText.WriteString("Space s f    - Open file browser\n")

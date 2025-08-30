@@ -55,73 +55,73 @@ func (e *Editor) exitSearchMode() {
 
 // executeSearch performs the search operation
 func (e *Editor) executeSearch() {
-    fullSearch := e.searchLine.GetText()
+	fullSearch := e.searchLine.GetText()
 
-    if fullSearch == "" {
-        return
-    }
+	if fullSearch == "" {
+		return
+	}
 
-    // Determine direction from prefix and extract pattern
-    searchForward := true
-    if fullSearch[0] == '?' {
-        searchForward = false
-    } else if fullSearch[0] != '/' {
-        // Unknown prefix; default to forward and treat whole as pattern
-        searchForward = true
-    }
+	// Determine direction from prefix and extract pattern
+	searchForward := true
+	if fullSearch[0] == '?' {
+		searchForward = false
+	} else if fullSearch[0] != '/' {
+		// Unknown prefix; default to forward and treat whole as pattern
+		searchForward = true
+	}
 
-    // Extract pattern after the leading '/' or '?'
-    pattern := fullSearch
-    if len(fullSearch) >= 1 {
-        pattern = fullSearch[1:]
-    }
-    if pattern == "" {
-        return
-    }
+	// Extract pattern after the leading '/' or '?'
+	pattern := fullSearch
+	if len(fullSearch) >= 1 {
+		pattern = fullSearch[1:]
+	}
+	if pattern == "" {
+		return
+	}
 
-    // Store the search pattern and last direction (used for UI only)
-    e.searchPattern = pattern
-    e.searchDirection = searchForward
+	// Store the search pattern and last direction (used for UI only)
+	e.searchPattern = pattern
+	e.searchDirection = searchForward
 
 	// Find all matches
 	e.updateSearchMatches()
 
-    // Move to the initial match from cursor position based on direction
-    if len(e.searchMatches) > 0 {
-        currentPos := e.getAbsolutePosition()
-        if searchForward {
-            // First match at or after cursor, wrap to beginning if none
-            nextIndex := -1
-            for i, matchPos := range e.searchMatches {
-                if matchPos >= currentPos {
-                    nextIndex = i
-                    break
-                }
-            }
-            if nextIndex == -1 {
-                nextIndex = 0
-            }
-            e.currentMatch = nextIndex
-            e.moveCursorToPosition(e.searchMatches[nextIndex])
-        } else {
-            // Last match strictly before cursor, wrap to last if none
-            prevIndex := -1
-            for i := len(e.searchMatches) - 1; i >= 0; i-- {
-                if e.searchMatches[i] < currentPos {
-                    prevIndex = i
-                    break
-                }
-            }
-            if prevIndex == -1 {
-                prevIndex = len(e.searchMatches) - 1
-            }
-            e.currentMatch = prevIndex
-            e.moveCursorToPosition(e.searchMatches[prevIndex])
-        }
-    } else {
-        // No matches found - show error
-        e.ShowError("Pattern not found: %s", pattern)
-    }
+	// Move to the initial match from cursor position based on direction
+	if len(e.searchMatches) > 0 {
+		currentPos := e.getAbsolutePosition()
+		if searchForward {
+			// First match at or after cursor, wrap to beginning if none
+			nextIndex := -1
+			for i, matchPos := range e.searchMatches {
+				if matchPos >= currentPos {
+					nextIndex = i
+					break
+				}
+			}
+			if nextIndex == -1 {
+				nextIndex = 0
+			}
+			e.currentMatch = nextIndex
+			e.moveCursorToPosition(e.searchMatches[nextIndex])
+		} else {
+			// Last match strictly before cursor, wrap to last if none
+			prevIndex := -1
+			for i := len(e.searchMatches) - 1; i >= 0; i-- {
+				if e.searchMatches[i] < currentPos {
+					prevIndex = i
+					break
+				}
+			}
+			if prevIndex == -1 {
+				prevIndex = len(e.searchMatches) - 1
+			}
+			e.currentMatch = prevIndex
+			e.moveCursorToPosition(e.searchMatches[prevIndex])
+		}
+	} else {
+		// No matches found - show error
+		e.ShowError("Pattern not found: %s", pattern)
+	}
 }
 
 // findNext finds the next occurrence of the search pattern
@@ -341,14 +341,14 @@ func (e *Editor) moveCursorToPosition(pos int) {
 
 // enterSearchModeCmd is the command handler for entering search mode
 func (e *Editor) enterSearchModeCmd(args []string) error {
-    e.enterSearchMode()
-    return nil
+	e.enterSearchMode()
+	return nil
 }
 
 // enterSearchModeBackwardCmd is the command handler for '?' key
 func (e *Editor) enterSearchModeBackwardCmd(args []string) error {
-    e.enterSearchModeBackward()
-    return nil
+	e.enterSearchModeBackward()
+	return nil
 }
 
 // updateSearchMatches finds all occurrences of the search pattern
@@ -394,53 +394,53 @@ func (e *Editor) getCurrentMatchIndex(pos int) int {
 
 // clearSearchCmd is the command handler for clearing the search
 func (e *Editor) clearSearchCmd(args []string) error {
-    e.clearSearch()
+	e.clearSearch()
 
-    // If we're in temporary normal mode, return to insert mode
-    if e.temporaryNormal {
-        e.temporaryNormal = false
-        e.switchToInsertMode()
-    }
+	// If we're in temporary normal mode, return to insert mode
+	if e.temporaryNormal {
+		e.temporaryNormal = false
+		e.switchToInsertMode()
+	}
 
-    // Also reset any pending key sequences
-    e.keyMapper.ResetPending()
+	// Also reset any pending key sequences
+	e.keyMapper.ResetPending()
 
-    return nil
+	return nil
 }
 
 // clearStateCmd clears pending operations, search, and virtual cursors in one action.
 // It is intended to be bound to Escape in Normal mode so Escape routes via keymap.
 func (e *Editor) clearStateCmd(args []string) error {
-    // Cancel any pending operator first. If there was one, do NOT clear
-    // search or virtual cursors on this press (matches prior UX: Esc cancels first).
-    hadPending := e.hasPendingOperation()
-    if hadPending {
-        e.cancelPendingOperation()
-    }
-    e.countPrefix = ""
-    e.repeatCount = 0
-    e.registerPrefixActive = false
-    e.registerReadyForAction = false
-    e.pendingRegister = 0
+	// Cancel any pending operator first. If there was one, do NOT clear
+	// search or virtual cursors on this press (matches prior UX: Esc cancels first).
+	hadPending := e.hasPendingOperation()
+	if hadPending {
+		e.cancelPendingOperation()
+	}
+	e.countPrefix = ""
+	e.repeatCount = 0
+	e.registerPrefixActive = false
+	e.registerReadyForAction = false
+	e.pendingRegister = 0
 
-    if !hadPending {
-        // Clear search and virtual cursors only when nothing was pending
-        e.clearSearch()
-        if len(e.virtualCursors) > 0 {
-            e.clearVirtualCursors()
-        }
+	if !hadPending {
+		// Clear search and virtual cursors only when nothing was pending
+		e.clearSearch()
+		if len(e.virtualCursors) > 0 {
+			e.clearVirtualCursors()
+		}
 
-        // Handle temporary normal mode (Ctrl+O from insert)
-        if e.temporaryNormal {
-            e.temporaryNormal = false
-            e.switchToInsertMode()
-        }
-    }
+		// Handle temporary normal mode (Ctrl+O from insert)
+		if e.temporaryNormal {
+			e.temporaryNormal = false
+			e.switchToInsertMode()
+		}
+	}
 
-    // Hide key hints and reset any partial sequences
-    e.keyHintsPopup.Hide()
-    e.keyMapper.ResetPending()
-    return nil
+	// Hide key hints and reset any partial sequences
+	e.keyHintsPopup.Hide()
+	e.keyMapper.ResetPending()
+	return nil
 }
 
 // updateSearchMatchesOnContentChange updates search matches when buffer content changes

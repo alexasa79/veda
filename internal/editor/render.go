@@ -188,12 +188,12 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		}
 
 		// Matching pair highlight (only for active window/buffer)
-    useMatchStyle := false
-    // Only apply in the text area (not when drawing line numbers)
-    // The guard x >= e.CurrentBuffer().LineNumberWidth ensures we're in the text area, not the gutter
-    if e.CurrentBuffer() != nil && lineNum >= 0 && x >= e.CurrentBuffer().LineNumberWidth && e.matchBuf == e.CurrentBuffer() && lineNum == e.matchLine && charPosInLine == e.matchChar {
-        useMatchStyle = true
-    }
+		useMatchStyle := false
+		// Only apply in the text area (not when drawing line numbers)
+		// The guard x >= e.CurrentBuffer().LineNumberWidth ensures we're in the text area, not the gutter
+		if e.CurrentBuffer() != nil && lineNum >= 0 && x >= e.CurrentBuffer().LineNumberWidth && e.matchBuf == e.CurrentBuffer() && lineNum == e.matchLine && charPosInLine == e.matchChar {
+			useMatchStyle = true
+		}
 
 		// Note: Do not apply vertical ruler background on characters themselves.
 		// Ruler background is rendered in background fill phases to avoid per-character

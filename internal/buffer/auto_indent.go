@@ -1,10 +1,10 @@
 package buffer
 
 import (
-    "path/filepath"
-    "strings"
-    "unicode"
-    "veda/internal/config"
+	"path/filepath"
+	"strings"
+	"unicode"
+	"veda/internal/config"
 )
 
 // AutoIndentInfo contains information about how to indent the next line
@@ -30,24 +30,24 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		return b.calculateIndentForEmptyLine()
 	}
 
-    // Get current line's base indentation
-    baseIndentInfo := b.GetLineIndentInfo(line)
+	// Get current line's base indentation
+	baseIndentInfo := b.GetLineIndentInfo(line)
 
-    // Python-specific: if line ends with ':' (block opener), indent one level
-    if isPythonFile(b.FilePath) {
-        if endsWithColonBeforeCursor(line, cursorCol) {
-            indentLevel := baseIndentInfo.Level + 1
-            indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
-            visualCol := len(indentStr)
-            if b.Indentation.Type == config.IndentTabs {
-                visualCol = indentLevel * 8
-            }
-            return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
-        }
-    }
+	// Python-specific: if line ends with ':' (block opener), indent one level
+	if isPythonFile(b.FilePath) {
+		if endsWithColonBeforeCursor(line, cursorCol) {
+			indentLevel := baseIndentInfo.Level + 1
+			indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
+			visualCol := len(indentStr)
+			if b.Indentation.Type == config.IndentTabs {
+				visualCol = indentLevel * 8
+			}
+			return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+		}
+	}
 
-    // Rule 1: Check for cursor between braces or after open brace
-    if shouldIndentAfterBrace(line, cursorCol) {
+	// Rule 1: Check for cursor between braces or after open brace
+	if shouldIndentAfterBrace(line, cursorCol) {
 		// Add one more indent level to current indentation
 		indentLevel := baseIndentInfo.Level + 1
 		indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
@@ -65,20 +65,20 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		}
 	}
 
-    // Count delimiter balance up to cursor first (before continuation line check)
-    // In Normal mode, the cursor sits on the last character; if it's an opening
-    // delimiter, include it in the analysis so newline after it indents.
-    analyzeCol := cursorCol
-    if analyzeCol >= 0 && analyzeCol < len(line) {
-        ch := line[analyzeCol]
-        // Include '(' or '[' under the cursor only when it's the last character
-        // (Normal mode cursor on opener at EOL). Avoid including when cursor is
-        // before an opener in the middle of text.
-        if (ch == '(' || ch == '[') && analyzeCol == len(line)-1 {
-            analyzeCol++
-        }
-    }
-    balance, lastOpenCol, hasCharsAfter := analyzeDelimiters(line, analyzeCol)
+	// Count delimiter balance up to cursor first (before continuation line check)
+	// In Normal mode, the cursor sits on the last character; if it's an opening
+	// delimiter, include it in the analysis so newline after it indents.
+	analyzeCol := cursorCol
+	if analyzeCol >= 0 && analyzeCol < len(line) {
+		ch := line[analyzeCol]
+		// Include '(' or '[' under the cursor only when it's the last character
+		// (Normal mode cursor on opener at EOL). Avoid including when cursor is
+		// before an opener in the middle of text.
+		if (ch == '(' || ch == '[') && analyzeCol == len(line)-1 {
+			analyzeCol++
+		}
+	}
+	balance, lastOpenCol, hasCharsAfter := analyzeDelimiters(line, analyzeCol)
 
 	// Check if this line appears to be a continuation line
 	// A continuation line has unusual indentation that doesn't match standard indent levels
@@ -97,8 +97,8 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		}
 	}
 
-    // Rule 2: Unbalanced delimiters with content after - align to position after last open
-    if balance > 0 && lastOpenCol >= 0 && hasCharsAfter {
+	// Rule 2: Unbalanced delimiters with content after - align to position after last open
+	if balance > 0 && lastOpenCol >= 0 && hasCharsAfter {
 		// We want to align to the column position right after the open paren
 		// First calculate the visual column of the open paren itself
 		parenCol := calculateVisualColumn(line, lastOpenCol)
@@ -115,8 +115,8 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		}
 	}
 
-    // Rule 3: Unbalanced delimiters but no content after - add one indent level
-    if balance > 0 {
+	// Rule 3: Unbalanced delimiters but no content after - add one indent level
+	if balance > 0 {
 		// Add one more indent level to current indentation
 		indentLevel := baseIndentInfo.Level + 1
 		indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
@@ -134,8 +134,8 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		}
 	}
 
-    // Rule 4: Balanced delimiters - return to block-level indentation
-    // When parentheses are balanced, we're likely at the end of a statement/expression
+	// Rule 4: Balanced delimiters - return to block-level indentation
+	// When parentheses are balanced, we're likely at the end of a statement/expression
 	// and should return to the containing block's indentation level
 	if balance == 0 {
 		actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8)
@@ -166,19 +166,19 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		// If already at a standard indent level, maintain it (fall through)
 	}
 
-    // Python safeguard: even if earlier checks missed, indent after ':'
-    if isPythonFile(b.FilePath) && endsWithColonBeforeCursor(line, cursorCol) {
-        indentLevel := baseIndentInfo.Level + 1
-        indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
-        visualCol := len(indentStr)
-        if b.Indentation.Type == config.IndentTabs {
-            visualCol = indentLevel * 8
-        }
-        return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
-    }
+	// Python safeguard: even if earlier checks missed, indent after ':'
+	if isPythonFile(b.FilePath) && endsWithColonBeforeCursor(line, cursorCol) {
+		indentLevel := baseIndentInfo.Level + 1
+		indentStr := strings.Repeat(b.GetIndentationString(), indentLevel)
+		visualCol := len(indentStr)
+		if b.Indentation.Type == config.IndentTabs {
+			visualCol = indentLevel * 8
+		}
+		return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+	}
 
-    // Rule 5: Default - maintain same indentation level
-    indentStr := strings.Repeat(b.GetIndentationString(), baseIndentInfo.Level)
+	// Rule 5: Default - maintain same indentation level
+	indentStr := strings.Repeat(b.GetIndentationString(), baseIndentInfo.Level)
 
 	// Calculate visual column for this indentation
 	visualCol := len(indentStr)
@@ -213,95 +213,95 @@ func (b *Buffer) createIndentStringForColumn(targetCol int) string {
 // - lastOpenCol: column position of the last unbalanced open parenthesis (-1 if none)
 // - hasCharsAfter: whether there are non-whitespace characters after the last unbalanced open paren
 func analyzeDelimiters(line string, upToCol int) (balance int, lastOpenCol int, hasCharsAfter bool) {
-    lastOpenCol = -1
-    balance = 0
+	lastOpenCol = -1
+	balance = 0
 
 	// Ensure we don't go beyond the line length
 	if upToCol > len(line) {
 		upToCol = len(line)
 	}
 
-    // Track open delimiter positions for alignment: only parentheses and brackets
-    // Braces are handled by dedicated brace rules and should not drive alignment.
-    openStack := []rune{}
-    openPos := []int{}
+	// Track open delimiter positions for alignment: only parentheses and brackets
+	// Braces are handled by dedicated brace rules and should not drive alignment.
+	openStack := []rune{}
+	openPos := []int{}
 
-    // Count delimiters up to cursor
-    for i := 0; i < upToCol; i++ {
-        ch := rune(line[i])
-        switch ch {
-        case '(', '[': // exclude '{'
-            openStack = append(openStack, ch)
-            openPos = append(openPos, i)
-        case ')', ']': // exclude '}'
-            if len(openStack) > 0 {
-                // Pop matching if types correspond; otherwise still pop conservatively
-                openStack = openStack[:len(openStack)-1]
-                openPos = openPos[:len(openPos)-1]
-            }
-        }
-    }
+	// Count delimiters up to cursor
+	for i := 0; i < upToCol; i++ {
+		ch := rune(line[i])
+		switch ch {
+		case '(', '[': // exclude '{'
+			openStack = append(openStack, ch)
+			openPos = append(openPos, i)
+		case ')', ']': // exclude '}'
+			if len(openStack) > 0 {
+				// Pop matching if types correspond; otherwise still pop conservatively
+				openStack = openStack[:len(openStack)-1]
+				openPos = openPos[:len(openPos)-1]
+			}
+		}
+	}
 
-    // The number of unmatched open delimiters
-    balance = len(openStack)
+	// The number of unmatched open delimiters
+	balance = len(openStack)
 
-    // Get the last unbalanced open delimiter position
-    if len(openPos) > 0 {
-        lastOpenCol = openPos[len(openPos)-1]
+	// Get the last unbalanced open delimiter position
+	if len(openPos) > 0 {
+		lastOpenCol = openPos[len(openPos)-1]
 
 		// Check if there are characters after this open paren
-        if lastOpenCol < len(line)-1 {
-            for i := lastOpenCol + 1; i < len(line); i++ {
-                if !unicode.IsSpace(rune(line[i])) {
-                    hasCharsAfter = true
-                    break
-                }
-            }
-        }
-    }
+		if lastOpenCol < len(line)-1 {
+			for i := lastOpenCol + 1; i < len(line); i++ {
+				if !unicode.IsSpace(rune(line[i])) {
+					hasCharsAfter = true
+					break
+				}
+			}
+		}
+	}
 
-    return balance, lastOpenCol, hasCharsAfter
+	return balance, lastOpenCol, hasCharsAfter
 }
 
 // analyzeParentheses is kept for backward-compatibility with existing tests.
 // It now delegates to analyzeDelimiters which handles (), [], {} uniformly.
 func analyzeParentheses(line string, upToCol int) (int, int, bool) {
-    return analyzeDelimiters(line, upToCol)
+	return analyzeDelimiters(line, upToCol)
 }
 
 func isPythonFile(path string) bool {
-    if path == "" {
-        return false
-    }
-    ext := strings.ToLower(filepath.Ext(path))
-    return ext == ".py" || ext == ".pyw"
+	if path == "" {
+		return false
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	return ext == ".py" || ext == ".pyw"
 }
 
 // endsWithColonBeforeCursor returns true if the last non-space before cursor (or end of line)
 // is a ':' character (used for Python block starters)
 func endsWithColonBeforeCursor(line string, cursorCol int) bool {
-    if cursorCol > len(line) {
-        cursorCol = len(line)
-    }
-    // If cursor is on a ':' character, consider it a block opener
-    if cursorCol >= 0 && cursorCol < len(line) && line[cursorCol] == ':' {
-        return true
-    }
-    // Also consider the character immediately before the cursor
-    if cursorCol > 0 && line[cursorCol-1] == ':' {
-        return true
-    }
-    // Otherwise, scan backward from just before the cursor for the last non-space
-    i := cursorCol - 1
-    if i >= len(line) {
-        i = len(line) - 1
-    }
-    for ; i >= 0; i-- {
-        if !unicode.IsSpace(rune(line[i])) {
-            return line[i] == ':'
-        }
-    }
-    return false
+	if cursorCol > len(line) {
+		cursorCol = len(line)
+	}
+	// If cursor is on a ':' character, consider it a block opener
+	if cursorCol >= 0 && cursorCol < len(line) && line[cursorCol] == ':' {
+		return true
+	}
+	// Also consider the character immediately before the cursor
+	if cursorCol > 0 && line[cursorCol-1] == ':' {
+		return true
+	}
+	// Otherwise, scan backward from just before the cursor for the last non-space
+	i := cursorCol - 1
+	if i >= len(line) {
+		i = len(line) - 1
+	}
+	for ; i >= 0; i-- {
+		if !unicode.IsSpace(rune(line[i])) {
+			return line[i] == ':'
+		}
+	}
+	return false
 }
 
 // calculateVisualColumn converts a byte position to visual column, accounting for tabs
@@ -384,10 +384,10 @@ func (b *Buffer) calculateIndentForEmptyLine() AutoIndentInfo {
 
 	currentLineNum := b.CursorIterator.LineNumber()
 
-    // Look backward from current position to find the most recent non-empty line
-    // and analyze the block structure
-    braceBalance := 0
-    baseIndentLevel := 0
+	// Look backward from current position to find the most recent non-empty line
+	// and analyze the block structure
+	braceBalance := 0
+	baseIndentLevel := 0
 
 	// Start from the line before current and go backward
 	for lineNum := currentLineNum - 1; lineNum >= 0; lineNum-- {
@@ -396,32 +396,32 @@ func (b *Buffer) calculateIndentForEmptyLine() AutoIndentInfo {
 			continue
 		}
 
-        rawLine := iter.Line()
-        lineContent := strings.TrimSpace(rawLine)
-        if lineContent == "" {
-            continue // Skip empty lines
-        }
+		rawLine := iter.Line()
+		lineContent := strings.TrimSpace(rawLine)
+		if lineContent == "" {
+			continue // Skip empty lines
+		}
 
 		// This is the first non-empty line we found going backward
 		// Analyze its brace content and indentation
 		lineIndentInfo := b.GetLineIndentInfo(iter.Line())
 
-        // Python: if previous significant line ends with ':', increase indent
-        if isPythonFile(b.FilePath) && endsWithColonBeforeCursor(rawLine, len(rawLine)) {
-            baseIndentLevel = lineIndentInfo.Level + 1
-        } else {
-            // Count braces in this line
-            openBraces := strings.Count(lineContent, "{")
-            closeBraces := strings.Count(lineContent, "}")
-            braceBalance = openBraces - closeBraces
+		// Python: if previous significant line ends with ':', increase indent
+		if isPythonFile(b.FilePath) && endsWithColonBeforeCursor(rawLine, len(rawLine)) {
+			baseIndentLevel = lineIndentInfo.Level + 1
+		} else {
+			// Count braces in this line
+			openBraces := strings.Count(lineContent, "{")
+			closeBraces := strings.Count(lineContent, "}")
+			braceBalance = openBraces - closeBraces
 
-            // The base indent level should be this line's level plus any brace changes
-            baseIndentLevel = lineIndentInfo.Level
-            if braceBalance > 0 {
-                // There are more opening braces, so we should be one level deeper
-                baseIndentLevel += braceBalance
-            }
-        }
+			// The base indent level should be this line's level plus any brace changes
+			baseIndentLevel = lineIndentInfo.Level
+			if braceBalance > 0 {
+				// There are more opening braces, so we should be one level deeper
+				baseIndentLevel += braceBalance
+			}
+		}
 
 		break // We found our context line
 	}

@@ -195,10 +195,10 @@ func NewTheme() *Theme {
 			Background: "#364462",
 		},
 
-        MatchHighlight: StyleDef{
-            Foreground: "",         // keep existing foreground
-            Background: "#2f5968", // darker teal for better contrast with light text
-        },
+		MatchHighlight: StyleDef{
+			Foreground: "",        // keep existing foreground
+			Background: "#2f5968", // darker teal for better contrast with light text
+		},
 
 		Whitespace: StyleDef{
 			Foreground: "#2b2a24",

@@ -200,7 +200,7 @@ type Editor struct {
 
 	// Exit control
 	shouldExit bool // Flag to signal the editor should exit
-	
+
 	// Async operation tracking
 	pendingSaves sync.WaitGroup // Tracks pending save operations
 
@@ -1395,17 +1395,17 @@ func sanitizeTerminalText(input string) string {
 // This function handles the translation of keyboard input into the appropriate
 // byte sequences that terminals expect, including control characters like Ctrl+C
 func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
-    // Basic mapping: runes, Enter, Backspace, Tab, arrows
-    // Determine if the active terminal session has Application Cursor Keys enabled
-    appCursor := false
-    if e.CurrentBuffer() != nil {
-        if ts, ok := e.terminalSessions[e.CurrentBuffer().FilePath]; ok && ts != nil && ts.term != nil {
-            appCursor = ts.term.AppCursorKeys
-        }
-    }
+	// Basic mapping: runes, Enter, Backspace, Tab, arrows
+	// Determine if the active terminal session has Application Cursor Keys enabled
+	appCursor := false
+	if e.CurrentBuffer() != nil {
+		if ts, ok := e.terminalSessions[e.CurrentBuffer().FilePath]; ok && ts != nil && ts.term != nil {
+			appCursor = ts.term.AppCursorKeys
+		}
+	}
 
-    switch ev.Key {
-    case events.KeyRune:
+	switch ev.Key {
+	case events.KeyRune:
 		if ev.Rune == 0 {
 			return nil
 		}
@@ -1428,39 +1428,39 @@ func (e *Editor) translateKeyToTerminal(ev *events.KeyEvent) []byte {
 		return []byte{0x0c} // FF (clear-screen in many shells)
 	case events.KeyCtrlN:
 		return []byte{0x0e} // SO (next-history/forward in readline/fish bindings)
-    case events.KeyHome:
-        if appCursor {
-            return []byte{0x1b, 'O', 'H'}
-        }
-        return []byte{0x1b, '[', 'H'}
-    case events.KeyEnd:
-        if appCursor {
-            return []byte{0x1b, 'O', 'F'}
-        }
-        return []byte{0x1b, '[', 'F'}
-    case events.KeyUp:
-        if appCursor {
-            return []byte{0x1b, 'O', 'A'}
-        }
-        return []byte{0x1b, '[', 'A'}
-    case events.KeyDown:
-        if appCursor {
-            return []byte{0x1b, 'O', 'B'}
-        }
-        return []byte{0x1b, '[', 'B'}
-    case events.KeyRight:
-        if appCursor {
-            return []byte{0x1b, 'O', 'C'}
-        }
-        return []byte{0x1b, '[', 'C'}
-    case events.KeyLeft:
-        if appCursor {
-            return []byte{0x1b, 'O', 'D'}
-        }
-        return []byte{0x1b, '[', 'D'}
-    default:
-        return nil
-    }
+	case events.KeyHome:
+		if appCursor {
+			return []byte{0x1b, 'O', 'H'}
+		}
+		return []byte{0x1b, '[', 'H'}
+	case events.KeyEnd:
+		if appCursor {
+			return []byte{0x1b, 'O', 'F'}
+		}
+		return []byte{0x1b, '[', 'F'}
+	case events.KeyUp:
+		if appCursor {
+			return []byte{0x1b, 'O', 'A'}
+		}
+		return []byte{0x1b, '[', 'A'}
+	case events.KeyDown:
+		if appCursor {
+			return []byte{0x1b, 'O', 'B'}
+		}
+		return []byte{0x1b, '[', 'B'}
+	case events.KeyRight:
+		if appCursor {
+			return []byte{0x1b, 'O', 'C'}
+		}
+		return []byte{0x1b, '[', 'C'}
+	case events.KeyLeft:
+		if appCursor {
+			return []byte{0x1b, 'O', 'D'}
+		}
+		return []byte{0x1b, '[', 'D'}
+	default:
+		return nil
+	}
 }
 
 // executeWithRepeatCount executes a command with the current repeat count
@@ -2098,7 +2098,7 @@ func matchQuoteOnLine(line string, idx int, quote byte) (int, int, bool) {
 func (e *Editor) actuallyQuit(args []string) error {
 	// Wait for all pending save operations to complete
 	e.pendingSaves.Wait()
-	
+
 	// Clean up auto-save files for all open buffers since user is quitting without saving
 	if e.autoSaveManager != nil {
 		for filePath := range e.buffers {
@@ -2935,22 +2935,22 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 
 // notifyLSPFileChange sends a didChange notification to the LSP server if applicable
 func (e *Editor) notifyLSPFileChange() {
-    // Only send notification if buffer has LSP enabled and has a file path
-    if e.proxyManager == nil || e.CurrentBuffer() == nil || !e.CurrentBuffer().HasLSP || e.CurrentBuffer().FilePath == "" || e.CurrentBuffer().IsInternal {
-        return
-    }
+	// Only send notification if buffer has LSP enabled and has a file path
+	if e.proxyManager == nil || e.CurrentBuffer() == nil || !e.CurrentBuffer().HasLSP || e.CurrentBuffer().FilePath == "" || e.CurrentBuffer().IsInternal {
+		return
+	}
 
 	// Get the full content of the buffer
 	content := e.CurrentBuffer().Rope.String()
 
 	// Send the notification asynchronously to avoid blocking
-    go func(filePath, body string) {
-        if err := e.proxyManager.NotifyFileChange(filePath, body); err != nil {
-            LL.Debug("Failed to notify LSP of file change: %v", err)
-        } else {
-            LL.Debug("notifyLSPFileChange: didChange sent for %s", filePath)
-        }
-    }(e.CurrentBuffer().FilePath, content)
+	go func(filePath, body string) {
+		if err := e.proxyManager.NotifyFileChange(filePath, body); err != nil {
+			LL.Debug("Failed to notify LSP of file change: %v", err)
+		} else {
+			LL.Debug("notifyLSPFileChange: didChange sent for %s", filePath)
+		}
+	}(e.CurrentBuffer().FilePath, content)
 }
 
 func (e *Editor) goToDefinition(args []string) error {
@@ -3122,22 +3122,22 @@ func (e *Editor) handlePendingPath() {
 		e.connectionStatus = "Loading..."
 	}
 
-    // Fetch attributes to determine if it's a directory (lightweight vs full listing)
-    attrs, err := e.proxyManager.GetFileAttributes(path)
-    LL.Debug("handlePendingPath: GetFileAttributes returned err=%v attrs=%v", err, attrs)
+	// Fetch attributes to determine if it's a directory (lightweight vs full listing)
+	attrs, err := e.proxyManager.GetFileAttributes(path)
+	LL.Debug("handlePendingPath: GetFileAttributes returned err=%v attrs=%v", err, attrs)
 
 	// Clear connection status
 	e.connectionStatus = ""
 
-    if err == nil && attrs != nil && attrs.IsDirectory {
-        // It's a directory
-        e.workingDirectory = path
-        LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
+	if err == nil && attrs != nil && attrs.IsDirectory {
+		// It's a directory
+		e.workingDirectory = path
+		LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
 
-        // Send async event to show fuzzy list
-        LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
-        e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
-    } else {
+		// Send async event to show fuzzy list
+		LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
+		e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
+	} else {
 		// It's a file or doesn't exist - extract directory and open file
 		LL.Debug("handlePendingPath: Path is a file, will open it")
 		if isRemote {

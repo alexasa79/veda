@@ -73,9 +73,9 @@ func NewTerminalEmulator(cols, rows int) *TerminalEmulator {
 	}
 	te.curFg, te.curBg, te.curAttrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
 	te.maxScrollback = 2000
-    // Default scroll region is the full screen
-    te.topMargin = 0
-    te.bottomMargin = te.height - 1
+	// Default scroll region is the full screen
+	te.topMargin = 0
+	te.bottomMargin = te.height - 1
 	return te
 }
 
@@ -130,14 +130,14 @@ func (te *TerminalEmulator) Resize(cols, rows int) {
 	if te.curY >= te.height {
 		te.curY = te.height - 1
 	}
-    // Reset or clamp scroll region to new size
-    if te.topMargin < 0 {
-        te.topMargin = 0
-    }
-    if te.bottomMargin <= te.topMargin || te.bottomMargin >= te.height {
-        te.topMargin = 0
-        te.bottomMargin = te.height - 1
-    }
+	// Reset or clamp scroll region to new size
+	if te.topMargin < 0 {
+		te.topMargin = 0
+	}
+	if te.bottomMargin <= te.topMargin || te.bottomMargin >= te.height {
+		te.topMargin = 0
+		te.bottomMargin = te.height - 1
+	}
 }
 
 func (te *TerminalEmulator) index(x, y int) int { return y*te.width + x }
@@ -212,66 +212,66 @@ func (te *TerminalEmulator) newline() {
 
 // clearRow clears a full row to spaces and default attributes.
 func (te *TerminalEmulator) clearRow(y int) {
-    if y < 0 || y >= te.height {
-        return
-    }
-    for x := 0; x < te.width; x++ {
-        idx := te.index(x, y)
-        te.cells[idx] = ' '
-        te.fg[idx] = ui.ColorDefault
-        te.bg[idx] = ui.ColorDefault
-        te.attrs[idx] = ui.AttrNone
-    }
+	if y < 0 || y >= te.height {
+		return
+	}
+	for x := 0; x < te.width; x++ {
+		idx := te.index(x, y)
+		te.cells[idx] = ' '
+		te.fg[idx] = ui.ColorDefault
+		te.bg[idx] = ui.ColorDefault
+		te.attrs[idx] = ui.AttrNone
+	}
 }
 
 // scrollRegionUp scrolls the configured scrolling region up by one line.
 // It does not affect scrollback; only the region [topMargin..bottomMargin] shifts.
 func (te *TerminalEmulator) scrollRegionUp() {
-    top := te.topMargin
-    bottom := te.bottomMargin
-    if top < 0 {
-        top = 0
-    }
-    if bottom >= te.height {
-        bottom = te.height - 1
-    }
-    if top >= bottom {
-        return
-    }
-    // Shift rows up within region
-    for y := top; y < bottom; y++ {
-        // copy row y+1 into y
-        copy(te.cells[te.index(0, y):te.index(0, y)+te.width], te.cells[te.index(0, y+1):te.index(0, y+1)+te.width])
-        copy(te.fg[te.index(0, y):te.index(0, y)+te.width], te.fg[te.index(0, y+1):te.index(0, y+1)+te.width])
-        copy(te.bg[te.index(0, y):te.index(0, y)+te.width], te.bg[te.index(0, y+1):te.index(0, y+1)+te.width])
-        copy(te.attrs[te.index(0, y):te.index(0, y)+te.width], te.attrs[te.index(0, y+1):te.index(0, y+1)+te.width])
-    }
-    // Clear bottom row of region
-    te.clearRow(bottom)
+	top := te.topMargin
+	bottom := te.bottomMargin
+	if top < 0 {
+		top = 0
+	}
+	if bottom >= te.height {
+		bottom = te.height - 1
+	}
+	if top >= bottom {
+		return
+	}
+	// Shift rows up within region
+	for y := top; y < bottom; y++ {
+		// copy row y+1 into y
+		copy(te.cells[te.index(0, y):te.index(0, y)+te.width], te.cells[te.index(0, y+1):te.index(0, y+1)+te.width])
+		copy(te.fg[te.index(0, y):te.index(0, y)+te.width], te.fg[te.index(0, y+1):te.index(0, y+1)+te.width])
+		copy(te.bg[te.index(0, y):te.index(0, y)+te.width], te.bg[te.index(0, y+1):te.index(0, y+1)+te.width])
+		copy(te.attrs[te.index(0, y):te.index(0, y)+te.width], te.attrs[te.index(0, y+1):te.index(0, y+1)+te.width])
+	}
+	// Clear bottom row of region
+	te.clearRow(bottom)
 }
 
 // scrollRegionDown scrolls the configured scrolling region down by one line.
 func (te *TerminalEmulator) scrollRegionDown() {
-    top := te.topMargin
-    bottom := te.bottomMargin
-    if top < 0 {
-        top = 0
-    }
-    if bottom >= te.height {
-        bottom = te.height - 1
-    }
-    if top >= bottom {
-        return
-    }
-    // Shift rows down within region
-    for y := bottom; y > top; y-- {
-        copy(te.cells[te.index(0, y):te.index(0, y)+te.width], te.cells[te.index(0, y-1):te.index(0, y-1)+te.width])
-        copy(te.fg[te.index(0, y):te.index(0, y)+te.width], te.fg[te.index(0, y-1):te.index(0, y-1)+te.width])
-        copy(te.bg[te.index(0, y):te.index(0, y)+te.width], te.bg[te.index(0, y-1):te.index(0, y-1)+te.width])
-        copy(te.attrs[te.index(0, y):te.index(0, y)+te.width], te.attrs[te.index(0, y-1):te.index(0, y-1)+te.width])
-    }
-    // Clear top row of region
-    te.clearRow(top)
+	top := te.topMargin
+	bottom := te.bottomMargin
+	if top < 0 {
+		top = 0
+	}
+	if bottom >= te.height {
+		bottom = te.height - 1
+	}
+	if top >= bottom {
+		return
+	}
+	// Shift rows down within region
+	for y := bottom; y > top; y-- {
+		copy(te.cells[te.index(0, y):te.index(0, y)+te.width], te.cells[te.index(0, y-1):te.index(0, y-1)+te.width])
+		copy(te.fg[te.index(0, y):te.index(0, y)+te.width], te.fg[te.index(0, y-1):te.index(0, y-1)+te.width])
+		copy(te.bg[te.index(0, y):te.index(0, y)+te.width], te.bg[te.index(0, y-1):te.index(0, y-1)+te.width])
+		copy(te.attrs[te.index(0, y):te.index(0, y)+te.width], te.attrs[te.index(0, y-1):te.index(0, y-1)+te.width])
+	}
+	// Clear top row of region
+	te.clearRow(top)
 }
 
 type termLine struct {

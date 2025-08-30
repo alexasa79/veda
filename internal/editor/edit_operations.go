@@ -312,33 +312,33 @@ func (e *Editor) insertChar(ch rune) error {
 	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 	cursorX := e.CurrentBuffer().CursorX
 
-    // Check if we're typing a closing brace and should auto-dedent (disabled during paste)
-    if !e.inPasteMode && ch == '}' && e.shouldAutoDedentClosingBrace(lineNum, cursorX) {
-        // Apply auto-dedent before inserting the closing brace
-        if err := e.autoDedentCurrentLine(lineNum); err != nil {
-            return err
-        }
-        // Update cursor position after dedent
-        cursorX = e.CurrentBuffer().CursorX
-        // Recreate iterators after buffer modification
-        e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
-        e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
-    }
+	// Check if we're typing a closing brace and should auto-dedent (disabled during paste)
+	if !e.inPasteMode && ch == '}' && e.shouldAutoDedentClosingBrace(lineNum, cursorX) {
+		// Apply auto-dedent before inserting the closing brace
+		if err := e.autoDedentCurrentLine(lineNum); err != nil {
+			return err
+		}
+		// Update cursor position after dedent
+		cursorX = e.CurrentBuffer().CursorX
+		// Recreate iterators after buffer modification
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	}
 
-    // Electric opening brace in continuation-indented lines:
-    // If user types '{' at the first non-whitespace on a line that appears
-    // to be continuation-indented (alignment under '('), adjust indentation
-    // back to the enclosing block level (L1 relative to base) before inserting '{'.
-    if !e.inPasteMode && ch == '{' && e.shouldAdjustIndentForOpeningBrace(lineNum, cursorX) {
-        if err := e.adjustIndentForOpeningBrace(lineNum); err != nil {
-            return err
-        }
-        // Update cursor position after adjustment
-        cursorX = e.CurrentBuffer().CursorX
-        // Recreate iterators after buffer modification
-        e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
-        e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
-    }
+	// Electric opening brace in continuation-indented lines:
+	// If user types '{' at the first non-whitespace on a line that appears
+	// to be continuation-indented (alignment under '('), adjust indentation
+	// back to the enclosing block level (L1 relative to base) before inserting '{'.
+	if !e.inPasteMode && ch == '{' && e.shouldAdjustIndentForOpeningBrace(lineNum, cursorX) {
+		if err := e.adjustIndentForOpeningBrace(lineNum); err != nil {
+			return err
+		}
+		// Update cursor position after adjustment
+		cursorX = e.CurrentBuffer().CursorX
+		// Recreate iterators after buffer modification
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	}
 
 	// Create history entry for the single character
 	textToInsert := string(ch)
@@ -1655,160 +1655,160 @@ func (e *Editor) findMatchingOpenBrace(startLine int) (lineNum int, indentLevel 
 				}
 			}
 		}
-}
+	}
 
-return -1, 0 // No matching brace found
+	return -1, 0 // No matching brace found
 }
 
 // shouldAdjustIndentForOpeningBrace returns true if we should auto-adjust indentation
 // when typing an opening brace '{'. Heuristic:
-// - Only whitespace before cursor on the current line (typing brace at BOL)
-// - The line appears to be continuation-indented (alignment under '(') or otherwise
-//   has non-standard indentation (LineIndentInfo.IsContinuation)
+//   - Only whitespace before cursor on the current line (typing brace at BOL)
+//   - The line appears to be continuation-indented (alignment under '(') or otherwise
+//     has non-standard indentation (LineIndentInfo.IsContinuation)
 func (e *Editor) shouldAdjustIndentForOpeningBrace(lineNum int, cursorX int) bool {
-    // Get current line
-    line := e.CurrentBuffer().CursorIterator.Line()
+	// Get current line
+	line := e.CurrentBuffer().CursorIterator.Line()
 
-    // Ensure only whitespace before cursor (typing brace at BOL visually)
-    for i := 0; i < cursorX && i < len(line); i++ {
-        if line[i] != ' ' && line[i] != '\t' {
-            return false
-        }
-    }
+	// Ensure only whitespace before cursor (typing brace at BOL visually)
+	for i := 0; i < cursorX && i < len(line); i++ {
+		if line[i] != ' ' && line[i] != '\t' {
+			return false
+		}
+	}
 
-    // Compare current indent level to the nearest less-indented line above
-    curInfo := e.CurrentBuffer().GetLineIndentInfo(line)
-    baseLevel := 0
-    nearestNonEmptyTrimmed := ""
-    for ln := lineNum - 1; ln >= 0; ln-- {
-        iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
-        if iter.IsEOF() {
-            continue
-        }
-        raw := iter.Line()
-        if strings.TrimSpace(raw) == "" {
-            continue
-        }
-        if nearestNonEmptyTrimmed == "" {
-            nearestNonEmptyTrimmed = strings.TrimSpace(raw)
-        }
-        ii := e.CurrentBuffer().GetLineIndentInfo(raw)
-        if ii.Level < curInfo.Level {
-            baseLevel = ii.Level
-            break
-        }
-    }
+	// Compare current indent level to the nearest less-indented line above
+	curInfo := e.CurrentBuffer().GetLineIndentInfo(line)
+	baseLevel := 0
+	nearestNonEmptyTrimmed := ""
+	for ln := lineNum - 1; ln >= 0; ln-- {
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
+		if iter.IsEOF() {
+			continue
+		}
+		raw := iter.Line()
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		if nearestNonEmptyTrimmed == "" {
+			nearestNonEmptyTrimmed = strings.TrimSpace(raw)
+		}
+		ii := e.CurrentBuffer().GetLineIndentInfo(raw)
+		if ii.Level < curInfo.Level {
+			baseLevel = ii.Level
+			break
+		}
+	}
 
-    // Only trigger when previous non-empty line likely ends a header/condition
-    // e.g., ends with ')', to avoid interfering with nested blocks inside bodies.
-    if nearestNonEmptyTrimmed == "" || !strings.HasSuffix(nearestNonEmptyTrimmed, ")") {
-        return false
-    }
+	// Only trigger when previous non-empty line likely ends a header/condition
+	// e.g., ends with ')', to avoid interfering with nested blocks inside bodies.
+	if nearestNonEmptyTrimmed == "" || !strings.HasSuffix(nearestNonEmptyTrimmed, ")") {
+		return false
+	}
 
-    return curInfo.Level > baseLevel
+	return curInfo.Level > baseLevel
 }
 
 // adjustIndentForOpeningBrace replaces leading whitespace of the current line so that
 // an opening brace '{' will be at the block level (L1 relative to the nearest
 // non-continuation structural line above).
 func (e *Editor) adjustIndentForOpeningBrace(lineNum int) error {
-    // Preserve view position
-    viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	// Preserve view position
+	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
-    // Determine target indent level.
-    // Strategy:
-    // 1) Prefer the indent of the nearest control header line above (if/for/while/switch).
-    // 2) Otherwise, use the nearest non-empty line above with strictly less indent than current.
-    baseLevel := 0
-    // Current line's indentation level
-    curLine := e.CurrentBuffer().CursorIterator.Line()
-    curInfo := e.CurrentBuffer().GetLineIndentInfo(curLine)
-    foundControl := false
-    firstLessSet := false
-    firstLess := 0
-    for ln := lineNum - 1; ln >= 0; ln-- {
-        iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
-        if iter.IsEOF() {
-            continue
-        }
-        raw := iter.Line()
-        if strings.TrimSpace(raw) == "" {
-            continue
-        }
-        ii := e.CurrentBuffer().GetLineIndentInfo(raw)
-        trimmedLower := strings.ToLower(strings.TrimSpace(raw))
-        // Detect common control headers
-        if strings.HasPrefix(trimmedLower, "if ") || strings.HasPrefix(trimmedLower, "if(") ||
-            strings.HasPrefix(trimmedLower, "for ") || strings.HasPrefix(trimmedLower, "for(") ||
-            strings.HasPrefix(trimmedLower, "while ") || strings.HasPrefix(trimmedLower, "while(") ||
-            strings.HasPrefix(trimmedLower, "switch ") || strings.HasPrefix(trimmedLower, "switch(") {
-            baseLevel = ii.Level
-            foundControl = true
-            break
-        }
-        // Remember the first less-indented line as fallback
-        if !firstLessSet && ii.Level < curInfo.Level {
-            firstLessSet = true
-            firstLess = ii.Level
-            // Don't break; we might still find a control header above
-        }
-    }
-    if !foundControl && firstLessSet {
-        baseLevel = firstLess
-    }
-    // Opening brace should align to the base level (same as the control line)
-    targetLevel := baseLevel
-    desired := strings.Repeat(e.CurrentBuffer().GetIndentationString(), targetLevel)
+	// Determine target indent level.
+	// Strategy:
+	// 1) Prefer the indent of the nearest control header line above (if/for/while/switch).
+	// 2) Otherwise, use the nearest non-empty line above with strictly less indent than current.
+	baseLevel := 0
+	// Current line's indentation level
+	curLine := e.CurrentBuffer().CursorIterator.Line()
+	curInfo := e.CurrentBuffer().GetLineIndentInfo(curLine)
+	foundControl := false
+	firstLessSet := false
+	firstLess := 0
+	for ln := lineNum - 1; ln >= 0; ln-- {
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
+		if iter.IsEOF() {
+			continue
+		}
+		raw := iter.Line()
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		ii := e.CurrentBuffer().GetLineIndentInfo(raw)
+		trimmedLower := strings.ToLower(strings.TrimSpace(raw))
+		// Detect common control headers
+		if strings.HasPrefix(trimmedLower, "if ") || strings.HasPrefix(trimmedLower, "if(") ||
+			strings.HasPrefix(trimmedLower, "for ") || strings.HasPrefix(trimmedLower, "for(") ||
+			strings.HasPrefix(trimmedLower, "while ") || strings.HasPrefix(trimmedLower, "while(") ||
+			strings.HasPrefix(trimmedLower, "switch ") || strings.HasPrefix(trimmedLower, "switch(") {
+			baseLevel = ii.Level
+			foundControl = true
+			break
+		}
+		// Remember the first less-indented line as fallback
+		if !firstLessSet && ii.Level < curInfo.Level {
+			firstLessSet = true
+			firstLess = ii.Level
+			// Don't break; we might still find a control header above
+		}
+	}
+	if !foundControl && firstLessSet {
+		baseLevel = firstLess
+	}
+	// Opening brace should align to the base level (same as the control line)
+	targetLevel := baseLevel
+	desired := strings.Repeat(e.CurrentBuffer().GetIndentationString(), targetLevel)
 
-    // Current line's indentation
-    line := e.CurrentBuffer().CursorIterator.Line()
-    i := 0
-    for i < len(line) {
-        if line[i] == ' ' || line[i] == '\t' {
-            i++
-        } else {
-            break
-        }
-    }
-    current := line[:i]
-    if current == desired {
-        return nil
-    }
+	// Current line's indentation
+	line := e.CurrentBuffer().CursorIterator.Line()
+	i := 0
+	for i < len(line) {
+		if line[i] == ' ' || line[i] == '\t' {
+			i++
+		} else {
+			break
+		}
+	}
+	current := line[:i]
+	if current == desired {
+		return nil
+	}
 
-    // Build composite history edit: replace current leading whitespace with desired
-    composite := buffer.NewCompositeEntry("Adjust indent for opening brace")
-    if current != "" {
-        composite.Add(buffer.NewDeleteTextEntry(lineNum, 0, current))
-    }
-    if desired != "" {
-        composite.Add(buffer.NewInsertTextEntry(lineNum, 0, desired))
-    }
-    if e.CurrentBuffer().History != nil {
-        if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
-            return err
-        } else if executed != nil {
-            e.setLastChange(executed)
-            e.lastSimpleCommand = "reindent-line" // treat like reindent for '.' repeat
-        }
-    } else {
-        // Fallback direct edit
-        lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
-        if current != "" {
-            e.CurrentBuffer().Delete(lineStart, len(current))
-        }
-        if desired != "" {
-            e.CurrentBuffer().Insert(lineStart, desired)
-        }
-    }
+	// Build composite history edit: replace current leading whitespace with desired
+	composite := buffer.NewCompositeEntry("Adjust indent for opening brace")
+	if current != "" {
+		composite.Add(buffer.NewDeleteTextEntry(lineNum, 0, current))
+	}
+	if desired != "" {
+		composite.Add(buffer.NewInsertTextEntry(lineNum, 0, desired))
+	}
+	if e.CurrentBuffer().History != nil {
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
+			return err
+		} else if executed != nil {
+			e.setLastChange(executed)
+			e.lastSimpleCommand = "reindent-line" // treat like reindent for '.' repeat
+		}
+	} else {
+		// Fallback direct edit
+		lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
+		if current != "" {
+			e.CurrentBuffer().Delete(lineStart, len(current))
+		}
+		if desired != "" {
+			e.CurrentBuffer().Insert(lineStart, desired)
+		}
+	}
 
-    // Restore iterators and move cursor to end of the desired indentation
-    e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
-    e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
-    e.CurrentBuffer().CursorX = len(desired)
+	// Restore iterators and move cursor to end of the desired indentation
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	e.CurrentBuffer().CursorX = len(desired)
 
-    // Update highlighting
-    e.updateSyntaxHighlighting()
-    return nil
+	// Update highlighting
+	e.updateSyntaxHighlighting()
+	return nil
 }
 
 // autoDedentCurrentLine removes one level of indentation from the current line
