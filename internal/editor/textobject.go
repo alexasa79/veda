@@ -329,47 +329,47 @@ func (w WordTextObject) GetType() string {
 
 // WTextObject represents a portion of the current word from the cursor to its end
 // It uses the same word boundary logic as other word operations, ensuring consistency with 'w'
-type WTextObject struct{
-    Count int // Number of words to include (>=1)
+type WTextObject struct {
+	Count int // Number of words to include (>=1)
 }
 
 func (w WTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-    // Normalize count
-    count := w.Count
-    if count <= 0 {
-        count = 1
-    }
+	// Normalize count
+	count := w.Count
+	if count <= 0 {
+		count = 1
+	}
 
-    // Use the unified current word boundary finder without trailing whitespace
-    boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, false)
-    if boundary == nil {
-        return 0, 0, 0, 0, false
-    }
-    // Start from the cursor position, end at the end of the current word
-    startLine := cursorLine
-    startChar := cursorChar
-    endLine := boundary.EndLine
-    endChar := boundary.EndChar
+	// Use the unified current word boundary finder without trailing whitespace
+	boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, false)
+	if boundary == nil {
+		return 0, 0, 0, 0, false
+	}
+	// Start from the cursor position, end at the end of the current word
+	startLine := cursorLine
+	startChar := cursorChar
+	endLine := boundary.EndLine
+	endChar := boundary.EndChar
 
-    // Extend to include additional words (without trailing spaces) if requested
-    for i := 1; i < count; i++ {
-        next := FindNextWordBoundary(buf, endLine, endChar)
-        if next == nil {
-            break
-        }
-        b := FindCurrentWordBoundary(buf, next.StartLine, next.StartChar, false)
-        if b == nil {
-            break
-        }
-        endLine, endChar = b.EndLine, b.EndChar
-    }
+	// Extend to include additional words (without trailing spaces) if requested
+	for i := 1; i < count; i++ {
+		next := FindNextWordBoundary(buf, endLine, endChar)
+		if next == nil {
+			break
+		}
+		b := FindCurrentWordBoundary(buf, next.StartLine, next.StartChar, false)
+		if b == nil {
+			break
+		}
+		endLine, endChar = b.EndLine, b.EndChar
+	}
 
-    // Clamp start to not exceed end
-    if startLine == endLine && startChar > endChar {
-        startChar = endChar
-    }
+	// Clamp start to not exceed end
+	if startLine == endLine && startChar > endChar {
+		startChar = endChar
+	}
 
-    return startLine, startChar, endLine, endChar, true
+	return startLine, startChar, endLine, endChar, true
 }
 
 func (w WTextObject) GetType() string {

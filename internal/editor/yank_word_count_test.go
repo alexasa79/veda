@@ -7,12 +7,12 @@ func TestYankWordCountWithOperatorPrefix(t *testing.T) {
 	// Move cursor to beginning
 	te.SetCursorPosition(0, 0)
 
-    // Yank two words into register 'a': 2 ' a y w
-    te.TypeKeys("2")
-    te.TypeKeys("'")
-    te.TypeKeys("a")
-    te.TypeKeys("y")
-    te.TypeKeys("w")
+	// Yank two words into register 'a': 2 ' a y w
+	te.TypeKeys("2")
+	te.TypeKeys("'")
+	te.TypeKeys("a")
+	te.TypeKeys("y")
+	te.TypeKeys("w")
 
 	// Delete to clear, then paste from register 'a'
 	te.TypeKeys("d")
