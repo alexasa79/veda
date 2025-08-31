@@ -111,6 +111,7 @@ Veda supports multiple windows, each capable of containing multiple buffers:
   - Go (requires `gopls` - install with `go install golang.org/x/tools/gopls@latest`)
   - C/C++ (requires `clangd` - install from your package manager or https://clangd.llvm.org/)
   - Python (requires `pylsp` - install with `pip install python-lsp-server`)
+  - JavaScript/TypeScript (requires `typescript-language-server` and `typescript` - install with `npm i -g typescript typescript-language-server`)
 - **Automatic Server Management**: LSP servers start automatically when needed and stop when the editor exits
 
 ### Markdown Support
