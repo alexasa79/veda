@@ -230,9 +230,16 @@ func (m MultiLineTextObject) GetType() string {
 type WordTextObject struct {
 	modifier             TextObjectModifier
 	excludeTrailingSpace bool // For 'cw' which should act like 'ce'
+	Count                int  // Number of words to include (>=1); only operator count supported
 }
 
 func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
+	// Normalize count
+	count := w.Count
+	if count <= 0 {
+		count = 1
+	}
+
 	// For 'dw' (no modifier), use shared logic with trailing space
 	// But for 'cw', we exclude trailing space (like 'ce' in Vim)
 	if w.modifier == ModifierNone {
@@ -241,7 +248,26 @@ func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 		if boundary == nil {
 			return 0, 0, 0, 0, false
 		}
-		return boundary.StartLine, boundary.StartChar, boundary.EndLine, boundary.EndChar, true
+		startLine, startChar := boundary.StartLine, boundary.StartChar
+		endLine, endChar := boundary.EndLine, boundary.EndChar
+		// Extend to additional words if count > 1
+		for i := 1; i < count; i++ {
+			// Prefer boundary at current end position if it's at a word start
+			b := FindCurrentWordBoundary(buf, endLine, endChar, includeTrailing)
+			if b == nil {
+				// Otherwise, jump to next word start and get its boundary
+				nextWord := FindNextWordBoundary(buf, endLine, endChar)
+				if nextWord == nil {
+					break
+				}
+				b = FindCurrentWordBoundary(buf, nextWord.StartLine, nextWord.StartChar, includeTrailing)
+				if b == nil {
+					break
+				}
+			}
+			endLine, endChar = b.EndLine, b.EndChar
+		}
+		return startLine, startChar, endLine, endChar, true
 	}
 
 	// For 'diw' and 'daw', use shared logic without trailing space for 'inside'
@@ -274,7 +300,24 @@ func (w WordTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int)
 		}
 	}
 
-	return boundary.StartLine, boundary.StartChar, boundary.EndLine, boundary.EndChar, true
+	// Extend across additional words if requested
+	startLine, startChar := boundary.StartLine, boundary.StartChar
+	endLine, endChar := boundary.EndLine, boundary.EndChar
+	for i := 1; i < count; i++ {
+		b := FindCurrentWordBoundary(buf, endLine, endChar, includeTrailing)
+		if b == nil {
+			nextWord := FindNextWordBoundary(buf, endLine, endChar)
+			if nextWord == nil {
+				break
+			}
+			b = FindCurrentWordBoundary(buf, nextWord.StartLine, nextWord.StartChar, includeTrailing)
+			if b == nil {
+				break
+			}
+		}
+		endLine, endChar = b.EndLine, b.EndChar
+	}
+	return startLine, startChar, endLine, endChar, true
 }
 
 func (w WordTextObject) GetType() string {
@@ -286,26 +329,47 @@ func (w WordTextObject) GetType() string {
 
 // WTextObject represents a portion of the current word from the cursor to its end
 // It uses the same word boundary logic as other word operations, ensuring consistency with 'w'
-type WTextObject struct{}
+type WTextObject struct{
+    Count int // Number of words to include (>=1)
+}
 
 func (w WTextObject) GetRange(buf *buffer.Buffer, cursorLine, cursorChar int) (int, int, int, int, bool) {
-	// Use the unified current word boundary finder without trailing whitespace
-	boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, false)
-	if boundary == nil {
-		return 0, 0, 0, 0, false
-	}
-	// Start from the cursor position, end at the end of the current word
-	startLine := cursorLine
-	startChar := cursorChar
-	endLine := boundary.EndLine
-	endChar := boundary.EndChar
+    // Normalize count
+    count := w.Count
+    if count <= 0 {
+        count = 1
+    }
 
-	// Clamp start to not exceed end
-	if startLine == endLine && startChar > endChar {
-		startChar = endChar
-	}
+    // Use the unified current word boundary finder without trailing whitespace
+    boundary := FindCurrentWordBoundary(buf, cursorLine, cursorChar, false)
+    if boundary == nil {
+        return 0, 0, 0, 0, false
+    }
+    // Start from the cursor position, end at the end of the current word
+    startLine := cursorLine
+    startChar := cursorChar
+    endLine := boundary.EndLine
+    endChar := boundary.EndChar
 
-	return startLine, startChar, endLine, endChar, true
+    // Extend to include additional words (without trailing spaces) if requested
+    for i := 1; i < count; i++ {
+        next := FindNextWordBoundary(buf, endLine, endChar)
+        if next == nil {
+            break
+        }
+        b := FindCurrentWordBoundary(buf, next.StartLine, next.StartChar, false)
+        if b == nil {
+            break
+        }
+        endLine, endChar = b.EndLine, b.EndChar
+    }
+
+    // Clamp start to not exceed end
+    if startLine == endLine && startChar > endChar {
+        startChar = endChar
+    }
+
+    return startLine, startChar, endLine, endChar, true
 }
 
 func (w WTextObject) GetType() string {

@@ -131,10 +131,18 @@ func (e *Editor) getTextObjectForKey(key string) TextObject {
 		if _, isChange := e.pendingOperator.(ChangeOperator); isChange && e.pendingModifier == ModifierNone {
 			excludeTrailing = true
 		}
-		return WordTextObject{modifier: e.pendingModifier, excludeTrailingSpace: excludeTrailing}
+		count := e.pendingCount
+		if count <= 0 {
+			count = 1
+		}
+		return WordTextObject{modifier: e.pendingModifier, excludeTrailingSpace: excludeTrailing, Count: count}
 	case "W":
 		// Use the same word boundary logic as 'w', but select from cursor to end of word
-		return WTextObject{}
+		count := e.pendingCount
+		if count <= 0 {
+			count = 1
+		}
+		return WTextObject{Count: count}
 	case "b":
 		// 'b' for blocks through LSP folding ranges
 		if e.pendingModifier != ModifierNone {
