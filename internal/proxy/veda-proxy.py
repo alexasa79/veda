@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.12"
+PROXY_VERSION = "1.0.13"
 
 # Set up logging directory
 from datetime import datetime
@@ -82,6 +82,16 @@ class LSPManager:
                 'command': ['pylsp'],
                 'extensions': ['.py', '.pyw'],
                 'install_hint': 'Install python-lsp-server with: pip install python-lsp-server'
+            },
+            'javascript': {
+                'command': ['typescript-language-server', '--stdio'],
+                'extensions': ['.js', '.jsx', '.mjs', '.cjs'],
+                'install_hint': 'Install with: npm i -g typescript typescript-language-server'
+            },
+            'typescript': {
+                'command': ['typescript-language-server', '--stdio'],
+                'extensions': ['.ts', '.tsx', '.mts', '.cts'],
+                'install_hint': 'Install with: npm i -g typescript typescript-language-server'
             }
         }
         
