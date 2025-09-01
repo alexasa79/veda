@@ -651,14 +651,17 @@ func (te *TerminalEmulator) Write(data []byte) {
 			// DEC save/restore cursor
 			case '7':
 				te.savedX, te.savedY = te.curX, te.curY
+				i++  // Consume the '7' character
 				continue
 			case '8':
 				te.curX, te.curY = te.savedX, te.savedY
 				te.clampCursor()
+				i++  // Consume the '8' character
 				continue
 			// Index / Reverse Index / Next Line
 			case 'D': // IND: move down one line; scroll within region if at bottom margin
 				te.newline()
+				i++  // Consume the 'D' character
 				continue
 			case 'M': // RI: move up one line; scroll within region if at top margin
 				if te.curY == te.topMargin {
@@ -670,16 +673,19 @@ func (te *TerminalEmulator) Write(data []byte) {
 						te.curY = te.topMargin
 					}
 				}
+				i++  // Consume the 'M' character
 				continue
 			case 'E': // NEL: CR+LF
 				te.curX = 0
 				te.newline()
+				i++  // Consume the 'E' character
 				continue
 			case 'c': // RIS: reset
 				for i2 := range te.cells {
 					te.cells[i2] = ' '
 				}
 				te.curX, te.curY = 0, 0
+				i++  // Consume the 'c' character
 				continue
 			default:
 				// Skip this single char and continue
