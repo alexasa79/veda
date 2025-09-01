@@ -2127,17 +2127,23 @@ class VedaProxy:
         """
         Get a specific git version of a file.
         """
+        logger.info(f"get_git_file_version called: path={path}, revision={revision}")
         try:
             # Resolve the file path
             file_path = Path(path).expanduser().resolve()
+            logger.info(f"Resolved file path: {file_path}")
             
             # Get the git root directory
+            logger.info(f"Running git rev-parse from {file_path.parent}")
             result = subprocess.run(['git', 'rev-parse', '--show-toplevel'], 
-                                 capture_output=True, text=True, cwd=file_path.parent)
+                                 capture_output=True, text=True, cwd=file_path.parent,
+                                 timeout=5)
             if result.returncode != 0:
+                logger.error(f"git rev-parse failed: {result.stderr}")
                 return {'success': False, 'error': 'Not a git repository'}
             
             git_root = Path(result.stdout.strip())
+            logger.info(f"Git root: {git_root}")
             
             # Get relative path from git root
             try:
@@ -2147,7 +2153,9 @@ class VedaProxy:
             
             # Get file content at specified revision
             cmd = ['git', 'show', f"{revision}:{relative_path}"]
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=git_root)
+            logger.info(f"Running git show command: {cmd} in {git_root}")
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=git_root, timeout=10)
+            logger.info(f"git show completed with return code: {result.returncode}")
             
             if result.returncode != 0:
                 error_msg = result.stderr.strip()
@@ -2163,6 +2171,9 @@ class VedaProxy:
                 'content': result.stdout
             }
             
+        except subprocess.TimeoutExpired:
+            logger.error(f"Git command timed out for file: {path}")
+            return {'success': False, 'error': 'Git command timed out'}
         except Exception as e:
             logger.error(f"Error in get_git_file_version: {e}")
             return {'success': False, 'error': str(e)}

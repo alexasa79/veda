@@ -185,11 +185,15 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 			// Move cursor down one logical line directly
 			if beforeLine < rightBuffer.LineCount-1 {
 				rightBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(rightBuffer, beforeLine+1)
-				te.syncDiffCursors() // Manually sync since we're bypassing normal movement
 			}
 			
 			// Manually trigger scroll (since test environment might not call it)
 			te.scroll()
+			
+			// Sync diff cursors after scrolling (mimicking what happens in the main event loop)
+			if te.isDiffBuffer(te.CurrentBuffer()) {
+				te.syncDiffCursors()
+			}
 			
 			afterLine := rightBuffer.CursorIterator.LineNumber()
 			afterViewLine := rightBuffer.ViewIterator.LineNumber()

@@ -64,6 +64,7 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"switch-to-previous-buffer": "previous buffer",
 		"new-buffer":                "new buffer",
 		"show-project-changes":      "project changes",
+		"diff-current-buffer":       "diff current buffer",
 
 		// Search commands
 		"find-next":                "find next",

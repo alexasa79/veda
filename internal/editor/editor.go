@@ -562,6 +562,11 @@ func (e *Editor) Run() {
 			tScroll := e.perfTracker.Start()
 			e.scroll()
 			e.perfTracker.ReportSince("scroll", tScroll)
+			
+			// Sync diff cursors after scrolling (but only for diff buffers)
+			if e.isDiffBuffer(e.CurrentBuffer()) {
+				e.syncDiffCursors()
+			}
 		}
 
 		// Render the entire screen unless in paste mode
