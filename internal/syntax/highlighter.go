@@ -13,10 +13,10 @@ import (
 	"github.com/smacker/go-tree-sitter/cpp"
 	"github.com/smacker/go-tree-sitter/golang"
 	"github.com/smacker/go-tree-sitter/javascript"
-	tsx "github.com/smacker/go-tree-sitter/typescript/tsx"
-	typescript "github.com/smacker/go-tree-sitter/typescript/typescript"
 	markdown_inline "github.com/smacker/go-tree-sitter/markdown/tree-sitter-markdown-inline"
 	"github.com/smacker/go-tree-sitter/python"
+	tsx "github.com/smacker/go-tree-sitter/typescript/tsx"
+	typescript "github.com/smacker/go-tree-sitter/typescript/typescript"
 	tree_sitter_make "github.com/tree-sitter-grammars/tree-sitter-make/bindings/go"
 )
 
@@ -537,124 +537,132 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 
 // mapJavaScriptNodeToTokenType maps JavaScript-specific node types to token types
 func (h *Highlighter) mapJavaScriptNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
-    switch nodeType {
-    // Keywords (JS)
-    case "function", "return", "if", "else", "for", "while", "do",
-        "switch", "case", "default", "break", "continue",
-        "var", "let", "const", "class", "extends", "super", "new",
-        "try", "catch", "finally", "throw", "typeof", "instanceof",
-        "in", "of", "delete", "yield", "await", "async", "import",
-        "export", "from", "this":
-        return TokenTypeKeyword
+	switch nodeType {
+	// Keywords (JS)
+	case "function", "return", "if", "else", "for", "while", "do",
+		"switch", "case", "default", "break", "continue",
+		"var", "let", "const", "class", "extends", "super", "new",
+		"try", "catch", "finally", "throw", "typeof", "instanceof",
+		"in", "of", "delete", "yield", "await", "async", "import",
+		"export", "from", "this":
+		return TokenTypeKeyword
 
-    // Comments
-    case "comment":
-        return TokenTypeComment
+	// Comments
+	case "comment":
+		return TokenTypeComment
 
-    // Strings and templates
-    case "string", "template_string", "template_substitution", "regex":
-        return TokenTypeString
+	// Strings and templates
+	case "string", "template_string", "template_substitution", "regex":
+		return TokenTypeString
 
-    // Numbers
-    case "number":
-        return TokenTypeNumber
+	// Numbers
+	case "number":
+		return TokenTypeNumber
 
-    // Identifiers and function names
-    case "identifier", "property_identifier":
-        parent := node.Parent()
-        if parent != nil {
-            pt := parent.Type()
-            if pt == "call_expression" && (parent.ChildByFieldName("function") == node || parent.Child(0) == node) {
-                return TokenTypeFunction
-            }
-            if pt == "function_declaration" || pt == "method_definition" {
-                return TokenTypeFunction
-            }
-            if pt == "class_declaration" || pt == "class" {
-                return TokenTypeType
-            }
-        }
-        return TokenTypeVariable
+	// Boolean and null literals
+	case "true", "false", "null", "undefined":
+		return TokenTypeConstant
 
-    // Punctuation
-    case "(", ")", "[", "]", "{", "}", ",", ";", ".", ":":
-        return TokenTypePunctuation
+	// Identifiers and function names
+	case "identifier", "property_identifier":
+		parent := node.Parent()
+		if parent != nil {
+			pt := parent.Type()
+			if pt == "call_expression" && (parent.ChildByFieldName("function") == node || parent.Child(0) == node) {
+				return TokenTypeFunction
+			}
+			if pt == "function_declaration" || pt == "method_definition" {
+				return TokenTypeFunction
+			}
+			if pt == "class_declaration" || pt == "class" {
+				return TokenTypeType
+			}
+		}
+		return TokenTypeVariable
 
-    // Operators
-    case "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>",
-        "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
-        "&&", "||", "++", "--",
-        "==", "!=", "===", "!==", "<", "<=", ">", ">=",
-        "=", "!", "~", "?":
-        return TokenTypeOperator
+	// Punctuation
+	case "(", ")", "[", "]", "{", "}", ",", ";", ".", ":":
+		return TokenTypePunctuation
 
-    default:
-        return TokenTypeText
-    }
+	// Operators
+	case "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>",
+		"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
+		"&&", "||", "++", "--",
+		"==", "!=", "===", "!==", "<", "<=", ">", ">=",
+		"=", "!", "~", "?", "=>":
+		return TokenTypeOperator
+
+	default:
+		return TokenTypeText
+	}
 }
 
 // mapTypeScriptNodeToTokenType maps TypeScript-specific node types to token types
 func (h *Highlighter) mapTypeScriptNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
-    switch nodeType {
-    // TS keywords (includes JS + TS types)
-    case "function", "return", "if", "else", "for", "while", "do",
-        "switch", "case", "default", "break", "continue",
-        "var", "let", "const", "class", "extends", "super", "new",
-        "try", "catch", "finally", "throw", "typeof", "instanceof",
-        "in", "of", "delete", "yield", "await", "async", "import",
-        "export", "from", "this", "interface", "implements", "enum",
-        "type", "readonly", "abstract", "private", "public", "protected",
-        "as":
-        return TokenTypeKeyword
+	switch nodeType {
+	// TS keywords (includes JS + TS types)
+	case "function", "return", "if", "else", "for", "while", "do",
+		"switch", "case", "default", "break", "continue",
+		"var", "let", "const", "class", "extends", "super", "new",
+		"try", "catch", "finally", "throw", "typeof", "instanceof",
+		"in", "of", "delete", "yield", "await", "async", "import",
+		"export", "from", "this", "interface", "implements", "enum",
+		"type", "readonly", "abstract", "private", "public", "protected",
+		"as":
+		return TokenTypeKeyword
 
-    // Comments
-    case "comment":
-        return TokenTypeComment
+	// Comments
+	case "comment":
+		return TokenTypeComment
 
-    // Strings / templates / regex
-    case "string", "template_string", "template_substitution", "regex":
-        return TokenTypeString
+	// Strings / templates / regex
+	case "string", "template_string", "template_substitution", "regex":
+		return TokenTypeString
 
-    // Numbers and boolean/null
-    case "number", "true", "false", "null", "undefined":
-        return TokenTypeNumber
+	// Numbers
+	case "number":
+		return TokenTypeNumber
+		
+	// Boolean and null literals
+	case "true", "false", "null", "undefined":
+		return TokenTypeConstant
 
-    // Type-related nodes
-    case "type_identifier", "predefined_type", "type_alias_declaration":
-        return TokenTypeType
+	// Type-related nodes
+	case "type_identifier", "predefined_type", "type_alias_declaration":
+		return TokenTypeType
 
-    // Identifiers and function contexts
-    case "identifier", "property_identifier":
-        parent := node.Parent()
-        if parent != nil {
-            pt := parent.Type()
-            if pt == "call_expression" && (parent.ChildByFieldName("function") == node || parent.Child(0) == node) {
-                return TokenTypeFunction
-            }
-            if pt == "function_declaration" || pt == "method_signature" || pt == "method_definition" {
-                return TokenTypeFunction
-            }
-            if pt == "class_declaration" || pt == "interface_declaration" {
-                return TokenTypeType
-            }
-        }
-        return TokenTypeVariable
+	// Identifiers and function contexts
+	case "identifier", "property_identifier":
+		parent := node.Parent()
+		if parent != nil {
+			pt := parent.Type()
+			if pt == "call_expression" && (parent.ChildByFieldName("function") == node || parent.Child(0) == node) {
+				return TokenTypeFunction
+			}
+			if pt == "function_declaration" || pt == "method_signature" || pt == "method_definition" {
+				return TokenTypeFunction
+			}
+			if pt == "class_declaration" || pt == "interface_declaration" {
+				return TokenTypeType
+			}
+		}
+		return TokenTypeVariable
 
-    // Punctuation
-    case "(", ")", "[", "]", "{", "}", ",", ";", ".", ":", "<", ">":
-        return TokenTypePunctuation
+	// Punctuation (exclude '<' and '>' which we classify as operators)
+	case "(", ")", "[", "]", "{", "}", ",", ";", ".", ":":
+		return TokenTypePunctuation
 
-    // Operators
-    case "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>",
-        "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
-        "&&", "||", "++", "--",
-        "==", "!=", "===", "!==", "<", "<=", ">", ">=",
-        "=", "!", "~", "?":
-        return TokenTypeOperator
+	// Operators
+	case "+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>",
+		"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
+		"&&", "||", "++", "--",
+		"==", "!=", "===", "!==", "<", "<=", ">", ">=",
+		"=", "!", "~", "?", "=>":
+		return TokenTypeOperator
 
-    default:
-        return TokenTypeText
-    }
+	default:
+		return TokenTypeText
+	}
 }
 
 // mapGoNodeToTokenType maps Go-specific node types to token types
