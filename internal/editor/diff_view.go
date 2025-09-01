@@ -13,15 +13,15 @@ type DiffSession struct {
 	// The two buffers being compared
 	BufferA *buffer.Buffer // Previous version (left pane)
 	BufferB *buffer.Buffer // Current version (right pane)
-	
+
 	// Source content (for test compatibility)
 	ASource string // Previous version source
 	BSource string // Current version source
-	
+
 	// Syntax highlighters for each buffer
 	HighlighterA *syntax.Highlighter
 	HighlighterB *syntax.Highlighter
-	
+
 	// View state
 	ActivePane int // 0 for A (left), 1 for B (right)
 	PaneWidth  int // Width of each pane in characters
@@ -32,16 +32,16 @@ func NewDiffSession(previousContent, currentContent, filePath string) *DiffSessi
 	// Create buffers for both versions
 	bufferA := buffer.NewBuffer(previousContent, filePath+"@HEAD", config.IndentTabs, 4)
 	bufferB := buffer.NewBuffer(currentContent, filePath+"@current", config.IndentTabs, 4)
-	
+
 	// Mark the previous version as read-only
 	bufferA.IsReadOnly = true
-	
+
 	// Ensure both buffers have proper iterators
 	bufferA.ViewIterator = buffer.NewBufferIterator(bufferA)
 	bufferA.CursorIterator = buffer.NewBufferIterator(bufferA)
 	bufferB.ViewIterator = buffer.NewBufferIterator(bufferB)
 	bufferB.CursorIterator = buffer.NewBufferIterator(bufferB)
-	
+
 	ds := &DiffSession{
 		BufferA:    bufferA,
 		BufferB:    bufferB,
@@ -49,18 +49,18 @@ func NewDiffSession(previousContent, currentContent, filePath string) *DiffSessi
 		BSource:    currentContent,
 		ActivePane: 1, // Start with current version (B) active
 	}
-	
+
 	// Create syntax highlighters for both buffers
 	if filePath != "" {
 		ds.HighlighterA = syntax.NewHighlighter()
 		ds.HighlighterA.SetLanguageFromFile(filePath)
 		ds.HighlighterA.ParseFull([]byte(previousContent))
-		
+
 		ds.HighlighterB = syntax.NewHighlighter()
 		ds.HighlighterB.SetLanguageFromFile(filePath)
 		ds.HighlighterB.ParseFull([]byte(currentContent))
 	}
-	
+
 	return ds
 }
 
@@ -102,14 +102,14 @@ func (e *Editor) syncScrollInDiffMode() {
 	if len(e.windows) != 2 {
 		return
 	}
-	
+
 	// Get the current view line from the active buffer
 	if e.CurrentBuffer() == nil {
 		return
 	}
-	
+
 	currentViewLine := e.CurrentBuffer().ViewIterator.LineNumber()
-	
+
 	// Update both windows to reflect the synchronized view
 	if e.windows[0] != nil && e.windows[0].Buffer != nil {
 		e.windows[0].ViewLine = currentViewLine
@@ -125,13 +125,13 @@ func (e *Editor) startDiffSessionForCurrentBuffer(previousContent string) {
 	if e.CurrentBuffer() == nil {
 		return
 	}
-	
+
 	currentContent := e.CurrentBuffer().Rope.String()
 	filePath := e.CurrentBuffer().FilePath
-	
+
 	// Create the diff session
 	diffSession := NewDiffSession(previousContent, currentContent, filePath)
-	
+
 	// Note: DiffSession attachment removed as we're using simple buffer approach
 	_ = diffSession // Suppress unused variable warning
 }
@@ -139,21 +139,21 @@ func (e *Editor) startDiffSessionForCurrentBuffer(previousContent string) {
 // StartDiffViewForCurrentBuffer starts a diff view for the current buffer against git HEAD
 func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	LL.Debug("StartDiffViewForCurrentBuffer: Starting diff view")
-	
+
 	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		LL.Debug("StartDiffViewForCurrentBuffer: No valid file buffer")
 		return fmt.Errorf("no file buffer to diff")
 	}
-	
+
 	if e.proxyManager == nil {
 		LL.Debug("StartDiffViewForCurrentBuffer: No proxy manager available")
 		return fmt.Errorf("proxy manager not available")
 	}
-	
+
 	filePath := e.CurrentBuffer().FilePath
 	currentContent := e.CurrentBuffer().Rope.String()
 	LL.Debug("StartDiffViewForCurrentBuffer: File=%s, CurrentContentLen=%d", filePath, len(currentContent))
-	
+
 	// Get the previous version from git
 	previousContent, err := e.proxyManager.GetGitFileVersion(filePath, "HEAD")
 	if err != nil {
@@ -161,19 +161,19 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		return fmt.Errorf("failed to get git version: %w", err)
 	}
 	LL.Debug("StartDiffViewForCurrentBuffer: Git content retrieved, PreviousContentLen=%d", len(previousContent))
-	
+
 	// Compute diff to create aligned content with same number of lines
 	diffResult := computeDiff(previousContent, currentContent)
 	alignedHeadContent := createBufferContent(diffResult.LeftLines)
 	alignedCurrentContent := createBufferContent(diffResult.RightLines)
-	
-	LL.Debug("StartDiffViewForCurrentBuffer: Aligned content created - Head lines: %d, Current lines: %d", 
+
+	LL.Debug("StartDiffViewForCurrentBuffer: Aligned content created - Head lines: %d, Current lines: %d",
 		len(diffResult.LeftLines), len(diffResult.RightLines))
-	
+
 	// Create HEAD buffer name
 	headBufferName := filePath + "@HEAD"
 	currentBufferName := filePath + "@current"
-	
+
 	// Create or update HEAD buffer
 	if headBuffer, exists := e.buffers[headBufferName]; exists {
 		// Update existing buffer
@@ -189,25 +189,25 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		e.buffers[headBufferName] = headBuffer
 		e.bufferOrder = append(e.bufferOrder, headBufferName)
 	}
-	
+
 	// Ensure syntax highlighter exists and is updated for HEAD buffer
 	headBuffer := e.buffers[headBufferName]
 	if e.bufferHighlighters == nil {
 		e.bufferHighlighters = make(map[*buffer.Buffer]*syntax.Highlighter)
 	}
-	
+
 	// Always update or create the highlighter with the new content
 	headHighlighter := syntax.NewHighlighter()
 	headHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
 	headHighlighter.ParseFull([]byte(alignedHeadContent))
 	e.bufferHighlighters[headBuffer] = headHighlighter
-	
+
 	// Store diff line information for head buffer
 	e.diffLineInfo[headBuffer] = diffResult.LeftLines
-	
+
 	// Get current cursor position from the original buffer
 	currentCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
-	
+
 	// Create or update current buffer copy
 	if currentBuffer, exists := e.buffers[currentBufferName]; exists {
 		// Update existing buffer
@@ -226,42 +226,42 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		e.buffers[currentBufferName] = currentBuffer
 		e.bufferOrder = append(e.bufferOrder, currentBufferName)
 	}
-	
+
 	// Ensure syntax highlighter exists and is updated for current buffer
 	currentBuffer := e.buffers[currentBufferName]
-	
+
 	// Always update or create the highlighter with the new content
 	currentHighlighter := syntax.NewHighlighter()
 	currentHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
 	currentHighlighter.ParseFull([]byte(alignedCurrentContent))
 	e.bufferHighlighters[currentBuffer] = currentHighlighter
-	
+
 	// Store diff line information for current buffer
 	e.diffLineInfo[currentBuffer] = diffResult.RightLines
-	
+
 	// Ensure we have at least one more window for the HEAD version
 	if len(e.windows) < 2 {
 		e.createSecondWindow()
 	}
-	
+
 	// Find windows for HEAD (left) and current (right) versions
 	currentWindow := e.activeWindow
 	headWindow := -1
-	
+
 	// Put HEAD on the left, current on the right
 	if currentWindow == 0 {
 		// Current is in leftmost window, need window to the right for current
 		if len(e.windows) < 2 {
 			e.createSecondWindow()
 		}
-		headWindow = 0      // HEAD goes in current position (left)
-		currentWindow = 1   // Current moves to the right
+		headWindow = 0    // HEAD goes in current position (left)
+		currentWindow = 1 // Current moves to the right
 	} else {
 		// Current is not in leftmost window, use window to the left for HEAD
 		headWindow = currentWindow - 1
 		// currentWindow stays where it is (right side)
 	}
-	
+
 	// Set up the windows - HEAD on left, current on right
 	if headWindow >= 0 && headWindow < len(e.windows) {
 		e.windows[headWindow].Buffer = e.buffers[headBufferName]
@@ -269,15 +269,18 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	if currentWindow >= 0 && currentWindow < len(e.windows) {
 		e.windows[currentWindow].Buffer = e.buffers[currentBufferName]
 	}
-	
+
 	// Update active window to the current buffer (right side)
 	e.activeWindow = currentWindow
-	
-	// Switch to the current buffer 
+
+	// Switch to the current buffer
 	e.switchToBuffer(e.buffers[currentBufferName])
-	
+
+	// Recompute window layout to apply diff-specific width rules
+	e.recomputeWindowsLayout()
+
 	LL.Debug("StartDiffViewForCurrentBuffer: Diff view setup complete")
-	
+
 	return nil
 }
 
@@ -286,11 +289,11 @@ func (e *Editor) createSecondWindow() {
 	if len(e.windows) >= 2 {
 		return
 	}
-	
+
 	// Create a new empty window
 	newWin := newWindow(nil)
 	e.windows = append(e.windows, newWin)
-	
+
 	// Recompute layout to accommodate the new window
 	e.recomputeWindowsLayout()
 }
@@ -313,7 +316,7 @@ func (e *Editor) getDiffPairBuffer(buf *buffer.Buffer) *buffer.Buffer {
 	if buf == nil {
 		return nil
 	}
-	
+
 	if strings.HasSuffix(buf.FilePath, "@HEAD") {
 		// This is HEAD buffer, find the @current pair
 		currentPath := strings.TrimSuffix(buf.FilePath, "@HEAD") + "@current"
@@ -323,7 +326,7 @@ func (e *Editor) getDiffPairBuffer(buf *buffer.Buffer) *buffer.Buffer {
 		headPath := strings.TrimSuffix(buf.FilePath, "@current") + "@HEAD"
 		return e.buffers[headPath]
 	}
-	
+
 	return nil
 }
 
@@ -332,23 +335,23 @@ func (e *Editor) syncDiffCursors() {
 	if e.CurrentBuffer() == nil || !e.isDiffBuffer(e.CurrentBuffer()) {
 		return
 	}
-	
+
 	pairBuffer := e.getDiffPairBuffer(e.CurrentBuffer())
 	if pairBuffer == nil {
 		return
 	}
-	
+
 	// Get current cursor Y position (line number)
 	currentLine := e.CurrentBuffer().CursorIterator.LineNumber()
-	
+
 	// Sync the paired buffer's cursor Y position (but not X position)
 	pairBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(pairBuffer, currentLine)
 	// Note: We deliberately do NOT sync CursorX as content may differ
-	
+
 	// Sync the ViewIterator for scrolling - this is critical for proper scrolling
 	currentViewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 	pairBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(pairBuffer, currentViewLine)
-	
+
 	// Also sync the cursor and view position in the paired window
 	for _, window := range e.windows {
 		if window.Buffer == pairBuffer {
@@ -364,9 +367,9 @@ func (e *Editor) syncDiffCursors() {
 type DiffLine struct {
 	Content      string
 	LineType     DiffLineType
-	LeftLine     int  // Line number in left file (0-based), -1 if not present
-	RightLine    int  // Line number in right file (0-based), -1 if not present
-	IsFillerLine bool // True for empty lines added for alignment
+	LeftLine     int         // Line number in left file (0-based), -1 if not present
+	RightLine    int         // Line number in right file (0-based), -1 if not present
+	IsFillerLine bool        // True for empty lines added for alignment
 	WordRanges   []DiffRange // Character ranges that differ within the line (for DiffLineModified)
 }
 
@@ -380,10 +383,10 @@ type DiffRange struct {
 type DiffLineType int
 
 const (
-	DiffLineContext DiffLineType = iota // Unchanged line
-	DiffLineAdded                       // Line added in right file
-	DiffLineDeleted                     // Line removed from left file
-	DiffLineModified                    // Line changed between files
+	DiffLineContext  DiffLineType = iota // Unchanged line
+	DiffLineAdded                        // Line added in right file
+	DiffLineDeleted                      // Line removed from left file
+	DiffLineModified                     // Line changed between files
 )
 
 // DiffResult contains the result of comparing two texts
@@ -397,10 +400,10 @@ type DiffResult struct {
 // Uses a simple prefix/suffix matching approach for better accuracy
 func computeWordDiff(left, right string) []DiffRange {
 	var ranges []DiffRange
-	
+
 	leftRunes := []rune(left)
 	rightRunes := []rune(right)
-	
+
 	// Handle simple cases
 	if len(leftRunes) == 0 {
 		// Everything in right is new
@@ -409,19 +412,19 @@ func computeWordDiff(left, right string) []DiffRange {
 		}
 		return ranges
 	}
-	
+
 	if len(rightRunes) == 0 {
 		// Everything was deleted, nothing to highlight in right
 		return ranges
 	}
-	
+
 	// Find common prefix
 	commonPrefixLen := 0
 	minLen := len(leftRunes)
 	if len(rightRunes) < minLen {
 		minLen = len(rightRunes)
 	}
-	
+
 	for i := 0; i < minLen; i++ {
 		if leftRunes[i] == rightRunes[i] {
 			commonPrefixLen++
@@ -429,28 +432,28 @@ func computeWordDiff(left, right string) []DiffRange {
 			break
 		}
 	}
-	
+
 	// Find common suffix
 	commonSuffixLen := 0
 	leftIdx := len(leftRunes) - 1
 	rightIdx := len(rightRunes) - 1
-	
-	for leftIdx >= commonPrefixLen && rightIdx >= commonPrefixLen && 
-		  leftRunes[leftIdx] == rightRunes[rightIdx] {
+
+	for leftIdx >= commonPrefixLen && rightIdx >= commonPrefixLen &&
+		leftRunes[leftIdx] == rightRunes[rightIdx] {
 		commonSuffixLen++
 		leftIdx--
 		rightIdx--
 	}
-	
+
 	// Calculate the differing middle section
 	rightStart := commonPrefixLen
 	rightEnd := len(rightRunes) - commonSuffixLen
-	
+
 	// If there's a differing section, add it as a range
 	if rightStart < rightEnd {
 		ranges = append(ranges, DiffRange{Start: rightStart, End: rightEnd})
 	}
-	
+
 	return ranges
 }
 
@@ -466,17 +469,17 @@ func max(a, b int) int {
 func findCharLCS(left, right []rune) []LCSMatch {
 	leftLen := len(left)
 	rightLen := len(right)
-	
+
 	if leftLen == 0 || rightLen == 0 {
 		return []LCSMatch{}
 	}
-	
+
 	// Create LCS table
 	lcs := make([][]int, leftLen+1)
 	for i := range lcs {
 		lcs[i] = make([]int, rightLen+1)
 	}
-	
+
 	// Fill LCS table
 	for i := 1; i <= leftLen; i++ {
 		for j := 1; j <= rightLen; j++ {
@@ -487,13 +490,13 @@ func findCharLCS(left, right []rune) []LCSMatch {
 			}
 		}
 	}
-	
+
 	// Backtrack to find LCS
 	var matches []LCSMatch
 	i, j := leftLen, rightLen
 	for i > 0 && j > 0 {
 		if left[i-1] == right[j-1] {
-			matches = append([]LCSMatch{{LeftIdx: i-1, RightIdx: j-1}}, matches...)
+			matches = append([]LCSMatch{{LeftIdx: i - 1, RightIdx: j - 1}}, matches...)
 			i--
 			j--
 		} else if lcs[i-1][j] > lcs[i][j-1] {
@@ -502,7 +505,7 @@ func findCharLCS(left, right []rune) []LCSMatch {
 			j--
 		}
 	}
-	
+
 	return matches
 }
 
@@ -532,17 +535,17 @@ func alignLines(leftLines, rightLines []string) *DiffResult {
 
 	// Use dynamic programming to find longest common subsequence
 	lcs := findLCS(leftLines, rightLines)
-	
+
 	// Trace through both sequences to create aligned output
 	leftIdx := 0
 	rightIdx := 0
 	lcsIdx := 0
-	
+
 	for leftIdx < len(leftLines) || rightIdx < len(rightLines) {
 		// Check if we have a match from LCS
-		if lcsIdx < len(lcs) && 
-		   leftIdx < len(leftLines) && rightIdx < len(rightLines) &&
-		   lcs[lcsIdx].LeftIdx == leftIdx && lcs[lcsIdx].RightIdx == rightIdx {
+		if lcsIdx < len(lcs) &&
+			leftIdx < len(leftLines) && rightIdx < len(rightLines) &&
+			lcs[lcsIdx].LeftIdx == leftIdx && lcs[lcsIdx].RightIdx == rightIdx {
 			// Common line - context
 			line := leftLines[leftIdx]
 			result.LeftLines = append(result.LeftLines, DiffLine{
@@ -562,9 +565,9 @@ func alignLines(leftLines, rightLines []string) *DiffResult {
 			leftIdx++
 			rightIdx++
 			lcsIdx++
-		} else if leftIdx < len(leftLines) && 
-		         (rightIdx >= len(rightLines) || 
-		          (lcsIdx < len(lcs) && leftIdx < lcs[lcsIdx].LeftIdx)) {
+		} else if leftIdx < len(leftLines) &&
+			(rightIdx >= len(rightLines) ||
+				(lcsIdx < len(lcs) && leftIdx < lcs[lcsIdx].LeftIdx)) {
 			// Line only in left (deleted)
 			result.LeftLines = append(result.LeftLines, DiffLine{
 				Content:      leftLines[leftIdx],
@@ -603,7 +606,7 @@ func alignLines(leftLines, rightLines []string) *DiffResult {
 
 	// Post-process to detect modifications (delete+insert pairs)
 	result = detectModifications(result)
-	
+
 	return result
 }
 
@@ -646,7 +649,7 @@ func findLCS(leftLines, rightLines []string) []LCSMatch {
 	i, j := m, n
 	for i > 0 && j > 0 {
 		if leftLines[i-1] == rightLines[j-1] {
-			matches = append([]LCSMatch{{LeftIdx: i-1, RightIdx: j-1}}, matches...)
+			matches = append([]LCSMatch{{LeftIdx: i - 1, RightIdx: j - 1}}, matches...)
 			i--
 			j--
 		} else if dp[i-1][j] > dp[i][j-1] {
@@ -677,14 +680,14 @@ func detectModifications(result *DiffResult) *DiffResult {
 
 		// Check if this is a delete+insert pair that should be a modification
 		if i+1 < len(result.LeftLines) &&
-		   leftLine.LineType == DiffLineDeleted && rightLine.LineType == DiffLineDeleted &&
-		   result.LeftLines[i+1].LineType == DiffLineAdded && result.RightLines[i+1].LineType == DiffLineAdded &&
-		   leftLine.IsFillerLine == false && rightLine.IsFillerLine == true &&
-		   result.LeftLines[i+1].IsFillerLine == true && result.RightLines[i+1].IsFillerLine == false {
-			
+			leftLine.LineType == DiffLineDeleted && rightLine.LineType == DiffLineDeleted &&
+			result.LeftLines[i+1].LineType == DiffLineAdded && result.RightLines[i+1].LineType == DiffLineAdded &&
+			leftLine.IsFillerLine == false && rightLine.IsFillerLine == true &&
+			result.LeftLines[i+1].IsFillerLine == true && result.RightLines[i+1].IsFillerLine == false {
+
 			// This is a delete+insert pair - convert to modification
 			nextRightLine := result.RightLines[i+1]
-			
+
 			// Compute word-level differences for the modified lines
 			wordRanges := computeWordDiff(leftLine.Content, nextRightLine.Content)
 
@@ -717,7 +720,6 @@ func detectModifications(result *DiffResult) *DiffResult {
 	return newResult
 }
 
-
 // isDiffViewActive checks if any windows contain diff buffers (indicating active diff view)
 func (e *Editor) isDiffViewActive() bool {
 	for _, window := range e.windows {
@@ -726,6 +728,29 @@ func (e *Editor) isDiffViewActive() bool {
 		}
 	}
 	return false
+}
+
+// findDiffWindowPair returns the indices of the two windows containing the diff pair buffers
+// Returns (-1, -1) if no diff pair is found
+func (e *Editor) findDiffWindowPair() (int, int) {
+	leftIdx := -1
+	rightIdx := -1
+
+	for i, window := range e.windows {
+		if window != nil && window.Buffer != nil {
+			if strings.HasSuffix(window.Buffer.FilePath, "@HEAD") {
+				leftIdx = i
+			} else if strings.HasSuffix(window.Buffer.FilePath, "@current") {
+				rightIdx = i
+			}
+		}
+	}
+
+	// Only return valid indices if both parts of the diff are found
+	if leftIdx >= 0 && rightIdx >= 0 {
+		return leftIdx, rightIdx
+	}
+	return -1, -1
 }
 
 // createBufferContent creates the actual text content for a buffer from DiffLines

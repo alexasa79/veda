@@ -115,35 +115,9 @@ func (e *Editor) recomputeWindowsLayout() {
 		return
 	}
 
-	// Calculate minimum window width if configured
-	// Skip minimum width adjustment for diff buffers to ensure equal window sizes
-	var minW int
-	isDiffMode := e.CurrentBuffer() != nil && e.isDiffBuffer(e.CurrentBuffer())
-	if e.minActiveWindowWidth > 0 && !isDiffMode {
-		// minActiveWindowWidth specifies buffer content columns
-		// Add gutter width (line numbers + indicators) to get total window width
-		gutterWidth := 0
-		if e.CurrentBuffer() != nil {
-			gutterWidth = e.CurrentBuffer().LineNumberWidth
-		} else {
-			// Fallback: assume typical gutter width for reasonable line counts
-			gutterWidth = 7 // 4 digits + 1 padding + 2 indicators
-		}
-		minW = e.minActiveWindowWidth + gutterWidth
-
-		if minW > screenW-(n-1) {
-			// leave at least 1 column for others total
-			minW = screenW - (n - 1)
-			if minW < 1 {
-				minW = 1
-			}
-		}
-	}
-
-	activeIdx := e.activeWindow
-	if activeIdx < 0 || activeIdx >= n {
-		activeIdx = 0
-	}
+	// Check if we're in diff view mode
+	diffLeftIdx, diffRightIdx := e.findDiffWindowPair()
+	isDiffMode := diffLeftIdx >= 0 && diffRightIdx >= 0
 
 	// Start with equal distribution across all windows
 	widths := make([]int, n)
@@ -157,32 +131,109 @@ func (e *Editor) recomputeWindowsLayout() {
 		widths[i] = w
 	}
 
-	// If minimum width is configured and the active window is narrower than the minimum,
-	// enlarge it by borrowing columns from other windows (preferentially from widest ones).
-	if minW > 0 && widths[activeIdx] < minW {
-		need := minW - widths[activeIdx]
-		widths[activeIdx] = minW
+	if isDiffMode {
+		// In diff mode, make the two diff windows equal and wider than others
+		// Calculate how much extra space we can give to diff windows
+		minOtherWidth := 20   // Minimum width for non-diff windows
+		nonDiffCount := n - 2 // Number of non-diff windows
 
-		// Borrow one column at a time from other windows in rounds to keep balance
-		for need > 0 {
-			// Find a donor window with the largest current width (excluding active)
-			donor := -1
-			donorWidth := -1
-			for i := 0; i < n; i++ {
-				if i == activeIdx {
-					continue
+		if nonDiffCount > 0 {
+			// Calculate space available for diff windows after giving minimum to others
+			spaceForOthers := minOtherWidth * nonDiffCount
+			spaceForDiff := screenW - spaceForOthers
+
+			if spaceForDiff >= 40 { // Ensure diff windows get at least 20 cols each
+				// Each diff window gets half of the remaining space
+				diffWidth := spaceForDiff / 2
+				extraDiff := spaceForDiff % 2
+
+				// Set diff window widths
+				widths[diffLeftIdx] = diffWidth
+				widths[diffRightIdx] = diffWidth
+				if extraDiff > 0 {
+					// Give extra column to one of the diff windows
+					widths[diffLeftIdx]++
 				}
-				if widths[i] > donorWidth && widths[i] > 1 { // keep at least 1 col
-					donor = i
-					donorWidth = widths[i]
+
+				// Distribute remaining space among non-diff windows
+				remainingSpace := screenW - widths[diffLeftIdx] - widths[diffRightIdx]
+				if nonDiffCount > 0 {
+					otherBase := remainingSpace / nonDiffCount
+					otherExtra := remainingSpace % nonDiffCount
+					otherIdx := 0
+					for i := 0; i < n; i++ {
+						if i != diffLeftIdx && i != diffRightIdx {
+							widths[i] = otherBase
+							if otherIdx < otherExtra {
+								widths[i]++
+							}
+							otherIdx++
+						}
+					}
 				}
 			}
-			if donor == -1 {
-				// No donor available (should not happen due to minW clamp), stop
-				break
+			// If not enough space, fall back to equal distribution (already set above)
+		} else {
+			// Only two windows and both are diff windows - make them equal
+			widths[diffLeftIdx] = screenW / 2
+			widths[diffRightIdx] = screenW - widths[diffLeftIdx]
+		}
+	} else {
+		// Not in diff mode - apply minimum width for active window if configured
+		activeIdx := e.activeWindow
+		if activeIdx < 0 || activeIdx >= n {
+			activeIdx = 0
+		}
+
+		var minW int
+		if e.minActiveWindowWidth > 0 {
+			// minActiveWindowWidth specifies buffer content columns
+			// Add gutter width (line numbers + indicators) to get total window width
+			gutterWidth := 0
+			if e.CurrentBuffer() != nil {
+				gutterWidth = e.CurrentBuffer().LineNumberWidth
+			} else {
+				// Fallback: assume typical gutter width for reasonable line counts
+				gutterWidth = 7 // 4 digits + 1 padding + 2 indicators
 			}
-			widths[donor]--
-			need--
+			minW = e.minActiveWindowWidth + gutterWidth
+
+			if minW > screenW-(n-1) {
+				// leave at least 1 column for others total
+				minW = screenW - (n - 1)
+				if minW < 1 {
+					minW = 1
+				}
+			}
+		}
+
+		// If minimum width is configured and the active window is narrower than the minimum,
+		// enlarge it by borrowing columns from other windows (preferentially from widest ones).
+		if minW > 0 && widths[activeIdx] < minW {
+			need := minW - widths[activeIdx]
+			widths[activeIdx] = minW
+
+			// Borrow one column at a time from other windows in rounds to keep balance
+			for need > 0 {
+				// Find a donor window with the largest current width (excluding active)
+				donor := -1
+				donorWidth := -1
+				for i := 0; i < n; i++ {
+					if i == activeIdx {
+						continue
+					}
+					if widths[i] > donorWidth && widths[i] > 1 { // keep at least 1 col
+						donor = i
+						donorWidth = widths[i]
+					}
+				}
+				if donor == -1 {
+					// No donor available (should not happen due to minW clamp), stop
+					break
+				}
+				widths[donor]--
+				need--
+			}
 		}
 	}
 
