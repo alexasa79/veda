@@ -190,20 +190,20 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		e.bufferOrder = append(e.bufferOrder, headBufferName)
 	}
 	
-	// Ensure syntax highlighter exists for HEAD buffer
+	// Ensure syntax highlighter exists and is updated for HEAD buffer
 	headBuffer := e.buffers[headBufferName]
 	if e.bufferHighlighters == nil {
 		e.bufferHighlighters = make(map[*buffer.Buffer]*syntax.Highlighter)
 	}
-	if _, exists := e.bufferHighlighters[headBuffer]; !exists {
-		headHighlighter := syntax.NewHighlighter()
-		headHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
-		headHighlighter.ParseFull([]byte(alignedHeadContent))
-		e.bufferHighlighters[headBuffer] = headHighlighter
-		
-		// Store diff line information for head buffer
-		e.diffLineInfo[headBuffer] = diffResult.LeftLines
-	}
+	
+	// Always update or create the highlighter with the new content
+	headHighlighter := syntax.NewHighlighter()
+	headHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
+	headHighlighter.ParseFull([]byte(alignedHeadContent))
+	e.bufferHighlighters[headBuffer] = headHighlighter
+	
+	// Store diff line information for head buffer
+	e.diffLineInfo[headBuffer] = diffResult.LeftLines
 	
 	// Get current cursor position from the original buffer
 	currentCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
@@ -227,17 +227,17 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		e.bufferOrder = append(e.bufferOrder, currentBufferName)
 	}
 	
-	// Ensure syntax highlighter exists for current buffer
+	// Ensure syntax highlighter exists and is updated for current buffer
 	currentBuffer := e.buffers[currentBufferName]
-	if _, exists := e.bufferHighlighters[currentBuffer]; !exists {
-		currentHighlighter := syntax.NewHighlighter()
-		currentHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
-		currentHighlighter.ParseFull([]byte(alignedCurrentContent))
-		e.bufferHighlighters[currentBuffer] = currentHighlighter
-		
-		// Store diff line information for current buffer
-		e.diffLineInfo[currentBuffer] = diffResult.RightLines
-	}
+	
+	// Always update or create the highlighter with the new content
+	currentHighlighter := syntax.NewHighlighter()
+	currentHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
+	currentHighlighter.ParseFull([]byte(alignedCurrentContent))
+	e.bufferHighlighters[currentBuffer] = currentHighlighter
+	
+	// Store diff line information for current buffer
+	e.diffLineInfo[currentBuffer] = diffResult.RightLines
 	
 	// Ensure we have at least one more window for the HEAD version
 	if len(e.windows) < 2 {

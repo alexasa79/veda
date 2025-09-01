@@ -704,9 +704,7 @@ func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) 
 
 // GetGitFileVersion gets a specific git version of a file
 func (pm *ProxyManager) GetGitFileVersion(path string, revision string) (string, error) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
+	// Don't hold the lock while calling getClient, as it needs to acquire the lock itself
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return "", err

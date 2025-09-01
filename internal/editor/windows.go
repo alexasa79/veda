@@ -116,8 +116,10 @@ func (e *Editor) recomputeWindowsLayout() {
 	}
 
 	// Calculate minimum window width if configured
+	// Skip minimum width adjustment for diff buffers to ensure equal window sizes
 	var minW int
-	if e.minActiveWindowWidth > 0 {
+	isDiffMode := e.CurrentBuffer() != nil && e.isDiffBuffer(e.CurrentBuffer())
+	if e.minActiveWindowWidth > 0 && !isDiffMode {
 		// minActiveWindowWidth specifies buffer content columns
 		// Add gutter width (line numbers + indicators) to get total window width
 		gutterWidth := 0

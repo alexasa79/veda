@@ -63,9 +63,6 @@ func (e *Editor) scroll() {
 		}
 	}
 	e.perfTracker.ReportSince("scroll.core", t0)
-	
-	// Sync diff cursors after scrolling to maintain synchronization
-	e.syncDiffCursors()
 }
 
 // scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top
