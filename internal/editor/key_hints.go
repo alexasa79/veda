@@ -62,6 +62,7 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 
 		// File/Buffer commands
 		"open-file":                 "open file",
+		"reload-file":               "reload file",
 		"switch-to-previous-buffer": "previous buffer",
 		"new-buffer":                "new buffer",
 		"show-project-changes":      "project changes",
