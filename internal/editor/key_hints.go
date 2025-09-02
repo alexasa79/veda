@@ -103,9 +103,10 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"rewrap-paragraph": "rewrap paragraph",
 
 		// Window management commands
-		"move-buffer-left":   "move buffer left",
-		"move-buffer-right":  "move buffer right",
-		"move-buffer-center": "move buffer center",
+		"move-buffer-left":          "move buffer left",
+		"move-buffer-right":         "move buffer right",
+		"move-buffer-center":        "move buffer center",
+		"toggle-window-fullscreen":  "toggle fullscreen",
 
 		// Terminal
 		"term":            "open terminal",

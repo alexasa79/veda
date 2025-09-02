@@ -237,7 +237,8 @@ type Editor struct {
 	lastWindow   int       // Index of previously active window (-1 if none)
 
 	// Window sizing preferences
-	minActiveWindowWidth int // Minimum width (columns) for the active window
+	minActiveWindowWidth int  // Minimum width (columns) for the active window
+	windowFullscreen     bool // Whether active window is in fullscreen mode
 
 	// Terminal sessions per buffer (PTY via proxy)
 	terminalSessions map[string]*TerminalSessionState

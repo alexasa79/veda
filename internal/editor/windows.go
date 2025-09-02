@@ -94,6 +94,7 @@ func (e *Editor) activateWindow(idx int) {
 // recomputeWindowsLayout recalculates all window rectangles.
 // It aims for equal widths, but guarantees the active window has at least
 // minActiveWindowWidth columns without reducing it if it would naturally be wider.
+// When windowFullscreen is true, the active window gets most of the screen width.
 func (e *Editor) recomputeWindowsLayout() {
 	if len(e.windows) == 0 {
 		return
@@ -112,6 +113,55 @@ func (e *Editor) recomputeWindowsLayout() {
 		e.windows[0].Y = 0
 		e.windows[0].Width = screenW
 		e.windows[0].Height = contentH
+		return
+	}
+
+	// Handle fullscreen mode
+	if e.windowFullscreen {
+		activeIdx := e.activeWindow
+		if activeIdx < 0 || activeIdx >= n {
+			activeIdx = 0
+		}
+
+		// Give 10 characters to each non-active window
+		minOtherWidth := 10
+		otherWindowsTotal := minOtherWidth * (n - 1)
+		
+		// Active window gets the rest
+		activeWidth := screenW - otherWindowsTotal
+		if activeWidth < 20 { // Ensure active window gets at least 20 columns
+			activeWidth = 20
+			// Recalculate other windows if needed
+			otherWindowsTotal = screenW - activeWidth
+			if otherWindowsTotal > 0 && n > 1 {
+				minOtherWidth = otherWindowsTotal / (n - 1)
+				if minOtherWidth < 1 {
+					minOtherWidth = 1
+				}
+			}
+		}
+
+		// Set window positions and sizes
+		x := 0
+		for i := 0; i < n; i++ {
+			e.windows[i].X = x
+			e.windows[i].Y = 0
+			e.windows[i].Height = contentH
+			
+			if i == activeIdx {
+				e.windows[i].Width = activeWidth
+				x += activeWidth
+			} else {
+				width := minOtherWidth
+				// Distribute any remaining space among non-active windows
+				if i == n-1 {
+					// Last window gets any remaining space
+					width = screenW - x
+				}
+				e.windows[i].Width = width
+				x += width
+			}
+		}
 		return
 	}
 
@@ -500,6 +550,22 @@ func (e *Editor) moveBufferCenter(args []string) error {
 
 	e.activateWindow(center)
 	e.recomputeWindowsLayout()
+	return nil
+}
+
+// toggleWindowFullscreen toggles fullscreen mode for the active window
+func (e *Editor) toggleWindowFullscreen(args []string) error {
+	// Only makes sense with multiple windows
+	if len(e.windows) <= 1 {
+		return nil
+	}
+	
+	// Toggle the fullscreen state
+	e.windowFullscreen = !e.windowFullscreen
+	
+	// Recompute layout with new fullscreen state
+	e.recomputeWindowsLayout()
+	
 	return nil
 }
 
