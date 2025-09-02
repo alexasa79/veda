@@ -28,7 +28,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.14"
+const ProxyVersion = "1.0.17"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
