@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.14"
+PROXY_VERSION = "1.0.17"
 
 # Set up logging directory
 from datetime import datetime
@@ -59,6 +59,7 @@ class LSPManager:
         self.message_buffers = {}  # language -> list of all LSP messages
         self.pending_requests = {}  # language -> {request_id: threading.Event}
         self.response_cache = {}  # language -> {request_id: response}
+        self.request_details = {}  # language -> {request_id: {'method': str, 'file': str, 'timestamp': float}}
         self.diagnostics = {}  # uri -> list of diagnostics
         self.pending_file_opens = {}  # language -> set of file paths to open after init
         self.file_versions = {}  # file_path -> version number for LSP synchronization
@@ -151,7 +152,7 @@ class LSPManager:
         cmd = config['command']
         
         try:
-            logger.info(f"Starting {cmd[0]} for {language}")
+            logger.info(f"Starting {language} LSP server: {cmd[0]}")
             # Route clangd stderr to a dedicated log file for diagnostics
             stderr_target = subprocess.DEVNULL
             try:
@@ -205,8 +206,11 @@ class LSPManager:
                                 # This is a notification or server request
                                 self._handle_server_message(language, msg)
                     except Exception as e:
-                        logger.error(f"Error reading LSP message: {e}")
-                        break
+                        logger.error(f"Error reading {language} LSP message: {e}", exc_info=True)
+                        # Don't break - try to continue reading
+                        # This prevents one bad message from killing the reader thread
+                        import time
+                        time.sleep(0.1)  # Brief pause before retrying
             
             reader_thread = threading.Thread(target=read_messages, daemon=True)
             reader_thread.start()
@@ -353,6 +357,16 @@ class LSPManager:
             }
             self._send_message(language, notification)
     
+    def _track_request(self, language: str, request_id: int, method: str, file_path: str = None):
+        """Track request details for better debugging."""
+        if language not in self.request_details:
+            self.request_details[language] = {}
+        self.request_details[language][request_id] = {
+            'method': method,
+            'file': file_path or 'workspace',
+            'timestamp': time.time()
+        }
+    
     def _send_message(self, language: str, message: Dict[str, Any]):
         """Send a message to an LSP server with proper LSP headers."""
         if language not in self.servers:
@@ -480,7 +494,8 @@ class LSPManager:
             }
         }
         
-        logger.info(f"Sending textDocument/definition request for {file_uri} at {line}:{character}")
+        logger.info(f"Sending textDocument/definition request to {language} LSP for {file_uri} at {line}:{character} (request {request_id})")
+        self._track_request(language, request_id, "textDocument/definition", file_path)
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
@@ -545,7 +560,8 @@ class LSPManager:
             }
         }
         
-        logger.info(f"Sending textDocument/completion request for {file_uri} at {line}:{character}")
+        logger.info(f"Sending textDocument/completion request to {language} LSP for {file_uri} at {line}:{character} (request {request_id})")
+        self._track_request(language, request_id, "textDocument/completion", file_path)
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
@@ -598,7 +614,8 @@ class LSPManager:
             }
         }
         
-        logger.info(f"Sending textDocument/references request for {file_uri} at {line}:{character}")
+        logger.info(f"Sending textDocument/references request to {language} LSP for {file_uri} at {line}:{character} (request {request_id})")
+        self._track_request(language, request_id, "textDocument/references", file_path)
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
@@ -657,7 +674,8 @@ class LSPManager:
             }
         }
         
-        logger.info(f"Sending textDocument/signatureHelp request for {file_uri} at {line}:{character}")
+        logger.info(f"Sending textDocument/signatureHelp request to {language} LSP for {file_uri} at {line}:{character} (request {request_id})")
+        self._track_request(language, request_id, "textDocument/signatureHelp", file_path)
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
@@ -707,7 +725,8 @@ class LSPManager:
             }
         }
         
-        logger.info(f"Sending textDocument/documentSymbol request for {file_uri}")
+        logger.info(f"Sending textDocument/documentSymbol request to {language} LSP for {file_uri} (request {request_id})")
+        self._track_request(language, request_id, "textDocument/documentSymbol", file_path)
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
@@ -747,7 +766,8 @@ class LSPManager:
                 }
             }
             
-            logger.info(f"Sending workspace/symbol request to {language} server with query: {query}")
+            logger.info(f"Sending workspace/symbol request to {language} LSP with query: {query} (request {request_id})")
+            self._track_request(language, request_id, "workspace/symbol")
             self._send_message(language, request)
             
             # Wait for the response with our specific request ID
@@ -835,7 +855,8 @@ class LSPManager:
             }
         }
         
-        logger.info(f"Sending textDocument/foldingRange request for {file_uri}")
+        logger.info(f"Sending textDocument/foldingRange request to {language} LSP for {file_uri} (request {request_id})")
+        self._track_request(language, request_id, "textDocument/foldingRange", file_path)
         self._send_message(language, request)
         
         # Wait for the response with our specific request ID
@@ -972,24 +993,50 @@ class LSPManager:
         process = self.servers[language]['process']
         
         try:
-            # Read headers
+            # Read headers line by line until we hit an empty line
             headers = {}
             while True:
                 line = process.stdout.readline()
+                if not line:  # EOF
+                    logger.debug(f"{language} LSP server closed connection")
+                    return None
+                
+                # Check for end of headers (empty line)
+                # LSP uses \r\n line endings
                 if line == '\r\n' or line == '\n':
                     break
+                    
+                # Remove trailing whitespace
+                line = line.rstrip()
+                
+                # Parse header: "Key: Value"
                 if ':' in line:
                     key, value = line.split(':', 1)
                     headers[key.strip()] = value.strip()
             
-            # Read content
-            if 'Content-Length' in headers:
-                content_length = int(headers['Content-Length'])
-                content = process.stdout.read(content_length)
-                return json.loads(content)
+            # Content-Length is required
+            if 'Content-Length' not in headers:
+                logger.error(f"{language} LSP: No Content-Length header found. Headers: {headers}")
+                return None
+            
+            # Read the content based on Content-Length
+            content_length = int(headers['Content-Length'])
+            content = process.stdout.read(content_length)
+            
+            if len(content) != content_length:
+                logger.error(f"{language} LSP: Expected {content_length} bytes, got {len(content)}")
+                return None
+            
+            # Parse JSON
+            return json.loads(content)
                 
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from {language} LSP server: {e}")
+            logger.debug(f"Content that failed to parse: {repr(content[:500])}")
+        except ValueError as e:
+            logger.error(f"Invalid Content-Length from {language} LSP server: {e}")
         except Exception as e:
-            logger.error(f"Failed to read message from {language} LSP server: {e}")
+            logger.error(f"Failed to read message from {language} LSP server: {e}", exc_info=True)
             
         return None
     
@@ -1027,11 +1074,24 @@ class LSPManager:
             # Response received
             response = self.response_cache[language].pop(request_id, None)
             del self.pending_requests[language][request_id]
+            # Clean up request details
+            if language in self.request_details and request_id in self.request_details[language]:
+                del self.request_details[language][request_id]
             return response
         else:
-            # Timeout
+            # Timeout - provide detailed error message
             del self.pending_requests[language][request_id]
-            logger.error(f"Timeout waiting for response to request {request_id}")
+            
+            # Get request details for better error message
+            details_msg = ""
+            if language in self.request_details and request_id in self.request_details[language]:
+                details = self.request_details[language][request_id]
+                details_msg = f" ({language} LSP: {details['method']} for {details.get('file', 'unknown file')})"
+                del self.request_details[language][request_id]
+            else:
+                details_msg = f" ({language} LSP)"
+            
+            logger.error(f"Timeout waiting for response to request {request_id}{details_msg} after {timeout}s")
             return None
     
     def _read_response(self, language: str) -> Optional[Dict[str, Any]]:
@@ -1105,7 +1165,21 @@ def log_proxy_method(func):
             result = func(*args, **kwargs)
             elapsed = time.time() - start_time
             
-            # Log result summary
+            # Log result summary - include key context like file path
+            context = ""
+            # Extract key parameters for context
+            if len(args) > 1:
+                import inspect
+                sig = inspect.signature(func)
+                param_names = list(sig.parameters.keys())[1:]  # Skip 'self'
+                # Look for key parameters
+                for i, (param_name, value) in enumerate(zip(param_names, args[1:])):
+                    if param_name in ['path', 'file_path', 'file', 'uri']:
+                        context = f" for {value}"
+                        break
+                    elif param_name == 'language':
+                        context = f" ({value} LSP)"
+            
             if isinstance(result, dict):
                 if 'success' in result:
                     summary = f"success={result['success']}"
@@ -1126,7 +1200,7 @@ def log_proxy_method(func):
             else:
                 summary = str(result)[:100]
             
-            logger.info(f"[{method_name}] Completed in {elapsed:.3f}s: {summary}")
+            logger.info(f"[{method_name}] Completed in {elapsed:.3f}s{context}: {summary}")
             return result
             
         except Exception as e:
