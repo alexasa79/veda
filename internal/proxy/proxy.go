@@ -28,7 +28,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.17"
+const ProxyVersion = "1.0.18"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -390,24 +390,24 @@ func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
 	return fileContent, err
 }
 
-// WriteFile writes content to a file (local or remote) and returns diagnostics
-func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, error) {
+// WriteFile writes content to a file (local or remote) and returns diagnostics and git changes
+func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, *FileChanges, error) {
 	startTime := time.Now()
 
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	LL.Debug("ProxyManager.WriteFile: path=%s, actualPath=%s", path, actualPath)
 
-	diagnostics, err := client.WriteFile(actualPath, content)
+	diagnostics, changes, err := client.WriteFile(actualPath, content)
 	if shouldReconnect(err) {
 		host, _, _ := parseRemotePath(path)
 		pm.reportStatus("Disconnected")
 		if _, rerr := pm.reconnect(host); rerr == nil {
 			if client2, _, gerr := pm.getClient(path); gerr == nil {
-				diagnostics, err = client2.WriteFile(actualPath, content)
+				diagnostics, changes, err = client2.WriteFile(actualPath, content)
 			}
 		}
 	}
@@ -415,7 +415,7 @@ func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, er
 		duration := time.Since(startTime)
 		LL.Info("Wrote file %s in %v", path, duration)
 	}
-	return diagnostics, err
+	return diagnostics, changes, err
 }
 
 // GetFileAttributes gets attributes of a file or directory (supports HOST:PATH format)
@@ -2131,8 +2131,8 @@ func (c *Client) ListProjectSymbols(query string) ([]ProjectSymbol, error) {
 	return nil, fmt.Errorf("no symbols found in project")
 }
 
-// WriteFile writes content to a file and returns diagnostics
-func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
+// WriteFile writes content to a file and returns diagnostics and git changes
+func (c *Client) WriteFile(path string, content string) ([]Diagnostic, *FileChanges, error) {
 	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "write_file",
@@ -2145,14 +2145,15 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
 
 	response, err := c.sendRequestWithTimeout(request)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
-		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+		return nil, nil, fmt.Errorf("proxy error: %s", errorMsg)
 	}
 
 	var diagnostics []Diagnostic
+	var changes *FileChanges
 
 	if result, ok := response["result"].(map[string]interface{}); ok {
 		if success, ok := result["success"].(bool); ok && success {
@@ -2182,11 +2183,38 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, error) {
 					}
 				}
 			}
-			return diagnostics, nil
+			
+			// Parse git changes if present
+			if changesData, ok := result["changes"].(map[string]interface{}); ok {
+				changes = &FileChanges{}
+				if added, ok := changesData["added"].([]interface{}); ok {
+					for _, item := range added {
+						if lineNum, ok := item.(float64); ok {
+							changes.Added = append(changes.Added, int(lineNum))
+						}
+					}
+				}
+				if deleted, ok := changesData["deleted"].([]interface{}); ok {
+					for _, item := range deleted {
+						if lineNum, ok := item.(float64); ok {
+							changes.Deleted = append(changes.Deleted, int(lineNum))
+						}
+					}
+				}
+				if modified, ok := changesData["modified"].([]interface{}); ok {
+					for _, item := range modified {
+						if lineNum, ok := item.(float64); ok {
+							changes.Modified = append(changes.Modified, int(lineNum))
+						}
+					}
+				}
+			}
+			
+			return diagnostics, changes, nil
 		}
 	}
 
-	return nil, fmt.Errorf("failed to write file")
+	return nil, nil, fmt.Errorf("failed to write file")
 }
 
 // GetCompletions gets completion suggestions at the given position

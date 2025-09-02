@@ -1007,8 +1007,8 @@ func (e *Editor) writeFile(args []string) error {
 		defer e.endAsyncOperation(operationID)
 		defer func() { e.connectionStatus = "" }() // Clear status when done
 
-		// Write the file and get updated diagnostics
-		diagnostics, err := e.proxyManager.WriteFile(filePath, content)
+		// Write the file and get updated diagnostics and git changes
+		diagnostics, gitChanges, err := e.proxyManager.WriteFile(filePath, content)
 		if err != nil {
 			LL.Error("Failed to write file %s: %v", filePath, err)
 			e.ShowError("Failed to save file: %v", err)
@@ -1017,6 +1017,9 @@ func (e *Editor) writeFile(args []string) error {
 
 		// Update buffer diagnostics with the returned diagnostics
 		target.Diagnostics = diagnostics
+		
+		// Update buffer git changes with the returned git changes
+		target.GitChanges = gitChanges
 
 		// If this is a "save as" operation, update the buffer's file path
 		if saveAs {

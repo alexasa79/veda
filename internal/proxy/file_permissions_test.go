@@ -45,7 +45,7 @@ func TestWriteFilePreservesExecutablePermission(t *testing.T) {
 	t.Logf("Initial file permissions: %v", initialMode.Perm())
 
 	// Save the file through the proxy (simulating editor save)
-	_, err = client.WriteFile(testFile, modifiedContent)
+	_, _, err = client.WriteFile(testFile, modifiedContent)
 	if err != nil {
 		t.Fatalf("Failed to write file through proxy: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestWriteFilePreservesExecutablePermission(t *testing.T) {
 		}
 
 		// Write through proxy
-		_, err = client.WriteFile(nonExecFile, "modified")
+		_, _, err = client.WriteFile(nonExecFile, "modified")
 		if err != nil {
 			t.Fatalf("Failed to write non-executable file: %v", err)
 		}

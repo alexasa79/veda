@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.17"
+PROXY_VERSION = "1.0.18"
 
 # Set up logging directory
 from datetime import datetime
@@ -1766,14 +1766,14 @@ class VedaProxy:
     @log_proxy_method
     def write_file(self, path: str, content: str) -> Dict[str, Any]:
         """
-        Write content to a file and return diagnostics.
+        Write content to a file and return diagnostics and git changes.
         
         Args:
             path: Absolute file path to write
             content: Content to write to the file
             
         Returns:
-            Dictionary with 'success' key and 'diagnostics' list
+            Dictionary with 'success' key, 'diagnostics' list, and 'changes' dict
         """
         file_path = Path(path).expanduser().resolve()
         
@@ -1826,6 +1826,34 @@ class VedaProxy:
                 # TODO: Send didSave notification to LSP server
                 logger.info(f"File saved, should notify LSP server for {language}")
             
+            # Get git changes for the file after save
+            changes = {'added': [], 'deleted': [], 'modified': []}
+            try:
+                # Run git diff for the file
+                cmd = ['git', 'diff', 'HEAD', '--', str(file_path)]
+                result = self._run_shell_command(cmd, cwd=file_path.parent)
+                
+                if result.returncode != 0:
+                    # Try unstaged changes
+                    cmd = ['git', 'diff', '--', str(file_path)]
+                    result = self._run_shell_command(cmd, cwd=file_path.parent)
+                
+                if result.returncode == 0 and result.stdout:
+                    changes = self._parse_git_diff(result.stdout)
+                
+                # Also check staged changes
+                cmd_staged = ['git', 'diff', '--cached', '--', str(file_path)]
+                result_staged = self._run_shell_command(cmd_staged, cwd=file_path.parent)
+                
+                if result_staged.returncode == 0 and result_staged.stdout:
+                    staged_changes = self._parse_git_diff(result_staged.stdout)
+                    # Merge staged and unstaged changes
+                    for key in ['added', 'deleted', 'modified']:
+                        changes[key] = sorted(list(set(changes.get(key, []) + staged_changes.get(key, []))))
+            except Exception as e:
+                logger.warning(f"Could not get git changes for {path}: {e}")
+                # Don't fail the whole operation if git diff fails
+            
             # Collect diagnostics for this file from LSP cache
             diagnostics_list = []
             try:
@@ -1860,7 +1888,7 @@ class VedaProxy:
             except Exception as e:
                 logger.warning(f"Failed to translate diagnostics for {path}: {e}")
             
-            return {'success': True, 'diagnostics': diagnostics_list}
+            return {'success': True, 'diagnostics': diagnostics_list, 'changes': changes}
         except PermissionError:
             raise PermissionError(f"Permission denied: {path}")
         except Exception as e:
