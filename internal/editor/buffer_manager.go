@@ -84,7 +84,16 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 			buf.Highlighter.SetLanguage("markdown")
 			buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
 		} else if buf.HasFile() {
-			buf.Highlighter.SetLanguageFromFile(buf.FilePath)
+			// For diff buffers (ending in @HEAD or @current), extract the original file path
+			// for language detection, since "file.txt@current" won't be recognized
+			filePath := buf.FilePath
+			if strings.HasSuffix(filePath, "@HEAD") || strings.HasSuffix(filePath, "@current") {
+				// Remove the @HEAD or @current suffix to get the original file path
+				if idx := strings.LastIndex(filePath, "@"); idx != -1 {
+					filePath = filePath[:idx]
+				}
+			}
+			buf.Highlighter.SetLanguageFromFile(filePath)
 			buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
 		} else {
 			// Reset syntax highlighting for unnamed buffer
