@@ -90,6 +90,7 @@ func (e *Editor) registerCommands() {
 
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd, false, false)
+	e.commandRegistry.Register("reload-file", e.reloadFile, false, false)
 	e.commandRegistry.Register("q", e.closeBuffer, false, true)      // Close current buffer
 	e.commandRegistry.Register("q!", e.actuallyQuit, false, false)   // Force quit
 	e.commandRegistry.Register("qa", e.actuallyQuit, false, false)   // Force quit (shortcut for :Q)

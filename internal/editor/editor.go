@@ -1242,6 +1242,18 @@ func (e *Editor) handleEvent(ev events.Event) {
 			if data, ok := ev.Data.(map[string]interface{}); ok {
 				e.handleShowCompletions(data)
 			}
+		case "reload-file-confirmed":
+			// User confirmed reload with unsaved changes
+			if data, ok := ev.Data.(map[string]interface{}); ok {
+				if path, ok := data["path"].(string); ok {
+					e.performReload(path)
+				}
+			}
+		case "file-reloaded":
+			// File content has been reloaded from disk
+			if data, ok := ev.Data.(map[string]interface{}); ok {
+				e.handleFileReloaded(data)
+			}
 		case "navigate-to-location":
 			// Handle navigation to a specific location in the current file
 			if data, ok := ev.Data.(map[string]interface{}); ok {

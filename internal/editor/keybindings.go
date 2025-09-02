@@ -97,6 +97,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
+	e.registerKeyBinding(commands.NormalMode, "ctrl+r", "reload-file")
 	// Open terminal
 	e.registerKeyBinding(commands.NormalMode, "space t", "term")
 	// Open terminal in a new window (right split)

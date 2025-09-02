@@ -86,6 +86,7 @@ func (e *Editor) showHelp(args []string) error {
 
 	helpText.WriteString("= File Operations =\n")
 	helpText.WriteString("Space s f    - Open file browser\n")
+	helpText.WriteString("Ctrl+R       - Reload current file from disk\n")
 	helpText.WriteString("Space t      - Open terminal buffer (:term)\n")
 	helpText.WriteString("  (Enter opens in current window; Shift+Enter opens in a new split)\n")
 	helpText.WriteString("Space Space  - Show buffers (cursor on previous)\n")
