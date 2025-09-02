@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"veda/internal/commands"
 	"veda/internal/widgets"
 )
@@ -153,10 +154,37 @@ func (e *Editor) showKeyHints() {
 	if _, ok := commandDescs["term-new-window"]; !ok {
 		commandDescs["term-new-window"] = "open terminal (new window)"
 	}
+	
+	// Add descriptions for existing windows only
+	numWindows := len(e.windows)
+	if numWindows == 0 {
+		numWindows = 1 // Single window mode
+	}
+	for i := 1; i <= numWindows && i <= 9; i++ {
+		cmd := fmt.Sprintf("window-%d", i)
+		commandDescs[cmd] = fmt.Sprintf("switch to window %d", i)
+	}
+	
 	categoryDescs := e.getCategoryDescriptions()
 	hints := widgets.GetAvailableKeyHints(e.keyMapper, pendingKeys, e.mode, commandDescs, categoryDescs)
+	
+	// Filter out hints for non-existent windows
+	filteredHints := []widgets.KeyHint{}
+	for _, hint := range hints {
+		// Check if this is a window number key after "space"
+		if len(pendingKeys) == 1 && pendingKeys[0].Rune == ' ' {
+			// If the hint is a digit, check if it corresponds to an existing window
+			if len(hint.Key) == 1 && hint.Key[0] >= '1' && hint.Key[0] <= '9' {
+				windowNum := int(hint.Key[0] - '0')
+				if windowNum > numWindows {
+					continue // Skip this window hint
+				}
+			}
+		}
+		filteredHints = append(filteredHints, hint)
+	}
 
-	if len(hints) == 0 {
+	if len(filteredHints) == 0 {
 		e.keyHintsPopup.Hide()
 		return
 	}
@@ -170,6 +198,6 @@ func (e *Editor) showKeyHints() {
 	popupY := 1 // Just below the top edge
 
 	e.keyHintsPopup.SetPosition(popupX, popupY)
-	e.keyHintsPopup.SetHints(hints)
+	e.keyHintsPopup.SetHints(filteredHints)
 	e.keyHintsPopup.Show()
 }
