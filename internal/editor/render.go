@@ -1542,16 +1542,33 @@ func (e *Editor) drawStatusBar() {
 			x += e.drawText(x, statusBarY, countStyle, countText, 0, nil, -1, 0, -1)
 		}
 
-		// Add references indicator if there's an active references buffer
-		if e.currentReferencesBuffer != nil && len(e.currentReferencesBuffer.References) > 0 {
+		// Add navigation context indicator (what g n/g p will navigate)
+		navContext := e.getNavigationContext()
+		if navContext != "" {
 			x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1) // Single space
 
-			// Use SearchHighlight style for references indicator (same style as search)
-			referencesHighlightStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+			// Use green (GitAdded) foreground with bold for navigation indicator
+			gitAddedStyle := e.config.Theme.GetStyle(e.config.Theme.GitAdded)
+			gitAddedFg, _, _ := gitAddedStyle.Decompose()
+			navHighlightStyle := statusBarStyle.Foreground(gitAddedFg)
+			navHighlightStyle.Attrs |= ui.AttrBold
 
-			referencesText := fmt.Sprintf(" @%s %d/%d ", e.currentReferencesBuffer.SymbolName,
-				e.currentReferencesBuffer.CurrentIndex+1, len(e.currentReferencesBuffer.References))
-			x += e.drawText(x, statusBarY, referencesHighlightStyle, referencesText, 0, nil, -1, 0, -1)
+			var navText string
+			if strings.HasPrefix(navContext, "refs:") {
+				// References navigation
+				if e.currentReferencesBuffer != nil && len(e.currentReferencesBuffer.References) > 0 {
+					navText = fmt.Sprintf(" @%s %d/%d ", e.currentReferencesBuffer.SymbolName,
+						e.currentReferencesBuffer.CurrentIndex+1, len(e.currentReferencesBuffer.References))
+				}
+			} else if navContext == "diagnostics" {
+				navText = " [diagnostics] "
+			} else if navContext == "changes" {
+				navText = " [changes] "
+			}
+			
+			if navText != "" {
+				x += e.drawText(x, statusBarY, navHighlightStyle, navText, 0, nil, -1, 0, -1)
+			}
 		}
 
 		// Right side: indentation and line:col (only if buffer exists)

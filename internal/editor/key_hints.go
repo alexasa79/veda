@@ -80,10 +80,10 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"list-document-symbols": "document symbols",
 
 		// Navigation
-		"go-back":            "go back",
-		"next-reference":     "next reference",
-		"previous-reference": "previous reference",
-		"jump-to-reference":  "jump to reference",
+		"go-back":           "go back",
+		"next-item":         "next item",
+		"previous-item":     "previous item",
+		"jump-to-reference": "jump to reference",
 
 		// Indentation
 		"indent-line":         "indent line",

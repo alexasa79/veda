@@ -404,6 +404,18 @@ func (e *Editor) closeBuffer(args []string) error {
 	}
 
 	if !stillInUse {
+		// Clear lastActiveSpecialBuffer if we're closing it
+		if e.lastActiveSpecialBuffer == currentPath {
+			e.lastActiveSpecialBuffer = ""
+			// Check if there's another special buffer still open
+			for path := range e.buffers {
+				if e.isSpecialBuffer(path) {
+					e.lastActiveSpecialBuffer = path
+					break
+				}
+			}
+		}
+		
 		if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
 			_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
 			delete(e.terminalSessions, currentPath)
