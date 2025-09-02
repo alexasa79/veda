@@ -42,7 +42,7 @@ func TestCreateNewFile(t *testing.T) {
 	t.Logf("Writing content to file: %s", testFile)
 
 	// Step 3: Attempt to save the file
-	diagnostics, err := pm.WriteFile(testFile, newContent)
+	diagnostics, _, err := pm.WriteFile(testFile, newContent)
 	if err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
