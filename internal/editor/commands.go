@@ -113,8 +113,8 @@ func (e *Editor) registerCommands() {
 
 	// Navigation commands
 	e.commandRegistry.Register("go-back", e.goBack, false, true)
-	e.commandRegistry.Register("next-reference", e.nextReference, false, true)
-	e.commandRegistry.Register("previous-reference", e.previousReference, false, true)
+	e.commandRegistry.Register("next-item", e.nextContextualItem, false, true)
+	e.commandRegistry.Register("previous-item", e.previousContextualItem, false, true)
 
 	// Buffer commands
 	e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious, false, false)

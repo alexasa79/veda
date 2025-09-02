@@ -112,7 +112,7 @@ func TestGetAvailableKeyHints(t *testing.T) {
 	})
 	keyMapper.AddBinding(commands.Binding{
 		Keys:    []commands.Key{{Key: events.KeyRune, Rune: 'g'}, {Key: events.KeyRune, Rune: 'n'}},
-		Command: "next-reference",
+		Command: "next-item",
 		Modes:   []commands.Mode{commands.NormalMode},
 	})
 
@@ -128,7 +128,7 @@ func TestGetAvailableKeyHints(t *testing.T) {
 		commandDescs := map[string]string{
 			"go-to-definition": "go to definition",
 			"go-to-beginning":  "beginning of file",
-			"next-reference":   "next reference",
+			"next-item":        "next item",
 		}
 
 		hints := widgets.GetAvailableKeyHints(keyMapper, partialSeq, commands.NormalMode, commandDescs, map[string]string{})

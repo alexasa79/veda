@@ -178,8 +178,8 @@ func (e *Editor) setupDefaultBindings() {
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")
 	e.registerKeyBinding(commands.NormalMode, "g g", "go-to-beginning")
-	e.registerKeyBinding(commands.NormalMode, "g n", "next-reference")
-	e.registerKeyBinding(commands.NormalMode, "g p", "previous-reference")
+	e.registerKeyBinding(commands.NormalMode, "g n", "next-item")
+	e.registerKeyBinding(commands.NormalMode, "g p", "previous-item")
 	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
 
 	// Special handling for references buffers

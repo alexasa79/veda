@@ -163,6 +163,7 @@ type Editor struct {
 	// References tracking
 	currentReferencesBuffer *ReferencesBuffer            // Current references buffer for g n/g p navigation
 	referencesBuffers       map[string]*ReferencesBuffer // All references buffers by buffer name
+	lastActiveSpecialBuffer string                       // Last active special buffer (*References*, *Diagnostics*, *Project Changes*)
 
 	// Working directory
 	workingDirectory     string // Current working directory (can include HOST: prefix)
@@ -429,6 +430,13 @@ func (e *Editor) CurrentBuffer() *buffer.Buffer {
 	return e.windows[e.activeWindow].Buffer
 }
 
+// isSpecialBuffer checks if a buffer name is a special buffer
+func (e *Editor) isSpecialBuffer(name string) bool {
+	return (strings.HasPrefix(name, "*References:") && strings.HasSuffix(name, "*")) ||
+		name == "*Diagnostics*" ||
+		name == "*Project Changes*"
+}
+
 // SetCurrentBuffer sets the current buffer for the active window
 func (e *Editor) SetCurrentBuffer(buf *buffer.Buffer) {
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
@@ -436,6 +444,11 @@ func (e *Editor) SetCurrentBuffer(buf *buffer.Buffer) {
 	}
 	// Sync shim field to the map for the new current buffer
 	if buf != nil {
+		// Track when we switch to a special buffer
+		if e.isSpecialBuffer(buf.FilePath) {
+			e.lastActiveSpecialBuffer = buf.FilePath
+		}
+		
 		if vcs, ok := e.virtualCursorsByBuffer[buf]; ok {
 			e.virtualCursors = vcs
 		} else {
