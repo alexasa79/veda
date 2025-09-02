@@ -201,6 +201,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	headHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
 	headHighlighter.ParseFull([]byte(alignedHeadContent))
 	e.bufferHighlighters[headBuffer] = headHighlighter
+	headBuffer.Highlighter = headHighlighter // Set the highlighter directly on the buffer
 
 	// Store diff line information for head buffer
 	e.diffLineInfo[headBuffer] = diffResult.LeftLines
@@ -235,6 +236,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	currentHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
 	currentHighlighter.ParseFull([]byte(alignedCurrentContent))
 	e.bufferHighlighters[currentBuffer] = currentHighlighter
+	currentBuffer.Highlighter = currentHighlighter // Set the highlighter directly on the buffer
 
 	// Store diff line information for current buffer
 	e.diffLineInfo[currentBuffer] = diffResult.RightLines
