@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.13"
+PROXY_VERSION = "1.0.14"
 
 # Set up logging directory
 from datetime import datetime
@@ -1707,6 +1707,15 @@ class VedaProxy:
             # Create parent directories if they don't exist
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
+            # Preserve original file permissions if file exists
+            original_mode = None
+            if file_path.exists():
+                try:
+                    original_mode = file_path.stat().st_mode
+                except OSError:
+                    # If we can't stat the file, continue without preserving permissions
+                    pass
+            
             # Write to a temporary file first for atomic operation
             # Create temp file in same directory with random suffix
             import random
@@ -1717,6 +1726,14 @@ class VedaProxy:
             try:
                 # Write content to temp file
                 temp_path.write_text(content, encoding='utf-8')
+                
+                # If we have original permissions, apply them to the temp file
+                if original_mode is not None:
+                    try:
+                        os.chmod(temp_path, original_mode)
+                    except OSError:
+                        # If we can't set permissions, continue anyway
+                        pass
                 
                 # Atomically replace the original file
                 # On POSIX systems, this is atomic
