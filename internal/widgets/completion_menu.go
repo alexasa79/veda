@@ -55,6 +55,11 @@ func (c *CompletionMenu) SetPosition(x, y int) {
 	c.y = y
 }
 
+// GetPosition returns the current position of the menu
+func (c *CompletionMenu) GetPosition() (int, int) {
+	return c.x, c.y
+}
+
 // Show makes the menu visible
 func (c *CompletionMenu) Show() {
 	if len(c.items) > 0 {

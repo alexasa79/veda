@@ -98,12 +98,15 @@ func (e *Editor) handleShowCompletions(data map[string]interface{}) {
 
 // getCursorScreenPosition returns the screen position of the cursor
 func (e *Editor) getCursorScreenPosition() (int, int) {
-	// Calculate X position (accounting for line numbers)
+	// Get the active window's position
+	window := e.windows[e.activeWindow]
+	
+	// Calculate X position (accounting for window offset and line numbers)
 	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
-	x := lineNumberWidth + e.CurrentBuffer().CursorX
+	x := window.X + lineNumberWidth + e.CurrentBuffer().CursorX
 
-	// Calculate Y position (accounting for context and scroll)
-	y := e.getContentStartY()
+	// Calculate Y position (accounting for window offset, context and scroll)
+	y := window.Y + e.getContentStartY()
 	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
 	y += cursorLine - viewLine
