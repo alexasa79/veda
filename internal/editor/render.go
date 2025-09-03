@@ -64,6 +64,7 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 
 	isAdded := false
 	isModified := false
+	isStaged := false
 
 	// Added/Modified are 1-based
 	for _, a := range e.CurrentBuffer().GitChanges.Added {
@@ -76,6 +77,23 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 		for _, m := range e.CurrentBuffer().GitChanges.Modified {
 			if m == lineNum {
 				isModified = true
+				break
+			}
+		}
+	}
+	
+	// Check if line is staged
+	if isAdded {
+		for _, s := range e.CurrentBuffer().GitChanges.StagedAdded {
+			if s == lineNum {
+				isStaged = true
+				break
+			}
+		}
+	} else if isModified {
+		for _, s := range e.CurrentBuffer().GitChanges.StagedModified {
+			if s == lineNum {
+				isStaged = true
 				break
 			}
 		}
@@ -94,15 +112,23 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 		return
 	}
 
-	// Use distinct glyphs for added vs modified
+	// Use distinct glyphs for added vs modified, with different chars for staged
 	var ch rune
 	indicatorStyle := lineNumberStyle
 	_, lnBg, _ := lineNumberStyle.Decompose()
 	if isAdded {
-		ch = '+'
+		if isStaged {
+			ch = '●' // Filled circle for staged added
+		} else {
+			ch = '+' // Plus for unstaged added
+		}
 		indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
 	} else {
-		ch = '≋'
+		if isStaged {
+			ch = '◆' // Filled diamond for staged modified
+		} else {
+			ch = '≋' // Wave for unstaged modified
+		}
 		indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
 	}
 	// Make the indicator bold for visibility

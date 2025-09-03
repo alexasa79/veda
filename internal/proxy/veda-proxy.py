@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.18"
+PROXY_VERSION = "1.0.23"
 
 # Set up logging directory
 from datetime import datetime
@@ -1235,6 +1235,8 @@ class VedaProxy:
             'get_diagnostics': self.get_diagnostics,
             'get_project_changes': self.get_project_changes,
             'get_git_file_version': self.get_git_file_version,
+            'stage_lines': self.stage_lines,
+            'unstage_lines': self.unstage_lines,
             'notify_file_change': self.notify_file_change,
             # Terminal methods
             'start_terminal': self.start_terminal,
@@ -1244,13 +1246,15 @@ class VedaProxy:
             'close_terminal': self.close_terminal,
         }
 
-    def _run_shell_command(self, cmd, cwd=None, timeout=None):
+    def _run_shell_command(self, cmd, cwd=None, timeout=None, input=None):
         """Run a shell command with comprehensive logging."""
         # Log the command being executed
         cmd_str = ' '.join(cmd) if isinstance(cmd, list) else cmd
         logger.info(f"Running shell command: {cmd_str}")
         if cwd:
             logger.info(f"  Working directory: {cwd}")
+        if input:
+            logger.info(f"  With input: {len(input)} characters")
         
         try:
             result = subprocess.run(
@@ -1258,7 +1262,8 @@ class VedaProxy:
                 capture_output=True, 
                 text=True, 
                 cwd=cwd,
-                timeout=timeout
+                timeout=timeout,
+                input=input
             )
             
             # Log stdout information
@@ -1686,32 +1691,7 @@ class VedaProxy:
             logger.info(f"Git branch detection took {(branch_time - lsp_time) * 1000:.1f}ms")
             
             # Get git changes for the file
-            changes = {'added': [], 'deleted': [], 'modified': []}
-            try:
-                # Run git diff for the file
-                cmd = ['git', 'diff', 'HEAD', '--', str(file_path)]
-                result = self._run_shell_command(cmd, cwd=file_path.parent)
-                
-                if result.returncode != 0:
-                    # Try unstaged changes
-                    cmd = ['git', 'diff', '--', str(file_path)]
-                    result = self._run_shell_command(cmd, cwd=file_path.parent)
-                
-                if result.returncode == 0 and result.stdout:
-                    changes = self._parse_git_diff(result.stdout)
-                
-                # Also check staged changes
-                cmd_staged = ['git', 'diff', '--cached', '--', str(file_path)]
-                result_staged = self._run_shell_command(cmd_staged, cwd=file_path.parent)
-                
-                if result_staged.returncode == 0 and result_staged.stdout:
-                    staged_changes = self._parse_git_diff(result_staged.stdout)
-                    # Merge staged and unstaged changes
-                    for key in ['added', 'deleted', 'modified']:
-                        changes[key] = sorted(list(set(changes.get(key, []) + staged_changes.get(key, []))))
-            except Exception as e:
-                logger.warning(f"Could not get git changes for {path}: {e}")
-                # Don't fail the whole operation if git diff fails
+            changes = self._get_file_git_changes(file_path)
             
             git_time = time.time()
             logger.info(f"Git diff operations took {(git_time - branch_time) * 1000:.1f}ms")
@@ -1827,32 +1807,7 @@ class VedaProxy:
                 logger.info(f"File saved, should notify LSP server for {language}")
             
             # Get git changes for the file after save
-            changes = {'added': [], 'deleted': [], 'modified': []}
-            try:
-                # Run git diff for the file
-                cmd = ['git', 'diff', 'HEAD', '--', str(file_path)]
-                result = self._run_shell_command(cmd, cwd=file_path.parent)
-                
-                if result.returncode != 0:
-                    # Try unstaged changes
-                    cmd = ['git', 'diff', '--', str(file_path)]
-                    result = self._run_shell_command(cmd, cwd=file_path.parent)
-                
-                if result.returncode == 0 and result.stdout:
-                    changes = self._parse_git_diff(result.stdout)
-                
-                # Also check staged changes
-                cmd_staged = ['git', 'diff', '--cached', '--', str(file_path)]
-                result_staged = self._run_shell_command(cmd_staged, cwd=file_path.parent)
-                
-                if result_staged.returncode == 0 and result_staged.stdout:
-                    staged_changes = self._parse_git_diff(result_staged.stdout)
-                    # Merge staged and unstaged changes
-                    for key in ['added', 'deleted', 'modified']:
-                        changes[key] = sorted(list(set(changes.get(key, []) + staged_changes.get(key, []))))
-            except Exception as e:
-                logger.warning(f"Could not get git changes for {path}: {e}")
-                # Don't fail the whole operation if git diff fails
+            changes = self._get_file_git_changes(file_path)
             
             # Collect diagnostics for this file from LSP cache
             diagnostics_list = []
@@ -2296,6 +2251,304 @@ class VedaProxy:
         except Exception as e:
             logger.error(f"Error in get_git_file_version: {e}")
             return {'success': False, 'error': str(e)}
+    
+    @log_proxy_method
+    def stage_lines(self, path: str, lines: List[int]) -> Dict[str, Any]:
+        """
+        Stage specific lines of a file.
+        
+        Args:
+            path: File path
+            lines: List of line numbers (1-based) to stage
+            
+        Returns:
+            Dictionary with updated git changes
+        """
+        file_path = Path(path).expanduser().resolve()
+        
+        try:
+            if not lines:
+                # Stage entire file
+                cmd = ['git', 'add', str(file_path)]
+                result = self._run_shell_command(cmd, cwd=file_path.parent)
+                if result.returncode != 0:
+                    return {'success': False, 'error': result.stderr}
+            else:
+                # Get the unified diff of unstaged changes
+                cmd = ['git', 'diff', '--no-color', '--no-ext-diff', str(file_path)]
+                result = self._run_shell_command(cmd, cwd=file_path.parent)
+                if result.returncode != 0:
+                    return {'success': False, 'error': result.stderr}
+                
+                if not result.stdout:
+                    # No unstaged changes
+                    return {
+                        'success': True, 
+                        'changes': self._get_file_git_changes(file_path)
+                    }
+                
+                # Parse the diff and create a new patch with only the requested lines
+                logger.debug(f"Creating patch for lines: {lines}")
+                patch = self._create_patch_for_lines(result.stdout, lines)
+                
+                if not patch:
+                    # No changes for the requested lines
+                    logger.warning(f"No patch generated for lines {lines} - no matching changes found")
+                    return {
+                        'success': True,
+                        'changes': self._get_file_git_changes(file_path)
+                    }
+                
+                logger.debug(f"Generated patch ({len(patch)} bytes):\n{patch[:500]}")
+                
+                # Apply the patch to stage the specific lines
+                cmd = ['git', 'apply', '--cached', '--unidiff-zero', '-']
+                result = self._run_shell_command(cmd, cwd=file_path.parent, input=patch)
+                if result.returncode != 0:
+                    logger.error(f"Failed to apply patch: {result.stderr}")
+                    logger.error(f"Patch was:\n{patch}")
+                    return {'success': False, 'error': f"Failed to stage lines: {result.stderr}"}
+            
+            # Return updated changes
+            changes = self._get_file_git_changes(file_path)
+            return {'success': True, 'changes': changes}
+            
+        except Exception as e:
+            logger.error(f"Failed to stage lines in {path}: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    @log_proxy_method
+    def unstage_lines(self, path: str, lines: List[int]) -> Dict[str, Any]:
+        """
+        Unstage specific lines of a file.
+        
+        Args:
+            path: File path
+            lines: List of line numbers (1-based) to unstage
+            
+        Returns:
+            Dictionary with updated git changes
+        """
+        file_path = Path(path).expanduser().resolve()
+        
+        try:
+            if not lines:
+                # Unstage entire file
+                cmd = ['git', 'reset', 'HEAD', str(file_path)]
+                result = self._run_shell_command(cmd, cwd=file_path.parent)
+                if result.returncode != 0:
+                    return {'success': False, 'error': result.stderr}
+            else:
+                # Get the unified diff of staged changes
+                cmd = ['git', 'diff', '--cached', '--no-color', '--no-ext-diff', str(file_path)]
+                result = self._run_shell_command(cmd, cwd=file_path.parent)
+                if result.returncode != 0:
+                    return {'success': False, 'error': result.stderr}
+                
+                if not result.stdout:
+                    # No staged changes
+                    return {
+                        'success': True,
+                        'changes': self._get_file_git_changes(file_path)
+                    }
+                
+                # Parse the diff and create a patch with only the requested lines
+                patch = self._create_patch_for_lines(result.stdout, lines)
+                
+                if not patch:
+                    # No changes for the requested lines
+                    return {
+                        'success': True,
+                        'changes': self._get_file_git_changes(file_path)
+                    }
+                
+                # Apply the reverse patch to unstage the specific lines
+                cmd = ['git', 'apply', '--cached', '--reverse', '--unidiff-zero', '-']
+                result = self._run_shell_command(cmd, cwd=file_path.parent, input=patch)
+                if result.returncode != 0:
+                    logger.error(f"Failed to apply reverse patch: {result.stderr}")
+                    return {'success': False, 'error': f"Failed to unstage lines: {result.stderr}"}
+            
+            # Return updated changes
+            changes = self._get_file_git_changes(file_path)
+            return {'success': True, 'changes': changes}
+            
+        except Exception as e:
+            logger.error(f"Failed to unstage lines in {path}: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def _create_patch_for_lines(self, diff_text: str, target_lines: List[int]) -> str:
+        """
+        Create a patch containing only changes for specific lines.
+        
+        Args:
+            diff_text: Git diff output
+            target_lines: List of line numbers (1-based) to include in the patch
+            
+        Returns:
+            Patch text containing only the requested lines
+        """
+        lines = diff_text.split('\n')
+        result = []
+        in_hunk = False
+        hunk_lines = []
+        hunk_header = None
+        hunk_start_line = 0
+        file_headers = []
+        
+        # Convert target_lines to a set for faster lookup
+        target_set = set(target_lines)
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            
+            # File headers
+            if line.startswith('diff --git'):
+                file_headers = [line]
+                # Collect all headers until we reach a hunk
+                i += 1
+                while i < len(lines) and not lines[i].startswith('@@'):
+                    file_headers.append(lines[i])
+                    i += 1
+                i -= 1  # Back up one since we'll increment at the end
+                
+            # Hunk header
+            elif line.startswith('@@'):
+                # Flush previous hunk if it had target lines
+                if hunk_header and hunk_lines:
+                    filtered_hunk = self._filter_hunk_lines(hunk_header, hunk_lines, target_set, hunk_start_line)
+                    if filtered_hunk:
+                        if not result:
+                            result.extend(file_headers)
+                        result.extend(filtered_hunk)
+                
+                # Parse hunk header
+                hunk_header = line
+                hunk_lines = []
+                in_hunk = True
+                
+                # Extract starting line number from hunk header
+                # Format: @@ -old_start,old_count +new_start,new_count @@
+                import re
+                match = re.search(r'\+(\d+)', line)
+                if match:
+                    hunk_start_line = int(match.group(1))
+                
+            # Hunk content
+            elif in_hunk:
+                if line.startswith('diff --git') or line.startswith('@@'):
+                    # End of current hunk
+                    i -= 1  # Process this line again
+                    in_hunk = False
+                else:
+                    hunk_lines.append(line)
+            
+            i += 1
+        
+        # Flush last hunk if needed
+        if hunk_header and hunk_lines:
+            filtered_hunk = self._filter_hunk_lines(hunk_header, hunk_lines, target_set, hunk_start_line)
+            if filtered_hunk:
+                if not result:
+                    result.extend(file_headers)
+                result.extend(filtered_hunk)
+        
+        return '\n'.join(result) + '\n' if result else ''
+    
+    def _filter_hunk_lines(self, header: str, hunk_lines: List[str], target_lines: set, start_line: int) -> List[str]:
+        """
+        Filter a hunk to check if it contains target lines.
+        If it does, return the ENTIRE hunk unchanged (git requires complete hunks).
+        
+        Args:
+            header: Hunk header line
+            hunk_lines: Lines in the hunk
+            target_lines: Set of target line numbers (1-based)
+            start_line: Starting line number in the file (1-based from hunk header)
+            
+        Returns:
+            Complete hunk if it contains target lines, empty list otherwise
+        """
+        # Check if this hunk contains any target lines
+        current_line = start_line - 1
+        contains_target = False
+        
+        logger.debug(f"Checking hunk starting at line {start_line} for target lines: {sorted(target_lines)}")
+        
+        for line in hunk_lines:
+            if line.startswith('+'):
+                current_line += 1
+                if current_line in target_lines:
+                    contains_target = True
+                    logger.debug(f"  Hunk contains target line {current_line}")
+                    break
+            elif line.startswith('-'):
+                # Deleted lines don't advance line counter in the new file
+                # but we might want to stage deletions if they affect target area
+                pass
+            else:
+                # Context line
+                current_line += 1
+        
+        if contains_target:
+            logger.debug(f"  Including entire hunk ({len(hunk_lines)} lines)")
+            # Return the entire hunk as-is
+            return [header] + hunk_lines
+        else:
+            logger.debug("  Hunk does not contain target lines, skipping")
+            return []
+    
+    def _get_file_git_changes(self, file_path: Path) -> Dict[str, Any]:
+        """
+        Get comprehensive git changes for a file, including staged and unstaged.
+        
+        Returns dict with:
+        - added, deleted, modified: All changes (staged + unstaged)
+        - staged_added, staged_deleted, staged_modified: Only staged changes
+        """
+        changes = {
+            'added': [], 'deleted': [], 'modified': [],
+            'staged_added': [], 'staged_deleted': [], 'staged_modified': []
+        }
+        
+        try:
+            # Get unstaged changes (working tree vs index)
+            cmd_unstaged = ['git', 'diff', '--', str(file_path)]
+            result_unstaged = self._run_shell_command(cmd_unstaged, cwd=file_path.parent)
+            unstaged = {}
+            if result_unstaged.returncode == 0 and result_unstaged.stdout:
+                unstaged = self._parse_git_diff(result_unstaged.stdout)
+            
+            # Get staged changes (index vs HEAD)
+            cmd_staged = ['git', 'diff', '--cached', '--', str(file_path)]
+            result_staged = self._run_shell_command(cmd_staged, cwd=file_path.parent)
+            staged = {}
+            if result_staged.returncode == 0 and result_staged.stdout:
+                staged = self._parse_git_diff(result_staged.stdout)
+                # Store staged changes separately
+                changes['staged_added'] = staged.get('added', [])
+                changes['staged_deleted'] = staged.get('deleted', [])
+                changes['staged_modified'] = staged.get('modified', [])
+            
+            # Get all changes (working tree vs HEAD)
+            cmd_all = ['git', 'diff', 'HEAD', '--', str(file_path)]
+            result_all = self._run_shell_command(cmd_all, cwd=file_path.parent)
+            if result_all.returncode == 0 and result_all.stdout:
+                all_changes = self._parse_git_diff(result_all.stdout)
+                changes['added'] = all_changes.get('added', [])
+                changes['deleted'] = all_changes.get('deleted', [])
+                changes['modified'] = all_changes.get('modified', [])
+            else:
+                # Fallback: combine staged and unstaged
+                for key in ['added', 'deleted', 'modified']:
+                    changes[key] = sorted(list(set(
+                        staged.get(key, []) + unstaged.get(key, [])
+                    )))
+        except Exception as e:
+            logger.warning(f"Could not get git changes for {file_path}: {e}")
+        
+        return changes
     
     def _parse_git_diff(self, diff_output: str) -> Dict[str, Any]:
         """
