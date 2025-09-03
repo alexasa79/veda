@@ -9,6 +9,7 @@ import (
 	"veda/internal/buffer"
 	"veda/internal/clipboard"
 	"veda/internal/config"
+	"veda/internal/events"
 )
 
 // ErrorManager handles error display and tracking
@@ -135,6 +136,13 @@ func (e *Editor) ShowError(format string, args ...interface{}) {
 	// Recreate iterators to match new generation (whether current or background)
 	messagesBuffer.ViewIterator = buffer.NewBufferIterator(messagesBuffer)
 	messagesBuffer.CursorIterator = buffer.NewBufferIterator(messagesBuffer)
+
+	// Start a timer to clear the notification after 2 seconds
+	go func() {
+		time.Sleep(2 * time.Second)
+		// Send a render event to trigger re-render and check timeout
+		e.asyncEvents <- events.NewCustomEvent("notification-timeout", nil)
+	}()
 }
 
 // ShowInfo displays an informational message to the user and logs it to the messages buffer
@@ -160,6 +168,13 @@ func (e *Editor) ShowInfo(format string, args ...interface{}) {
 	// Recreate iterators to match new generation (whether current or background)
 	messagesBuffer.ViewIterator = buffer.NewBufferIterator(messagesBuffer)
 	messagesBuffer.CursorIterator = buffer.NewBufferIterator(messagesBuffer)
+
+	// Start a timer to clear the notification after 2 seconds
+	go func() {
+		time.Sleep(2 * time.Second)
+		// Send a render event to trigger re-render and check timeout
+		e.asyncEvents <- events.NewCustomEvent("notification-timeout", nil)
+	}()
 }
 
 // errorCommand implements the "error" command for testing
