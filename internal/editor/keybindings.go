@@ -181,6 +181,10 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g n", "next-item")
 	e.registerKeyBinding(commands.NormalMode, "g p", "previous-item")
 	e.registerKeyBinding(commands.NormalMode, "G", "go-to-end")
+	
+	// Git staging operations
+	e.registerKeyBinding(commands.NormalMode, "g h", "toggle-stage-hunk")
+	e.registerKeyBinding(commands.NormalMode, "g space", "toggle-stage-line")
 
 	// Special handling for references buffers
 	e.registerKeyBinding(commands.NormalMode, "enter", "jump-to-reference")

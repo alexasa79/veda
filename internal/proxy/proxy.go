@@ -28,7 +28,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.18"
+const ProxyVersion = "1.0.23"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -418,6 +418,46 @@ func (pm *ProxyManager) WriteFile(path string, content string) ([]Diagnostic, *F
 	return diagnostics, changes, err
 }
 
+// StageLines stages the specified lines in a file and returns updated git changes
+func (pm *ProxyManager) StageLines(path string, lines []int) (*FileChanges, error) {
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
+	}
+
+	changes, err := client.StageLines(actualPath, lines)
+	if shouldReconnect(err) {
+		host, _, _ := parseRemotePath(path)
+		pm.reportStatus("Disconnected")
+		if _, rerr := pm.reconnect(host); rerr == nil {
+			if client2, _, gerr := pm.getClient(path); gerr == nil {
+				changes, err = client2.StageLines(actualPath, lines)
+			}
+		}
+	}
+	return changes, err
+}
+
+// UnstageLines unstages the specified lines in a file and returns updated git changes
+func (pm *ProxyManager) UnstageLines(path string, lines []int) (*FileChanges, error) {
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
+	}
+
+	changes, err := client.UnstageLines(actualPath, lines)
+	if shouldReconnect(err) {
+		host, _, _ := parseRemotePath(path)
+		pm.reportStatus("Disconnected")
+		if _, rerr := pm.reconnect(host); rerr == nil {
+			if client2, _, gerr := pm.getClient(path); gerr == nil {
+				changes, err = client2.UnstageLines(actualPath, lines)
+			}
+		}
+	}
+	return changes, err
+}
+
 // GetFileAttributes gets attributes of a file or directory (supports HOST:PATH format)
 func (pm *ProxyManager) GetFileAttributes(path string) (*FileAttributes, error) {
 	startTime := time.Now()
@@ -803,6 +843,10 @@ type FileChanges struct {
 	Added    []int `json:"added"`
 	Deleted  []int `json:"deleted"`
 	Modified []int `json:"modified"`
+	// Staged changes (subset of above that are staged)
+	StagedAdded    []int `json:"staged_added"`
+	StagedDeleted  []int `json:"staged_deleted"`
+	StagedModified []int `json:"staged_modified"`
 }
 
 // Diagnostic represents a single diagnostic item from LSP normalized for the editor
@@ -1541,9 +1585,12 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 
 	fileContent := &FileContent{
 		Changes: FileChanges{
-			Added:    []int{},
-			Deleted:  []int{},
-			Modified: []int{},
+			Added:          []int{},
+			Deleted:        []int{},
+			Modified:       []int{},
+			StagedAdded:    []int{},
+			StagedDeleted:  []int{},
+			StagedModified: []int{},
 		},
 		Diagnostics: []Diagnostic{},
 	}
@@ -1564,27 +1611,9 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 		}
 
 		// Parse changes if present
-		if changes, ok := result["changes"].(map[string]interface{}); ok {
-			if added, ok := changes["added"].([]interface{}); ok {
-				for _, v := range added {
-					if line, ok := v.(float64); ok {
-						fileContent.Changes.Added = append(fileContent.Changes.Added, int(line))
-					}
-				}
-			}
-			if deleted, ok := changes["deleted"].([]interface{}); ok {
-				for _, v := range deleted {
-					if line, ok := v.(float64); ok {
-						fileContent.Changes.Deleted = append(fileContent.Changes.Deleted, int(line))
-					}
-				}
-			}
-			if modified, ok := changes["modified"].([]interface{}); ok {
-				for _, v := range modified {
-					if line, ok := v.(float64); ok {
-						fileContent.Changes.Modified = append(fileContent.Changes.Modified, int(line))
-					}
-				}
+		if changesData, ok := result["changes"]; ok {
+			if parsedChanges := parseFileChanges(changesData); parsedChanges != nil {
+				fileContent.Changes = *parsedChanges
 			}
 		}
 
@@ -2185,29 +2214,8 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, *FileChan
 			}
 			
 			// Parse git changes if present
-			if changesData, ok := result["changes"].(map[string]interface{}); ok {
-				changes = &FileChanges{}
-				if added, ok := changesData["added"].([]interface{}); ok {
-					for _, item := range added {
-						if lineNum, ok := item.(float64); ok {
-							changes.Added = append(changes.Added, int(lineNum))
-						}
-					}
-				}
-				if deleted, ok := changesData["deleted"].([]interface{}); ok {
-					for _, item := range deleted {
-						if lineNum, ok := item.(float64); ok {
-							changes.Deleted = append(changes.Deleted, int(lineNum))
-						}
-					}
-				}
-				if modified, ok := changesData["modified"].([]interface{}); ok {
-					for _, item := range modified {
-						if lineNum, ok := item.(float64); ok {
-							changes.Modified = append(changes.Modified, int(lineNum))
-						}
-					}
-				}
+			if changesData, ok := result["changes"]; ok {
+				changes = parseFileChanges(changesData)
 			}
 			
 			return diagnostics, changes, nil
@@ -2249,6 +2257,132 @@ func (c *Client) GetCompletions(filePath string, line int, character int) (inter
 	}
 
 	return nil, fmt.Errorf("no completions found")
+}
+
+// StageLines stages the specified lines in a file
+func (c *Client) StageLines(path string, lines []int) (*FileChanges, error) {
+	id := c.getNextRequestID()
+	request := JSONRPCRequest{
+		Method: "stage_lines",
+		Params: map[string]interface{}{
+			"path":  path,
+			"lines": lines,
+		},
+		ID: id,
+	}
+
+	response, err := c.sendRequestWithTimeout(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
+
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			// Parse git changes if present
+			if changesData, ok := result["changes"]; ok {
+				return parseFileChanges(changesData), nil
+			}
+			return nil, nil
+		}
+	}
+
+	return nil, fmt.Errorf("failed to stage lines")
+}
+
+// UnstageLines unstages the specified lines in a file
+func (c *Client) UnstageLines(path string, lines []int) (*FileChanges, error) {
+	id := c.getNextRequestID()
+	request := JSONRPCRequest{
+		Method: "unstage_lines",
+		Params: map[string]interface{}{
+			"path":  path,
+			"lines": lines,
+		},
+		ID: id,
+	}
+
+	response, err := c.sendRequestWithTimeout(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
+
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			// Parse git changes if present
+			if changesData, ok := result["changes"]; ok {
+				return parseFileChanges(changesData), nil
+			}
+			return nil, nil
+		}
+	}
+
+	return nil, fmt.Errorf("failed to unstage lines")
+}
+
+// parseFileChanges parses a FileChanges object from the response data
+func parseFileChanges(changesData interface{}) *FileChanges {
+	data, ok := changesData.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	changes := &FileChanges{}
+
+	// Parse unstaged changes
+	if added, ok := data["added"].([]interface{}); ok {
+		for _, item := range added {
+			if lineNum, ok := item.(float64); ok {
+				changes.Added = append(changes.Added, int(lineNum))
+			}
+		}
+	}
+	if deleted, ok := data["deleted"].([]interface{}); ok {
+		for _, item := range deleted {
+			if lineNum, ok := item.(float64); ok {
+				changes.Deleted = append(changes.Deleted, int(lineNum))
+			}
+		}
+	}
+	if modified, ok := data["modified"].([]interface{}); ok {
+		for _, item := range modified {
+			if lineNum, ok := item.(float64); ok {
+				changes.Modified = append(changes.Modified, int(lineNum))
+			}
+		}
+	}
+
+	// Parse staged changes
+	if stagedAdded, ok := data["staged_added"].([]interface{}); ok {
+		for _, item := range stagedAdded {
+			if lineNum, ok := item.(float64); ok {
+				changes.StagedAdded = append(changes.StagedAdded, int(lineNum))
+			}
+		}
+	}
+	if stagedDeleted, ok := data["staged_deleted"].([]interface{}); ok {
+		for _, item := range stagedDeleted {
+			if lineNum, ok := item.(float64); ok {
+				changes.StagedDeleted = append(changes.StagedDeleted, int(lineNum))
+			}
+		}
+	}
+	if stagedModified, ok := data["staged_modified"].([]interface{}); ok {
+		for _, item := range stagedModified {
+			if lineNum, ok := item.(float64); ok {
+				changes.StagedModified = append(changes.StagedModified, int(lineNum))
+			}
+		}
+	}
+
+	return changes
 }
 
 // GetDiagnostics retrieves all diagnostics from all open files
