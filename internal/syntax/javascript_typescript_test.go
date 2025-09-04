@@ -75,7 +75,7 @@ import React from 'react';`
 	}{
 		// Comments
 		{"// JavaScript example", TokenTypeComment, false},
-		
+
 		// Keywords
 		{"const", TokenTypeKeyword, false},
 		{"let", TokenTypeKeyword, false},
@@ -97,13 +97,13 @@ import React from 'react';`
 		{"default", TokenTypeKeyword, false},
 		{"import", TokenTypeKeyword, false},
 		{"from", TokenTypeKeyword, false},
-		
+
 		// Strings
 		{"Hello, World!", TokenTypeString, true},
 		{"Positive", TokenTypeString, true},
 		{"Test error", TokenTypeString, true},
 		{"react", TokenTypeString, true},
-		
+
 		// Numbers
 		{"42", TokenTypeNumber, false},
 		{"0", TokenTypeNumber, false},
@@ -111,11 +111,11 @@ import React from 'react';`
 		{"1", TokenTypeNumber, false},
 		{"2", TokenTypeNumber, false},
 		{"30", TokenTypeNumber, false},
-		
+
 		// Booleans
 		{"true", TokenTypeConstant, false},
 		{"null", TokenTypeConstant, false},
-		
+
 		// Functions and variables
 		{"calculateSum", TokenTypeFunction, false},
 		{"arrowFunc", TokenTypeVariable, false},
@@ -125,19 +125,19 @@ import React from 'react';`
 		{"greeting", TokenTypeVariable, false},
 		{"count", TokenTypeVariable, false},
 		{"oldStyle", TokenTypeVariable, false},
-		
+
 		// Properties (identified as variables in tree-sitter)
 		{"name", TokenTypeVariable, true},
 		{"age", TokenTypeVariable, true},
 		{"log", TokenTypeVariable, true},
 		{"error", TokenTypeVariable, true},
-		
+
 		// Built-ins (just identifiers in JS)
 		{"console", TokenTypeVariable, false},
-		{"Error", TokenTypeVariable, false}, // Built-in constructor
+		{"Error", TokenTypeVariable, false},   // Built-in constructor
 		{"Promise", TokenTypeVariable, false}, // Built-in constructor
 		{"React", TokenTypeVariable, false},
-		
+
 		// Operators
 		{"=", TokenTypeOperator, false},
 		{"+", TokenTypeOperator, false},
@@ -247,7 +247,7 @@ import React from 'react';`
 
 func TestTypeScriptSyntaxHighlighting(t *testing.T) {
 	t.Skip("Skipping TypeScript highlighting test - grammar loading issues in sandbox")
-	
+
 	h := NewHighlighter()
 
 	err := h.SetLanguage("typescript")
@@ -327,7 +327,7 @@ export default GenericClass;`
 	}{
 		// Comments
 		{"// TypeScript example", TokenTypeComment, false},
-		
+
 		// TypeScript Keywords
 		{"interface", TokenTypeKeyword, false},
 		{"type", TokenTypeKeyword, false},
@@ -343,7 +343,7 @@ export default GenericClass;`
 		{"let", TokenTypeKeyword, false},
 		{"return", TokenTypeKeyword, false},
 		{"void", TokenTypeType, false},
-		
+
 		// Types
 		{"User", TokenTypeType, false},
 		{"Status", TokenTypeType, false},
@@ -355,7 +355,7 @@ export default GenericClass;`
 		{"string", TokenTypeType, false},
 		{"number", TokenTypeType, false},
 		{"boolean", TokenTypeType, false},
-		
+
 		// Strings
 		{"active", TokenTypeString, true},
 		{"inactive", TokenTypeString, true},
@@ -364,19 +364,19 @@ export default GenericClass;`
 		{"Alice", TokenTypeString, true},
 		{"Moving...", TokenTypeString, true},
 		{"hello", TokenTypeString, true},
-		
+
 		// Numbers
 		{"30", TokenTypeNumber, false},
 		{"1", TokenTypeNumber, false},
 		{"2", TokenTypeNumber, false},
 		{"3", TokenTypeNumber, false},
 		{"42", TokenTypeNumber, false},
-		
+
 		// Booleans
 		{"true", TokenTypeConstant, false},
 		{"null", TokenTypeConstant, false},
 		{"undefined", TokenTypeConstant, false},
-		
+
 		// Functions and variables
 		{"greet", TokenTypeFunction, false},
 		{"getValue", TokenTypeFunction, false},
@@ -388,7 +388,7 @@ export default GenericClass;`
 		{"color", TokenTypeVariable, false},
 		{"numbers", TokenTypeVariable, false},
 		{"tuple", TokenTypeVariable, false},
-		
+
 		// Properties (identified as variables in tree-sitter)
 		{"name", TokenTypeVariable, true},
 		{"age", TokenTypeVariable, true},
@@ -458,7 +458,7 @@ export default GenericClass;`
 
 func TestTSXSyntaxHighlighting(t *testing.T) {
 	t.Skip("Skipping TSX highlighting test - grammar loading issues in sandbox")
-	
+
 	h := NewHighlighter()
 
 	err := h.SetLanguage("tsx")
@@ -504,32 +504,32 @@ export default Component;`
 		{"return", TokenTypeKeyword, false},
 		{"export", TokenTypeKeyword, false},
 		{"default", TokenTypeKeyword, false},
-		
+
 		// Types
 		{"Props", TokenTypeType, false},
 		{"React", TokenTypeVariable, false},
 		{"FC", TokenTypeVariable, false},
 		{"string", TokenTypeType, false},
 		{"number", TokenTypeType, false},
-		
+
 		// JSX Tags
 		{"div", TokenTypeTag, false},
 		{"h1", TokenTypeTag, false},
 		{"p", TokenTypeTag, false},
 		{"button", TokenTypeTag, false},
-		
+
 		// Attributes
 		{"className", TokenTypeAttribute, false},
 		{"onClick", TokenTypeAttribute, false},
-		
+
 		// Strings
 		{"react", TokenTypeString, true},
 		{"container", TokenTypeString, true},
-		
+
 		// Numbers
 		{"0", TokenTypeNumber, false},
 		{"1", TokenTypeNumber, false},
-		
+
 		// Variables and functions
 		{"Component", TokenTypeVariable, false},
 		{"useState", TokenTypeFunction, false},
@@ -600,13 +600,13 @@ func TestJavaScriptTypeScriptFileDetection(t *testing.T) {
 		{"app.mjs", "javascript"},
 		{"module.cjs", "javascript"},
 		{"test.jsx", "javascript"},
-		
+
 		// TypeScript files
 		{"app.ts", "typescript"},
 		{"module.mts", "typescript"},
 		{"common.cts", "typescript"},
 		{"component.tsx", "tsx"},
-		
+
 		// Non-JS/TS files
 		{"script.py", ""},
 		{"main.go", ""},

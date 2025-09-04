@@ -27,20 +27,20 @@ func getWordLevelDiffBg(e *Editor, lineIndex, tokenStart, tokenEnd int) *ui.Colo
 	if e.CurrentBuffer() == nil {
 		return nil
 	}
-	
+
 	// Check if this buffer has diff line info
 	diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]
 	if !isDiffBuffer || lineIndex < 0 || lineIndex >= len(diffLines) {
 		return nil
 	}
-	
+
 	diffLine := diffLines[lineIndex]
-	
+
 	// Only apply word-level highlighting for modified lines
 	if diffLine.LineType != DiffLineModified || len(diffLine.WordRanges) == 0 {
 		return nil
 	}
-	
+
 	// Check if the token range intersects with any word diff ranges
 	for _, wordRange := range diffLine.WordRanges {
 		// Check if token range [tokenStart, tokenEnd) intersects with word range [wordRange.Start, wordRange.End)
@@ -50,7 +50,7 @@ func getWordLevelDiffBg(e *Editor, lineIndex, tokenStart, tokenEnd int) *ui.Colo
 			return &bg
 		}
 	}
-	
+
 	return nil
 }
 
@@ -81,7 +81,7 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 			}
 		}
 	}
-	
+
 	// Check if line is staged
 	if isAdded {
 		for _, s := range e.CurrentBuffer().GitChanges.StagedAdded {
@@ -399,7 +399,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	// Determine which background to use
 	var lineBg ui.Color
 	var hasBg bool
-	
+
 	// Check for diff highlighting first (if not overridden and not current line)
 	var diffBg *ui.Color
 	if bgOverride == nil && e.CurrentBuffer() != nil {
@@ -418,12 +418,12 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 				case DiffLineModified:
 					// For modified lines, we'll apply word-level highlighting at the token level
 					// Don't set diffBg here - it will be handled per-character in token rendering
-				// DiffLineContext uses normal background (no special highlighting)
+					// DiffLineContext uses normal background (no special highlighting)
 				}
 			}
 		}
 	}
-	
+
 	if bgOverride != nil {
 		// Use the provided background override
 		lineBg = *bgOverride
@@ -699,7 +699,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 	// Determine background style
 	var lineBg ui.Color
 	var hasBg bool
-	
+
 	// Check for diff highlighting first
 	var diffBg *ui.Color
 	if e.CurrentBuffer() != nil {
@@ -718,12 +718,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 				case DiffLineModified:
 					// For modified lines, we'll apply word-level highlighting at the token level
 					// Don't set diffBg here - it will be handled per-character in token rendering
-				// DiffLineContext uses normal background (no special highlighting)
+					// DiffLineContext uses normal background (no special highlighting)
 				}
 			}
 		}
 	}
-	
+
 	if diffBg != nil {
 		// Use diff highlighting background
 		lineBg = *diffBg
@@ -1001,10 +1001,10 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 			if tokenEnd > tokenStart {
 				tokenText := originalLine[tokenStart:tokenEnd]
 				tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-				
+
 				// Check for word-level diff highlighting first
 				wordLevelDiffBg := getWordLevelDiffBg(e, lineIndex, tokenStart, tokenEnd)
-				
+
 				if wordLevelDiffBg != nil {
 					// Word-level diff highlighting takes highest precedence
 					tokenStyle = tokenStyle.Background(*wordLevelDiffBg)
@@ -1188,7 +1188,6 @@ func (e *Editor) drawEditor() {
 
 	// Calculate wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
-	
 
 	// Prepare iterator reuse across the entire visible region
 	var cachedIter *buffer.BufferIterator
@@ -1223,12 +1222,12 @@ func (e *Editor) drawEditor() {
 					case DiffLineModified:
 						// For modified lines, don't highlight the fill area - only specific word ranges
 						// The diffFillStyle will remain nil for modified lines
-					// DiffLineContext uses normal background (no special highlighting)
+						// DiffLineContext uses normal background (no special highlighting)
 					}
 				}
 			}
 		}
-		
+
 		// First, fill the entire line with the appropriate background
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		for x := 0; x < width; x++ {
@@ -1253,7 +1252,7 @@ func (e *Editor) drawEditor() {
 		if wl.IsFirstLine {
 			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1 (default)
 			var lineNumStr string
-			
+
 			// Check if this is a diff buffer and get original line number
 			if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
 				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
@@ -1270,7 +1269,7 @@ func (e *Editor) drawEditor() {
 								originalLineNum = diffLine.LeftLine + 1 // Convert to 1-based
 							}
 						} else if strings.HasSuffix(e.CurrentBuffer().FilePath, "@current") {
-							// For current buffer, use RightLine  
+							// For current buffer, use RightLine
 							if diffLine.RightLine >= 0 {
 								originalLineNum = diffLine.RightLine + 1 // Convert to 1-based
 							}
@@ -1279,11 +1278,11 @@ func (e *Editor) drawEditor() {
 							// Fall back to sequential numbering
 							originalLineNum = wl.LogicalLineNum + 1
 						}
-						
+
 						// Debug logging (uncomment for debugging)
-						// fmt.Printf("DIFF LINE %d: buffer=%s, LeftLine=%d, RightLine=%d, originalLineNum=%d, lineType=%v, filler=%v\n", 
+						// fmt.Printf("DIFF LINE %d: buffer=%s, LeftLine=%d, RightLine=%d, originalLineNum=%d, lineType=%v, filler=%v\n",
 						//     wl.LogicalLineNum, e.CurrentBuffer().FilePath, diffLine.LeftLine, diffLine.RightLine, originalLineNum, diffLine.LineType, diffLine.IsFillerLine)
-						
+
 						if originalLineNum > 0 {
 							// Compute digit area width (exclude 2 indicator columns and 1 space padding)
 							digitsWidth := lineNumberWidth - 3
@@ -1305,17 +1304,17 @@ func (e *Editor) drawEditor() {
 				}
 				lineNumStr = fmt.Sprintf("%*d", digitsWidth, lineNum)
 			}
-			
+
 			// Fill entire line number area with the standard background
 			for x := 0; x < lineNumberWidth; x++ {
 				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
 			}
-			
+
 			// Draw the line number text starting at column 0 (if we have one)
 			if lineNumStr != "" {
 				e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
 			}
-			
+
 			// Draw 1 space padding after digits
 			digitsWidth := lineNumberWidth - 3
 			if digitsWidth < 1 {
@@ -1591,7 +1590,7 @@ func (e *Editor) drawStatusBar() {
 			} else if navContext == "changes" {
 				navText = " [changes] "
 			}
-			
+
 			if navText != "" {
 				x += e.drawText(x, statusBarY, navHighlightStyle, navText, 0, nil, -1, 0, -1)
 			}
@@ -1978,7 +1977,6 @@ func min(a, b int) int {
 	}
 	return b
 }
-
 
 // drawEmptyWindow renders an empty window with visible boundaries
 func (e *Editor) drawEmptyWindow(screen Screen, isActive bool) {

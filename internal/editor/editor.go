@@ -306,7 +306,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		keyMapper:              commands.NewKeyMapper(),
 		bufferHighlighters:     make(map[*buffer.Buffer]*syntax.Highlighter),
 		diffLineInfo:           make(map[*buffer.Buffer][]DiffLine), // Added for diff view support
-		perfTracker:            perf.New(true, 30*time.Second), // Report every 30 seconds
+		perfTracker:            perf.New(true, 30*time.Second),      // Report every 30 seconds
 		buffers:                make(map[string]*buffer.Buffer),
 		virtualCursorsByBuffer: make(map[*buffer.Buffer][]VirtualCursor),
 		bufferOrder:            []string{},
@@ -448,7 +448,7 @@ func (e *Editor) SetCurrentBuffer(buf *buffer.Buffer) {
 		if e.isSpecialBuffer(buf.FilePath) {
 			e.lastActiveSpecialBuffer = buf.FilePath
 		}
-		
+
 		if vcs, ok := e.virtualCursorsByBuffer[buf]; ok {
 			e.virtualCursors = vcs
 		} else {
@@ -576,7 +576,7 @@ func (e *Editor) Run() {
 			tScroll := e.perfTracker.Start()
 			e.scroll()
 			e.perfTracker.ReportSince("scroll", tScroll)
-			
+
 			// Sync diff cursors after scrolling (but only for diff buffers)
 			if e.isDiffBuffer(e.CurrentBuffer()) {
 				e.syncDiffCursors()
@@ -1995,7 +1995,7 @@ func (e *Editor) updateCursorState() {
 	e.checkSignatureUpdate()
 	// Update matching pair highlight for current buffer
 	e.updateMatchHighlight()
-	
+
 	// Sync cursor position for diff buffers
 	e.syncDiffCursors()
 }

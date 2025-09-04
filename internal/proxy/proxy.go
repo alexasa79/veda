@@ -2212,12 +2212,12 @@ func (c *Client) WriteFile(path string, content string) ([]Diagnostic, *FileChan
 					}
 				}
 			}
-			
+
 			// Parse git changes if present
 			if changesData, ok := result["changes"]; ok {
 				changes = parseFileChanges(changesData)
 			}
-			
+
 			return diagnostics, changes, nil
 		}
 	}
