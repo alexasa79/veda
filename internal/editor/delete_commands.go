@@ -35,13 +35,13 @@ func (e *Editor) handlePendingOperation(key string) error {
 	if e.pendingOperator == nil && len(e.pendingKeys) > 0 {
 		if len(e.pendingKeys) == 1 {
 			if e.pendingKeys[0] == "f" {
-				// Execute find character operation
+				// Execute find-character across all cursors
 				e.pendingKeys = nil
-				return e.findCharacter([]string{key})
+				return e.executeCommandForAllCursors("find-character", []string{key})
 			} else if e.pendingKeys[0] == "t" {
-				// Execute till character operation
+				// Execute till-character across all cursors
 				e.pendingKeys = nil
-				return e.tillCharacter([]string{key})
+				return e.executeCommandForAllCursors("till-character", []string{key})
 			}
 		}
 	}

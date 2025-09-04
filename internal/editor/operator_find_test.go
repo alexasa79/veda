@@ -3,6 +3,7 @@ package editor
 import (
 	"testing"
 	"veda/internal/commands"
+	"veda/internal/events"
 )
 
 func TestDeleteWithFindMotion(t *testing.T) {
@@ -61,6 +62,39 @@ func TestDeleteWithFindMotion(t *testing.T) {
 		AssertBufferEquals(t, te, "irst function")
 		AssertCursorAt(t, te, 0, 0)
 	})
+}
+
+func TestFindCharacterMovementWithMultipleCursors(t *testing.T) {
+	// Three identical lines with a space and then 'd' at index 4
+	te := NewTestEditorWithContent(80, 24, "abc def\nabc def\nabc def")
+
+	// Enter cursor mode and add two virtual cursors on subsequent lines via Enter
+	te.TypeKeys("m")
+	te.PressKey(events.KeyEnter, 0) // add cursor on line 0
+	te.PressKey(events.KeyEnter, 0) // auto-moved to line 1, add cursor
+	te.TypeKeys("m")                // exit cursor mode; now 3 cursors at col 0 on lines 0,1,2
+
+	// Simulate real keystrokes: "f" then "d"
+	te.TypeKeys("f")
+	te.TypeKeys("d")
+
+	// Verify all cursors are at column 4 (on 'd') for their respective lines
+	// Primary cursor (after adding cursors, primary is on last line)
+	x, y := te.GetCursorPosition()
+	if x != 4 || y != 2 {
+		t.Fatalf("primary cursor expected at (4,2), got (%d,%d)", x, y)
+	}
+	// Virtual cursors
+	vcs := te.GetVirtualCursors()
+	if len(vcs) != 2 {
+		t.Fatalf("expected 2 virtual cursors, got %d", len(vcs))
+	}
+	if vcs[0].X != 4 || vcs[0].Y != 0 {
+		t.Fatalf("virtual cursor 0 expected at (4,0), got (%d,%d)", vcs[0].X, vcs[0].Y)
+	}
+	if vcs[1].X != 4 || vcs[1].Y != 1 {
+		t.Fatalf("virtual cursor 1 expected at (4,1), got (%d,%d)", vcs[1].X, vcs[1].Y)
+	}
 }
 
 func TestDeleteWithTillMotion(t *testing.T) {
