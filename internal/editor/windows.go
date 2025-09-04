@@ -420,6 +420,15 @@ func (e *Editor) switchToNextWindow(args []string) error {
 	return nil
 }
 
+// createRightmostWindow appends a new window to the right of the rightmost window
+// and makes it the active window. If seed is non-nil, it becomes the window's buffer.
+func (e *Editor) createRightmostWindow(seed *buffer.Buffer) int {
+	newWin := newWindow(seed)
+	e.windows = append(e.windows, newWin)
+	e.activateWindow(len(e.windows) - 1)
+	return len(e.windows) - 1
+}
+
 // moveBufferLeft moves the active window's buffer to the immediate left window,
 // creating a new window if none exists to the left
 func (e *Editor) moveBufferLeft(args []string) error {

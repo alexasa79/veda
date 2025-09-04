@@ -38,18 +38,10 @@ func (e *Editor) jumpToReference(args []string) error {
 // openMarkdownLinkInNewWindow opens the markdown link target in a new window
 func (e *Editor) openMarkdownLinkInNewWindow(args []string) error {
 	if link, lineNum := e.getMarkdownLinkAtCursor(); link != "" {
-		// Create a new window to the right and open the link
-		insertAt := e.activeWindow + 1
+		// Always create a new window at the far right and open the link
 		oldActive := e.activeWindow
-		if insertAt >= len(e.windows) {
-			e.windows = append(e.windows, newWindow(e.CurrentBuffer()))
-		} else {
-			e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-			e.windows[insertAt] = newWindow(e.CurrentBuffer())
-		}
-		e.recomputeWindowsLayout()
+		e.createRightmostWindow(e.CurrentBuffer())
 		e.lastWindow = oldActive
-		e.activeWindow = insertAt
 		// Open in new window
 		if err := e.openMarkdownLink(link, lineNum); err != nil {
 			return err

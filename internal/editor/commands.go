@@ -320,10 +320,8 @@ func (e *Editor) openTerminalCmd(args []string) error {
 
 // openTerminalInNewWindowCmd opens a terminal in a new right-hand window and focuses it.
 func (e *Editor) openTerminalInNewWindowCmd(args []string) error {
-	// Use existing vsplit logic to create a new right-side window
-	if err := e.vsplit(nil); err != nil {
-		return err
-	}
+	// Always create a new window to the far right and focus it
+	e.createRightmostWindow(nil)
 	// Now open terminal in the new active window
 	return e.openTerminalCmd(nil)
 }
