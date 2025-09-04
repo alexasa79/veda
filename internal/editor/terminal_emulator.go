@@ -72,7 +72,8 @@ func NewTerminalEmulator(cols, rows int) *TerminalEmulator {
 		te.attrs[i] = ui.AttrNone
 	}
 	te.curFg, te.curBg, te.curAttrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
-	te.maxScrollback = 2000
+	// 0 means unlimited scrollback
+	te.maxScrollback = 0
 	// Default scroll region is the full screen
 	te.topMargin = 0
 	te.bottomMargin = te.height - 1
@@ -225,7 +226,7 @@ func (te *TerminalEmulator) clearRow(y int) {
 }
 
 // scrollRegionUp scrolls the configured scrolling region up by one line.
-// It does not affect scrollback; only the region [topMargin..bottomMargin] shifts.
+// The row scrolled off the top of the region is appended to scrollback.
 func (te *TerminalEmulator) scrollRegionUp() {
 	top := te.topMargin
 	bottom := te.bottomMargin
@@ -238,6 +239,8 @@ func (te *TerminalEmulator) scrollRegionUp() {
 	if top >= bottom {
 		return
 	}
+	// Preserve the line scrolled off the top of the region
+	te.pushRowToScrollback(top)
 	// Shift rows up within region
 	for y := top; y < bottom; y++ {
 		// copy row y+1 into y
@@ -281,10 +284,14 @@ type termLine struct {
 	attrs []ui.AttrMask
 }
 
-func (te *TerminalEmulator) pushTopLineToScrollback() {
-	// Capture row 0
-	start := 0
-	end := te.width
+// pushRowToScrollback captures row y into the scrollback buffer.
+// If y is out of range, it does nothing.
+func (te *TerminalEmulator) pushRowToScrollback(y int) {
+	if y < 0 || y >= te.height {
+		return
+	}
+	start := te.index(0, y)
+	end := start + te.width
 	line := termLine{
 		cells: make([]rune, te.width),
 		fg:    make([]ui.Color, te.width),
@@ -304,6 +311,9 @@ func (te *TerminalEmulator) pushTopLineToScrollback() {
 		}
 	}
 }
+
+// pushTopLineToScrollback is kept for compatibility; it now delegates to row 0.
+func (te *TerminalEmulator) pushTopLineToScrollback() { te.pushRowToScrollback(0) }
 
 // Write consumes terminal bytes and updates the grid.
 func (te *TerminalEmulator) Write(data []byte) {
