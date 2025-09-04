@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.23"
+PROXY_VERSION = "1.0.24"
 
 # Set up logging directory
 from datetime import datetime
@@ -193,18 +193,27 @@ class LSPManager:
                 while language in self.servers:
                     try:
                         msg = self._read_lsp_message(language)
-                        if msg:
-                            # Add to message buffer
-                            self.message_buffers[language].append(msg)
-                            
-                            # Handle the message
-                            if 'id' in msg and msg.get('id') in self.pending_requests[language]:
-                                # This is a response to one of our requests
-                                self.response_cache[language][msg['id']] = msg
-                                self.pending_requests[language][msg['id']].set()
-                            elif 'method' in msg:
-                                # This is a notification or server request
-                                self._handle_server_message(language, msg)
+                        if not msg:
+                            # Server closed or no more data; cleanly stop and exit the loop
+                            try:
+                                self.stop_server(language)
+                            except Exception:
+                                # Ensure we don't spin/log on a dead server
+                                if language in self.servers:
+                                    del self.servers[language]
+                            break
+
+                        # Add to message buffer
+                        self.message_buffers[language].append(msg)
+                        
+                        # Handle the message
+                        if 'id' in msg and msg.get('id') in self.pending_requests[language]:
+                            # This is a response to one of our requests
+                            self.response_cache[language][msg['id']] = msg
+                            self.pending_requests[language][msg['id']].set()
+                        elif 'method' in msg:
+                            # This is a notification or server request
+                            self._handle_server_message(language, msg)
                     except Exception as e:
                         logger.error(f"Error reading {language} LSP message: {e}", exc_info=True)
                         # Don't break - try to continue reading
