@@ -89,49 +89,42 @@ func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 
 // openMarkdownLink opens a file from a markdown link, optionally jumping to a specific line
 func (e *Editor) openMarkdownLink(link string, lineNum int) error {
-	// Convert to a Location object and use the existing jumpToLocation function
-	// This ensures consistent behavior with reference jumping
-	// If no line number specified, use 0 (first line)
-	targetLine := 0
-	if lineNum > 0 {
-		targetLine = lineNum - 1 // Convert 1-based to 0-based
-	}
+	// Resolve the link relative to working directory and handle HOST:PATH
+	target := e.resolvePath(link)
 
-	location := proxy.Location{
-		URI: "file://" + link,
-		Range: proxy.Range{
-			Start: proxy.Position{
-				Line:      targetLine,
-				Character: 0,
-			},
-			End: proxy.Position{
-				Line:      targetLine,
-				Character: 0,
-			},
-		},
-	}
-
-	// For testing, we need to handle pre-existing buffers
-	if _, exists := e.buffers[link]; exists {
-		// Push navigation history before switching
+	// If a buffer already exists (unit tests often precreate), navigate without FS checks
+	if _, exists := e.buffers[target]; exists {
 		e.pushNavigationHistory()
-
-		// Switch to the buffer
-		if buf, ok := e.buffers[link]; ok {
+		if buf, ok := e.buffers[target]; ok {
 			e.switchToBuffer(buf)
 		}
-
-		// Jump to the line if specified
 		if lineNum > 0 {
-			targetLine := lineNum - 1
-			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
+			tl := lineNum - 1
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), tl)
 			e.CurrentBuffer().CursorX = 0
 			e.scrollToCenter()
 		}
-
 		return nil
 	}
 
-	// Use the standard jumpToLocation for real files
+	// If the target is a directory, switch working directory and show file browser
+	if attrs, err := e.proxyManager.GetFileAttributes(target); err == nil && attrs != nil && attrs.IsDirectory {
+		e.workingDirectory = target
+		e.ShowFuzzyListWidget()
+		return nil
+	}
+
+	// Otherwise, open as a file (optionally at a specific line)
+	targetLine := 0
+	if lineNum > 0 {
+		targetLine = lineNum - 1 // 1-based in markdown -> 0-based internally
+	}
+	location := proxy.Location{
+		URI: "file://" + target,
+		Range: proxy.Range{
+			Start: proxy.Position{Line: targetLine, Character: 0},
+			End:   proxy.Position{Line: targetLine, Character: 0},
+		},
+	}
 	return e.jumpToLocation(location)
 }
