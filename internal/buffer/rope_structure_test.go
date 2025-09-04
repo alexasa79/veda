@@ -118,33 +118,35 @@ func TestInsertMaintainsStructure(t *testing.T) {
 		}
 	})
 
-	t.Run("split maintains parent pointers", func(t *testing.T) {
-		// Create a rope that will split when we insert
-		text := strings.Repeat("a", 3000)
-		r := NewRopeFromString(text)
+    t.Run("split maintains parent pointers", func(t *testing.T) {
+        // Create a rope that will split when we insert: ensure combined size > maxLeafSize
+        baseLen := maxLeafSize - 800
+        insertLen := 2000
+        text := strings.Repeat("a", baseLen)
+        r := NewRopeFromString(text)
 
-		// Insert to trigger split
-		r.Insert(1500, strings.Repeat("b", 3000))
+        // Insert to trigger split
+        r.Insert(baseLen/2, strings.Repeat("b", insertLen))
 
-		// Root should now be internal node
-		if r.root.IsLeaf() {
-			t.Fatal("Expected root to be internal after split")
-		}
+        // Root should now be internal node
+        if r.root.IsLeaf() {
+            t.Fatal("Expected root to be internal after split")
+        }
 
-		// Check parent pointers
-		if r.root.left.parent != r.root {
-			t.Error("Left child's parent should point to root")
-		}
-		if r.root.right.parent != r.root {
-			t.Error("Right child's parent should point to root")
-		}
+        // Check parent pointers
+        if r.root.left.parent != r.root {
+            t.Error("Left child's parent should point to root")
+        }
+        if r.root.right.parent != r.root {
+            t.Error("Right child's parent should point to root")
+        }
 
-		// Check weights
-		expectedWeight := 6000
-		if r.root.weight != expectedWeight {
-			t.Errorf("Expected root weight %d, got %d", expectedWeight, r.root.weight)
-		}
-	})
+        // Check weights
+        expectedWeight := baseLen + insertLen
+        if r.root.weight != expectedWeight {
+            t.Errorf("Expected root weight %d, got %d", expectedWeight, r.root.weight)
+        }
+    })
 
 	t.Run("insert maintains weights through tree", func(t *testing.T) {
 		// Build a structured rope
