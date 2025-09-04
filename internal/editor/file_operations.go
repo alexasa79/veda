@@ -608,47 +608,56 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Start a goroutine to handle LSP responses
 	go func() {
-		for wrapped := range symbolResponseChan {
-			response := wrapped.resp
-			// Only accept the latest in-flight response
-			if wrapped.seq != atomic.LoadInt64(&latestSeq) {
-				continue
-			}
-			if response.Type == proxyworker.RequestProjectSymbols {
-				// End async operation for this query
-				operationID := fmt.Sprintf("project-symbols-%s", response.Query)
-				e.endAsyncOperation(operationID)
+        for wrapped := range symbolResponseChan {
+            response := wrapped.resp
+            // Only accept the latest in-flight response
+            if wrapped.seq != atomic.LoadInt64(&latestSeq) {
+                continue
+            }
+            if response.Type == proxyworker.RequestProjectSymbols {
+                // End async operation for this query
+                operationID := fmt.Sprintf("project-symbols-%s", response.Query)
+                e.endAsyncOperation(operationID)
 
-				if response.Error != nil {
-					LL.Debug("LSP query error: %v", response.Error)
-					// Report error through editor's error system
-					e.ShowError("LSP error: %v", response.Error)
-					// Clear the list but don't show error in picker
-					contentUpdateChan <- []string{}
-					symbolUpdateChan <- symbolUpdate{nil, make(map[string]int)}
-				} else {
-					LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
+                if response.Error != nil {
+                    LL.Debug("LSP query error: %v", response.Error)
+                    // Report error through editor's error system
+                    e.ShowError("LSP error: %v", response.Error)
+                    // Clear the list but don't show error in picker
+                    contentUpdateChan <- []string{}
+                    symbolUpdateChan <- symbolUpdate{nil, make(map[string]int)}
+                } else {
+                    LL.Debug("Got %d symbols from LSP for query '%s'", len(response.ProjectSymbols), response.Query)
 
-					// Convert to display strings with icons
-					var displayNames []string
-					newSymbolMap := make(map[string]int)
+                    // If working directory is remote, prefix symbol paths with host
+                    host, _, isRemote := parsePathComponents(e.workingDirectory)
 
-					for i, sym := range response.ProjectSymbols {
-						// Get symbol icon based on kind
-						iconInfo := utils.GetSymbolIconInfo(sym.Kind)
-						// Format: icon symbol_name - file_path
-						displayName := fmt.Sprintf("%s %s - %s", iconInfo.Icon, sym.RawName, sym.Path)
-						displayNames = append(displayNames, displayName)
-						newSymbolMap[displayName] = i
-					}
+                    // Convert to display strings with icons; adjust paths when remote
+                    var displayNames []string
+                    newSymbolMap := make(map[string]int)
+                    adjusted := make([]proxy.ProjectSymbol, len(response.ProjectSymbols))
 
-					// Send the symbol data update
-					symbolUpdateChan <- symbolUpdate{response.ProjectSymbols, newSymbolMap}
+                    for i, sym := range response.ProjectSymbols {
+                        adj := sym
+                        if isRemote && host != "" && !strings.Contains(sym.Path, ":") {
+                            adj.Path = host + ":" + sym.Path
+                        }
+                        // Get symbol icon based on kind
+                        iconInfo := utils.GetSymbolIconInfo(sym.Kind)
+                        // Format: icon symbol_name - file_path
+                        displayName := fmt.Sprintf("%s %s - %s", iconInfo.Icon, adj.RawName, adj.Path)
+                        displayNames = append(displayNames, displayName)
+                        newSymbolMap[displayName] = i
+                        adjusted[i] = adj
+                    }
 
-					if len(displayNames) == 0 {
-						contentUpdateChan <- []string{"No symbols found"}
-					} else {
-						// Send all symbols - the widget will apply filtering
+                    // Send the symbol data update
+                    symbolUpdateChan <- symbolUpdate{adjusted, newSymbolMap}
+
+                    if len(displayNames) == 0 {
+                        contentUpdateChan <- []string{"No symbols found"}
+                    } else {
+                        // Send all symbols - the widget will apply filtering
 						contentUpdateChan <- displayNames
 					}
 				}
