@@ -1,5 +1,6 @@
 vd
 cmd/keydetect/keydetect
+cmd/genbig/genbig
 veda.log
 veda-proxy.log
 .clinerules
