@@ -91,6 +91,9 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"reindent-line":       "reindent line",
 		"reindent-expression": "reindent expression",
 
+		// Comments
+		"toggle-comment": "toggle comment",
+
 		// Character commands
 		"find-character":       "find character",
 		"till-character":       "till character",
