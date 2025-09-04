@@ -173,6 +173,9 @@ func (e *Editor) drawGutterDiagnosticsIndicator(wl WrappedLine, lineNum, digitsW
 // segmentStart is the character position in the original line where this text segment starts
 // trailingStart is the character position in the original line where trailing spaces begin (-1 if none)
 func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int, searchMatches []int, lineNum int, segmentStart int, trailingStart int) int {
+	// Track time spent drawing text segments (includes SetContent calls)
+	t0 := e.perfTracker.Start()
+	defer e.perfTracker.ReportSince("render.drawText", t0)
 	searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 	flashStyle := e.config.Theme.GetStyle(e.config.Theme.FlashHighlight)
@@ -511,7 +514,9 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	// Always use the buffer's own highlighter
 	var tokens []syntax.Token
 	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+		tTok := e.perfTracker.Start()
 		tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+		_ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
 	}
 
 	// If we have syntax tokens and a file-backed buffer, use syntax highlighting path
@@ -686,7 +691,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 }
 
 // drawWrappedLine draws a wrapped line segment with proper handling of syntax highlighting
-func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, startX int, screenY int) {
+func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, tokens []syntax.Token, startX int, screenY int) {
 	// Get the full line for syntax highlighting
 	originalLine := iter.Line()
 	lineIndex := iter.LineNumber()
@@ -883,11 +888,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, st
 		return
 	}
 
-	// Get syntax tokens for the full line
-	var tokens []syntax.Token
-	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-		tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-	}
+	// Tokens are provided by caller (frame-local cache). If empty, fall back to normal text path below.
 
 	if len(tokens) == 0 {
 		// No tokens, draw with normal style
@@ -1176,22 +1177,32 @@ func (e *Editor) drawEditor() {
 	// Use cached line number width from buffer
 	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
 
+	// Step timer to break down drawEditor phases
+	tStep := e.perfTracker.Start()
+
 	// Clear the entire screen once
 	e.screen.Clear()
+	// Measure clear cost
+	tStep = e.perfTracker.ReportSince("drawEditor.clear", tStep)
 
 	// Update context if needed
 	e.updateContext()
+	// Measure context update cost
+	tStep = e.perfTracker.ReportSince("drawEditor.updateContext", tStep)
 
 	// Get screen dimensions
 	width, _ := e.screen.Size()
 	contentStartY := e.getContentStartY()
 
 	// Calculate wrapped lines
+	tWrap := e.perfTracker.Start()
 	wrappedLines := e.CalculateWrappedLines()
+	_ = e.perfTracker.ReportSince("drawEditor.calculateWrappedLines", tWrap)
 
-	// Prepare iterator reuse across the entire visible region
-	var cachedIter *buffer.BufferIterator
-	cachedIterLine := -1
+    // Prepare iterator and per-frame token cache reuse across the entire visible region
+    var cachedIter *buffer.BufferIterator
+    cachedIterLine := -1
+    var lineTokensCache map[int][]syntax.Token
 	if len(wrappedLines) > 0 {
 		firstLogical := wrappedLines[0].LogicalLineNum
 		cachedIter = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), firstLogical)
@@ -1230,6 +1241,7 @@ func (e *Editor) drawEditor() {
 
 		// First, fill the entire line with the appropriate background
 		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
+		lineBgFill := e.perfTracker.Start()
 		for x := 0; x < width; x++ {
 			fillStyle := normalStyle
 			if diffFillStyle != nil {
@@ -1247,9 +1259,11 @@ func (e *Editor) drawEditor() {
 			}
 			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
 		}
+		_ = e.perfTracker.ReportSince("drawEditor.fillLineBg", lineBgFill)
 
 		// Draw line number only for first visual line
 		if wl.IsFirstLine {
+			lnTimer := e.perfTracker.Start()
 			lineNum := wl.LogicalLineNum + 1 // Line numbers start at 1 (default)
 			var lineNumStr string
 
@@ -1329,6 +1343,7 @@ func (e *Editor) drawEditor() {
 			e.drawGutterGitIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
 			// Draw diagnostics in the second gutter column
 			e.drawGutterDiagnosticsIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+			_ = e.perfTracker.ReportSince("drawEditor.lineNumber", lnTimer)
 		} else {
 			// Fill line number area with spaces for wrapped lines
 			for x := 0; x < lineNumberWidth; x++ {
@@ -1345,16 +1360,37 @@ func (e *Editor) drawEditor() {
 			cachedIterLine = wl.LogicalLineNum
 		} else {
 			// Advance cached iterator to requested logical line
+			iterAdvance := e.perfTracker.Start()
 			for cachedIterLine < wl.LogicalLineNum {
 				cachedIter = cachedIter.Next()
 				cachedIterLine = cachedIter.LineNumber()
 			}
+			_ = e.perfTracker.ReportSince("drawEditor.iterAdvance", iterAdvance)
 			iter = cachedIter
 		}
-		if !iter.IsEOF() {
-			// Draw the wrapped line segment
-			e.drawWrappedLine(iter, wl, lineNumberWidth, screenY)
-		}
+        if !iter.IsEOF() {
+            // Frame-local tokens cache per logical line
+            var lineTokens []syntax.Token
+            if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil && e.CurrentBuffer().HasFile() {
+                // Lazily initialize cache map on first use; kept local to this draw call
+                if lineTokensCache == nil {
+                    lineTokensCache = make(map[int][]syntax.Token)
+                }
+                if tks, ok := lineTokensCache[wl.LogicalLineNum]; ok {
+                    lineTokens = tks
+                } else {
+                    // Compute once per logical line per frame
+                    tTok := e.perfTracker.Start()
+                    lineTokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+                    _ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
+                    lineTokensCache[wl.LogicalLineNum] = lineTokens
+                }
+            }
+            // Draw the wrapped line segment using cached tokens if available
+            drawSeg := e.perfTracker.Start()
+            e.drawWrappedLine(iter, wl, lineTokens, lineNumberWidth, screenY)
+            _ = e.perfTracker.ReportSince("drawEditor.drawWrappedLine", drawSeg)
+        }
 	}
 
 	// Fill remaining screen lines for this window region.
@@ -1367,9 +1403,11 @@ func (e *Editor) drawEditor() {
 	for i := len(wrappedLines); i < visibleHeight; i++ {
 		screenY := contentStartY + i
 		// Fill the whole line with normal background only (no per-column rulers here)
+		remFill := e.perfTracker.Start()
 		for x := 0; x < width; x++ {
 			e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
 		}
+		_ = e.perfTracker.ReportSince("drawEditor.fillRemainderBg", remFill)
 		// Draw the tildes in the gutter area
 		for x := 0; x < lineNumberWidth; x++ {
 			e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
@@ -1889,15 +1927,17 @@ func (e *Editor) getActiveParameterRange(sig *buffer.SignatureHelp) (int, int) {
 
 // drawSignatureWithHighlighting draws the signature with syntax highlighting and bold active parameter
 func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int) {
-	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
-		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
-		return
-	}
-	tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
-	if len(tokens) == 0 {
-		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
-		return
-	}
+    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
+        e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+        return
+    }
+    tTok := e.perfTracker.Start()
+    tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
+    _ = e.perfTracker.ReportSince("render.getTokensForString", tTok)
+    if len(tokens) == 0 {
+        e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+        return
+    }
 
 	x := 0
 	lastEnd := 0
