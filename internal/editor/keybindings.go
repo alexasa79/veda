@@ -196,6 +196,9 @@ func (e *Editor) setupDefaultBindings() {
 	// Info
 	e.registerKeyBinding(commands.NormalMode, "ctrl+g", "show-file-info")
 
+	// Comment toggling
+	e.registerKeyBinding(commands.NormalMode, "ctrl+/", "toggle-comment")
+
 	// Temporary normal mode from insert mode (like vim's Ctrl+O)
 	e.registerKeyBinding(commands.InsertMode, "ctrl+o", "enter-temporary-normal-mode")
 

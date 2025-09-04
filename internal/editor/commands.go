@@ -74,6 +74,9 @@ func (e *Editor) registerCommands() {
 	// Change to end of line (C)
 	e.commandRegistry.Register("change-to-end-of-line", e.changeToEndOfLine, true, true)
 
+	// Comment commands
+	e.commandRegistry.Register("toggle-comment", e.toggleComment, true, true)
+
 	// Visual mode operations
 	e.commandRegistry.Register("delete-selection", e.deleteSelection, false, true)
 	e.commandRegistry.Register("yank-selection", e.yankSelection, false, true)

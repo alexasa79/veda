@@ -58,6 +58,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
 	helpText.WriteString("Alt+Q        - Rewrap paragraph (press again for 100, 120 columns)\n")
+	helpText.WriteString("Ctrl+/       - Toggle line comment at indentation (language-aware; prefix count for N lines)\n")
 	helpText.WriteString(">>           - Indent current line (also works in VISUAL to indent selection)\n")
 	helpText.WriteString("<<           - Unindent current line (also works in VISUAL to unindent selection)\n")
 	helpText.WriteString("==           - Reindent current line based on context\n")

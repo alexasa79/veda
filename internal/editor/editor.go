@@ -1533,6 +1533,10 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 		}
 		// Otherwise fall through to normal repetition handling
 		fallthrough
+	case "toggle-comment":
+		// Toggle comment should operate on N lines, not repeat N times
+		e.lastCommandCount = count
+		return e.toggleCommentWithCount(count)
 	default:
 		// Check if we should apply to all cursors
 		applyToAll := false
@@ -1606,6 +1610,7 @@ func (e *Editor) isTextModifyingCommand(command string) bool {
 		"start-delete":             true,
 		"start-change":             true,
 		"start-yank":               true,
+		"toggle-comment":           true,
 	}
 
 	return textModifyingCommands[command]
