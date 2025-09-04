@@ -24,20 +24,33 @@ func TestInsert_EmptyRope(t *testing.T) {
 }
 
 func TestInsert_Split(t *testing.T) {
-	// Create a string that is larger than minLeafSize but smaller than maxLeafSize
-	text := strings.Repeat("a", 3000)
-	r := NewRopeFromString(text)
-	// Insert another string to trigger a split
-	r.Insert(1500, strings.Repeat("b", 3000))
+    // Construct content so that after insertion the leaf exceeds maxLeafSize and must split.
+    baseLen := maxLeafSize - 1000
+    insertLen := 2000 // ensures baseLen+insertLen > maxLeafSize
+    text := strings.Repeat("a", baseLen)
+    r := NewRopeFromString(text)
+    // Insert in the middle to force split
+    r.Insert(baseLen/2, strings.Repeat("b", insertLen))
 
-	// Check that the root is an internal node (not a leaf)
-	if r.root.IsLeaf() {
-		t.Errorf("Insert failed: expected root to be an internal node, but it's a leaf")
-	}
+    // Root should be an internal node after split
+    if r.root.IsLeaf() {
+        t.Errorf("Insert failed: expected root to be an internal node, but it's a leaf")
+    }
 
-	// Check the length
-	expectedLen := 6000
-	if r.Length() != expectedLen {
-		t.Errorf("Insert failed: expected length %d, got %d", expectedLen, r.Length())
-	}
+    // Check the total length
+    expectedLen := baseLen + insertLen
+    if r.Length() != expectedLen {
+        t.Errorf("Insert failed: expected length %d, got %d", expectedLen, r.Length())
+    }
+
+    // Basic content sanity: prefix, inserted run, and suffix exist
+    got := r.String()
+    if len(got) != expectedLen {
+        t.Fatalf("content length mismatch: got %d, want %d", len(got), expectedLen)
+    }
+    // Verify the inserted region is present
+    mid := baseLen / 2
+    if got[mid:mid+insertLen] != strings.Repeat("b", insertLen) {
+        t.Errorf("Inserted content not found at expected position")
+    }
 }
