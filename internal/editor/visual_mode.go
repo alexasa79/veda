@@ -244,8 +244,8 @@ func (e *Editor) indentSelectionWithCount(count int) error {
 		}
 	}
 
+	// Keep visual mode active; move cursor back to selection start
 	e.moveCursorToPosition(start)
-	e.exitVisualMode(nil)
 	if !e.inPasteMode {
 		e.updateSyntaxHighlighting()
 	}
@@ -380,8 +380,8 @@ func (e *Editor) unindentSelectionWithCount(count int) error {
 		}
 	}
 
+	// Keep visual mode active; move cursor back to selection start
 	e.moveCursorToPosition(start)
-	e.exitVisualMode(nil)
 	if !e.inPasteMode {
 		e.updateSyntaxHighlighting()
 	}
