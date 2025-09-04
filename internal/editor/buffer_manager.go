@@ -278,45 +278,14 @@ func (e *Editor) showBuffers(args []string) error {
 			}
 
 			if openInNewWin {
-				// Shift+Enter: open buffer in window to the right
-				cur := e.activeWindow
-				utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
-
-				// Check if there's a window to the right
-				if cur+1 < len(e.windows) {
-					// Use existing right window
-					right := cur + 1
-
-					// Remove buffer from its current window if it's in one
-					sourceWindow := e.findWindowContainingBuffer(path)
-					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
-						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
-					}
-
-					// Add buffer to right window
-					e.windows[right].addBufferToWindow(bufPtr)
-					e.assertBufferInWindow(bufPtr, right)
-
-					// Activate the right window
-					e.activateWindow(right)
-					e.switchToBuffer(bufPtr)
-				} else {
-					// Create new window to the right
-					newWin := newWindow(bufPtr)
-
-					// Remove buffer from its current window if it's in one
-					sourceWindow := e.findWindowContainingBuffer(path)
-					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
-						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
-					}
-
-					// Append new window
-					e.windows = append(e.windows, newWin)
-
-					// Activate the new window
-					e.activateWindow(len(e.windows) - 1)
-					e.switchToBuffer(bufPtr)
+				// Shift+Enter: always open in a new rightmost window
+				// Remove buffer from its current window if it's in one
+				if sourceWindow := e.findWindowContainingBuffer(path); sourceWindow >= 0 && sourceWindow < len(e.windows) {
+					e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
 				}
+				// Create and focus the new window at the far right
+				e.createRightmostWindow(bufPtr)
+				e.switchToBuffer(bufPtr)
 				e.recomputeWindowsLayout()
 				return
 			}
@@ -597,45 +566,12 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 				return
 			}
 			if openInNewWin {
-				// Shift+Enter: open buffer in window to the right
-				cur := e.activeWindow
-				utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
-
-				// Check if there's a window to the right
-				if cur+1 < len(e.windows) {
-					// Use existing right window
-					right := cur + 1
-
-					// Remove buffer from its current window if it's in one
-					sourceWindow := e.findWindowContainingBuffer(path)
-					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
-						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
-					}
-
-					// Add buffer to right window
-					e.windows[right].addBufferToWindow(bufPtr)
-					e.assertBufferInWindow(bufPtr, right)
-
-					// Activate the right window
-					e.activateWindow(right)
-					e.switchToBuffer(bufPtr)
-				} else {
-					// Create new window to the right
-					newWin := newWindow(bufPtr)
-
-					// Remove buffer from its current window if it's in one
-					sourceWindow := e.findWindowContainingBuffer(path)
-					if sourceWindow >= 0 && sourceWindow < len(e.windows) {
-						e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
-					}
-
-					// Append new window
-					e.windows = append(e.windows, newWin)
-
-					// Activate the new window
-					e.activateWindow(len(e.windows) - 1)
-					e.switchToBuffer(bufPtr)
+				// Shift+Enter: always open in a new rightmost window
+				if sourceWindow := e.findWindowContainingBuffer(path); sourceWindow >= 0 && sourceWindow < len(e.windows) {
+					e.windows[sourceWindow].removeBufferFromWindow(bufPtr)
 				}
+				e.createRightmostWindow(bufPtr)
+				e.switchToBuffer(bufPtr)
 				e.recomputeWindowsLayout()
 				return
 			}

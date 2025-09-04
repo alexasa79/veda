@@ -3123,15 +3123,8 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
 		}
 	}
 
-	// Create a new window to the right and open the file there
-	insertAt := e.activeWindow + 1
-	if insertAt >= len(e.windows) {
-		e.windows = append(e.windows, newWindow(e.CurrentBuffer()))
-	} else {
-		e.windows = append(e.windows[:insertAt+1], e.windows[insertAt:]...)
-		e.windows[insertAt] = newWindow(e.CurrentBuffer())
-	}
-	e.activateWindow(insertAt)
+	// Always create a new window at the far right and open the file there
+	e.createRightmostWindow(e.CurrentBuffer())
 
 	// Open file and jump to location
 	e.openFile(targetPath)

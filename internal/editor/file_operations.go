@@ -363,24 +363,9 @@ func (e *Editor) ShowFuzzyListWidget() {
 			LL.Debug("Selected file: %s (full path: %s)", selectedPath, fullPath)
 			e.Post(func(e *Editor) {
 				if openInNewWin {
-					// Shift+Enter: open file in window to the right
-					cur := e.activeWindow
-					utils.Assert(cur >= 0 && cur < len(e.windows), fmt.Sprintf("Invalid active window index: %d (windows: %d)", cur, len(e.windows)))
-
-					// Check if there's a window to the right
-					if cur+1 < len(e.windows) {
-						// Use existing right window
-						right := cur + 1
-						e.activateWindow(right)
-						e.openFile(fullPath)
-					} else {
-						// Create new window to the right
-						// Seed the new window with nil since we're about to load a new file
-						newWin := newWindow(nil)
-						e.windows = append(e.windows, newWin)
-						e.activateWindow(len(e.windows) - 1)
-						e.openFile(fullPath)
-					}
+					// Shift+Enter: always open file in a newly created rightmost window
+					e.createRightmostWindow(nil)
+					e.openFile(fullPath)
 					e.recomputeWindowsLayout()
 					return
 				}
