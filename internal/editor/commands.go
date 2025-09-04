@@ -261,8 +261,8 @@ func (e *Editor) openTerminalCmd(args []string) error {
 	e.buffers[name] = newBuf
 	e.bufferOrder = append(e.bufferOrder, name)
 	e.switchToBuffer(newBuf)
-	// Start a PTY on the proxy host
-	cols, rows := e.getVisibleWidth(), e.getVisibleHeight()
+	// Start a PTY on the proxy host using the active window size
+	cols, rows := e.getActiveWindowSizeForTerminal()
 	if cols <= 0 {
 		cols = 80
 	}
