@@ -1,8 +1,9 @@
 package editor
 
 import (
-	"veda/internal/buffer"
-	"veda/internal/calculator"
+    "veda/internal/buffer"
+    "veda/internal/calculator"
+    "veda/internal/commands"
 )
 
 // calculateAppend evaluates the mathematical expression before the cursor and appends the result
@@ -10,17 +11,24 @@ func (e *Editor) calculateAppend(args []string) error {
 	// Get current line and cursor position
 	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
 	line := e.CurrentBuffer().CursorIterator.Line()
-	cursorX := e.CurrentBuffer().CursorX
-	// Save view position before any buffer modifications
-	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+    cursorX := e.CurrentBuffer().CursorX
+    // Save view position before any buffer modifications
+    viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
-	// If cursor is past the end of the line, adjust to the end
-	if cursorX > len(line) {
-		cursorX = len(line)
-	}
+    // If cursor is past the end of the line, adjust to the end
+    if cursorX > len(line) {
+        cursorX = len(line)
+    }
 
-	// Process the line to find and evaluate the expression
-	newLine, err := calculator.ProcessLineAppend(line, cursorX)
+    // In Normal mode, the cursor sits ON the character; include it in expression end.
+    // In Insert mode, the cursor is AFTER the last typed character; use position as-is.
+    endPos := cursorX
+    if e.mode != commands.InsertMode && endPos < len(line) {
+        endPos++
+    }
+
+    // Process the line to find and evaluate the expression
+    newLine, err := calculator.ProcessLineAppend(line, endPos)
 	if err != nil {
 		// No valid expression found
 		e.ShowError("No valid expression found")
@@ -68,17 +76,24 @@ func (e *Editor) calculateReplace(args []string) error {
 	// Get current line and cursor position
 	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
 	line := e.CurrentBuffer().CursorIterator.Line()
-	cursorX := e.CurrentBuffer().CursorX
-	// Save view position before any buffer modifications
-	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+    cursorX := e.CurrentBuffer().CursorX
+    // Save view position before any buffer modifications
+    viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
-	// If cursor is past the end of the line, adjust to the end
-	if cursorX > len(line) {
-		cursorX = len(line)
-	}
+    // If cursor is past the end of the line, adjust to the end
+    if cursorX > len(line) {
+        cursorX = len(line)
+    }
 
-	// Process the line to find and evaluate the expression
-	newLine, newCursorX, err := calculator.ProcessLineReplace(line, cursorX)
+    // In Normal mode, the cursor sits ON the character; include it in expression end.
+    // In Insert mode, the cursor is AFTER the last typed character; use position as-is.
+    endPos := cursorX
+    if e.mode != commands.InsertMode && endPos < len(line) {
+        endPos++
+    }
+
+    // Process the line to find and evaluate the expression
+    newLine, newCursorX, err := calculator.ProcessLineReplace(line, endPos)
 	if err != nil {
 		// No valid expression found
 		e.ShowError("No valid expression found")
