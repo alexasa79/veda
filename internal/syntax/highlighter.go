@@ -265,6 +265,189 @@ func (h *Highlighter) ParseFull(source []byte) error {
 	return nil
 }
 
+// ReparseIncremental computes a single contiguous edit between the current
+// source and the provided newSource, applies a tree-sitter InputEdit to the
+// current tree, and performs an incremental parse using the previous tree.
+// If no previous tree exists or language is unset, it falls back to ParseFull.
+func (h *Highlighter) ReparseIncremental(newSource []byte) error {
+	if h.currentLang == "" || h.currentTree == nil || h.currentSource == nil {
+		return h.ParseFull(newSource)
+	}
+
+	old := h.currentSource
+	// Fast path: identical buffers
+	if len(old) == len(newSource) {
+		same := true
+		for i := range old {
+			if old[i] != newSource[i] {
+				same = false
+				break
+			}
+		}
+		if same {
+			return nil
+		}
+	}
+
+	// Longest common prefix
+	i := 0
+	maxPrefix := len(old)
+	if len(newSource) < maxPrefix {
+		maxPrefix = len(newSource)
+	}
+	for i < maxPrefix && old[i] == newSource[i] {
+		i++
+	}
+	startByte := i
+
+	// Longest common suffix (avoid overlapping the prefix)
+	oldRemain := len(old) - startByte
+	newRemain := len(newSource) - startByte
+	j := 0
+	for j < oldRemain && j < newRemain {
+		if old[len(old)-1-j] != newSource[len(newSource)-1-j] {
+			break
+		}
+		j++
+	}
+
+	oldEndByte := len(old) - j
+	newEndByte := len(newSource) - j
+
+	// Compute points (row/column in bytes) for InputEdit
+	startRow, startCol := byteIndexToPoint(old, startByte)
+	oldEndRow, oldEndCol := byteIndexToPoint(old, oldEndByte)
+	newEndRow, newEndCol := byteIndexToPoint(newSource, newEndByte)
+
+	h.currentTree.Edit(sitter.EditInput{
+		StartIndex:  uint32(startByte),
+		OldEndIndex: uint32(oldEndByte),
+		NewEndIndex: uint32(newEndByte),
+		StartPoint:  sitter.Point{Row: uint32(startRow), Column: uint32(startCol)},
+		OldEndPoint: sitter.Point{Row: uint32(oldEndRow), Column: uint32(oldEndCol)},
+		NewEndPoint: sitter.Point{Row: uint32(newEndRow), Column: uint32(newEndCol)},
+	})
+
+	// Incremental parse using edited tree
+	tree, err := h.parser.ParseCtx(context.Background(), h.currentTree, newSource)
+	if err != nil {
+		return fmt.Errorf("failed to incremental-parse source: %w", err)
+	}
+
+	h.currentTree = tree
+	h.currentSource = newSource
+	// Clear token cache (could be optimized to changed ranges)
+	h.tokenCache = make(map[int][]Token)
+	return nil
+}
+
+// ApplyEdit mutates the currentSource by replacing the span [startByte, startByte+len(oldText))
+// with newText, applies the corresponding tree-sitter edit to the current tree, and performs
+// an incremental parse using the edited tree. Points are computed in bytes.
+// If the highlighter has no existing tree/source, this is a no-op (call ParseFull first).
+func (h *Highlighter) ApplyEdit(startByte int, oldText, newText string) error {
+	if h.currentLang == "" || h.currentTree == nil || h.currentSource == nil {
+		// No prior tree/source: the caller should perform an initial full parse first
+		return nil
+	}
+	if startByte < 0 {
+		startByte = 0
+	}
+	if startByte > len(h.currentSource) {
+		startByte = len(h.currentSource)
+	}
+
+	// Compute byte indices
+	oldLen := len(oldText)
+	newLen := len(newText)
+	oldStart := startByte
+	oldEnd := oldStart + oldLen
+	if oldEnd > len(h.currentSource) {
+		oldEnd = len(h.currentSource)
+	}
+
+	// Compute points on the old source
+	startRow, startCol := byteIndexToPoint(h.currentSource, oldStart)
+	oldEndRow, oldEndCol := byteIndexToPoint(h.currentSource, oldEnd)
+
+	// Compute new end point relative to start by scanning newText
+	// (row/col are byte-based; count newlines and bytes after last newline)
+	newEndRow := startRow
+	newEndCol := startCol
+	if newLen == 0 {
+		// no-op
+	} else {
+		// Count newlines
+		nl := 0
+		lastNL := -1
+		for i := 0; i < newLen; i++ {
+			if newText[i] == '\n' {
+				nl++
+				lastNL = i
+			}
+		}
+		if nl == 0 {
+			newEndCol += newLen
+		} else {
+			newEndRow += nl
+			newEndCol = newLen - (lastNL + 1)
+		}
+	}
+
+	// Apply edit to the tree
+	h.currentTree.Edit(sitter.EditInput{
+		StartIndex:  uint32(oldStart),
+		OldEndIndex: uint32(oldEnd),
+		NewEndIndex: uint32(oldStart + newLen),
+		StartPoint:  sitter.Point{Row: uint32(startRow), Column: uint32(startCol)},
+		OldEndPoint: sitter.Point{Row: uint32(oldEndRow), Column: uint32(oldEndCol)},
+		NewEndPoint: sitter.Point{Row: uint32(newEndRow), Column: uint32(newEndCol)},
+	})
+
+	// Mutate the source mirror
+	pre := h.currentSource[:oldStart]
+	post := h.currentSource[oldEnd:]
+	newSrc := make([]byte, 0, len(pre)+newLen+len(post))
+	newSrc = append(newSrc, pre...)
+	newSrc = append(newSrc, newText...)
+	newSrc = append(newSrc, post...)
+
+	// Incremental parse using the edited tree and updated source
+	tree, err := h.parser.ParseCtx(context.Background(), h.currentTree, newSrc)
+	if err != nil {
+		return fmt.Errorf("failed to incremental-parse apply-edit: %w", err)
+	}
+
+	h.currentTree = tree
+	h.currentSource = newSrc
+	h.tokenCache = make(map[int][]Token)
+	return nil
+}
+
+// byteIndexToPoint converts a byte index into (row, column) in bytes.
+// Row is zero-based; Column counts bytes since last newline.
+func byteIndexToPoint(src []byte, idx int) (row int, col int) {
+	if idx <= 0 {
+		return 0, 0
+	}
+	if idx > len(src) {
+		idx = len(src)
+	}
+	lastNL := -1
+	r := 0
+	for k := 0; k < idx; k++ {
+		if src[k] == '\n' {
+			r++
+			lastNL = k
+		}
+	}
+	c := idx - (lastNL + 1)
+	if lastNL == -1 {
+		c = idx
+	}
+	return r, c
+}
+
 // ClearCache clears the token cache
 func (h *Highlighter) ClearCache() {
 	h.tokenCache = make(map[int][]Token)
@@ -622,7 +805,7 @@ func (h *Highlighter) mapTypeScriptNodeToTokenType(node *sitter.Node, nodeType s
 	// Numbers
 	case "number":
 		return TokenTypeNumber
-		
+
 	// Boolean and null literals
 	case "true", "false", "null", "undefined":
 		return TokenTypeConstant

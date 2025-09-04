@@ -3,8 +3,10 @@ package buffer
 import "strings"
 
 const (
-	maxLeafSize = 4096
-	minLeafSize = 2048
+	// Target leaf size for rope leaves. Larger leaves reduce tree depth but can
+	// make per-leaf scans more expensive; 16 KiB is a good balance for large files.
+	maxLeafSize = 16 * 1024 // 16384
+	minLeafSize = 8 * 1024  // 8192
 )
 
 // Node represents a node in the rope tree.
@@ -217,11 +219,49 @@ type Rope struct {
 // NewRopeFromString creates a new rope from a string.
 // This is a simple implementation that doesn't create a balanced tree yet.
 func NewRopeFromString(text string) *Rope {
-	root := NewLeaf(text)
-	root.offset = 0 // Root starts at offset 0
-	return &Rope{
-		root: root,
+	// Empty rope: single empty leaf
+	if len(text) == 0 {
+		root := NewLeaf("")
+		root.offset = 0
+		return &Rope{root: root}
 	}
+
+	// If small, keep as single leaf for simplicity
+	if len(text) <= maxLeafSize {
+		root := NewLeaf(text)
+		root.offset = 0
+		return &Rope{root: root}
+	}
+
+	// Chunk the input into ~maxLeafSize leaves
+	leaves := make([]*Node, 0, (len(text)+maxLeafSize-1)/maxLeafSize)
+	for i := 0; i < len(text); i += maxLeafSize {
+		end := i + maxLeafSize
+		if end > len(text) {
+			end = len(text)
+		}
+		leaves = append(leaves, NewLeaf(text[i:end]))
+	}
+
+	// Build a balanced binary concat tree from leaves
+	for len(leaves) > 1 {
+		next := make([]*Node, 0, (len(leaves)+1)/2)
+		for i := 0; i < len(leaves); i += 2 {
+			if i+1 < len(leaves) {
+				parent := NewConcatNode(leaves[i], leaves[i+1])
+				next = append(next, parent)
+			} else {
+				next = append(next, leaves[i])
+			}
+		}
+		leaves = next
+	}
+
+	root := leaves[0]
+	// Ensure offsets are consistent across the tree
+	root.offset = 0
+	propagateOffsets(root)
+	return &Rope{root: root}
 }
 
 func (r *Rope) String() string {
