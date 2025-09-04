@@ -1,8 +1,8 @@
 package buffer
 
 import (
-    "strings"
-    "testing"
+	"strings"
+	"testing"
 )
 
 func TestNodeOffsets(t *testing.T) {
@@ -133,19 +133,19 @@ func TestNodeOffsets(t *testing.T) {
 		}
 	})
 
-    t.Run("node splitting", func(t *testing.T) {
-        // Create a string close to maxLeafSize then insert to exceed it and force a split
-        baseLen := maxLeafSize - 500
-        largeText := ""
-        for i := 0; i < baseLen; i++ {
-            largeText += "a"
-        }
+	t.Run("node splitting", func(t *testing.T) {
+		// Create a string close to maxLeafSize then insert to exceed it and force a split
+		baseLen := maxLeafSize - 500
+		largeText := ""
+		for i := 0; i < baseLen; i++ {
+			largeText += "a"
+		}
 
-        // Create rope with large text
-        rope := NewRopeFromString(largeText)
+		// Create rope with large text
+		rope := NewRopeFromString(largeText)
 
-        // Insert more text to trigger splitting (ensure we go over maxLeafSize)
-        rope.Insert(baseLen/2, strings.Repeat("X", 2000))
+		// Insert more text to trigger splitting (ensure we go over maxLeafSize)
+		rope.Insert(baseLen/2, strings.Repeat("X", 2000))
 
 		// After splitting, we should have multiple nodes
 		if rope.root.IsLeaf() {
@@ -178,11 +178,11 @@ func TestNodeOffsets(t *testing.T) {
 			t.Errorf("Expected internal node offset to match left child (%d), got %d", rope.root.left.offset, rope.root.offset)
 		}
 
-        // Verify content is still correct
-        expectedContent := largeText[:baseLen/2] + strings.Repeat("X", 2000) + largeText[baseLen/2:]
-        if rope.String() != expectedContent {
-            t.Error("Content mismatch after splitting")
-        }
+		// Verify content is still correct
+		expectedContent := largeText[:baseLen/2] + strings.Repeat("X", 2000) + largeText[baseLen/2:]
+		if rope.String() != expectedContent {
+			t.Error("Content mismatch after splitting")
+		}
 	})
 
 	t.Run("complex tree structure", func(t *testing.T) {

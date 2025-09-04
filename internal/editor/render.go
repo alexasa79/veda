@@ -1199,10 +1199,10 @@ func (e *Editor) drawEditor() {
 	wrappedLines := e.CalculateWrappedLines()
 	_ = e.perfTracker.ReportSince("drawEditor.calculateWrappedLines", tWrap)
 
-    // Prepare iterator and per-frame token cache reuse across the entire visible region
-    var cachedIter *buffer.BufferIterator
-    cachedIterLine := -1
-    var lineTokensCache map[int][]syntax.Token
+	// Prepare iterator and per-frame token cache reuse across the entire visible region
+	var cachedIter *buffer.BufferIterator
+	cachedIterLine := -1
+	var lineTokensCache map[int][]syntax.Token
 	if len(wrappedLines) > 0 {
 		firstLogical := wrappedLines[0].LogicalLineNum
 		cachedIter = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), firstLogical)
@@ -1368,29 +1368,29 @@ func (e *Editor) drawEditor() {
 			_ = e.perfTracker.ReportSince("drawEditor.iterAdvance", iterAdvance)
 			iter = cachedIter
 		}
-        if !iter.IsEOF() {
-            // Frame-local tokens cache per logical line
-            var lineTokens []syntax.Token
-            if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil && e.CurrentBuffer().HasFile() {
-                // Lazily initialize cache map on first use; kept local to this draw call
-                if lineTokensCache == nil {
-                    lineTokensCache = make(map[int][]syntax.Token)
-                }
-                if tks, ok := lineTokensCache[wl.LogicalLineNum]; ok {
-                    lineTokens = tks
-                } else {
-                    // Compute once per logical line per frame
-                    tTok := e.perfTracker.Start()
-                    lineTokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-                    _ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
-                    lineTokensCache[wl.LogicalLineNum] = lineTokens
-                }
-            }
-            // Draw the wrapped line segment using cached tokens if available
-            drawSeg := e.perfTracker.Start()
-            e.drawWrappedLine(iter, wl, lineTokens, lineNumberWidth, screenY)
-            _ = e.perfTracker.ReportSince("drawEditor.drawWrappedLine", drawSeg)
-        }
+		if !iter.IsEOF() {
+			// Frame-local tokens cache per logical line
+			var lineTokens []syntax.Token
+			if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil && e.CurrentBuffer().HasFile() {
+				// Lazily initialize cache map on first use; kept local to this draw call
+				if lineTokensCache == nil {
+					lineTokensCache = make(map[int][]syntax.Token)
+				}
+				if tks, ok := lineTokensCache[wl.LogicalLineNum]; ok {
+					lineTokens = tks
+				} else {
+					// Compute once per logical line per frame
+					tTok := e.perfTracker.Start()
+					lineTokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+					_ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
+					lineTokensCache[wl.LogicalLineNum] = lineTokens
+				}
+			}
+			// Draw the wrapped line segment using cached tokens if available
+			drawSeg := e.perfTracker.Start()
+			e.drawWrappedLine(iter, wl, lineTokens, lineNumberWidth, screenY)
+			_ = e.perfTracker.ReportSince("drawEditor.drawWrappedLine", drawSeg)
+		}
 	}
 
 	// Fill remaining screen lines for this window region.
@@ -1927,17 +1927,17 @@ func (e *Editor) getActiveParameterRange(sig *buffer.SignatureHelp) (int, int) {
 
 // drawSignatureWithHighlighting draws the signature with syntax highlighting and bold active parameter
 func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int) {
-    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
-        e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
-        return
-    }
-    tTok := e.perfTracker.Start()
-    tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
-    _ = e.perfTracker.ReportSince("render.getTokensForString", tTok)
-    if len(tokens) == 0 {
-        e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
-        return
-    }
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
+		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+		return
+	}
+	tTok := e.perfTracker.Start()
+	tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
+	_ = e.perfTracker.ReportSince("render.getTokensForString", tTok)
+	if len(tokens) == 0 {
+		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+		return
+	}
 
 	x := 0
 	lastEnd := 0
