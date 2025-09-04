@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
@@ -583,12 +584,17 @@ func (e *Editor) showProjectSymbolsList() {
 	// Start with empty content
 	fuzzyListWidget.SetContent([]string{})
 
-	var pendingQuery string              // Query that is currently being processed
+	var latestSeq int64                  // Monotonic sequence for requests; only latest displayed
 	var symbols []proxy.ProjectSymbol    // Store the actual symbol objects
 	var symbolMap = make(map[string]int) // Map display name to index
 
+	// Wrap responses with originating request sequence
+	type respWithSeq struct {
+		resp proxyworker.ProxyResponse
+		seq  int64
+	}
 	// Create a channel to receive LSP responses for this widget
-	symbolResponseChan := make(chan proxyworker.ProxyResponse, 10)
+	symbolResponseChan := make(chan respWithSeq, 10)
 
 	// Create a channel for content updates
 	contentUpdateChan := make(chan []string, 10)
@@ -602,8 +608,13 @@ func (e *Editor) showProjectSymbolsList() {
 
 	// Start a goroutine to handle LSP responses
 	go func() {
-		for response := range symbolResponseChan {
-			if response.Type == proxyworker.RequestProjectSymbols && response.Query == pendingQuery {
+		for wrapped := range symbolResponseChan {
+			response := wrapped.resp
+			// Only accept the latest in-flight response
+			if wrapped.seq != atomic.LoadInt64(&latestSeq) {
+				continue
+			}
+			if response.Type == proxyworker.RequestProjectSymbols {
 				// End async operation for this query
 				operationID := fmt.Sprintf("project-symbols-%s", response.Query)
 				e.endAsyncOperation(operationID)
@@ -657,7 +668,8 @@ func (e *Editor) showProjectSymbolsList() {
 	// Define the text change handler
 	onTextChanged := func(newText string) {
 		// Send async LSP request for symbols (including empty queries)
-		pendingQuery = newText
+		// Bump request sequence and mark as latest
+		seq := atomic.AddInt64(&latestSeq, 1)
 		LL.Debug("Sending async LSP query for symbols with: %s", newText)
 
 		// Start async operation tracking
@@ -672,7 +684,7 @@ func (e *Editor) showProjectSymbolsList() {
 		}
 
 		// Launch goroutine to fetch symbols
-		go func(query string) {
+		go func(query string, reqSeq int64) {
 			defer e.endAsyncOperation(operationID)
 			defer func() { e.connectionStatus = "" }() // Clear status when done
 
@@ -700,12 +712,12 @@ func (e *Editor) showProjectSymbolsList() {
 
 			// Send response to the channel
 			select {
-			case symbolResponseChan <- response:
+			case symbolResponseChan <- respWithSeq{resp: response, seq: reqSeq}:
 				LL.Trace("Sent project symbols response for query '%s'", query)
 			default:
 				LL.Debug("Symbol response channel full, dropping response")
 			}
-		}(newText)
+		}(newText, seq)
 	}
 
 	// Create overlay and get result channel
