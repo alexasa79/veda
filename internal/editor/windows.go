@@ -126,7 +126,7 @@ func (e *Editor) recomputeWindowsLayout() {
 		// Give 10 characters to each non-active window
 		minOtherWidth := 10
 		otherWindowsTotal := minOtherWidth * (n - 1)
-		
+
 		// Active window gets the rest
 		activeWidth := screenW - otherWindowsTotal
 		if activeWidth < 20 { // Ensure active window gets at least 20 columns
@@ -147,7 +147,7 @@ func (e *Editor) recomputeWindowsLayout() {
 			e.windows[i].X = x
 			e.windows[i].Y = 0
 			e.windows[i].Height = contentH
-			
+
 			if i == activeIdx {
 				e.windows[i].Width = activeWidth
 				x += activeWidth
@@ -559,13 +559,13 @@ func (e *Editor) toggleWindowFullscreen(args []string) error {
 	if len(e.windows) <= 1 {
 		return nil
 	}
-	
+
 	// Toggle the fullscreen state
 	e.windowFullscreen = !e.windowFullscreen
-	
+
 	// Recompute layout with new fullscreen state
 	e.recomputeWindowsLayout()
-	
+
 	return nil
 }
 

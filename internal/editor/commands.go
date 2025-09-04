@@ -115,7 +115,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("go-back", e.goBack, false, true)
 	e.commandRegistry.Register("next-item", e.nextContextualItem, false, true)
 	e.commandRegistry.Register("previous-item", e.previousContextualItem, false, true)
-	
+
 	// Git staging operations
 	e.commandRegistry.Register("toggle-stage-hunk", e.toggleStageHunk, false, true)
 	e.commandRegistry.Register("toggle-stage-line", e.toggleStageLine, false, true)

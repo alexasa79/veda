@@ -100,7 +100,7 @@ func (e *Editor) handleShowCompletions(data map[string]interface{}) {
 func (e *Editor) getCursorScreenPosition() (int, int) {
 	// Get the active window's position
 	window := e.windows[e.activeWindow]
-	
+
 	// Calculate X position (accounting for window offset and line numbers)
 	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
 	x := window.X + lineNumberWidth + e.CurrentBuffer().CursorX

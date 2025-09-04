@@ -74,7 +74,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 
 				// Log the word ranges for debugging
 				for i, wordRange := range diffLine.WordRanges {
-					t.Logf("  Word range %d: [%d, %d) = %q", i, wordRange.Start, wordRange.End, 
+					t.Logf("  Word range %d: [%d, %d) = %q", i, wordRange.Start, wordRange.End,
 						diffLine.Content[wordRange.Start:wordRange.End])
 				}
 
@@ -84,7 +84,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 
 				// Sample a few characters across the line
 				lineLen := len(diffLine.Content)
-				samplePositions := []int{0, lineLen/4, lineLen/2, 3*lineLen/4, lineLen-1}
+				samplePositions := []int{0, lineLen / 4, lineLen / 2, 3 * lineLen / 4, lineLen - 1}
 
 				for _, samplePos := range samplePositions {
 					if samplePos >= lineLen {
@@ -100,18 +100,18 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 
 					if shouldBeHighlighted {
 						if actualBg != expectedModifiedBg {
-							t.Errorf("Line %d, pos %d (%q): expected highlighted background %v, got %v", 
+							t.Errorf("Line %d, pos %d (%q): expected highlighted background %v, got %v",
 								lineIdx, samplePos, string(diffLine.Content[samplePos]), expectedModifiedBg, actualBg)
 						} else {
-							t.Logf("✓ Line %d, pos %d (%q): correctly highlighted with %v", 
+							t.Logf("✓ Line %d, pos %d (%q): correctly highlighted with %v",
 								lineIdx, samplePos, string(diffLine.Content[samplePos]), actualBg)
 						}
 					} else {
 						if actualBg == expectedModifiedBg {
-							t.Errorf("Line %d, pos %d (%q): unexpected highlighted background %v (should not be highlighted)", 
+							t.Errorf("Line %d, pos %d (%q): unexpected highlighted background %v (should not be highlighted)",
 								lineIdx, samplePos, string(diffLine.Content[samplePos]), actualBg)
 						} else {
-							t.Logf("✓ Line %d, pos %d (%q): correctly not highlighted (background %v)", 
+							t.Logf("✓ Line %d, pos %d (%q): correctly not highlighted (background %v)",
 								lineIdx, samplePos, string(diffLine.Content[samplePos]), actualBg)
 						}
 					}
@@ -136,7 +136,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 						if wordRange.Start < 0 || wordRange.End > len(diffLine.Content) || wordRange.Start >= wordRange.End {
 							t.Errorf("Invalid word range %d: [%d, %d) for line %q", i, wordRange.Start, wordRange.End, diffLine.Content)
 						} else {
-							t.Logf("  Word range %d: [%d, %d) = %q", i, wordRange.Start, wordRange.End, 
+							t.Logf("  Word range %d: [%d, %d) = %q", i, wordRange.Start, wordRange.End,
 								diffLine.Content[wordRange.Start:wordRange.End])
 						}
 					}
@@ -168,7 +168,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 				// Sample a few characters in the context line
 				lineLen := len(diffLine.Content)
 				if lineLen > 0 {
-					samplePositions := []int{0, lineLen/2, lineLen-1}
+					samplePositions := []int{0, lineLen / 2, lineLen - 1}
 
 					for _, samplePos := range samplePositions {
 						if samplePos >= lineLen {
@@ -180,7 +180,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 						_, actualBg, _ := style.Decompose()
 
 						if actualBg == expectedModifiedBg {
-							t.Errorf("Context line %d, pos %d should not have diff highlighting background %v", 
+							t.Errorf("Context line %d, pos %d should not have diff highlighting background %v",
 								lineIdx, samplePos, actualBg)
 						}
 					}
@@ -193,10 +193,10 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 // TestWordDiffAlgorithm tests the word-level diff computation function directly
 func TestWordDiffAlgorithm(t *testing.T) {
 	testCases := []struct {
-		name       string
-		left       string
-		right      string
-		expectLen  int // Expected number of ranges
+		name      string
+		left      string
+		right     string
+		expectLen int // Expected number of ranges
 	}{
 		{
 			name:      "simple_word_change",
@@ -236,9 +236,9 @@ func TestWordDiffAlgorithm(t *testing.T) {
 				t.Skip("Skipping test - word diff algorithm merges changes")
 			}
 			ranges := computeWordDiff(tc.left, tc.right)
-			
+
 			if len(ranges) != tc.expectLen {
-				t.Errorf("Expected %d ranges, got %d for left=%q, right=%q", 
+				t.Errorf("Expected %d ranges, got %d for left=%q, right=%q",
 					tc.expectLen, len(ranges), tc.left, tc.right)
 			}
 
@@ -255,7 +255,7 @@ func TestWordDiffAlgorithm(t *testing.T) {
 			// Verify ranges are valid
 			for i, r := range ranges {
 				if r.Start < 0 || r.End > len(tc.right) || r.Start >= r.End {
-					t.Errorf("Invalid range %d: [%d, %d) for string of length %d", 
+					t.Errorf("Invalid range %d: [%d, %d) for string of length %d",
 						i, r.Start, r.End, len(tc.right))
 				}
 			}

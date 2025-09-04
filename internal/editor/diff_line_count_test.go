@@ -141,7 +141,7 @@ func TestDiffLineCountEquality(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test the core diff algorithm
 			result := computeDiff(tc.original, tc.modified)
-			
+
 			// Critical check: line counts must be equal
 			if len(result.LeftLines) != len(result.RightLines) {
 				t.Errorf("CRITICAL: Line count mismatch - Left: %d, Right: %d",
@@ -149,7 +149,7 @@ func TestDiffLineCountEquality(t *testing.T) {
 				t.Errorf("Test case: %s", tc.desc)
 				t.Errorf("Original: %q", tc.original)
 				t.Errorf("Modified: %q", tc.modified)
-				
+
 				// Debug output to understand the mismatch
 				t.Logf("Left lines (%d):", len(result.LeftLines))
 				for i, line := range result.LeftLines {
@@ -159,19 +159,19 @@ func TestDiffLineCountEquality(t *testing.T) {
 				for i, line := range result.RightLines {
 					t.Logf("  %d: %q (type=%v, filler=%v)", i, line.Content, line.LineType, line.IsFillerLine)
 				}
-				
+
 				return // Don't continue with other checks if this fails
 			}
-			
+
 			// Verify that reconstructed content preserves non-empty lines correctly
 			leftContent := createBufferContent(result.LeftLines)
 			rightContent := createBufferContent(result.RightLines)
-			
+
 			leftNonEmpty := countNonEmptyLines(leftContent)
 			rightNonEmpty := countNonEmptyLines(rightContent)
 			originalNonEmpty := countNonEmptyLines(tc.original)
 			modifiedNonEmpty := countNonEmptyLines(tc.modified)
-			
+
 			// Verify content reconstruction preserves original line counts
 			if leftNonEmpty != originalNonEmpty {
 				t.Errorf("Left reconstruction lost content: expected %d non-empty lines, got %d",
@@ -181,17 +181,17 @@ func TestDiffLineCountEquality(t *testing.T) {
 				t.Errorf("Right reconstruction lost content: expected %d non-empty lines, got %d",
 					modifiedNonEmpty, rightNonEmpty)
 			}
-			
+
 			// Verify that every line has the correct filler status
 			for i := 0; i < len(result.LeftLines); i++ {
 				leftLine := result.LeftLines[i]
 				rightLine := result.RightLines[i]
-				
+
 				// If one side is a filler, the other should have content (except for context lines)
 				if leftLine.IsFillerLine && rightLine.IsFillerLine {
 					t.Errorf("Line %d: Both sides cannot be fillers", i)
 				}
-				
+
 				// Filler lines should be empty
 				if leftLine.IsFillerLine && leftLine.Content != "" {
 					t.Errorf("Line %d: Left filler line should be empty, got %q", i, leftLine.Content)
@@ -200,7 +200,7 @@ func TestDiffLineCountEquality(t *testing.T) {
 					t.Errorf("Line %d: Right filler line should be empty, got %q", i, rightLine.Content)
 				}
 			}
-			
+
 			t.Logf("✓ %s: Equal line counts (%d each)", tc.desc, len(result.LeftLines))
 		})
 	}
@@ -210,7 +210,7 @@ func TestDiffLineCountEquality(t *testing.T) {
 func TestDiffLineCountInvariant(t *testing.T) {
 	// Test property: For any two strings A and B, computeDiff(A, B) should always
 	// produce LeftLines and RightLines with exactly the same length
-	
+
 	testPairs := []struct {
 		a, b string
 	}{
@@ -232,11 +232,11 @@ func TestDiffLineCountInvariant(t *testing.T) {
 		{"a\n\n", "a\n"},
 		{"a\n", "a\n\n"},
 	}
-	
+
 	for i, pair := range testPairs {
 		t.Run(fmt.Sprintf("pair_%d", i), func(t *testing.T) {
 			result := computeDiff(pair.a, pair.b)
-			
+
 			if len(result.LeftLines) != len(result.RightLines) {
 				t.Errorf("Invariant violated: Left=%d, Right=%d",
 					len(result.LeftLines), len(result.RightLines))
@@ -276,16 +276,16 @@ func main() {
 `
 
 	result := computeDiff(originalCode, modifiedCode)
-	
+
 	// Critical check
 	if len(result.LeftLines) != len(result.RightLines) {
 		t.Errorf("CRITICAL: Real file diff failed line count equality")
 		t.Errorf("Left: %d, Right: %d", len(result.LeftLines), len(result.RightLines))
-		
+
 		// Debug output
 		t.Logf("Original code:\n%s", originalCode)
 		t.Logf("Modified code:\n%s", modifiedCode)
-		
+
 		t.Logf("Left lines (%d):", len(result.LeftLines))
 		for i, line := range result.LeftLines {
 			t.Logf("  %d: %q (type=%v, filler=%v)", i, line.Content, line.LineType, line.IsFillerLine)
@@ -301,15 +301,15 @@ func main() {
 func TestDiffStressTest(t *testing.T) {
 	// Test with various combinations of line counts
 	lineCounts := []int{0, 1, 2, 5, 10, 25, 50}
-	
+
 	for _, leftCount := range lineCounts {
 		for _, rightCount := range lineCounts {
 			t.Run(fmt.Sprintf("lines_%d_vs_%d", leftCount, rightCount), func(t *testing.T) {
 				left := generateLargeContent(leftCount, "left")
 				right := generateLargeContent(rightCount, "right")
-				
+
 				result := computeDiff(left, right)
-				
+
 				if len(result.LeftLines) != len(result.RightLines) {
 					t.Errorf("Stress test failed: %d lines vs %d lines", leftCount, rightCount)
 					t.Errorf("Result: Left=%d, Right=%d", len(result.LeftLines), len(result.RightLines))
@@ -324,11 +324,10 @@ func generateLargeContent(lineCount int, prefix string) string {
 	if lineCount == 0 {
 		return ""
 	}
-	
+
 	lines := make([]string, lineCount)
 	for i := 0; i < lineCount; i++ {
 		lines[i] = fmt.Sprintf("%s line %d content here", prefix, i+1)
 	}
 	return strings.Join(lines, "\n")
 }
-

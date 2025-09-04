@@ -1017,7 +1017,7 @@ func (e *Editor) writeFile(args []string) error {
 
 		// Update buffer diagnostics with the returned diagnostics
 		target.Diagnostics = diagnostics
-		
+
 		// Update buffer git changes with the returned git changes
 		target.GitChanges = gitChanges
 
@@ -1162,9 +1162,9 @@ func (e *Editor) reloadFile(args []string) error {
 		e.ShowError("No file to reload")
 		return nil
 	}
-	
+
 	filePath := e.CurrentBuffer().FilePath
-	
+
 	// Check if there are unsaved changes
 	if e.CurrentBuffer().IsModified {
 		// Show confirmation dialog
@@ -1173,13 +1173,13 @@ func (e *Editor) reloadFile(args []string) error {
 		dialogHeight := 8
 		dialogX := (width - dialogWidth) / 2
 		dialogY := (height - dialogHeight) / 2
-		
+
 		message := fmt.Sprintf("File has unsaved changes. Reload and lose changes?")
 		dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, "Reload File", message, e.config.Theme)
-		
+
 		overlay := NewYesNoDialogOverlay(dialog)
 		resultChan := e.renderingState.SetOverlay(overlay)
-		
+
 		// Handle user's choice asynchronously
 		go func() {
 			res := <-resultChan
@@ -1191,10 +1191,10 @@ func (e *Editor) reloadFile(args []string) error {
 			}
 			// If No or Cancel, do nothing
 		}()
-		
+
 		return nil
 	}
-	
+
 	// No unsaved changes, reload immediately
 	e.performReload(filePath)
 	return nil
@@ -1205,17 +1205,17 @@ func (e *Editor) performReload(filePath string) {
 	// Start async operation for spinner
 	operationID := "reload-file"
 	e.startAsyncOperation(operationID, "reloading file")
-	
+
 	go func() {
 		defer e.endAsyncOperation(operationID)
-		
+
 		// Read file content using proxy
 		fileContent, err := e.proxyManager.GetFile(filePath)
 		if err != nil {
 			e.ShowError("Failed to reload file: %v", err)
 			return
 		}
-		
+
 		// Send reload event to main thread
 		e.asyncEvents <- events.NewCustomEvent("file-reloaded", map[string]interface{}{
 			"path":        filePath,
@@ -1234,55 +1234,55 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 	changes, _ := data["changes"].(proxy.FileChanges)
 	branch, _ := data["branch"].(string)
 	diagnostics, _ := data["diagnostics"].([]proxy.Diagnostic)
-	
+
 	// Find the buffer
 	buf, exists := e.buffers[path]
 	if !exists {
 		LL.Error("Buffer not found for reloaded file: %s", path)
 		return
 	}
-	
+
 	// Save cursor position
 	cursorLine := buf.CursorIterator.LineNumber()
 	cursorX := buf.CursorX
-	
+
 	// Create new buffer with reloaded content
 	newBuf := buffer.NewBuffer(content, path, buf.Indentation.Type, buf.Indentation.Width)
-	
+
 	// Restore cursor position if possible
 	maxLine := newBuf.LineCount - 1
 	if cursorLine > maxLine {
 		cursorLine = maxLine
 	}
 	newBuf.CursorIterator = buffer.NewBufferIteratorAtLine(newBuf, cursorLine)
-	
+
 	// Restore cursor X position
 	lineLength := len(newBuf.CursorIterator.Line())
 	if cursorX > lineLength {
 		cursorX = lineLength
 	}
 	newBuf.CursorX = cursorX
-	
-	// Copy buffer settings  
+
+	// Copy buffer settings
 	newBuf.IsReadOnly = buf.IsReadOnly
 	newBuf.IsInternal = buf.IsInternal
-	
+
 	// Clear modified flag (new buffer already has it false)
 	newBuf.IsModified = false
-	
+
 	// Update git changes
 	newBuf.GitChanges = &changes
 	newBuf.GitBranch = branch
-	
+
 	// Update diagnostics
 	newBuf.Diagnostics = diagnostics
-	
+
 	// Replace the old buffer with the new one
 	e.buffers[path] = newBuf
 	if e.CurrentBuffer() == buf {
 		e.SetCurrentBuffer(newBuf)
 	}
-	
+
 	// Update window references
 	for _, win := range e.windows {
 		if win.Buffer == buf {
@@ -1294,10 +1294,10 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 			}
 		}
 	}
-	
+
 	// Re-parse syntax highlighting
 	e.updateSyntaxHighlighting()
-	
+
 	// Show success message
 	e.ShowInfo("File reloaded from disk")
 }

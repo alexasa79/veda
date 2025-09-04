@@ -69,14 +69,14 @@ func TestWriteFilePreservesExecutablePermission(t *testing.T) {
 		t.Fatalf("Failed to read modified file: %v", err)
 	}
 	if string(content) != modifiedContent {
-		t.Errorf("File content not updated correctly.\nExpected: %q\nGot: %q", 
+		t.Errorf("File content not updated correctly.\nExpected: %q\nGot: %q",
 			modifiedContent, string(content))
 	}
 
 	// Test with non-executable file
 	t.Run("NonExecutableFile", func(t *testing.T) {
 		nonExecFile := filepath.Join(tempDir, "regular_file.txt")
-		
+
 		// Create non-executable file
 		err = os.WriteFile(nonExecFile, []byte("initial"), 0644)
 		if err != nil {

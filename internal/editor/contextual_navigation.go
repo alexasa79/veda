@@ -24,7 +24,7 @@ func (e *Editor) getNavigationContext() string {
 			}
 		}
 	}
-	
+
 	// Don't show git changes in status bar - g n/g p will silently navigate them
 	return ""
 }
@@ -49,7 +49,7 @@ func (e *Editor) nextContextualItem(args []string) error {
 			}
 		}
 	}
-	
+
 	// No special buffer active, navigate git changes in current file
 	return e.nextGitChange()
 }
@@ -74,7 +74,7 @@ func (e *Editor) previousContextualItem(args []string) error {
 			}
 		}
 	}
-	
+
 	// No special buffer active, navigate git changes in current file
 	return e.previousGitChange()
 }
@@ -85,18 +85,18 @@ func (e *Editor) getGitChangeHunks() []int {
 	if buf == nil || buf.GitChanges == nil {
 		return nil
 	}
-	
+
 	// Combine and sort all changed lines
 	allChanges := make([]int, 0)
 	allChanges = append(allChanges, buf.GitChanges.Added...)
 	allChanges = append(allChanges, buf.GitChanges.Modified...)
-	
+
 	if len(allChanges) == 0 {
 		return nil
 	}
-	
+
 	sort.Ints(allChanges)
-	
+
 	// Group into hunks (contiguous line groups)
 	hunks := make([]int, 0)
 	if len(allChanges) > 0 {
@@ -108,7 +108,7 @@ func (e *Editor) getGitChangeHunks() []int {
 			}
 		}
 	}
-	
+
 	return hunks
 }
 
@@ -118,10 +118,10 @@ func (e *Editor) nextGitChange() error {
 	if len(hunks) == 0 {
 		return fmt.Errorf("no git changes in current buffer")
 	}
-	
+
 	// Get current line (1-based)
 	currentLine := e.CurrentBuffer().CursorIterator.LineNumber() + 1
-	
+
 	// Find next hunk
 	for _, hunkStart := range hunks {
 		if hunkStart > currentLine {
@@ -130,7 +130,7 @@ func (e *Editor) nextGitChange() error {
 			return nil
 		}
 	}
-	
+
 	// Wrap around to first hunk
 	e.goToLine(hunks[0] - 1)
 	return nil
@@ -142,10 +142,10 @@ func (e *Editor) previousGitChange() error {
 	if len(hunks) == 0 {
 		return fmt.Errorf("no git changes in current buffer")
 	}
-	
+
 	// Get current line (1-based)
 	currentLine := e.CurrentBuffer().CursorIterator.LineNumber() + 1
-	
+
 	// Find the current hunk we're in (if any)
 	currentHunkIdx := -1
 	for i, hunkStart := range hunks {
@@ -155,7 +155,7 @@ func (e *Editor) previousGitChange() error {
 			break
 		}
 	}
-	
+
 	// If we're at or after the start of a hunk, go to the previous hunk
 	if currentHunkIdx > 0 {
 		// If we're at the start of the current hunk, go to previous
@@ -167,7 +167,7 @@ func (e *Editor) previousGitChange() error {
 		}
 		return nil
 	}
-	
+
 	// We're before all hunks or at the first hunk - wrap to last
 	e.goToLine(hunks[len(hunks)-1] - 1)
 	return nil
@@ -179,12 +179,12 @@ func (e *Editor) nextDiagnosticInBuffer() error {
 	if !exists {
 		return fmt.Errorf("diagnostics buffer not open")
 	}
-	
+
 	// Switch to diagnostics buffer if not current
 	if e.CurrentBuffer() != buf {
 		e.switchToBuffer(buf)
 	}
-	
+
 	// Move to next line that starts with a file path (diagnostic entry)
 	currentLine := buf.CursorIterator.LineNumber()
 	for i := currentLine + 1; i < buf.LineCount; i++ {
@@ -197,7 +197,7 @@ func (e *Editor) nextDiagnosticInBuffer() error {
 			return nil
 		}
 	}
-	
+
 	// Wrap around to first diagnostic
 	for i := 0; i <= currentLine; i++ {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
@@ -208,7 +208,7 @@ func (e *Editor) nextDiagnosticInBuffer() error {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("no diagnostics to navigate")
 }
 
@@ -218,12 +218,12 @@ func (e *Editor) previousDiagnosticInBuffer() error {
 	if !exists {
 		return fmt.Errorf("diagnostics buffer not open")
 	}
-	
+
 	// Switch to diagnostics buffer if not current
 	if e.CurrentBuffer() != buf {
 		e.switchToBuffer(buf)
 	}
-	
+
 	// Move to previous line that starts with a file path (diagnostic entry)
 	currentLine := buf.CursorIterator.LineNumber()
 	for i := currentLine - 1; i >= 0; i-- {
@@ -236,7 +236,7 @@ func (e *Editor) previousDiagnosticInBuffer() error {
 			return nil
 		}
 	}
-	
+
 	// Wrap around to last diagnostic
 	for i := buf.LineCount - 1; i >= currentLine; i-- {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
@@ -247,7 +247,7 @@ func (e *Editor) previousDiagnosticInBuffer() error {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("no diagnostics to navigate")
 }
 
@@ -257,12 +257,12 @@ func (e *Editor) nextChangeInProjectBuffer() error {
 	if !exists {
 		return fmt.Errorf("project changes buffer not open")
 	}
-	
+
 	// Switch to project changes buffer if not current
 	if e.CurrentBuffer() != buf {
 		e.switchToBuffer(buf)
 	}
-	
+
 	// Move to next line that contains a file entry
 	currentLine := buf.CursorIterator.LineNumber()
 	for i := currentLine + 1; i < buf.LineCount; i++ {
@@ -275,7 +275,7 @@ func (e *Editor) nextChangeInProjectBuffer() error {
 			return nil
 		}
 	}
-	
+
 	// Wrap around to first change
 	for i := 0; i <= currentLine; i++ {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
@@ -286,7 +286,7 @@ func (e *Editor) nextChangeInProjectBuffer() error {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("no changes to navigate")
 }
 
@@ -296,12 +296,12 @@ func (e *Editor) previousChangeInProjectBuffer() error {
 	if !exists {
 		return fmt.Errorf("project changes buffer not open")
 	}
-	
+
 	// Switch to project changes buffer if not current
 	if e.CurrentBuffer() != buf {
 		e.switchToBuffer(buf)
 	}
-	
+
 	// Move to previous line that contains a file entry
 	currentLine := buf.CursorIterator.LineNumber()
 	for i := currentLine - 1; i >= 0; i-- {
@@ -314,7 +314,7 @@ func (e *Editor) previousChangeInProjectBuffer() error {
 			return nil
 		}
 	}
-	
+
 	// Wrap around to last change
 	for i := buf.LineCount - 1; i >= currentLine; i-- {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
@@ -325,6 +325,6 @@ func (e *Editor) previousChangeInProjectBuffer() error {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("no changes to navigate")
 }

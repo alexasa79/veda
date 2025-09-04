@@ -415,7 +415,7 @@ func (e *Editor) closeBuffer(args []string) error {
 				}
 			}
 		}
-		
+
 		if ts, ok := e.terminalSessions[currentPath]; ok && ts != nil && ts.SessionID != "" {
 			_ = e.proxyManager.CloseTerminal(ts.WorkingDir, ts.SessionID)
 			delete(e.terminalSessions, currentPath)
@@ -754,14 +754,14 @@ func (e *Editor) closeDiffBufferPair(bufferPath string) error {
 
 	// Remove both buffers from all windows
 	windowsToClose := make([]int, 0)
-	
+
 	for i, window := range e.windows {
 		if window == nil {
 			continue
 		}
-		
+
 		shouldCloseWindow := false
-		
+
 		// Remove both diff buffers from this window
 		for _, buf := range window.Buffers {
 			if buf != nil && (buf.FilePath == bufferPath || buf.FilePath == pairedPath) {
@@ -771,7 +771,7 @@ func (e *Editor) closeDiffBufferPair(bufferPath string) error {
 				}
 			}
 		}
-		
+
 		if shouldCloseWindow {
 			windowsToClose = append(windowsToClose, i)
 		}
@@ -812,7 +812,7 @@ func (e *Editor) closeDiffBufferPair(bufferPath string) error {
 		newBuf := e.createUnnamedBuffer()
 		e.buffers[newBuf.FilePath] = newBuf
 		e.bufferOrder = append(e.bufferOrder, newBuf.FilePath)
-		
+
 		if len(e.windows) == 0 {
 			newWin := newWindow(newBuf)
 			e.windows = append(e.windows, newWin)

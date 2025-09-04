@@ -105,10 +105,10 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"rewrap-paragraph": "rewrap paragraph",
 
 		// Window management commands
-		"move-buffer-left":          "move buffer left",
-		"move-buffer-right":         "move buffer right",
-		"move-buffer-center":        "move buffer center",
-		"toggle-window-fullscreen":  "toggle fullscreen",
+		"move-buffer-left":         "move buffer left",
+		"move-buffer-right":        "move buffer right",
+		"move-buffer-center":       "move buffer center",
+		"toggle-window-fullscreen": "toggle fullscreen",
 
 		// Terminal
 		"term":            "open terminal",
@@ -155,7 +155,7 @@ func (e *Editor) showKeyHints() {
 	if _, ok := commandDescs["term-new-window"]; !ok {
 		commandDescs["term-new-window"] = "open terminal (new window)"
 	}
-	
+
 	// Add descriptions for existing windows only
 	numWindows := len(e.windows)
 	if numWindows == 0 {
@@ -165,10 +165,10 @@ func (e *Editor) showKeyHints() {
 		cmd := fmt.Sprintf("window-%d", i)
 		commandDescs[cmd] = fmt.Sprintf("switch to window %d", i)
 	}
-	
+
 	categoryDescs := e.getCategoryDescriptions()
 	hints := widgets.GetAvailableKeyHints(e.keyMapper, pendingKeys, e.mode, commandDescs, categoryDescs)
-	
+
 	// Filter out hints for non-existent windows
 	filteredHints := []widgets.KeyHint{}
 	for _, hint := range hints {
