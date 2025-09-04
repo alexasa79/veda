@@ -173,7 +173,24 @@ func (e *Editor) updateSyntaxHighlighting() {
 		_ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
 	}
 	content := e.CurrentBuffer().Rope.String()
-	e.CurrentBuffer().Highlighter.ParseFull([]byte(content))
+	_ = e.CurrentBuffer().Highlighter.ReparseIncremental([]byte(content))
+}
+
+// updateSyntaxApplyEdit applies an incremental syntax update using the buffer's highlighter.
+// startByte must be computed against the pre-edit content. oldText/newText are the exact bytes
+// that were replaced/inserted at that position.
+func (e *Editor) updateSyntaxApplyEdit(startByte int, oldText, newText string) {
+	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
+		return
+	}
+	if e.CurrentBuffer().Highlighter == nil {
+		e.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+		_ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
+		// Initialize the tree from full content; subsequent calls can be incremental
+		_ = e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
+		return
+	}
+	_ = e.CurrentBuffer().Highlighter.ApplyEdit(startByte, oldText, newText)
 }
 
 // getDiagnosticLineCount returns the number of lines needed to display a diagnostic message

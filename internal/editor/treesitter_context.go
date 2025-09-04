@@ -15,42 +15,55 @@ func getTreeSitterContext(buf *buffer.Buffer, highlighter *syntax.Highlighter, c
 		return nil
 	}
 
-	// Get the root node
 	root := tree.RootNode()
 
-	// Find nodes that contain the cursor line and should be shown as context
-	contextNodes := findContextNodes(root, cursorLine, viewStartLine, viewEndLine)
+	// Compute byte-column at cursor (CursorX is byte offset within the line)
+	col := buf.CursorX
+	if col < 0 {
+		col = 0
+	}
+	// Clamp to current line length
+	iter := buffer.NewBufferIteratorAtLine(buf, cursorLine)
+	if !iter.IsEOF() {
+		line := iter.Line()
+		if col > len(line) {
+			col = len(line)
+		}
+	}
 
-	// Convert nodes to line numbers
-	var lineNumbers []int
-	lineMap := make(map[int]bool)
+	// Point query to get the deepest named node at the cursor
+	p := sitter.Point{Row: uint32(cursorLine), Column: uint32(col)}
+	n := root.NamedDescendantForPointRange(p, p)
+	if n == nil {
+		return nil
+	}
 
-	for _, node := range contextNodes {
-		startLine := int(node.StartPoint().Row)
+	// Ascend and collect context-worthy ancestors
+	lines := make([]int, 0, maxLines)
+	seen := make(map[int]bool)
 
-		// For function definitions, we want to show the complete signature
-		if isFunctionNode(node) {
-			// Get the line that contains the function name and parameters
-			funcLine := findFunctionDeclarationLine(buf, node)
-			if funcLine >= 0 && (funcLine < viewStartLine || funcLine > viewEndLine) && !lineMap[funcLine] {
-				lineMap[funcLine] = true
-				lineNumbers = append(lineNumbers, funcLine)
+	for cur := n; cur != nil; cur = cur.Parent() {
+		if isContextNode(cur) {
+			lnum := -1
+			if isFunctionNode(cur) {
+				lnum = findFunctionDeclarationLine(buf, cur)
+			} else {
+				lnum = int(cur.StartPoint().Row)
 			}
-		} else if startLine < viewStartLine || startLine > viewEndLine {
-			// For other nodes, use the start line
-			if !lineMap[startLine] {
-				lineMap[startLine] = true
-				lineNumbers = append(lineNumbers, startLine)
+			if lnum >= 0 && (lnum < viewStartLine || lnum > viewEndLine) {
+				if !seen[lnum] {
+					seen[lnum] = true
+					lines = append(lines, lnum)
+				}
 			}
 		}
 	}
 
-	// Limit to maxLines
-	if len(lineNumbers) > maxLines {
-		lineNumbers = lineNumbers[len(lineNumbers)-maxLines:]
+	// Keep only the last maxLines (closest outer ancestors last)
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
 	}
-
-	return lineNumbers
+	return lines
 }
 
 // findContextNodes finds all nodes that contain the cursor line and are context-worthy

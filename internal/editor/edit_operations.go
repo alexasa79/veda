@@ -256,6 +256,9 @@ func (e *Editor) insertTab(args []string) error {
 	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 	cursorX := e.CurrentBuffer().CursorX
 
+	// Compute absolute start before modification for incremental syntax update
+	startByte := e.getAbsolutePosition()
+
 	// Create history entry
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, indentStr)
 
@@ -281,7 +284,7 @@ func (e *Editor) insertTab(args []string) error {
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
-		e.updateSyntaxHighlighting()
+		e.updateSyntaxApplyEdit(startByte, "", indentStr)
 	}
 
 	// Update completion menu filter if visible
@@ -341,6 +344,8 @@ func (e *Editor) insertChar(ch rune) error {
 	}
 
 	// Create history entry for the single character
+	// Compute absolute start before modification for incremental syntax update
+	startByte := e.getAbsolutePosition()
 	textToInsert := string(ch)
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
 
@@ -367,7 +372,7 @@ func (e *Editor) insertChar(ch rune) error {
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
-		e.updateSyntaxHighlighting()
+		e.updateSyntaxApplyEdit(startByte, "", textToInsert)
 	}
 
 	// Update completion menu filter if visible
@@ -482,6 +487,9 @@ func (e *Editor) insertNewline(args []string) error {
 		finalCursorX = len(autoIndent.IndentStr)
 	}
 
+	// Compute absolute start before modification for incremental syntax update
+	startByte := e.getAbsolutePosition()
+
 	entry := buffer.NewInsertTextEntry(lineNum, cursorX, textToInsert)
 
 	// Execute through history
@@ -514,7 +522,7 @@ func (e *Editor) insertNewline(args []string) error {
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
-		e.updateSyntaxHighlighting()
+		e.updateSyntaxApplyEdit(startByte, "", textToInsert)
 	}
 
 	// Ensure the cursor's new line is visible immediately to avoid one-frame misplacement
@@ -584,6 +592,8 @@ func (e *Editor) backspace(args []string) error {
 			}
 
 			// We're deleting a newline character
+			// For incremental syntax: start at pos-1, delete "\n"
+			incStart := pos - 1
 			deletedText := "\n"
 			entry := buffer.NewDeleteTextEntry(lineNum-1, prevLineLen, deletedText)
 
@@ -610,7 +620,7 @@ func (e *Editor) backspace(args []string) error {
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
-				e.updateSyntaxHighlighting()
+				e.updateSyntaxApplyEdit(incStart, deletedText, "")
 			}
 		}
 	} else {
@@ -699,7 +709,11 @@ func (e *Editor) backspace(args []string) error {
 
 					// Update syntax highlighting (skip during paste mode)
 					if !e.inPasteMode {
-						e.updateSyntaxHighlighting()
+						// Compute absolute start for deletion using line start + startX BEFORE modification
+						iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+						absLineStart := iter.Position()
+						incStart := absLineStart + startX
+						e.updateSyntaxApplyEdit(incStart, deletedText, "")
 					}
 
 					// Update completion menu filter if visible
@@ -737,7 +751,7 @@ func (e *Editor) backspace(args []string) error {
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
-				e.updateSyntaxHighlighting()
+				e.updateSyntaxApplyEdit(pos-1, deletedText, "")
 			}
 
 			// Update completion menu filter if visible
@@ -791,7 +805,7 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
-				e.updateSyntaxHighlighting()
+				e.updateSyntaxApplyEdit(pos, "\n", "")
 			}
 			return nil
 		}
@@ -839,7 +853,7 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
-		e.updateSyntaxHighlighting()
+		e.updateSyntaxApplyEdit(pos, deletedText, "")
 	}
 
 	return nil
@@ -1004,7 +1018,10 @@ func (e *Editor) deleteWordForward(args []string) error {
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
-		e.updateSyntaxHighlighting()
+		// Compute absolute start using iterator based on original startX
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+		absStart := iter.Position() + startX
+		e.updateSyntaxApplyEdit(absStart, textToDelete, "")
 	}
 
 	// Update completion filter if menu is visible
@@ -1064,7 +1081,9 @@ func (e *Editor) deleteToEndOfLine(args []string) error {
 	}
 
 	// Update syntax highlighting
-	e.updateSyntaxHighlighting()
+	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	absStart := iter.Position() + startX
+	e.updateSyntaxApplyEdit(absStart, deletedText, "")
 
 	// Note: Multi-cursor support will be handled automatically by the
 	// command registry since we marked this command with appliestoAllCursors=true
