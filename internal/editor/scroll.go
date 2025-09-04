@@ -32,9 +32,15 @@ func (e *Editor) scroll() {
 	if cursorLine < topLine+topScrollOffset {
 		linesToMove := topLine - (cursorLine - topScrollOffset)
 		if linesToMove > 0 {
+			// Measure total time for this batch of upward moves
+			moveBatch := e.perfTracker.Start()
 			for i := 0; i < linesToMove; i++ {
+				step := e.perfTracker.Start()
 				e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Previous()
+				// Count each iterator step to see how many moves occur during scrolling
+				_ = e.perfTracker.ReportSince("scroll.step.prev", step)
 			}
+			_ = e.perfTracker.ReportSince("scroll.move.up.batch", moveBatch)
 		}
 	}
 
@@ -57,9 +63,15 @@ func (e *Editor) scroll() {
 		}
 
 		if linesToMove > 0 {
+			// Measure total time for this batch of downward moves
+			moveBatch := e.perfTracker.Start()
 			for i := 0; i < linesToMove; i++ {
+				step := e.perfTracker.Start()
 				e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Next()
+				// Count each iterator step to see how many moves occur during scrolling
+				_ = e.perfTracker.ReportSince("scroll.step.next", step)
 			}
+			_ = e.perfTracker.ReportSince("scroll.move.down.batch", moveBatch)
 		}
 	}
 	e.perfTracker.ReportSince("scroll.core", t0)

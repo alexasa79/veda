@@ -1,23 +1,23 @@
 package syntax
 
 import (
-	"context"
-	"fmt"
-	"path/filepath"
-	"strings"
-	"veda/internal/theme"
+    "context"
+    "fmt"
+    "path/filepath"
+    "strings"
+    "veda/internal/theme"
 
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/bash"
-	"github.com/smacker/go-tree-sitter/c"
-	"github.com/smacker/go-tree-sitter/cpp"
-	"github.com/smacker/go-tree-sitter/golang"
-	"github.com/smacker/go-tree-sitter/javascript"
-	markdown_inline "github.com/smacker/go-tree-sitter/markdown/tree-sitter-markdown-inline"
-	"github.com/smacker/go-tree-sitter/python"
-	tsx "github.com/smacker/go-tree-sitter/typescript/tsx"
-	typescript "github.com/smacker/go-tree-sitter/typescript/typescript"
-	tree_sitter_make "github.com/tree-sitter-grammars/tree-sitter-make/bindings/go"
+    sitter "github.com/smacker/go-tree-sitter"
+    "github.com/smacker/go-tree-sitter/bash"
+    "github.com/smacker/go-tree-sitter/c"
+    "github.com/smacker/go-tree-sitter/cpp"
+    "github.com/smacker/go-tree-sitter/golang"
+    "github.com/smacker/go-tree-sitter/javascript"
+    markdown_inline "github.com/smacker/go-tree-sitter/markdown/tree-sitter-markdown-inline"
+    "github.com/smacker/go-tree-sitter/python"
+    tsx "github.com/smacker/go-tree-sitter/typescript/tsx"
+    typescript "github.com/smacker/go-tree-sitter/typescript/typescript"
+    tree_sitter_make "github.com/tree-sitter-grammars/tree-sitter-make/bindings/go"
 )
 
 // TokenType represents different syntax elements
@@ -97,6 +97,7 @@ type Highlighter struct {
 	currentSource []byte
 	tokenCache    map[int][]Token // Cache key: startByte
 }
+
 
 // NewHighlighter creates a new syntax highlighter
 func NewHighlighter() *Highlighter {
@@ -460,33 +461,33 @@ func (h *Highlighter) GetTree() *sitter.Tree {
 
 // GetTokensForLine returns syntax tokens for a specific line
 func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
-	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
-		return nil
-	}
+    if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
+        return nil
+    }
 
-	// Check cache first
-	if cached, ok := h.tokenCache[lineStart]; ok {
-		return cached
-	}
+    // Check cache first
+    if cached, ok := h.tokenCache[lineStart]; ok {
+        return cached
+    }
 
-	tokens := []Token{}
-	root := h.currentTree.RootNode()
+    tokens := []Token{}
+    root := h.currentTree.RootNode()
 
-	// Query the tree for nodes in this line
-	h.walkNode(root, lineStart, lineEnd, h.currentSource, &tokens)
+    // Query the tree for nodes in this line
+    h.walkNode(root, lineStart, lineEnd, h.currentSource, &tokens)
 
-	// Sort tokens by start position and merge overlapping
-	tokens = h.mergeOverlappingTokens(tokens)
+    // Sort tokens by start position and merge overlapping
+    tokens = h.mergeOverlappingTokens(tokens)
 
-	// Post-process markdown tokens
-	if h.currentLang == "markdown" {
-		tokens = h.postProcessMarkdownTokens(tokens, lineStart, lineEnd, h.currentSource)
-	}
+    // Post-process markdown tokens
+    if h.currentLang == "markdown" {
+        tokens = h.postProcessMarkdownTokens(tokens, lineStart, lineEnd, h.currentSource)
+    }
 
-	// Cache the result
-	h.tokenCache[lineStart] = tokens
+    // Cache the result
+    h.tokenCache[lineStart] = tokens
 
-	return tokens
+    return tokens
 }
 
 // PreloadTokenCache pre-loads syntax highlighting for a range of lines to improve scrolling performance
@@ -644,50 +645,55 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		}
 	}
 
-	// Performance optimization: for large nodes with many children,
-	// use optimized traversal that can skip irrelevant children
-	if childCount > 20 && (nodeEnd-nodeStart) > (lineEnd-lineStart)*10 {
-		h.walkNodeOptimized(node, lineStart, lineEnd, source, tokens)
-	} else {
-		// Always recurse into children
-		for i := 0; i < childCount; i++ {
-			child := node.Child(i)
-			h.walkNode(child, lineStart, lineEnd, source, tokens)
-		}
-	}
+    // Prefer optimized traversal that skips irrelevant children when there are multiple children
+    if childCount > 4 {
+        h.walkNodeOptimized(node, lineStart, lineEnd, source, tokens)
+    } else {
+        for i := 0; i < childCount; i++ {
+            child := node.Child(i)
+            h.walkNode(child, lineStart, lineEnd, source, tokens)
+        }
+    }
 }
 
 // walkNodeOptimized provides faster traversal for large nodes with many children
 func (h *Highlighter) walkNodeOptimized(node *sitter.Node, lineStart, lineEnd int, source []byte, tokens *[]Token) {
-	childCount := int(node.ChildCount())
+    childCount := int(node.ChildCount())
 
-	// Binary search to find the first child that might overlap with our line
-	firstChild := 0
-	lastChild := childCount - 1
+    // Binary search to find the first child whose EndByte > lineStart
+    low, high := 0, childCount
+    for low < high {
+        mid := (low + high) / 2
+        ch := node.Child(mid)
+        if int(ch.EndByte()) <= lineStart {
+            low = mid + 1
+        } else {
+            high = mid
+        }
+    }
+    firstChild := low
 
-	// Find first potentially relevant child
-	for firstChild < childCount {
-		child := node.Child(firstChild)
-		if int(child.EndByte()) > lineStart {
-			break // This child might overlap
-		}
-		firstChild++
-	}
+    // Binary search to find the last child whose StartByte < lineEnd
+    low, high = firstChild, childCount
+    for low < high {
+        mid := (low + high) / 2
+        ch := node.Child(mid)
+        if int(ch.StartByte()) < lineEnd {
+            low = mid + 1
+        } else {
+            high = mid
+        }
+    }
+    lastChild := low - 1
+    if lastChild < firstChild {
+        return
+    }
 
-	// Find last potentially relevant child
-	for lastChild >= firstChild {
-		child := node.Child(lastChild)
-		if int(child.StartByte()) < lineEnd {
-			break // This child might overlap
-		}
-		lastChild--
-	}
-
-	// Process only the relevant children
-	for i := firstChild; i <= lastChild && i < childCount; i++ {
-		child := node.Child(i)
-		h.walkNode(child, lineStart, lineEnd, source, tokens)
-	}
+    // Process only the relevant children
+    for i := firstChild; i <= lastChild; i++ {
+        child := node.Child(i)
+        h.walkNode(child, lineStart, lineEnd, source, tokens)
+    }
 }
 
 // mapNodeToTokenType maps tree-sitter node types to our token types
