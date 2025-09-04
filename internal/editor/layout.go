@@ -71,6 +71,41 @@ func (e *Editor) getContentStartY() int {
 	return 0
 }
 
+// getActiveWindowSizeForTerminal returns the width and height for the active window's
+// content region, suitable for sizing a PTY-backed terminal.
+// When no windows are present, it falls back to the full screen width and screen height minus status bar.
+func (e *Editor) getActiveWindowSizeForTerminal() (int, int) {
+	// Determine base width/height from active window or full-screen fallback
+	var w, h int
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+		win := e.windows[e.activeWindow]
+		w, h = win.Width, win.Height
+	} else {
+		// Fallback: single-window mode using the whole screen content area
+		w, h = e.screen.Size()
+		// Reserve status bar line in fallback
+		if h > 0 {
+			h = h - 1
+		}
+		if h < 1 {
+			h = 1
+		}
+	}
+
+	// Subtract gutter (line numbers + indicators) from width so PTY columns match
+	// the visible content area where terminal characters are rendered.
+	if e.CurrentBuffer() != nil {
+		gutter := e.CurrentBuffer().LineNumberWidth
+		if gutter >= 0 && gutter < w {
+			w = w - gutter
+		}
+	}
+	if w < 1 {
+		w = 1
+	}
+	return w, h
+}
+
 // shouldShowContext determines if context should be shown
 func (e *Editor) shouldShowContext() bool {
 	if !e.showContext {
@@ -233,11 +268,10 @@ func (e *Editor) handleResize() {
 	if len(e.windows) > 0 {
 		e.recomputeWindowsLayout()
 	}
-	// When a terminal buffer is active, propagate resize to PTY via proxy
-	if e.mode == commands.TerminalMode && e.CurrentBuffer() != nil {
+	// When a terminal buffer is active, propagate resize to PTY via proxy using the active window size
+	if e.CurrentBuffer() != nil {
 		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.SessionID != "" {
-			cols := e.getVisibleWidth()
-			rows := e.getVisibleHeight()
+			cols, rows := e.getActiveWindowSizeForTerminal()
 			_ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)
 			ts.Cols, ts.Rows = cols, rows
 			if ts.term != nil {
