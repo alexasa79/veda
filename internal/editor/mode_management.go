@@ -310,8 +310,19 @@ func (e *Editor) executeCommand() {
 
 	// Try to execute from the command registry
 	if e.commandRegistry.Has(cmd) {
-		err := e.commandRegistry.Execute(cmd, args)
-		if err != nil {
+		// If this command is marked to apply to all cursors and we have
+		// active virtual cursors (and are not in CursorMode), route through
+		// the multi-cursor executor so behavior matches key-initiated commands.
+		if info, ok := e.commandRegistry.GetCommand(cmd); ok {
+			if e.mode != commands.CursorMode && len(e.virtualCursors) > 0 && info.ApplyToAllCursors {
+				if err := e.executeCommandForAllCursors(cmd, args); err != nil {
+					e.ShowError("Command failed: %v", err)
+				}
+				return
+			}
+		}
+		// Otherwise execute normally
+		if err := e.commandRegistry.Execute(cmd, args); err != nil {
 			e.ShowError("Command failed: %v", err)
 		}
 		return
