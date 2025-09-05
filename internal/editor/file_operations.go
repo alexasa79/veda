@@ -981,6 +981,9 @@ func (e *Editor) writeFile(args []string) error {
 		return fmt.Errorf("no file name")
 	}
 
+	// Remove trailing spaces from all changed lines before saving
+	buf.RemoveTrailingSpacesFromChangedLines()
+	
 	// Get the content from the captured buffer
 	content := buf.Rope.String()
 
@@ -1059,6 +1062,9 @@ func (e *Editor) writeFile(args []string) error {
 
 		// Mark buffer as saved
 		target.MarkSaved()
+		
+		// Clear the changed lines tracking since file is now saved
+		target.ChangedLines = make(map[int]bool)
 
 		// Clean up auto-save since file was successfully saved
 		if e.autoSaveManager != nil {

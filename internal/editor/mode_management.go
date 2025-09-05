@@ -538,8 +538,10 @@ func (e *Editor) enterTemporaryNormalMode(args []string) error {
 
 // exitInsertMode switches the editor back to normal mode
 func (e *Editor) exitInsertMode(args []string) error {
-	// Clean up auto-indent on all tracked lines when exiting insert mode
-	e.cleanupAllAutoIndentLines()
+	// Remove trailing spaces from all lines that were changed in this session
+	if e.CurrentBuffer() != nil {
+		e.CurrentBuffer().RemoveTrailingSpacesFromChangedLines()
+	}
 
 	// Clear temporary normal flag if set
 	e.temporaryNormal = false
