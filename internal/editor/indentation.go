@@ -132,53 +132,60 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 		}
 	}
 
-	// Determine the most common indentation
-	if tabCount > 0 {
-		// If any tabs are found, assume tab indentation
-		return buffer.IndentationInfo{Type: config.IndentTabs, Width: 1}
-	}
+    // If we saw neither tabs nor spaces on reliable lines, use defaults
+    if tabCount == 0 && len(spaceCounts) == 0 {
+        return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
+    }
 
-	// If no reliable indented lines, use default from config
-	if len(spaceCounts) == 0 {
-		return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
-	}
+    // Count frequency of each indentation level (for spaces)
+    freqMap := make(map[int]int)
+    for _, spaces := range spaceCounts {
+        freqMap[spaces]++
+    }
 
-	// Count frequency of each indentation level
-	freqMap := make(map[int]int)
-	for _, spaces := range spaceCounts {
-		freqMap[spaces]++
-	}
+    // Weighted vote among standard widths {2,4,8}
+    // score(width) = 2*exactCount + multiplesCount
+    candidates := []int{2, 4, 8}
+    bestWidth := e.config.DefaultIndentWidth
+    bestScore := 0
 
-	// Weighted vote among standard widths {2,4,8}
-	// score(width) = 2*exactCount + multiplesCount
-	candidates := []int{2, 4, 8}
-	bestWidth := 4
-	bestScore := -1
+    if len(spaceCounts) > 0 {
+        bestScore = -1
+        for _, width := range candidates {
+            exact := 0
+            multiples := 0
+            for spaces, count := range freqMap {
+                if spaces == width {
+                    exact += count
+                }
+                if spaces%width == 0 {
+                    multiples += count
+                }
+            }
+            score := 2*exact + multiples
+            if score > bestScore || (score == bestScore && width > bestWidth) {
+                bestScore = score
+                bestWidth = width
+            }
+        }
+        // If no candidate gained any support, treat as zero support
+        if bestScore < 0 {
+            bestScore = 0
+        }
+    }
 
-	for _, width := range candidates {
-		exact := 0
-		multiples := 0
-		for spaces, count := range freqMap {
-			if spaces == width {
-				exact += count
-			}
-			if spaces%width == 0 {
-				multiples += count
-			}
-		}
-		score := 2*exact + multiples
-		if score > bestScore || (score == bestScore && width > bestWidth) {
-			bestScore = score
-			bestWidth = width
-		}
-	}
+    // Decide between Tabs vs. Spaces by majority-style comparison.
+    // Tabs win only if they have strictly more support than the best spaces width.
+    // On ties, or when spaces have equal/greater support, choose spaces.
+    if tabCount > bestScore {
+        return buffer.IndentationInfo{Type: config.IndentTabs, Width: 1}
+    }
+    if bestScore > 0 {
+        return buffer.IndentationInfo{Type: config.IndentSpaces, Width: bestWidth}
+    }
 
-	// If no candidate gained any support, fall back to defaults
-	if bestScore <= 0 {
-		return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
-	}
-
-	return buffer.IndentationInfo{Type: config.IndentSpaces, Width: bestWidth}
+    // Fallback if both have zero support
+    return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
 }
 
 // getCurrentLineIndentInfo returns detailed indentation info for the line at the iterator
