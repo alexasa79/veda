@@ -362,10 +362,10 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 		}
 	})
 
-	// New test: pressing 'u' while still in cursor mode should also clear all at once
-	t.Run("undo added cursors while still in cursor mode clears all", func(t *testing.T) {
-		content := "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no"
-		te := NewTestEditorWithContent(80, 24, content)
+    // New behavior: pressing 'u' while still in cursor mode removes the last-added cursor
+    t.Run("cursor mode 'u' removes last virtual cursor (step-wise)", func(t *testing.T) {
+        content := "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn\no"
+        te := NewTestEditorWithContent(80, 24, content)
 
 		// Enter cursor mode and add 10 cursors
 		te.TypeKeys("m")
@@ -378,13 +378,17 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 			t.Fatalf("expected 10 virtual cursors before undo, got %d", len(vc))
 		}
 
-		// Press 'u' in cursor mode; handler should exit cursor mode then undo
-		te.TypeKeys("u")
-		vc = te.GetVirtualCursors()
-		if len(vc) != 0 {
-			t.Fatalf("expected 0 virtual cursors after undo, got %d", len(vc))
-		}
-	})
+        // Press 'u' in cursor mode; it should remove just the last-added cursor
+        te.TypeKeys("u")
+        vc = te.GetVirtualCursors()
+        if len(vc) != 9 {
+            t.Fatalf("expected 9 virtual cursors after single removal in cursor mode, got %d", len(vc))
+        }
+        // Still in cursor mode
+        if te.mode != commands.CursorMode {
+            t.Fatalf("expected to remain in cursor mode after removal with 'u'")
+        }
+    })
 
 	// End-to-end: cw -> move -> cw with 10 cursors, then layered undos
 	t.Run("multi-cursor cw/edit/undo chain restores cursors and content in order", func(t *testing.T) {
@@ -471,4 +475,51 @@ func TestMultipleCursorsTextEditing(t *testing.T) {
 			t.Fatalf("after fourth undo, expected 0 virtual cursors, got %d", got)
 		}
 	})
+}
+
+func TestCursorModeUndoLikeRemovalOfLastVirtualCursor(t *testing.T) {
+    te := NewTestEditorWithContent(80, 24, "l1\nl2\nl3\nl4")
+
+    // Enter cursor mode and add 3 cursors (on lines 0,1,2; primary on line 3)
+    te.TypeKeys("m")
+    te.PressKey(events.KeyEnter, 0)
+    te.PressKey(events.KeyEnter, 0)
+    te.PressKey(events.KeyEnter, 0)
+
+    if got := len(te.GetVirtualCursors()); got != 3 {
+        t.Fatalf("expected 3 virtual cursors, got %d", got)
+    }
+    // Remain in cursor mode
+    if te.mode != commands.CursorMode {
+        t.Fatalf("expected to remain in cursor mode after adding cursors")
+    }
+
+    // Press 'u' in cursor mode -> remove last virtual cursor step-wise
+    te.TypeKeys("u")
+    if got := len(te.GetVirtualCursors()); got != 2 {
+        t.Fatalf("after first removal, expected 2 virtual cursors, got %d", got)
+    }
+    // Primary should have moved up one line from line 3 to line 2
+    px, py := te.GetCursorPosition()
+    if py != 2 {
+        t.Fatalf("primary Y after removal expected 2, got %d (X=%d)", py, px)
+    }
+
+    // Remove again
+    te.TypeKeys("u")
+    if got := len(te.GetVirtualCursors()); got != 1 {
+        t.Fatalf("after second removal, expected 1 virtual cursor, got %d", got)
+    }
+    _, py = te.GetCursorPosition()
+    if py != 1 {
+        t.Fatalf("primary Y after second removal expected 1, got %d", py)
+    }
+
+    // Exit cursor mode and verify that Normal-mode 'u' still undoes the composite (clears all)
+    te.PressKey(events.KeyEscape, 0)
+    // Now undo once should clear all added cursors from the session
+    te.TypeKeys("u")
+    if got := len(te.GetVirtualCursors()); got != 0 {
+        t.Fatalf("after normal-mode undo, expected 0 virtual cursors, got %d", got)
+    }
 }

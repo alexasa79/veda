@@ -251,6 +251,9 @@ func (e *Editor) registerCommands() {
 	// Case transform commands (apply to all cursors)
 	e.commandRegistry.Register("to-upper", e.toUpperCmd, true, true)
 	e.commandRegistry.Register("to-lower", e.toLowerCmd, true, true)
+
+	// Cursor mode utilities
+	e.commandRegistry.Register("remove-last-virtual-cursor", e.removeLastVirtualCursorCmd, false, true)
 }
 
 // openTerminalCmd opens a terminal buffer and switches to terminal mode.
