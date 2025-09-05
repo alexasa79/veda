@@ -1,10 +1,11 @@
 package editor
 
 import (
-	"fmt"
-	"strings"
-	"veda/internal/buffer"
-	"veda/internal/clipboard"
+    "fmt"
+    "strings"
+    "veda/internal/buffer"
+    "veda/internal/clipboard"
+    "veda/internal/commands"
 )
 
 // yankForAllCursors performs yank operation for all cursors (primary + virtual)
@@ -82,24 +83,30 @@ func (e *Editor) yankLineForCursor() (string, error) {
 	return line + "\n", nil
 }
 
-// pasteForAllCursors handles paste operation for multiple cursors
-func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error {
-	// Get clipboard content
-	content, err := clipboard.Paste()
-	if err != nil {
-		LL.Error("Failed to paste from clipboard: %v", err)
-		return nil
-	}
+// pasteForAllCursors handles paste operation for multiple cursors.
+// If content is non-empty, it is used directly (e.g., bracketed paste capture).
+// If content is empty, it falls back to reading from the system clipboard.
+func (e *Editor) pasteForAllCursorsWithContent(content string, pasteFunc func(string) error) error {
+    // Resolve content to paste
+    if content == "" {
+        // Get clipboard content
+        clip, err := clipboard.Paste()
+        if err != nil {
+            LL.Error("Failed to paste from clipboard: %v", err)
+            return nil
+        }
+        content = clip
+    }
 
-	if content == "" {
-		return nil
-	}
+    if content == "" {
+        return nil
+    }
 
 	// Check if we have virtual cursors
-	if len(e.virtualCursors) == 0 {
-		// No virtual cursors, just do normal paste
-		return pasteFunc(content)
-	}
+    if len(e.virtualCursors) == 0 {
+        // No virtual cursors, just do normal paste
+        return pasteFunc(content)
+    }
 
 	// Split content into lines
 	lines := strings.Split(content, "\n")
@@ -148,8 +155,8 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 		// Restore view iterator
 		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
-		return nil
-	}
+    return nil
+}
 
 	// Multi-line paste: distribute lines among cursors
 	// We need to collect all cursor positions first, then paste in document order
@@ -243,10 +250,21 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
         textToPaste := strings.Join(linesToPaste[sortedIndex], "\n")
         insertedLines := strings.Count(textToPaste, "\n")
 
-		// Paste at this position
-		if err := pasteFunc(textToPaste); err != nil {
-			LL.Debug("Failed to paste at cursor: %v", err)
-		}
+        // Paste at this position
+        if err := pasteFunc(textToPaste); err != nil {
+            LL.Debug("Failed to paste at cursor: %v", err)
+        }
+
+        // If we're in insert mode and this is a character-wise paste (no newlines),
+        // advance cursor one position so subsequent typing appends after the pasted text.
+        if e.mode == commands.InsertMode && !strings.Contains(textToPaste, "\n") {
+            line := e.CurrentBuffer().CursorIterator.Line()
+            if e.CurrentBuffer().CursorX < len(line) {
+                e.CurrentBuffer().CursorX++
+            } else {
+                // Already at end-of-line; keep as is
+            }
+        }
 
         // Update cursor position if it's a virtual cursor; capture primary position
         if cursor.isVirtual {

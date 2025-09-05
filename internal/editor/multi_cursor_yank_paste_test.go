@@ -280,6 +280,115 @@ func TestMultiCursorPaste(t *testing.T) {
 	})
 }
 
+func TestMultiCursorBracketedPaste_InsertMode(t *testing.T) {
+    // Set up three lines with cursors on each line
+    te := NewTestEditorWithContent(80, 24, "a\nb\nc")
+
+    // Enter cursor mode and position a cursor at end of each line
+    te.ExecuteCommand("enter-cursor-mode")
+    te.ExecuteCommand("end-of-line")
+    te.ExecuteCommand("add-virtual-cursor") // line 0
+    te.ExecuteCommand("end-of-line")
+    te.ExecuteCommand("add-virtual-cursor") // line 1
+    te.ExecuteCommand("end-of-line")        // line 2
+    te.PressKey(events.KeyEscape, 0)         // Exit cursor mode
+
+    // Enter insert mode at end-of-line for all cursors (equivalent to Vim 'A')
+    te.TypeKeys("A")
+
+    // Simulate bracketed paste (Cmd+V) of single-line text "XYZ"
+    te.handleEvent(events.NewPasteEvent(true))
+    for _, r := range []rune("XYZ") {
+        te.handleEvent(events.NewKeyEvent(events.KeyRune, r, events.ModNone))
+    }
+    te.handleEvent(events.NewPasteEvent(false))
+
+    // Each cursor should receive the pasted text at its position
+    expected := "aXYZ\nbXYZ\ncXYZ"
+    actual := getBufferContent(te)
+    if actual != expected {
+        t.Errorf("After bracketed paste in insert mode, expected:\n%q\nGot:\n%q", expected, actual)
+    }
+}
+
+func TestMultiCursorYankThenBracketedPaste_InsertMode(t *testing.T) {
+    // Prepare lines with two words so 'yw' yanks the first word + trailing space
+    te := NewTestEditorWithContent(80, 24, "one two\nthree four\nfive six")
+
+    // Create cursors at the beginning of each line
+    te.ExecuteCommand("enter-cursor-mode")
+    te.ExecuteCommand("add-virtual-cursor") // line 0
+    te.ExecuteCommand("add-virtual-cursor") // line 1
+    te.PressKey(events.KeyEscape, 0)        // Exit cursor mode; primary at line 2
+
+    // Yank first word at each cursor (yw)
+    te.TypeKeys("yw")
+
+    // Get clipboard content and choose a single-line slice to paste via bracketed paste
+    clip, err := clipboard.Paste()
+    if err != nil || clip == "" {
+        t.Fatalf("clipboard read failed after multi-cursor yank: %v", err)
+    }
+    parts := strings.Split(clip, "\n")
+    first := parts[0] // e.g., "one "
+
+    // Enter insert mode at end of line for all cursors ('A')
+    te.TypeKeys("A")
+
+    // Simulate bracketed paste of the first yanked word
+    te.handleEvent(events.NewPasteEvent(true))
+    for _, r := range []rune(first) {
+        te.handleEvent(events.NewKeyEvent(events.KeyRune, r, events.ModNone))
+    }
+    te.handleEvent(events.NewPasteEvent(false))
+
+    // Each line should have the first yanked word appended
+    expected := "one two" + first + "\n" + "three four" + first + "\n" + "five six" + first
+    actual := getBufferContent(te)
+    if actual != expected {
+        t.Errorf("After yw + bracketed paste, expected:\n%q\nGot:\n%q", expected, actual)
+    }
+}
+
+// This test pastes the FULL multi-line clipboard (including newlines) across multiple cursors
+// in insert mode, reproducing the real-world Cmd+V behavior that currently breaks by applying
+// the entire stream at every cursor. The expected (correct) behavior would be to distribute
+// one yanked line per cursor. This test asserts that desired behavior and will fail until the
+// bracketed paste path buffers and routes to pasteForAllCursors for multi-line content.
+func TestMultiCursorYankThenBracketedPaste_InsertMode_FullClipboard(t *testing.T) {
+    te := NewTestEditorWithContent(80, 24, "one\ntwo\nthree")
+
+    // Create cursors at the beginning of each line
+    te.ExecuteCommand("enter-cursor-mode")
+    te.ExecuteCommand("add-virtual-cursor") // line 0
+    te.ExecuteCommand("add-virtual-cursor") // line 1
+    te.PressKey(events.KeyEscape, 0)        // Exit cursor mode; primary at line 2
+
+    // Yank first word at each cursor (yw) -> clipboard becomes multi-line
+    te.TypeKeys("yw")
+    clip, err := clipboard.Paste()
+    if err != nil || clip == "" {
+        t.Fatalf("clipboard read failed after multi-cursor yank: %v", err)
+    }
+
+    // Enter insert mode at end of line for all cursors ('A')
+    te.TypeKeys("A")
+
+    // Simulate bracketed paste of the full multi-line clipboard
+    te.handleEvent(events.NewPasteEvent(true))
+    for _, r := range []rune(clip) {
+        te.handleEvent(events.NewKeyEvent(events.KeyRune, r, events.ModNone))
+    }
+    te.handleEvent(events.NewPasteEvent(false))
+
+    // Desired behavior: distribute one yanked line per cursor, appended at EOL (no trailing spaces)
+    expected := "oneone\ntwotwo\nthreethree"
+    actual := getBufferContent(te)
+    if actual != expected {
+        t.Errorf("Full clipboard bracketed paste across multi-cursors incorrect.\nExpected:\n%q\nGot:\n%q\nClipboard was:\n%q", expected, actual, clip)
+    }
+}
+
 func TestMultiCursorYankInside(t *testing.T) {
 	t.Run("yank inside word at multiple cursors", func(t *testing.T) {
 		// Create editor with test content
@@ -326,6 +435,52 @@ func TestMultiCursorYankInside(t *testing.T) {
 			t.Errorf("Expected clipboard content:\n%q\nGot:\n%q", expected, content)
 		}
 	})
+}
+
+// Reproduces a cursor placement issue after multi-cursor bracketed paste in insert mode.
+// Steps:
+// 1) Three lines: 1, 2, 3; place a cursor on each line
+// 2) Yank current word at each cursor (clipboard = "1\n2\n3")
+// 3) Press 'A' to append at end-of-line for all cursors (enter insert mode)
+// 4) Cmd+V bracketed paste the full clipboard (distribute across cursors)
+// 5) Type "hello" while still in insert mode
+// Expected correct behavior: numbers are duplicated and then "hello" is appended: 11hello, 22hello, 33hello
+// Current buggy behavior: "hello" is inserted before the last character (e.g., 1hello1, 2hello2, 3hello3)
+func TestMultiCursorBracketedPasteThenType_InsertMode_CursorAfterPaste(t *testing.T) {
+    te := NewTestEditorWithContent(80, 24, "1\n2\n3")
+
+    // Create a cursor on each line
+    te.ExecuteCommand("enter-cursor-mode")
+    te.ExecuteCommand("add-virtual-cursor") // line 0
+    te.ExecuteCommand("add-virtual-cursor") // line 1
+    te.PressKey(events.KeyEscape, 0)
+
+    // Yank current word at each cursor (multi-line clipboard: "1\n2\n3")
+    te.TypeKeys("yw")
+    clip, err := clipboard.Paste()
+    if err != nil || clip == "" {
+        t.Fatalf("clipboard read failed after multi-cursor yank: %v", err)
+    }
+
+    // Append at end-of-line for all cursors and remain in insert mode
+    te.TypeKeys("A")
+
+    // Bracketed paste: simulate Cmd+V of the full clipboard content
+    te.handleEvent(events.NewPasteEvent(true))
+    for _, r := range []rune(clip) {
+        te.handleEvent(events.NewKeyEvent(events.KeyRune, r, events.ModNone))
+    }
+    te.handleEvent(events.NewPasteEvent(false))
+
+    // Now type while still in insert mode
+    te.TypeKeys("hello")
+
+    // Desired correct behavior (this will fail until cursor placement bug is fixed):
+    expected := "11hello\n22hello\n33hello"
+    actual := getBufferContent(te)
+    if actual != expected {
+        t.Errorf("After paste then typing in insert mode, expected (correct):\n%q\nGot:\n%q\nThis reproduces a cursor-off-by-one bug where typing occurs one char before EOL.", expected, actual)
+    }
 }
 
 // Helper function to get buffer content as string

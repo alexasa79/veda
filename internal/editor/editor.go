@@ -138,7 +138,10 @@ type Editor struct {
 	flashStartChar int   // Start char of flashed region
 	flashEndLine   int   // End line of flashed region
 	flashEndChar   int   // End char of flashed region
-	flashEndTime   int64 // When to stop flashing (unix millis)
+    flashEndTime   int64 // When to stop flashing (unix millis)
+
+    // Bracketed paste capture buffer (collects runes during PasteEvent)
+    pasteBuffer strings.Builder
 
 	// Matching pair highlight (applies to current buffer only)
 	matchBuf  *buffer.Buffer // Buffer this match applies to (nil if none)
@@ -818,20 +821,46 @@ func (e *Editor) render() {
 // handleEvent processes a single event in normal (non-overlay) mode
 func (e *Editor) handleEvent(ev events.Event) {
 	switch ev := ev.(type) {
-	case *events.PasteEvent:
-		if ev.Start {
-			e.inPasteMode = true
-		} else {
-			// End paste: exit paste mode and perform a single flush
-			e.inPasteMode = false
-			// Re-parse syntax highlighting once
-			e.updateSyntaxHighlighting()
-			// Notify LSP once
-			e.notifyLSPFileChange()
-			// Render once
-			e.render()
-		}
-		return
+case *events.PasteEvent:
+    if ev.Start {
+        e.inPasteMode = true
+        // Reset paste capture buffer for this bracketed paste session
+        e.pasteBuffer.Reset()
+    } else {
+        // End paste: exit paste mode and perform a single flush
+        e.inPasteMode = false
+        // If we captured paste content for editor text (not search/command),
+        // apply it in one shot, distributing across cursors when multi-line.
+        pasted := e.pasteBuffer.String()
+        if pasted != "" {
+            // In search/command mode, pasteBuffer stays unused because we route
+            // runes to the widget directly; here we handle text modes.
+            if e.mode != commands.SearchMode && e.mode != commands.CommandMode {
+                if len(e.virtualCursors) > 0 {
+                    // Multi-cursor: distribute paste buffer across cursors
+                    _ = e.pasteForAllCursorsWithContent(pasted, func(content string) error { return e.pasteBeforeCursor(content) })
+                } else {
+                    // Single cursor: insert at cursor position
+                    _ = e.pasteBeforeCursor(pasted)
+                    // If in insert mode and this is a character-wise paste, advance cursor one step
+                    if e.mode == commands.InsertMode && !strings.Contains(pasted, "\n") && e.CurrentBuffer() != nil {
+                        line := e.CurrentBuffer().CursorIterator.Line()
+                        if e.CurrentBuffer().CursorX < len(line) {
+                            e.CurrentBuffer().CursorX++
+                        }
+                    }
+                }
+            }
+            e.pasteBuffer.Reset()
+        }
+        // Re-parse syntax highlighting once
+        e.updateSyntaxHighlighting()
+        // Notify LSP once
+        e.notifyLSPFileChange()
+        // Render once
+        e.render()
+    }
+    return
 	case *events.KeyEvent:
 		// Any key press hides transient info banner if active
 		if e.transientInfoActive {
@@ -886,42 +915,39 @@ func (e *Editor) handleEvent(ev events.Event) {
 			return
 		}
 		// Fast-path for paste mode: route runes/enter to the active input target
-		if e.inPasteMode {
-			if ev.Key == events.KeyRune {
-				// If we're in a modal input (search/command), send characters there
-				switch e.mode {
-				case commands.SearchMode:
-					e.searchLine.HandleKey(ev)
-					return
-				case commands.CommandMode:
-					e.commandLine.HandleKey(ev)
-					return
-				default:
-					// Editor text input
-					if len(e.virtualCursors) > 0 {
-						e.insertCharForAllCursors(ev.Rune)
-					} else {
-						e.insertChar(ev.Rune)
-					}
-					return
-				}
-			}
-			if ev.Key == events.KeyEnter {
-				// Delegate enter to current mode handler to preserve semantics
-				switch e.mode {
-				case commands.SearchMode:
-					e.handleSearchMode(ev)
-					return
-				case commands.CommandMode:
-					e.handleCommandMode(ev)
-					return
-				default:
-					_ = e.insertNewline(nil)
-					return
-				}
-			}
-			// Allow Escape to cancel paste early or other control keys pass through
-		}
+        if e.inPasteMode {
+            if ev.Key == events.KeyRune {
+                // If we're in a modal input (search/command), send characters there
+                switch e.mode {
+                case commands.SearchMode:
+                    e.searchLine.HandleKey(ev)
+                    return
+                case commands.CommandMode:
+                    e.commandLine.HandleKey(ev)
+                    return
+                default:
+                    // Editor text input (capture into paste buffer for deferred apply)
+                    e.pasteBuffer.WriteRune(ev.Rune)
+                    return
+                }
+            }
+            if ev.Key == events.KeyEnter {
+                // In paste mode, treat Enter as a newline in the paste stream unless
+                // we're in a modal input; for modals, delegate as before.
+                switch e.mode {
+                case commands.SearchMode:
+                    e.handleSearchMode(ev)
+                    return
+                case commands.CommandMode:
+                    e.handleCommandMode(ev)
+                    return
+                default:
+                    e.pasteBuffer.WriteRune('\n')
+                    return
+                }
+            }
+            // Allow Escape to cancel paste early or other control keys pass through
+        }
 		// Handle completion menu navigation if visible
 		if e.mode == commands.InsertMode && e.completionMenu.IsVisible() {
 			handled := e.handleCompletionMenuKey(ev)
