@@ -32,9 +32,15 @@ func (e *Editor) getVisibleHeight() int {
 	if e.CurrentBuffer().CurrentSignature != nil {
 		reserved += e.getSignatureLines()
 	}
-	// Reserve space for error/diagnostic lines if shown
-	if e.errorManager.GetCurrentError() != "" {
-		reserved += 1
+	// Reserve space for banners/diagnostics:
+	// - Error banners reserve a line (critical). Info banners do NOT reserve space (overlay-only).
+	// - If no banner reserves space, diagnostics may reserve lines.
+	if msg, sev := e.errorManager.GetCurrentBanner(); msg != "" {
+		if sev != "info" {
+			reserved += 1
+		}
+		// If an info banner is active, we still draw it as an overlay without changing layout;
+		// diagnostics are suppressed by drawErrorLine() when any banner is present.
 	} else {
 		// Reserve space for diagnostic lines if we have a diagnostic for current line
 		cursorLine := e.CurrentBuffer().CursorIterator.LineNumber() + 1
