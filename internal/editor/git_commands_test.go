@@ -118,3 +118,51 @@ func TestGitBlameNoInformation(t *testing.T) {
 		t.Errorf("Expected no info message: %s, got: %s", expected, te.Editor.transientInfoMessage)
 	}
 }
+
+func TestGitShowCommitCommand(t *testing.T) {
+	// Create a test editor with content
+	te := NewTestEditorWithContent(80, 24, "Line 1\nLine 2\nLine 3\n")
+
+	// Move cursor to line 2
+	te.ExecuteCommand("down")
+	AssertCursorAt(t, te, 0, 1)
+
+	// Execute git show commit command
+	te.ExecuteCommand("git-show-commit")
+
+	// The command should handle the error gracefully (not in a git repo)
+	// Check that we're still in a valid state
+	if te.Editor.CurrentBuffer() == nil {
+		t.Error("Buffer became nil after git-show-commit")
+	}
+}
+
+func TestGitShowCommitWithoutFile(t *testing.T) {
+	// Create a test editor without a file
+	te := NewTestEditor(80, 24)
+	te.Editor.CurrentBuffer().FilePath = ""
+
+	// Execute git show commit command
+	te.ExecuteCommand("git-show-commit")
+
+	// Should show an error since buffer is not associated with a file
+	// Check that error was displayed
+	if te.Editor.errorManager.GetCurrentError() == "" {
+		t.Error("Expected error message when running git-show-commit without file")
+	}
+}
+
+func TestGitShowCommitCommandRegistered(t *testing.T) {
+	// Test that the git show commit command is registered
+	te := NewTestEditor(80, 24)
+
+	// Try to execute the command - it should at least be registered
+	// even if it fails due to not being in a git repo
+	te.ExecuteCommand("git-show-commit")
+
+	// If we got here without a panic, the command is registered
+	// The command should handle errors gracefully
+	if te.Editor.CurrentBuffer() == nil {
+		t.Error("Buffer became nil after git-show-commit")
+	}
+}

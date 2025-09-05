@@ -28,7 +28,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.26"
+const ProxyVersion = "1.0.27"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -768,6 +768,23 @@ func (pm *ProxyManager) RunGitBlame(host string, path string, lineNumber int) (m
 	}
 
 	return client.RunGitBlame(actualPath, lineNumber)
+}
+
+// GetGitCommitInfo gets full commit information for a specific line of a file (supports HOST:PATH format)
+func (pm *ProxyManager) GetGitCommitInfo(host string, path string, lineNumber int) (map[string]interface{}, error) {
+	// Build the full path (with host prefix if needed)
+	fullPath := path
+	if host != "" {
+		fullPath = host + ":" + path
+	}
+
+	// Don't hold the lock while calling getClient, as it needs to acquire the lock itself
+	client, actualPath, err := pm.getClient(fullPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.GetGitCommitInfo(actualPath, lineNumber)
 }
 
 //go:embed veda-proxy.py
@@ -2556,6 +2573,34 @@ func (c *Client) RunGitBlame(path string, lineNumber int) (map[string]interface{
 	}
 
 	return nil, fmt.Errorf("failed to get git blame information")
+}
+
+// GetGitCommitInfo gets full commit information for a specific line of a file
+func (c *Client) GetGitCommitInfo(path string, lineNumber int) (map[string]interface{}, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "get_git_commit_info",
+		Params: map[string]interface{}{
+			"path":        path,
+			"line_number": lineNumber,
+		},
+		ID: c.requestID,
+	}
+
+	response, err := c.sendRequestWithTimeout(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
+
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		return result, nil
+	}
+
+	return nil, fmt.Errorf("failed to get git commit information")
 }
 
 func (c *Client) Close() error {
