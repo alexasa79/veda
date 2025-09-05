@@ -99,6 +99,9 @@ type Buffer struct {
 	// Context display cache (per-buffer)
 	ContextCache []int // Cached context line numbers for this buffer
 	ContextLine  int   // Line number for which context was cached (for this buffer)
+
+	// Session change tracking
+	ChangedLines map[int]bool // Set of 0-based line numbers that were modified in this session
 }
 
 // IndentationInfo holds information about file indentation
@@ -141,6 +144,8 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 	// Initialize context cache fields
 	b.ContextCache = nil
 	b.ContextLine = -1
+	// Initialize changed lines tracking
+	b.ChangedLines = make(map[int]bool)
 	b.UpdateLineNumberWidth()
 	// Create initial iterators
 	b.ViewIterator = NewBufferIterator(b)
@@ -338,9 +343,25 @@ func (b *Buffer) UpdateLineNumberWidth() {
 
 // Insert inserts text at the given position and increments the generation
 func (b *Buffer) Insert(pos int, text string) {
+	// Track which line is being modified
+	lineNum := b.GetLineAtPosition(pos)
+	
 	b.Rope.Insert(pos, text)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
+	
+	// Mark the line(s) as changed
+	b.MarkLineChanged(lineNum)
+	// If text contains newlines, mark those new lines as changed too
+	newlineCount := 0
+	for _, ch := range text {
+		if ch == '\n' {
+			newlineCount++
+		}
+	}
+	if newlineCount > 0 {
+		b.MarkLinesChanged(lineNum, lineNum+newlineCount)
+	}
 
 	// Notify LSP if callback is set
 	if b.OnContentChange != nil {
@@ -350,9 +371,16 @@ func (b *Buffer) Insert(pos int, text string) {
 
 // Delete removes characters between start and end positions and increments the generation
 func (b *Buffer) Delete(start, end int) {
+	// Track which lines are being modified
+	startLine := b.GetLineAtPosition(start)
+	
 	b.Rope.Delete(start, end)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
+	
+	// Mark the affected line(s) as changed
+	// After deletion, we only mark the line where deletion occurred
+	b.MarkLineChanged(startLine)
 
 	// Notify LSP if callback is set
 	if b.OnContentChange != nil {
@@ -379,6 +407,102 @@ func (b *Buffer) AppendLine(line string) {
 	// Restore read-only status
 	if wasReadOnly {
 		b.IsReadOnly = true
+	}
+}
+
+// MarkLineChanged marks a line as changed in the current session
+func (b *Buffer) MarkLineChanged(lineNumber int) {
+	if b.ChangedLines == nil {
+		b.ChangedLines = make(map[int]bool)
+	}
+	b.ChangedLines[lineNumber] = true
+}
+
+// MarkLinesChanged marks a range of lines as changed in the current session
+func (b *Buffer) MarkLinesChanged(startLine, endLine int) {
+	if b.ChangedLines == nil {
+		b.ChangedLines = make(map[int]bool)
+	}
+	for line := startLine; line <= endLine; line++ {
+		b.ChangedLines[line] = true
+	}
+}
+
+// GetLineAtPosition returns the 0-based line number at the given byte position
+func (b *Buffer) GetLineAtPosition(pos int) int {
+	// Count newlines up to the position
+	lineNum := 0
+	for i := 0; i < pos && i < b.Length(); i++ {
+		if b.ByteAt(i) == '\n' {
+			lineNum++
+		}
+	}
+	return lineNum
+}
+
+// RemoveTrailingSpacesFromChangedLines removes trailing whitespace from all lines marked as changed
+func (b *Buffer) RemoveTrailingSpacesFromChangedLines() {
+	if len(b.ChangedLines) == 0 {
+		return
+	}
+
+	// Save cursor and view positions before modifications
+	var savedCursorLine, savedCursorX int
+	var savedViewLine int
+	if b.CursorIterator != nil && b.CursorIterator.Generation == b.Generation {
+		savedCursorLine = b.CursorIterator.LineNumber()
+		savedCursorX = b.CursorX
+	}
+	if b.ViewIterator != nil && b.ViewIterator.Generation == b.Generation {
+		savedViewLine = b.ViewIterator.LineNumber()
+	}
+
+	// Convert map to sorted slice to process lines in order
+	lines := make([]int, 0, len(b.ChangedLines))
+	for line := range b.ChangedLines {
+		lines = append(lines, line)
+	}
+	// Sort lines in reverse order to avoid line number shifts
+	for i := 0; i < len(lines); i++ {
+		for j := i + 1; j < len(lines); j++ {
+			if lines[i] < lines[j] {
+				lines[i], lines[j] = lines[j], lines[i]
+			}
+		}
+	}
+
+	// Process each changed line
+	for _, lineNum := range lines {
+		iter := NewBufferIteratorAtLine(b, lineNum)
+		if iter.IsEOF() {
+			continue
+		}
+
+		line := iter.Line()
+		// Find trailing whitespace
+		trimmedLen := len(line)
+		for trimmedLen > 0 && (line[trimmedLen-1] == ' ' || line[trimmedLen-1] == '\t') {
+			trimmedLen--
+		}
+
+		// If there's trailing whitespace, remove it
+		if trimmedLen < len(line) {
+			startPos := iter.Offset
+			endPos := startPos + len(line)
+			// Use the rope methods directly to avoid triggering line tracking again
+			b.Rope.Delete(startPos+trimmedLen, endPos)
+			b.Generation++ // Increment generation since buffer is modified
+			b.MarkModified()
+		}
+	}
+	
+	// Restore iterators after all modifications
+	if b.CursorIterator != nil {
+		b.CursorIterator = NewBufferIteratorAtLine(b, savedCursorLine)
+		b.CursorX = savedCursorX
+	}
+	if b.ViewIterator != nil {
+		b.ViewIterator = NewBufferIteratorAtLine(b, savedViewLine)
 	}
 }
 

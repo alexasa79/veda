@@ -9,8 +9,6 @@ import (
 func (e *Editor) moveUp(args []string) error {
 	t0 := e.perfTracker.Start()
 	defer e.perfTracker.ReportSince("moveUp", t0)
-	// Check for auto-indent cleanup before moving
-	e.checkAndCleanupAutoIndent()
 
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()
@@ -49,8 +47,6 @@ func (e *Editor) moveUp(args []string) error {
 func (e *Editor) moveDown(args []string) error {
 	t0 := e.perfTracker.Start()
 	defer e.perfTracker.ReportSince("moveDown", t0)
-	// Check for auto-indent cleanup before moving
-	e.checkAndCleanupAutoIndent()
 
 	// Get current visual position
 	visualLine, visualCol := e.GetCursorVisualPosition()

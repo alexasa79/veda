@@ -78,12 +78,13 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 	t.Logf("After typing 'pr':")
 	logBufferContent(t, editor.CurrentBuffer())
 
-	// Now simulate moving cursor away from empty lines to trigger cleanup
-	// Manually call cleanup on the lines we know have auto-indent
-	editor.cleanupAutoIndentOnLine(1)
-	editor.cleanupAutoIndentOnLine(2)
+	// Exit insert mode to trigger cleanup of trailing spaces
+	err = editor.exitInsertMode([]string{})
+	if err != nil {
+		t.Fatalf("Failed to exit insert mode: %v", err)
+	}
 
-	t.Logf("After cleanup:")
+	t.Logf("After exiting insert mode:")
 	logBufferContent(t, editor.CurrentBuffer())
 
 	// Verify that empty lines don't have trailing whitespace
@@ -152,15 +153,11 @@ func TestRealisticAutoIndentWorkflow(t *testing.T) {
 		}
 	}
 
-	// Now user moves cursor away (simulating cursor movement)
-	// This should trigger cleanup of the empty lines
-	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 0)
-	editor.checkAndCleanupAutoIndent()
-
-	// Manually cleanup the lines that have auto-indent (for now)
-	// TODO: Improve automatic cleanup to handle all auto-indented lines
-	editor.cleanupAutoIndentOnLine(1)
-	editor.cleanupAutoIndentOnLine(2)
+	// Exit insert mode to trigger cleanup of trailing spaces on changed lines
+	err = editor.exitInsertMode([]string{})
+	if err != nil {
+		t.Fatalf("Failed to exit insert mode: %v", err)
+	}
 
 	// Verify that empty lines don't have trailing whitespace
 	content := editor.CurrentBuffer().Rope.String()

@@ -41,13 +41,6 @@ type VirtualCursor struct {
 	Y int // Line number in the buffer
 }
 
-// AutoIndentInfo tracks auto-inserted indentation on a line
-type AutoIndentInfo struct {
-	LineNumber       int    // Line number where auto-indent was applied
-	AutoIndentLength int    // Number of characters that were auto-inserted
-	HasUserContent   bool   // Whether user has typed non-whitespace content on this line
-	BufferGeneration uint64 // Buffer generation when this was created (for invalidation)
-}
 
 // Editor represents the state of the text editor.
 type Editor struct {
@@ -220,8 +213,6 @@ type Editor struct {
 	autoSaveManager *AutoSaveManager // Manages auto-save functionality
 
 	// Auto-indent cleanup tracking
-	autoIndentLines map[string]AutoIndentInfo // Maps buffer path + line number to auto-indent info
-	lastCursorLine  int                       // Last line cursor was on (for cleanup tracking)
 
 	// Rewrap tracking
 	lastRewrapLine  int // Line where last rewrap was performed
@@ -372,8 +363,6 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 	editor.autoSaveManager.SetSaveCallback(editor.performAutoSave)
 
 	// Initialize auto-indent tracking
-	editor.autoIndentLines = make(map[string]AutoIndentInfo)
-	editor.lastCursorLine = -1
 
 	// Do not create an initial unnamed buffer; leave the first window empty.
 
@@ -3411,165 +3400,3 @@ func (e *Editor) hasFlashHighlight() bool {
 	return e.flashStartLine != -1 && e.flashEndTime > 0 && time.Now().UnixMilli() <= e.flashEndTime
 }
 
-// cleanupAllAutoIndentLines cleans up all tracked auto-indented lines for the current buffer
-// This should be called when exiting insert mode to clean up all empty auto-indented lines
-func (e *Editor) cleanupAllAutoIndentLines() {
-	if e.CurrentBuffer() == nil {
-		return
-	}
-
-	currentBufferPath := e.CurrentBuffer().FilePath
-	keysToCleanup := make([]string, 0)
-
-	// Collect all keys for the current buffer
-	for key, info := range e.autoIndentLines {
-		// Check if this key belongs to the current buffer
-		if keyBufferPath := e.extractBufferPathFromKey(key); keyBufferPath == currentBufferPath {
-			// Only cleanup lines that don't have user content
-			if !info.HasUserContent {
-				keysToCleanup = append(keysToCleanup, key)
-			}
-		}
-	}
-
-	// Clean up all the identified lines
-	for _, key := range keysToCleanup {
-		if info, exists := e.autoIndentLines[key]; exists {
-			e.cleanupAutoIndentOnLine(info.LineNumber)
-		}
-	}
-}
-
-// extractBufferPathFromKey extracts the buffer path from an auto-indent key
-func (e *Editor) extractBufferPathFromKey(key string) string {
-	// Key format is: bufferPath + ":" + lineNumber
-	// Find the last colon to separate buffer path from line number
-	lastColon := strings.LastIndex(key, ":")
-	if lastColon == -1 {
-		return key // Fallback if format is unexpected
-	}
-	return key[:lastColon]
-}
-
-// makeAutoIndentKey creates a unique key for tracking auto-indent on a specific line
-func (e *Editor) makeAutoIndentKey(bufferPath string, lineNumber int) string {
-	return fmt.Sprintf("%s:%d", bufferPath, lineNumber)
-}
-
-// trackAutoIndent records that auto-indent was applied to a line
-func (e *Editor) trackAutoIndent(lineNumber int, autoIndentLength int) {
-	key := e.makeAutoIndentKey(e.CurrentBuffer().FilePath, lineNumber)
-	e.autoIndentLines[key] = AutoIndentInfo{
-		LineNumber:       lineNumber,
-		AutoIndentLength: autoIndentLength,
-		HasUserContent:   false,
-		BufferGeneration: e.CurrentBuffer().Generation, // Track buffer generation for invalidation
-	}
-}
-
-// markLineHasUserContent marks that the user has typed non-whitespace content on a line
-func (e *Editor) markLineHasUserContent(lineNumber int) {
-	key := e.makeAutoIndentKey(e.CurrentBuffer().FilePath, lineNumber)
-	if info, exists := e.autoIndentLines[key]; exists {
-		info.HasUserContent = true
-		e.autoIndentLines[key] = info
-	}
-}
-
-// cleanupAutoIndentOnLine removes trailing auto-indent whitespace from a line if appropriate
-func (e *Editor) cleanupAutoIndentOnLine(lineNumber int) {
-	key := e.makeAutoIndentKey(e.CurrentBuffer().FilePath, lineNumber)
-	info, exists := e.autoIndentLines[key]
-	if !exists || info.HasUserContent {
-		return // Nothing to clean up
-	}
-
-	// Note: Do not invalidate cleanup based on buffer generation differences.
-	// Even if there have been many edits during the insert session, we can
-	// safely inspect the current line content and remove auto-inserted
-	// indentation when the line is whitespace-only. This ensures trailing
-	// spaces on empty auto-indented lines are cleaned up reliably on exit
-	// from insert mode.
-
-	// Get the line content
-	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNumber)
-	if iter.IsEOF() {
-		delete(e.autoIndentLines, key)
-		return
-	}
-
-	line := iter.Line()
-
-	// Check if line has only whitespace up to AutoIndentLength
-	if len(line) <= info.AutoIndentLength {
-		// Check if the line contains only whitespace
-		hasOnlyWhitespace := true
-		for _, char := range line {
-			if char != ' ' && char != '\t' {
-				hasOnlyWhitespace = false
-				break
-			}
-		}
-
-		if hasOnlyWhitespace {
-			// Save current positions before buffer modification
-			// Use safe access to avoid iterator generation mismatch
-			var cursorLine, viewLine int
-			var cursorX int
-
-			// Safely get cursor line, defaulting to 0 if iterator is invalid
-			if e.CurrentBuffer().CursorIterator != nil {
-				if e.CurrentBuffer().CursorIterator.Generation == e.CurrentBuffer().Generation {
-					cursorLine = e.CurrentBuffer().CursorIterator.LineNumber()
-				} else {
-					cursorLine = 0 // Default fallback
-				}
-			}
-
-			// Safely get view line, defaulting to 0 if iterator is invalid
-			if e.CurrentBuffer().ViewIterator != nil {
-				if e.CurrentBuffer().ViewIterator.Generation == e.CurrentBuffer().Generation {
-					viewLine = e.CurrentBuffer().ViewIterator.LineNumber()
-				} else {
-					viewLine = 0 // Default fallback
-				}
-			}
-
-			cursorX = e.CurrentBuffer().CursorX
-
-			// Remove the auto-indented whitespace
-			deleteEntry := buffer.NewDeleteTextEntry(lineNumber, 0, line)
-			if e.CurrentBuffer().History != nil {
-				if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), deleteEntry); err == nil && executed != nil {
-					e.setLastChange(executed)
-				}
-			} else {
-				deleteEntry.Execute(e.CurrentBuffer())
-			}
-
-			// Refresh iterators after buffer modification
-			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
-			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
-			e.CurrentBuffer().CursorX = cursorX
-		}
-	}
-
-	// Remove from tracking
-	delete(e.autoIndentLines, key)
-}
-
-// cleanupAutoIndentOnCursorMove should be called when cursor moves to a different line
-func (e *Editor) cleanupAutoIndentOnCursorMove(oldLineNumber int) {
-	if oldLineNumber >= 0 && oldLineNumber != e.CurrentBuffer().CursorIterator.LineNumber() {
-		e.cleanupAutoIndentOnLine(oldLineNumber)
-	}
-}
-
-// checkAndCleanupAutoIndent should be called after any cursor movement to handle auto-indent cleanup
-func (e *Editor) checkAndCleanupAutoIndent() {
-	currentLine := e.CurrentBuffer().CursorIterator.LineNumber()
-	if e.lastCursorLine != -1 && e.lastCursorLine != currentLine {
-		e.cleanupAutoIndentOnLine(e.lastCursorLine)
-	}
-	e.lastCursorLine = currentLine
-}
