@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"veda/internal/buffer"
+	"veda/internal/events"
 	"veda/internal/proxy"
 )
 
@@ -107,24 +108,55 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 		return nil
 	}
 
-	// If the target is a directory, switch working directory and show file browser
-	if attrs, err := e.proxyManager.GetFileAttributes(target); err == nil && attrs != nil && attrs.IsDirectory {
-		e.workingDirectory = target
-		e.ShowFuzzyListWidget()
-		return nil
-	}
+	// If the target might be a directory, resolve it asynchronously so the
+	// status bar can show proxy setup progress (important for remote paths).
+	// We optimistically handle directory detection in a goroutine to avoid
+	// blocking the main loop while remote proxy starts/copies.
+	host, _, isRemote := parsePathComponents(target)
+	go func(tgt string, ln int, remote bool, h string) {
+		// Give immediate feedback while we resolve attributes; the proxy
+		// callback will also provide granular status like Starting/Updating.
+		if remote {
+			e.connectionStatus = "Connecting to " + h + "..."
+		} else {
+			e.connectionStatus = "Loading..."
+		}
+		// Nudge the main loop to render the status immediately
+		e.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
 
-	// Otherwise, open as a file (optionally at a specific line)
-	targetLine := 0
-	if lineNum > 0 {
-		targetLine = lineNum - 1 // 1-based in markdown -> 0-based internally
-	}
-	location := proxy.Location{
-		URI: "file://" + target,
-		Range: proxy.Range{
-			Start: proxy.Position{Line: targetLine, Character: 0},
-			End:   proxy.Position{Line: targetLine, Character: 0},
-		},
-	}
-	return e.jumpToLocation(location)
+		attrs, err := e.proxyManager.GetFileAttributes(tgt)
+
+		// Clear transient status once the attribute check completes
+		e.connectionStatus = ""
+		e.asyncEvents <- events.NewCustomEvent("render", nil)
+
+		if err == nil && attrs != nil && attrs.IsDirectory {
+			// Switch working directory and show the fuzzy list on the main loop
+			e.Post(func(ed *Editor) {
+				ed.workingDirectory = tgt
+				ed.ShowFuzzyListWidget()
+			})
+			return
+		}
+
+		// Not a directory (or failed to stat) – open as a file at optional line
+		targetLine := 0
+		if ln > 0 {
+			targetLine = ln - 1
+		}
+		location := proxy.Location{
+			URI: "file://" + tgt,
+			Range: proxy.Range{
+				Start: proxy.Position{Line: targetLine, Character: 0},
+				End:   proxy.Position{Line: targetLine, Character: 0},
+			},
+		}
+		// Perform the jump on the main loop for safety
+		e.Post(func(ed *Editor) {
+			_ = ed.jumpToLocation(location)
+		})
+	}(target, lineNum, isRemote, host)
+
+	// We return immediately; completion is handled asynchronously.
+	return nil
 }
