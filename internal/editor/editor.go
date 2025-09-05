@@ -3311,23 +3311,34 @@ func (e *Editor) handlePendingPath() {
 
 // setFlashHighlight sets a temporary highlight for a text range
 func (e *Editor) setFlashHighlight(startLine, startChar, endLine, endChar int) {
-	e.flashStartLine = startLine
-	e.flashStartChar = startChar
-	e.flashEndLine = endLine
-	e.flashEndChar = endChar
-	e.flashEndTime = time.Now().UnixMilli() + 500 // Flash for 500ms
+    e.flashStartLine = startLine
+    e.flashStartChar = startChar
+    e.flashEndLine = endLine
+    e.flashEndChar = endChar
+    e.flashEndTime = time.Now().UnixMilli() + 500 // Flash for 500ms
 
-	// Schedule an async render when the flash should expire to force a redraw
-	// This replaces the old periodic ticker and ensures the highlight disappears.
-	delay := time.Until(time.UnixMilli(e.flashEndTime))
-	if delay < 0 {
-		delay = 0
-	}
-	go func(ch chan events.Event, d time.Duration) {
-		time.Sleep(d)
-		// Wake the event loop to trigger render; clearFlashHighlight() runs at render start
-		ch <- events.NewCustomEvent("render", nil)
-	}(e.asyncEvents, delay)
+    // Schedule an async render when the flash should expire to force a redraw
+    // This replaces the old periodic ticker and ensures the highlight disappears.
+    deadline := e.flashEndTime // capture the intended end timestamp
+    delay := time.Until(time.UnixMilli(deadline))
+    if delay < 0 {
+        delay = 0
+    }
+    go func(ch chan events.Event, d time.Duration, endAt int64) {
+        time.Sleep(d)
+        // Use an 'apply' event to clear the highlight exactly at expiry
+        // even if no further user events arrive. Guard with the captured
+        // deadline to avoid clearing a newer flash.
+        ch <- events.NewCustomEvent("apply", func(ed *Editor) {
+            if ed.flashEndTime == endAt {
+                ed.flashStartLine = -1
+                ed.flashStartChar = -1
+                ed.flashEndLine = -1
+                ed.flashEndChar = -1
+                ed.flashEndTime = 0
+            }
+        })
+    }(e.asyncEvents, delay, deadline)
 }
 
 // clearFlashHighlight clears the flash highlight if it has expired
