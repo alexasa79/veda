@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.26"
+PROXY_VERSION = "1.0.27"
 
 # Set up logging directory
 from datetime import datetime
@@ -1245,6 +1245,7 @@ class VedaProxy:
             'get_project_changes': self.get_project_changes,
             'get_git_file_version': self.get_git_file_version,
             'run_git_blame': self.run_git_blame,
+            'get_git_commit_info': self.get_git_commit_info,
             'stage_lines': self.stage_lines,
             'unstage_lines': self.unstage_lines,
             'notify_file_change': self.notify_file_change,
@@ -2335,6 +2336,83 @@ class VedaProxy:
             return {'success': False, 'error': 'Git command timed out'}
         except Exception as e:
             logger.error(f"Error in run_git_blame: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_git_commit_info(self, path: str, line_number: int) -> Dict[str, Any]:
+        """
+        Get full commit information for a specific line of a file.
+        First runs git blame to get the commit hash, then git show to get full details.
+        """
+        logger.info(f"get_git_commit_info called: path={path}, line_number={line_number}")
+        try:
+            # First get the blame info to find the commit hash
+            blame_result = self.run_git_blame(path, line_number)
+            if not blame_result.get('success'):
+                return blame_result
+            
+            commit_hash = blame_result.get('commit')
+            if not commit_hash:
+                return {'success': False, 'error': 'No commit hash found for this line'}
+            
+            # Resolve the file path
+            file_path = Path(path).expanduser().resolve()
+            
+            # Get the git root directory
+            result = subprocess.run(['git', 'rev-parse', '--show-toplevel'], 
+                                 capture_output=True, text=True, cwd=file_path.parent,
+                                 timeout=5)
+            
+            if result.returncode != 0:
+                logger.error(f"Not a git repository: {result.stderr}")
+                return {'success': False, 'error': 'Not a git repository'}
+            
+            git_root = Path(result.stdout.strip())
+            
+            # Run git show to get full commit details with diff
+            cmd = ['git', 'show', '--no-color', commit_hash]
+            logger.info(f"Running git show command: {cmd} in {git_root}")
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=git_root, timeout=10)
+            
+            if result.returncode != 0:
+                logger.error(f"git show failed: {result.stderr}")
+                return {'success': False, 'error': result.stderr.strip()}
+            
+            # Also get commit info in a structured way
+            cmd_info = ['git', 'show', '--no-patch', '--format=%H%n%an%n%ae%n%at%n%s%n%b', commit_hash]
+            info_result = subprocess.run(cmd_info, capture_output=True, text=True, cwd=git_root, timeout=5)
+            
+            info_lines = info_result.stdout.strip().split('\n')
+            commit_info = {
+                'hash': info_lines[0] if len(info_lines) > 0 else commit_hash,
+                'author': info_lines[1] if len(info_lines) > 1 else '',
+                'email': info_lines[2] if len(info_lines) > 2 else '',
+                'timestamp': info_lines[3] if len(info_lines) > 3 else '',
+                'subject': info_lines[4] if len(info_lines) > 4 else '',
+                'body': '\n'.join(info_lines[5:]) if len(info_lines) > 5 else ''
+            }
+            
+            # Convert timestamp to readable date
+            if commit_info['timestamp']:
+                try:
+                    from datetime import datetime
+                    timestamp = int(commit_info['timestamp'])
+                    commit_info['date'] = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    commit_info['date'] = commit_info['timestamp']
+            else:
+                commit_info['date'] = ''
+            
+            return {
+                'success': True,
+                'commit_info': commit_info,
+                'full_content': result.stdout
+            }
+            
+        except subprocess.TimeoutExpired:
+            logger.error(f"Git command timed out for file: {path}")
+            return {'success': False, 'error': 'Git command timed out'}
+        except Exception as e:
+            logger.error(f"Error in get_git_commit_info: {e}")
             return {'success': False, 'error': str(e)}
     
     @log_proxy_method

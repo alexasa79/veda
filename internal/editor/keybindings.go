@@ -199,6 +199,8 @@ func (e *Editor) setupDefaultBindings() {
 	
 	// Git blame
 	e.registerKeyBinding(commands.NormalMode, "g b b", "git-blame-line")
+	e.registerKeyBinding(commands.NormalMode, "g b s", "git-show-commit")
+	e.registerKeyBinding(commands.NormalMode, "g b S", "git-show-commit-new-window")
 
 	// Special handling for references buffers
 	e.registerKeyBinding(commands.NormalMode, "enter", "jump-to-reference")

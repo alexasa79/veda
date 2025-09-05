@@ -112,6 +112,8 @@ func (e *Editor) registerCommands() {
 	
 	// Git commands
 	e.commandRegistry.Register("git-blame-line", e.gitBlameCurrentLine, false, false)
+	e.commandRegistry.Register("git-show-commit", e.gitShowCommit, false, false)
+	e.commandRegistry.Register("git-show-commit-new-window", e.gitShowCommitNewWindow, false, false)
 	e.commandRegistry.Register("find-references", e.findReferences, false, true)
 	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo, false, true)
 	e.commandRegistry.Register("show-signature", e.showSignature, false, true)
