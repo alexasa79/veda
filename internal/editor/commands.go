@@ -162,6 +162,9 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("unindent-line", e.unindentLine, true, true)             // Apply to all cursors
 	e.commandRegistry.Register("reindent-line", e.reindentLine, true, true)             // Apply to all cursors
 	e.commandRegistry.Register("reindent-expression", e.reindentExpression, true, true) // Apply to all cursors
+	
+	// Multi-cursor alignment
+	e.commandRegistry.Register("align-cursors", e.alignCursors, false, true) // Aligns all cursors to rightmost position
 
 	// Search commands
 	e.commandRegistry.Register("find-next", e.findNextCmd, true, true)         // Apply to all cursors for navigation

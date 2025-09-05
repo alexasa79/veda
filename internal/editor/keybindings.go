@@ -167,6 +167,10 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "alt+l", "to-lower")
 	e.registerKeyBindingForModes([]commands.Mode{commands.VisualMode, commands.VisualLineMode}, "alt+u", "to-upper")
 	e.registerKeyBindingForModes([]commands.Mode{commands.VisualMode, commands.VisualLineMode}, "alt+l", "to-lower")
+	
+	// Multi-cursor alignment
+	// Alt+A: align all cursors to rightmost position by adding spaces
+	e.registerKeyBinding(commands.NormalMode, "alt+a", "align-cursors")
 
 	// Delete operations
 	e.registerKeyBinding(commands.NormalMode, "d", "start-delete")

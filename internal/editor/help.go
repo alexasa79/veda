@@ -75,7 +75,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Enter        - Add virtual cursor at current position and move down\n")
 	helpText.WriteString("m or ESC     - Exit cursor mode\n")
 	helpText.WriteString("Movement keys work normally (only primary cursor moves)\n")
-	helpText.WriteString("Any editing command exits cursor mode\n\n")
+	helpText.WriteString("Any editing command exits cursor mode\n")
+	helpText.WriteString("Alt+A        - Align all cursors to rightmost position (adds spaces)\n\n")
 
 	helpText.WriteString("= Search =\n")
 	helpText.WriteString("/            - Enter search mode (forward)\n")
