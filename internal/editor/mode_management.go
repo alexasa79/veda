@@ -61,7 +61,7 @@ func (e *Editor) exitCommandMode() {
 
 // handleCursorMode handles key events in cursor mode
 func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
-	switch ev.Key {
+    switch ev.Key {
 	case events.KeyEscape:
 		// Exit cursor mode
 		e.exitCursorMode()
@@ -76,25 +76,35 @@ func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
 			e.exitCursorMode()
 			return
 		}
-	}
+    }
 
-	// For all other keys, check if it's a movement command
-	if command, found := e.keyMapper.ProcessKey(ev, commands.NormalMode); found {
-		if isMovementCommand(command) {
-			// Execute movement commands normally
-			if err := e.commandRegistry.Execute(command, nil); err != nil {
-				LL.Debug("Movement command error in cursor mode: %v", err)
-			}
-		} else {
-			// Non-movement commands exit cursor mode first, then execute
-			e.exitCursorMode()
-			// Use executeWithRepeatCount to properly handle multiple cursors
-			e.repeatCount = 1
-			if err := e.executeWithRepeatCount(command); err != nil {
-				LL.Debug("Command execution error: %v", err)
-			}
-		}
-	}
+    // First, check for CursorMode-specific commands. Execute without exiting.
+    if command, found := e.keyMapper.ProcessKey(ev, commands.CursorMode); found {
+        // Execute cursor-mode command directly
+        e.repeatCount = 1
+        if err := e.commandRegistry.Execute(command, nil); err != nil {
+            LL.Debug("Cursor mode command error: %v", err)
+        }
+        return
+    }
+
+    // Otherwise, check if it's a Normal mode movement command
+    if command, found := e.keyMapper.ProcessKey(ev, commands.NormalMode); found {
+        if isMovementCommand(command) {
+            // Execute movement commands normally
+            if err := e.commandRegistry.Execute(command, nil); err != nil {
+                LL.Debug("Movement command error in cursor mode: %v", err)
+            }
+        } else {
+            // Non-movement commands exit cursor mode first, then execute
+            e.exitCursorMode()
+            // Use executeWithRepeatCount to properly handle multiple cursors
+            e.repeatCount = 1
+            if err := e.executeWithRepeatCount(command); err != nil {
+                LL.Debug("Command execution error: %v", err)
+            }
+        }
+    }
 }
 
 // enterCursorMode switches to cursor mode
@@ -212,6 +222,46 @@ func (e *Editor) addVirtualCursor() {
 		}
 		e.CurrentBuffer().History.SetActiveCompositePostCursors(primary, v)
 	}
+}
+
+// removeLastVirtualCursor removes the most recently added virtual cursor and adjusts
+// the active composite cursor snapshot if present. It also moves the primary cursor
+// up one line to mirror the add behavior.
+func (e *Editor) removeLastVirtualCursor() {
+    if e.CurrentBuffer() == nil {
+        return
+    }
+    vcs := e.GetVirtualCursors()
+    if len(vcs) == 0 {
+        return
+    }
+    // Remove the last-added virtual cursor
+    newList := make([]VirtualCursor, len(vcs)-1)
+    copy(newList, vcs[:len(vcs)-1])
+    e.setVirtualCursorsFor(e.CurrentBuffer(), newList)
+
+    // Move primary cursor up one line (if possible) to mirror the add operation
+    _ = e.commandRegistry.Execute("up", nil)
+
+    // Update post-state snapshot in the active composite so a later undo still restores
+    if e.CurrentBuffer().History != nil && e.CurrentBuffer().History.HasActiveComposite() {
+        primary := buffer.CursorPos{Line: e.CurrentBuffer().CursorIterator.LineNumber(), Char: e.CurrentBuffer().CursorX}
+        v := make([]buffer.CursorPos, 0, len(newList))
+        for _, vc := range newList {
+            v = append(v, buffer.CursorPos{Line: vc.Y, Char: vc.X})
+        }
+        e.CurrentBuffer().History.SetActiveCompositePostCursors(primary, v)
+    }
+}
+
+// removeLastVirtualCursorCmd is the command handler for removing the last virtual cursor
+func (e *Editor) removeLastVirtualCursorCmd(args []string) error {
+    // Only respond in cursor mode
+    if e.mode != commands.CursorMode {
+        return nil
+    }
+    e.removeLastVirtualCursor()
+    return nil
 }
 
 // addVirtualCursorCmd is the command handler for adding a virtual cursor
