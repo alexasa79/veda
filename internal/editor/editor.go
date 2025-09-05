@@ -2533,10 +2533,10 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 		return
 	}
 	e.lastCommand = nil // Clear operator+text object command for other cases
-	// Clear simple command unless it was just set (indent/unindent/reindent set it right before calling this)
-	if e.lastSimpleCommand != "indent-line" && e.lastSimpleCommand != "unindent-line" && e.lastSimpleCommand != "reindent-line" {
-		e.lastSimpleCommand = ""
-	}
+    // Clear simple command unless it was just set (indent/unindent/reindent, case-transform set it right before calling this)
+    if e.lastSimpleCommand != "indent-line" && e.lastSimpleCommand != "unindent-line" && e.lastSimpleCommand != "reindent-line" && e.lastSimpleCommand != "to-upper" && e.lastSimpleCommand != "to-lower" {
+        e.lastSimpleCommand = ""
+    }
 }
 
 // Undo/Redo commands

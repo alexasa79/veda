@@ -161,6 +161,13 @@ func (e *Editor) setupDefaultBindings() {
 	// Repeat last change
 	e.registerKeyBinding(commands.NormalMode, ".", "repeat-last-change")
 
+	// Case transform commands (keyboard shortcuts)
+	// Alt+U: to-upper, Alt+L: to-lower in Normal and Visual modes
+	e.registerKeyBinding(commands.NormalMode, "alt+u", "to-upper")
+	e.registerKeyBinding(commands.NormalMode, "alt+l", "to-lower")
+	e.registerKeyBindingForModes([]commands.Mode{commands.VisualMode, commands.VisualLineMode}, "alt+u", "to-upper")
+	e.registerKeyBindingForModes([]commands.Mode{commands.VisualMode, commands.VisualLineMode}, "alt+l", "to-lower")
+
 	// Delete operations
 	e.registerKeyBinding(commands.NormalMode, "d", "start-delete")
 
