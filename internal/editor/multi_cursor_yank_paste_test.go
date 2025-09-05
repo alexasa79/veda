@@ -102,6 +102,44 @@ func TestMultiCursorYank(t *testing.T) {
 			t.Errorf("Expected clipboard content:\n%q\nGot:\n%q", expected, content)
 		}
 	})
+
+	t.Run("yank word then movement works with multiple cursors", func(t *testing.T) {
+		// Prepare two lines with a word on each
+		te := NewTestEditorWithContent(80, 24, "alpha beta\ngamma delta")
+
+		// Create two cursors at the start of each line
+		te.ExecuteCommand("enter-cursor-mode")
+		te.ExecuteCommand("add-virtual-cursor") // add at (0,0), move to line 1
+		te.PressKey(events.KeyEscape, 0)        // Exit cursor mode; primary at (0,1)
+
+		// Yank word at each cursor (yw)
+		te.TypeKeys("yw")
+
+		// Clipboard should contain both words (with trailing spaces due to 'w' semantics)
+		if content, err := clipboard.Paste(); err == nil {
+			expectedClip := "alpha \ngamma "
+			if content != expectedClip {
+				t.Errorf("clipboard mismatch after multi-cursor yw:\nexpected=%q\nactual=%q", expectedClip, content)
+			}
+		} else {
+			t.Fatalf("Failed to read clipboard after yank: %v", err)
+		}
+
+		// Post-yank navigation: right arrow should move both cursors by 1
+		// (verifies pending operator was cleared and movement applies to all cursors)
+		te.TypeKeys("right")
+
+		// Primary moved to x=1 on line 1
+		px, py := te.GetCursorPosition()
+		if py != 1 || px != 1 {
+			t.Errorf("primary cursor not moved correctly after yank+right: got (%d,%d), want (1,1)", px, py)
+		}
+		// Virtual moved to x=1 on line 0
+		vcs := te.GetVirtualCursors()
+		if len(vcs) != 1 || vcs[0].Y != 0 || vcs[0].X != 1 {
+			t.Errorf("virtual cursor not moved correctly after yank+right: got %+v, want [{X:1 Y:0}]", vcs)
+		}
+	})
 }
 
 func TestMultiCursorPaste(t *testing.T) {
@@ -164,6 +202,26 @@ func TestMultiCursorPaste(t *testing.T) {
 		actual := getBufferContent(te)
 		if actual != expected {
 			t.Errorf("Expected buffer:\n%s\nGot:\n%s", expected, actual)
+		}
+
+		// Verify cursor positions: primary should remain on the last line,
+		// virtual cursors should remain on their respective lines.
+		_, py := te.GetCursorPosition()
+		if py != 2 {
+			t.Errorf("Primary cursor Y after multi-line paste: got %d, want %d", py, 2)
+		}
+		vcs := te.GetVirtualCursors()
+		if len(vcs) != 2 {
+			t.Fatalf("Expected 2 virtual cursors, got %d", len(vcs))
+		}
+		// Collect Y positions
+		var ys []int
+		for _, vc := range vcs { ys = append(ys, vc.Y) }
+		// The two virtual cursors should be on lines 0 and 1 (order not guaranteed)
+		found0, found1 := false, false
+		for _, y := range ys { if y == 0 { found0 = true }; if y == 1 { found1 = true } }
+		if !found0 || !found1 {
+			t.Errorf("Virtual cursor Ys after paste: got %v, want 0 and 1", ys)
 		}
 	})
 
