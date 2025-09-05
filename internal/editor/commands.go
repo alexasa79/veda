@@ -236,6 +236,9 @@ func (e *Editor) registerCommands() {
 	// Registers commands
 	e.commandRegistry.Register("regcopy", e.regcopyCmd, false, false)
 	e.commandRegistry.Register("reg", e.showRegistersCmd, false, false)
+
+	// Debugging commands
+	e.commandRegistry.Register("debug-dump", e.debugDumpCommand, false, true)
 }
 
 // openTerminalCmd opens a terminal buffer and switches to terminal mode.
