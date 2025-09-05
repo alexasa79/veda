@@ -29,8 +29,10 @@ func TestCalculatorSequentialWithLastResultMultiCursor(t *testing.T) {
 		t.Fatalf("calculate-replace failed: %v", err)
 	}
 
-	// Validate that each line has been replaced by 1,2,3,4 respectively
-	expected := []string{"1", "2", "3", "4"}
+    // Validate that each line has been replaced by 1,2,4,7 respectively
+    // because $? is updated after each line (sequential semantics):
+    // line1: 1 -> $?=1; line2: $?+1 -> 2 -> $?=2; line3: $?+2 -> 4 -> $?=4; line4: $?+3 -> 7
+    expected := []string{"1", "2", "4", "7"}
 	for i := 0; i < te.Editor.CurrentBuffer().LineCount; i++ {
 		it3 := buffer.NewBufferIteratorAtLine(te.Editor.CurrentBuffer(), i)
 		if got := it3.Line(); got != expected[i] {
