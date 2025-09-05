@@ -239,6 +239,10 @@ func (e *Editor) registerCommands() {
 
 	// Debugging commands
 	e.commandRegistry.Register("debug-dump", e.debugDumpCommand, false, true)
+
+	// Case transform commands (apply to all cursors)
+	e.commandRegistry.Register("to-upper", e.toUpperCmd, true, true)
+	e.commandRegistry.Register("to-lower", e.toLowerCmd, true, true)
 }
 
 // openTerminalCmd opens a terminal buffer and switches to terminal mode.
