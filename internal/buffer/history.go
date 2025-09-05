@@ -32,6 +32,38 @@ func NewHistory() *History {
 	}
 }
 
+// SnapshotUndo returns up to n most recent undo entries' descriptions (newest first).
+func (h *History) SnapshotUndo(n int) []string {
+	if n <= 0 {
+		n = len(h.undoStack)
+	}
+	if n > len(h.undoStack) {
+		n = len(h.undoStack)
+	}
+	out := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		e := h.undoStack[len(h.undoStack)-1-i]
+		out = append(out, e.Description())
+	}
+	return out
+}
+
+// SnapshotRedo returns up to n most recent redo entries' descriptions (newest first).
+func (h *History) SnapshotRedo(n int) []string {
+	if n <= 0 {
+		n = len(h.redoStack)
+	}
+	if n > len(h.redoStack) {
+		n = len(h.redoStack)
+	}
+	out := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		e := h.redoStack[len(h.redoStack)-1-i]
+		out = append(out, e.Description())
+	}
+	return out
+}
+
 // Execute adds an entry to history and executes it
 // Returns the entry that was added to history (might be nil if in insert mode)
 func (h *History) Execute(buf *Buffer, entry HistoryEntry) (HistoryEntry, error) {

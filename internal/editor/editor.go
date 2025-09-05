@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -1328,6 +1329,116 @@ func (e *Editor) Post(fn func(*Editor)) {
 		return
 	}
 	e.asyncEvents <- events.NewCustomEvent("apply", fn)
+}
+
+// debugDumpCommand logs debugging details to help diagnose highlighting/state issues.
+// Usage: :debug-dump [all|highlighter|history|buffer|cursor]
+func (e *Editor) debugDumpCommand(args []string) error {
+	// Parse optional output file arg: file=/path or path=/path
+	outPath := fmt.Sprintf("/tmp/veda-debug-%d.log", time.Now().Unix())
+	cats := map[string]bool{}
+	filtered := make([]string, 0, len(args))
+	for _, a := range args {
+		al := strings.ToLower(strings.TrimSpace(a))
+		if strings.HasPrefix(al, "file=") || strings.HasPrefix(al, "path=") {
+			outPath = strings.TrimSpace(a[strings.Index(a, "=")+1:])
+			continue
+		}
+		filtered = append(filtered, a)
+	}
+	if len(filtered) == 0 {
+		cats["all"] = true
+	} else {
+		for _, a := range filtered {
+			cats[strings.ToLower(strings.TrimSpace(a))] = true
+		}
+	}
+
+	b := e.CurrentBuffer()
+	var sb strings.Builder
+	if b == nil {
+		fmt.Fprintf(&sb, "DEBUG DUMP: no current buffer\n")
+		_ = os.WriteFile(outPath, []byte(sb.String()), 0644)
+		LL.Info("DEBUG DUMP written to %s", outPath)
+		return nil
+	}
+
+	// Header
+	fmt.Fprintf(&sb, "DEBUG DUMP: file=%s mode=%v inPaste=%v lines=%d\n", b.FilePath, e.mode, e.inPasteMode, b.LineCount)
+
+	// Cursor
+	if cats["all"] || cats["cursor"] {
+		fmt.Fprintf(&sb, "CURSOR: line=%d x=%d viewTop=%d virtual=%d\n", b.CursorIterator.LineNumber(), b.CursorX, b.ViewIterator.LineNumber(), len(e.GetVirtualCursors()))
+	}
+
+	// Highlighter
+	if cats["all"] || cats["highlighter"] {
+		var lang string
+		tree := "nil"
+		if b.Highlighter != nil {
+			lang = b.Highlighter.GetCurrentLanguage()
+			if lang == "" {
+				_ = b.Highlighter.SetLanguageFromFile(b.FilePath)
+				lang = b.Highlighter.GetCurrentLanguage()
+			}
+			if t := b.Highlighter.GetTree(); t != nil {
+				tree = "present"
+			}
+		}
+		fmt.Fprintf(&sb, "HIGHLIGHTER: lang=%s tree=%s\n", lang, tree)
+		if b.Highlighter != nil {
+			cur := b.CursorIterator.LineNumber()
+			start := cur - 2
+			if start < 0 {
+				start = 0
+			}
+			end := cur + 2
+			if end >= b.LineCount {
+				end = b.LineCount - 1
+			}
+			for ln := start; ln <= end; ln++ {
+				it := buffer.NewBufferIteratorAtLine(b, ln)
+				toks := b.Highlighter.GetTokensForLine(it.Position(), it.LineEnd())
+				var parts []string
+				for _, tk := range toks {
+					parts = append(parts, fmt.Sprintf("%s@[%d-%d]", tk.TokenType, tk.Start, tk.End))
+				}
+				fmt.Fprintf(&sb, "TOKENS line=%d: %s\n", ln, strings.Join(parts, ", "))
+			}
+		}
+	}
+
+	// History
+	if cats["all"] || cats["history"] {
+		if b.History != nil {
+			undo := b.History.SnapshotUndo(10)
+			redo := b.History.SnapshotRedo(10)
+			fmt.Fprintf(&sb, "HISTORY undo(top10): %v\n", undo)
+			fmt.Fprintf(&sb, "HISTORY redo(top10): %v\n", redo)
+		}
+		fmt.Fprintf(&sb, "LAST: simple=%s count=%d pendingKeys=%v\n", e.lastSimpleCommand, e.lastCommandCount, e.keyMapper.GetPendingKeys())
+	}
+
+	// Buffer content (truncated)
+	if cats["all"] || cats["buffer"] {
+		maxLines := 200
+		if b.LineCount < maxLines {
+			maxLines = b.LineCount
+		}
+		fmt.Fprintf(&sb, "BUFFER (first %d lines):\n", maxLines)
+		it := buffer.NewBufferIterator(b)
+		for i := 0; i < maxLines && !it.IsEOF(); i++ {
+			fmt.Fprintf(&sb, "%4d: %s\n", i, it.Line())
+			it = it.Next()
+		}
+	}
+
+	if err := os.WriteFile(outPath, []byte(sb.String()), 0644); err != nil {
+		LL.Error("DEBUG DUMP write failed: %v", err)
+		return nil
+	}
+	LL.Info("DEBUG DUMP written to %s", outPath)
+	return nil
 }
 
 // sanitizeTerminalText converts common terminal control sequences into a text-only form
