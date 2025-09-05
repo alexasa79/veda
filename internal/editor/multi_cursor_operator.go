@@ -218,8 +218,11 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 	primaryCursorX := e.CurrentBuffer().CursorX
 	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 
-	// Collect yanked text from all cursors
-	var yankedTexts []string
+    // Collect yanked text from all cursors
+    var yankedTexts []string
+    // Track a combined flash range that covers all yanked regions
+    minStartLine, minStartChar := -1, -1
+    maxEndLine, maxEndChar := -1, -1
 
 	// First yank from virtual cursors
 	for _, cursor := range e.virtualCursors {
@@ -233,9 +236,9 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 			continue
 		}
 
-		// Get the text to yank
-		var text string
-		if startLine == endLine {
+        // Get the text to yank
+        var text string
+        if startLine == endLine {
 			// Single line yank
 			iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), startLine)
 			if !iter.IsEOF() {
@@ -249,20 +252,30 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 			text = e.getTextInRange(startLine, startChar, endLine, endChar)
 		}
 
-		if text != "" {
-			// Remove trailing newline for consistency
-			text = strings.TrimSuffix(text, "\n")
-			yankedTexts = append(yankedTexts, text)
-		}
-	}
+        if text != "" {
+            // Remove trailing newline for consistency
+            text = strings.TrimSuffix(text, "\n")
+            yankedTexts = append(yankedTexts, text)
+        }
+
+        // Expand combined flash range to include this selection
+        if startLine >= 0 && endLine >= 0 {
+            if minStartLine == -1 || startLine < minStartLine || (startLine == minStartLine && startChar < minStartChar) {
+                minStartLine, minStartChar = startLine, startChar
+            }
+            if endLine > maxEndLine || (endLine == maxEndLine && endChar > maxEndChar) {
+                maxEndLine, maxEndChar = endLine, endChar
+            }
+        }
+    }
 
 	// Restore primary cursor and yank from it
 	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
 	e.CurrentBuffer().CursorX = primaryCursorX
 
-	// Get the range from the text object
-	startLine, startChar, endLine, endChar, found := textObj.GetRange(e.CurrentBuffer(), primaryLineNum, primaryCursorX)
-	if found {
+    // Get the range from the text object
+    startLine, startChar, endLine, endChar, found := textObj.GetRange(e.CurrentBuffer(), primaryLineNum, primaryCursorX)
+    if found {
 		// Get the text to yank
 		var text string
 		if startLine == endLine {
@@ -279,15 +292,22 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 			text = e.getTextInRange(startLine, startChar, endLine, endChar)
 		}
 
-		if text != "" {
-			// Remove trailing newline for consistency
-			text = strings.TrimSuffix(text, "\n")
-			yankedTexts = append(yankedTexts, text)
-		}
+        if text != "" {
+            // Remove trailing newline for consistency
+            text = strings.TrimSuffix(text, "\n")
+            yankedTexts = append(yankedTexts, text)
+        }
 
-		// Flash highlight at primary cursor
-		e.setFlashHighlight(startLine, startChar, endLine, endChar)
-	}
+        // Expand combined flash range to include primary selection
+        if startLine >= 0 && endLine >= 0 {
+            if minStartLine == -1 || startLine < minStartLine || (startLine == minStartLine && startChar < minStartChar) {
+                minStartLine, minStartChar = startLine, startChar
+            }
+            if endLine > maxEndLine || (endLine == maxEndLine && endChar > maxEndChar) {
+                maxEndLine, maxEndChar = endLine, endChar
+            }
+        }
+    }
 
 	// Join all yanked texts with newlines
 	combinedText := strings.Join(yankedTexts, "\n")
@@ -303,11 +323,19 @@ func (e *Editor) executeYankForAllCursors(textObj TextObject) error {
 
 	LL.Debug("Yanked %d items to clipboard (%d characters total)", len(yankedTexts), len(combinedText))
 
-	// Store the operator+text object combination for repeat
-	e.lastCommand = &RepeatableCommand{
-		Operator:   YankOperator{},
-		TextObject: textObj,
-	}
+    // Store the operator+text object combination for repeat
+    e.lastCommand = &RepeatableCommand{
+        Operator:   YankOperator{},
+        TextObject: textObj,
+    }
 
-	return nil
+    // Apply a single flash highlight covering all yanked regions
+    if minStartLine >= 0 && maxEndLine >= 0 {
+        e.setFlashHighlight(minStartLine, minStartChar, maxEndLine, maxEndChar)
+    }
+
+    // Clear pending operation so post-yank navigation works normally
+    e.clearPendingOperation()
+
+    return nil
 }
