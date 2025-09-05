@@ -28,7 +28,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.24"
+PROXY_VERSION = "1.0.26"
 
 # Set up logging directory
 from datetime import datetime
@@ -1244,6 +1244,7 @@ class VedaProxy:
             'get_diagnostics': self.get_diagnostics,
             'get_project_changes': self.get_project_changes,
             'get_git_file_version': self.get_git_file_version,
+            'run_git_blame': self.run_git_blame,
             'stage_lines': self.stage_lines,
             'unstage_lines': self.unstage_lines,
             'notify_file_change': self.notify_file_change,
@@ -2259,6 +2260,81 @@ class VedaProxy:
             return {'success': False, 'error': 'Git command timed out'}
         except Exception as e:
             logger.error(f"Error in get_git_file_version: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def run_git_blame(self, path: str, line_number: int) -> Dict[str, Any]:
+        """
+        Run git blame for a specific line of a file.
+        """
+        logger.info(f"run_git_blame called: path={path}, line_number={line_number}")
+        try:
+            # Resolve the file path
+            file_path = Path(path).expanduser().resolve()
+            logger.info(f"Resolved file path: {file_path}")
+            
+            # Get the git root directory
+            result = subprocess.run(['git', 'rev-parse', '--show-toplevel'], 
+                                 capture_output=True, text=True, cwd=file_path.parent,
+                                 timeout=5)
+            
+            if result.returncode != 0:
+                logger.error(f"Not a git repository: {result.stderr}")
+                return {'success': False, 'error': 'Not a git repository'}
+            
+            git_root = Path(result.stdout.strip())
+            logger.info(f"Git root: {git_root}")
+            
+            # Run git blame for the specific line
+            cmd = ['git', 'blame', '-L', f'{line_number},{line_number}', '--porcelain', str(file_path)]
+            logger.info(f"Running git blame command: {cmd} in {git_root}")
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=git_root, timeout=10)
+            logger.info(f"git blame completed with return code: {result.returncode}")
+            
+            if result.returncode != 0:
+                logger.error(f"git blame failed: {result.stderr}")
+                return {'success': False, 'error': result.stderr.strip()}
+            
+            # Parse the porcelain output
+            lines = result.stdout.strip().split('\n')
+            if not lines:
+                return {'success': False, 'error': 'No blame information available'}
+            
+            commit_hash = ""
+            author = ""
+            author_time = ""
+            summary = ""
+            
+            for line in lines:
+                if line.startswith('author '):
+                    author = line[7:]
+                elif line.startswith('author-time '):
+                    # Convert Unix timestamp to readable date
+                    timestamp = int(line[12:])
+                    from datetime import datetime
+                    author_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                elif line.startswith('summary '):
+                    summary = line[8:]
+                elif not commit_hash and line and not line.startswith('\t'):
+                    # First line contains: <hash> <original-line> <final-line> <num-lines>
+                    parts = line.split()
+                    if parts and len(parts[0]) == 40 and all(c in '0123456789abcdef' for c in parts[0]):
+                        commit_hash = parts[0]
+            
+            logger.info(f"Parsed blame: commit={commit_hash[:7] if commit_hash else 'none'}, author={author}, date={author_time}, message={summary}")
+            
+            return {
+                'success': True,
+                'commit': commit_hash,
+                'author': author,
+                'date': author_time,
+                'message': summary
+            }
+            
+        except subprocess.TimeoutExpired:
+            logger.error(f"Git blame command timed out for file: {path}")
+            return {'success': False, 'error': 'Git command timed out'}
+        except Exception as e:
+            logger.error(f"Error in run_git_blame: {e}")
             return {'success': False, 'error': str(e)}
     
     @log_proxy_method

@@ -28,7 +28,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.24"
+const ProxyVersion = "1.0.26"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -751,6 +751,23 @@ func (pm *ProxyManager) GetGitFileVersion(path string, revision string) (string,
 	}
 
 	return client.GetGitFileVersion(actualPath, revision)
+}
+
+// RunGitBlame runs git blame for a specific line of a file (supports HOST:PATH format)
+func (pm *ProxyManager) RunGitBlame(host string, path string, lineNumber int) (map[string]interface{}, error) {
+	// Build the full path (with host prefix if needed)
+	fullPath := path
+	if host != "" {
+		fullPath = host + ":" + path
+	}
+
+	// Don't hold the lock while calling getClient, as it needs to acquire the lock itself
+	client, actualPath, err := pm.getClient(fullPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.RunGitBlame(actualPath, lineNumber)
 }
 
 //go:embed veda-proxy.py
@@ -2511,6 +2528,34 @@ func (c *Client) GetGitFileVersion(path string, revision string) (string, error)
 	}
 
 	return "", fmt.Errorf("failed to get git file version")
+}
+
+// RunGitBlame runs git blame for a specific line of a file
+func (c *Client) RunGitBlame(path string, lineNumber int) (map[string]interface{}, error) {
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "run_git_blame",
+		Params: map[string]interface{}{
+			"path":        path,
+			"line_number": lineNumber,
+		},
+		ID: c.requestID,
+	}
+
+	response, err := c.sendRequestWithTimeout(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
+
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		return result, nil
+	}
+
+	return nil, fmt.Errorf("failed to get git blame information")
 }
 
 func (c *Client) Close() error {
