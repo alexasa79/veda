@@ -109,6 +109,9 @@ func (e *Editor) registerCommands() {
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition, false, true)
 	e.commandRegistry.Register("go-to-definition-new-window", e.goToDefinitionNewWindow, false, true)
+	
+	// Git commands
+	e.commandRegistry.Register("git-blame-line", e.gitBlameCurrentLine, false, false)
 	e.commandRegistry.Register("find-references", e.findReferences, false, true)
 	e.commandRegistry.Register("show-lsp-buffer-go", e.showLSPBufferGo, false, true)
 	e.commandRegistry.Register("show-signature", e.showSignature, false, true)

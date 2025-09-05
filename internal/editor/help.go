@@ -118,6 +118,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("gr           - Find all references to symbol under cursor\n")
 	helpText.WriteString("ge           - Show project diagnostics/errors\n")
 	helpText.WriteString("gt           - Show git changes in project\n")
+	helpText.WriteString("g b b        - Show git blame for current line\n")
 	helpText.WriteString("gn           - Go to next reference (when references are found)\n")
 	helpText.WriteString("gp           - Go to previous reference (when references are found)\n")
 	helpText.WriteString("s w          - List project symbols\n")

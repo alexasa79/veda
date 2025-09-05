@@ -196,6 +196,9 @@ func (e *Editor) setupDefaultBindings() {
 	// Git staging operations
 	e.registerKeyBinding(commands.NormalMode, "g h", "toggle-stage-hunk")
 	e.registerKeyBinding(commands.NormalMode, "g space", "toggle-stage-line")
+	
+	// Git blame
+	e.registerKeyBinding(commands.NormalMode, "g b b", "git-blame-line")
 
 	// Special handling for references buffers
 	e.registerKeyBinding(commands.NormalMode, "enter", "jump-to-reference")
