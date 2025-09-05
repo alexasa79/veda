@@ -204,9 +204,23 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 		}
 	}
 
-	// Now paste lines in reverse order to maintain positions
-	for i := len(cursors) - 1; i >= 0; i-- {
-		cursor := cursors[i]
+    // Determine the primary cursor index in sorted order
+    primarySortedIndex := -1
+    for idx, c := range cursors {
+        if !c.isVirtual {
+            primarySortedIndex = idx
+            break
+        }
+    }
+
+    // Track the primary's final position as reported by PasteCommand, and adjust
+    // for subsequent insertions above it.
+    primaryFinalY, primaryFinalX := primaryLineNum, primaryCursorX
+    primaryCaptured := false
+
+    // Now paste lines in reverse order to maintain positions
+    for i := len(cursors) - 1; i >= 0; i-- {
+        cursor := cursors[i]
 
 		// Find which sorted position this cursor is at
 		sortedIndex := -1
@@ -225,27 +239,41 @@ func (e *Editor) pasteForAllCursors(pasteFunc func(string) error, _ bool) error 
 		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursor.y)
 		e.CurrentBuffer().CursorX = cursor.x
 
-		// Paste the lines for this cursor
-		textToPaste := strings.Join(linesToPaste[sortedIndex], "\n")
+        // Paste the lines for this cursor
+        textToPaste := strings.Join(linesToPaste[sortedIndex], "\n")
+        insertedLines := strings.Count(textToPaste, "\n")
 
 		// Paste at this position
 		if err := pasteFunc(textToPaste); err != nil {
 			LL.Debug("Failed to paste at cursor: %v", err)
 		}
 
-		// Update cursor position if it's a virtual cursor
-		if cursor.isVirtual {
-			e.virtualCursors[cursor.index].Y = e.CurrentBuffer().CursorIterator.LineNumber()
-			e.virtualCursors[cursor.index].X = e.CurrentBuffer().CursorX
-		}
-	}
+        // Update cursor position if it's a virtual cursor; capture primary position
+        if cursor.isVirtual {
+            e.virtualCursors[cursor.index].Y = e.CurrentBuffer().CursorIterator.LineNumber()
+            e.virtualCursors[cursor.index].X = e.CurrentBuffer().CursorX
+        } else {
+            primaryFinalY = e.CurrentBuffer().CursorIterator.LineNumber()
+            primaryFinalX = e.CurrentBuffer().CursorX
+            primaryCaptured = true
+        }
 
-	// Restore primary cursor to its final position
-	if cursors[len(cursors)-1].isVirtual {
-		// Primary cursor wasn't the last, restore its position
-		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
-		e.CurrentBuffer().CursorX = primaryCursorX
-	}
+        // If we've already pasted at the primary and are now pasting above it,
+        // adjust the primary's final Y by the number of inserted lines here.
+        if primaryCaptured && i < primarySortedIndex {
+            primaryFinalY += insertedLines
+        }
+    }
+
+    // Restore primary cursor to its final position
+    if primaryFinalY < 0 {
+        primaryFinalY = 0
+    }
+    if primaryFinalY >= e.CurrentBuffer().LineCount {
+        primaryFinalY = e.CurrentBuffer().LineCount - 1
+    }
+    e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryFinalY)
+    e.CurrentBuffer().CursorX = primaryFinalX
 
 	// Sync updated virtual cursor positions for current buffer (no structural
 	// changes here, but keep map/shim consistent across operations)
