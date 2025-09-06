@@ -294,7 +294,16 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 		wl := wrappedLines[i]
 		if wl.LogicalLineNum+1 == cursorLogicalLine && cursorX == 0 {
 			// Cursor is on the empty line following wl.LogicalLineNum
-			visualLine = i + 1
+			// Place the cursor on the next visual row, but never beyond the last
+			// visible wrapped row to avoid drawing on the status bar.
+			nextRow := i + 1
+			if nextRow >= len(wrappedLines) {
+				nextRow = len(wrappedLines) - 1
+				if nextRow < 0 {
+					nextRow = 0
+				}
+			}
+			visualLine = nextRow
 			visualCol = e.CurrentBuffer().LineNumberWidth
 			LL.Trace("GetCursorVisualPosition: placing cursor on synthetic empty line after logical %d -> visualLine=%d, visualCol=%d", wl.LogicalLineNum, visualLine, visualCol)
 			return
