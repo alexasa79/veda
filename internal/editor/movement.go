@@ -7,21 +7,22 @@ import (
 
 // Movement commands
 func (e *Editor) moveUp(args []string) error {
-	t0 := e.perfTracker.Start()
-	defer e.perfTracker.ReportSince("moveUp", t0)
+    t0 := e.perfTracker.Start()
+    defer e.perfTracker.ReportSince("moveUp", t0)
 
-	// Get current visual position
-	visualLine, visualCol := e.GetCursorVisualPosition()
+    // Get current visual position
+    // Get current visual position
+    visualLine, visualCol := e.GetCursorVisualPosition()
 
-	// Set desired column if not already set
-	if e.desiredColumn == -1 {
-		e.desiredColumn = visualCol
-	}
+    // Set desired column if not already set
+    if e.desiredColumn == -1 {
+        e.desiredColumn = visualCol
+    }
 
 	if visualLine > 0 {
 		// Map to new position one visual line up, using desired column
-		newVisualLine := visualLine - 1
-		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
+        newVisualLine := visualLine - 1
+        newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
 
 		// Update cursor position
 		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLogicalLine)
@@ -36,37 +37,37 @@ func (e *Editor) moveUp(args []string) error {
 		}
 	}
 
-	// Debug printout: which buffer changed and new cursor position
-	if e.CurrentBuffer() != nil {
-		LL.Debug("moveUp: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-	}
-	e.updateCursorState()
-	return nil
+    // Debug printout: which buffer changed and new cursor position
+    if e.CurrentBuffer() != nil {
+        LL.Debug("moveUp: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+    }
+    e.updateCursorState()
+    return nil
 }
 
 func (e *Editor) moveDown(args []string) error {
 	t0 := e.perfTracker.Start()
 	defer e.perfTracker.ReportSince("moveDown", t0)
 
-	// Get current visual position
-	visualLine, visualCol := e.GetCursorVisualPosition()
+    // Get current visual position
+    visualLine, visualCol := e.GetCursorVisualPosition()
 
 	// Set desired column if not already set
 	if e.desiredColumn == -1 {
 		e.desiredColumn = visualCol
 	}
 
-	// Calculate wrapped lines to check bounds
-	wrappedLines := e.CalculateWrappedLines()
+    // Calculate wrapped lines to check bounds
+    wrappedLines := e.CalculateWrappedLines()
 
-	if visualLine < len(wrappedLines)-1 {
-		// Map to new position one visual line down, using desired column
-		newVisualLine := visualLine + 1
-		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
+    if visualLine < len(wrappedLines)-1 {
+        // Map to new position one visual line down, using desired column
+        newVisualLine := visualLine + 1
+        newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
 
-		// Update cursor position
-		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLogicalLine)
-		e.CurrentBuffer().CursorX = newCharPos
+        // Update cursor position
+        e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLogicalLine)
+        e.CurrentBuffer().CursorX = newCharPos
 
 		// Ensure cursor is within bounds for normal mode
 		if e.mode == commands.NormalMode && !e.CurrentBuffer().CursorIterator.IsEOF() {
@@ -77,11 +78,23 @@ func (e *Editor) moveDown(args []string) error {
 		}
 	}
 
-	if e.CurrentBuffer() != nil {
-		LL.Debug("moveDown: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
-	}
-	e.updateCursorState()
-	return nil
+    if e.CurrentBuffer() != nil {
+        LL.Debug("moveDown: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
+    } else {
+        // At last visible wrapped row: advance to the next logical line to keep moving
+        if !e.CurrentBuffer().CursorIterator.IsEOF() {
+            e.CurrentBuffer().CursorIterator = e.CurrentBuffer().CursorIterator.Next()
+            // Clamp X for normal mode to avoid going past last character
+            if e.mode == commands.NormalMode {
+                line := e.CurrentBuffer().CursorIterator.Line()
+                if len(line) > 0 && e.CurrentBuffer().CursorX >= len(line) {
+                    e.CurrentBuffer().CursorX = len(line) - 1
+                }
+            }
+        }
+    }
+    e.updateCursorState()
+    return nil
 }
 
 func (e *Editor) moveLeft(args []string) error {
