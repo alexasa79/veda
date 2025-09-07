@@ -241,45 +241,34 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	// Store diff line information for current buffer
 	e.diffLineInfo[currentBuffer] = diffResult.RightLines
 
-	// Ensure we have at least one more window for the HEAD version
-	if len(e.windows) < 2 {
-		e.createSecondWindow()
-	}
+    // Place HEAD in the same window as the original buffer (do NOT remove
+    // the original from that window's buffer list), and open the current
+    // diff copy in a window to the right.
 
-	// Find windows for HEAD (left) and current (right) versions
-	currentWindow := e.activeWindow
-	headWindow := -1
+    // 1) Add HEAD buffer to the active (left) window and make it active there.
+    if e.activeWindow < 0 || e.activeWindow >= len(e.windows) {
+        // Safety: ensure we have at least one window
+        e.windows = append(e.windows, newWindow(nil))
+        e.activeWindow = len(e.windows) - 1
+    }
+    leftIdx := e.activeWindow
+    e.windows[leftIdx].addBufferToWindow(e.buffers[headBufferName])
 
-	// Put HEAD on the left, current on the right
-	if currentWindow == 0 {
-		// Current is in leftmost window, need window to the right for current
-		if len(e.windows) < 2 {
-			e.createSecondWindow()
-		}
-		headWindow = 0    // HEAD goes in current position (left)
-		currentWindow = 1 // Current moves to the right
-	} else {
-		// Current is not in leftmost window, use window to the left for HEAD
-		headWindow = currentWindow - 1
-		// currentWindow stays where it is (right side)
-	}
+    // 2) Create or insert a window immediately to the right for the current copy.
+    // Insert at position leftIdx+1 to keep relative order of existing windows.
+    rightWin := newWindow(e.buffers[currentBufferName])
+    if leftIdx+1 >= len(e.windows) {
+        e.windows = append(e.windows, rightWin)
+    } else {
+        e.windows = append(e.windows[:leftIdx+1], append([]*Window{rightWin}, e.windows[leftIdx+1:]...)...)
+    }
 
-	// Set up the windows - HEAD on left, current on right
-	if headWindow >= 0 && headWindow < len(e.windows) {
-		e.windows[headWindow].Buffer = e.buffers[headBufferName]
-	}
-	if currentWindow >= 0 && currentWindow < len(e.windows) {
-		e.windows[currentWindow].Buffer = e.buffers[currentBufferName]
-	}
+    // Activate the right diff window (current buffer copy)
+    e.activeWindow = leftIdx + 1
+    e.switchToBuffer(e.buffers[currentBufferName])
 
-	// Update active window to the current buffer (right side)
-	e.activeWindow = currentWindow
-
-	// Switch to the current buffer
-	e.switchToBuffer(e.buffers[currentBufferName])
-
-	// Recompute window layout to apply diff-specific width rules
-	e.recomputeWindowsLayout()
+    // Recompute window layout to apply diff-specific width rules
+    e.recomputeWindowsLayout()
 
 	LL.Debug("StartDiffViewForCurrentBuffer: Diff view setup complete")
 
