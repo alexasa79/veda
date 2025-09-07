@@ -170,25 +170,30 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	LL.Debug("StartDiffViewForCurrentBuffer: Aligned content created - Head lines: %d, Current lines: %d",
 		len(diffResult.LeftLines), len(diffResult.RightLines))
 
-	// Create HEAD buffer name
-	headBufferName := filePath + "@HEAD"
-	currentBufferName := filePath + "@current"
+    // Create HEAD buffer name and right buffer name
+    headBufferName := filePath + "@HEAD"
+    currentBufferName := filePath + "@current"
 
 	// Create or update HEAD buffer
-	if headBuffer, exists := e.buffers[headBufferName]; exists {
-		// Update existing buffer
-		headBuffer.Rope = buffer.NewRopeFromString(alignedHeadContent)
-		headBuffer.CursorX = 0
-		headBuffer.ViewIterator = buffer.NewBufferIterator(headBuffer)
-		headBuffer.CursorIterator = buffer.NewBufferIterator(headBuffer)
-	} else {
-		// Create new HEAD buffer
-		headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-		headBuffer.IsReadOnly = true
-		headBuffer.IsInternal = false // Can be moved between windows
-		e.buffers[headBufferName] = headBuffer
-		e.bufferOrder = append(e.bufferOrder, headBufferName)
-	}
+    if headBuffer, exists := e.buffers[headBufferName]; exists {
+        // Update existing buffer
+        headBuffer.Rope = buffer.NewRopeFromString(alignedHeadContent)
+        headBuffer.CursorX = 0
+        headBuffer.ViewIterator = buffer.NewBufferIterator(headBuffer)
+        headBuffer.CursorIterator = buffer.NewBufferIterator(headBuffer)
+        headBuffer.BufferName = headBufferName
+        headBuffer.RealPath = ""
+        headBuffer.IsReadOnly = true
+    } else {
+        // Create new HEAD buffer
+        headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+        headBuffer.IsReadOnly = true
+        headBuffer.IsInternal = false // Can be moved between windows
+        headBuffer.BufferName = headBufferName
+        headBuffer.RealPath = ""
+        e.buffers[headBufferName] = headBuffer
+        e.bufferOrder = append(e.bufferOrder, headBufferName)
+    }
 
 	// Ensure syntax highlighter exists and is updated for HEAD buffer
 	headBuffer := e.buffers[headBufferName]
@@ -210,23 +215,31 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	currentCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Create or update current buffer copy
-	if currentBuffer, exists := e.buffers[currentBufferName]; exists {
-		// Update existing buffer
-		currentBuffer.Rope = buffer.NewRopeFromString(alignedCurrentContent)
-		currentBuffer.CursorX = e.CurrentBuffer().CursorX
-		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-	} else {
-		// Create new current buffer copy
-		currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-		currentBuffer.IsReadOnly = false
-		currentBuffer.IsInternal = false // Can be moved between windows
-		currentBuffer.CursorX = e.CurrentBuffer().CursorX
-		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-		e.buffers[currentBufferName] = currentBuffer
-		e.bufferOrder = append(e.bufferOrder, currentBufferName)
-	}
+    if currentBuffer, exists := e.buffers[currentBufferName]; exists {
+        // Update existing buffer
+        currentBuffer.Rope = buffer.NewRopeFromString(alignedCurrentContent)
+        currentBuffer.CursorX = e.CurrentBuffer().CursorX
+        currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+        currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+        currentBuffer.BufferName = currentBufferName
+        currentBuffer.RealPath = filePath
+        // Share GitChanges with original buffer so gutter reflects staging
+        currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
+    } else {
+        // Create new current buffer copy
+        currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+        currentBuffer.IsReadOnly = false
+        currentBuffer.IsInternal = false // Can be moved between windows
+        currentBuffer.CursorX = e.CurrentBuffer().CursorX
+        currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+        currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+        currentBuffer.BufferName = currentBufferName
+        currentBuffer.RealPath = filePath
+        // Share GitChanges with original buffer so gutter reflects staging
+        currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
+        e.buffers[currentBufferName] = currentBuffer
+        e.bufferOrder = append(e.bufferOrder, currentBufferName)
+    }
 
 	// Ensure syntax highlighter exists and is updated for current buffer
 	currentBuffer := e.buffers[currentBufferName]

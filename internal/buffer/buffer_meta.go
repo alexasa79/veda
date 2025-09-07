@@ -38,11 +38,13 @@ type ParameterInfo struct {
 
 // Buffer represents a complete text buffer with metadata
 type Buffer struct {
-	*Rope // Embed the rope data structure
+    *Rope // Embed the rope data structure
 
-	// File information
-	FilePath   string
-	IsModified bool
+    // File information
+    FilePath   string // Unique buffer identifier (legacy); may be a virtual name
+    BufferName string // Human-friendly buffer name for UI (optional)
+    RealPath   string // Real filesystem path for I/O (empty for virtual/temporary)
+    IsModified bool
 
 	// Cursor and view state
 	CursorX        int
@@ -123,7 +125,9 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 	rope := NewRopeFromString(content)
 	b := &Buffer{
 		Rope:           rope,
-		FilePath:       filePath,
+        FilePath:       filePath,
+        BufferName:     filePath,
+        RealPath:       filePath, // By default, real path matches file path; diff/virtual buffers override
 		IsModified:     false,
 		CursorX:        0,
 		ViewIterator:   nil, // Will be created when buffer is first used
@@ -207,15 +211,18 @@ func (b *Buffer) MarkSaved() {
 
 // HasFile returns true if this buffer is backed by a real file
 func (b *Buffer) HasFile() bool {
-	return b.FilePath != "" && b.FilePath != "[No Name]"
+    return b.RealPath != ""
 }
 
 // DisplayName returns a user-friendly name for the buffer
 func (b *Buffer) DisplayName() string {
-	if b.FilePath == "" {
-		return "[No Name]"
-	}
-	return b.FilePath
+    if b.BufferName != "" {
+        return b.BufferName
+    }
+    if b.FilePath == "" {
+        return "[No Name]"
+    }
+    return b.FilePath
 }
 
 // FileName returns just the filename without the path
