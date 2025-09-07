@@ -8,7 +8,7 @@ import (
 
 // getCommandDescriptions returns a map of command names to user-friendly descriptions
 func (e *Editor) getCommandDescriptions() map[string]string {
-	return map[string]string{
+    return map[string]string{
 		// Movement commands
 		"word-forward":                "next word",
 		"word-backward":               "previous word",
@@ -53,9 +53,9 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"redo":               "redo",
 		"repeat-last-change": "repeat last change",
 
-		// LSP commands
-		"go-to-definition":            "go to definition",
-		"go-to-definition-new-window": "go to definition",
+        // LSP commands
+        "go-to-definition":            "go to definition",
+        "go-to-definition-new-window": "go to definition (new window)",
 		"find-references":             "find references",
 		"show-signature":              "show signature",
 		"diagnostics":                 "show diagnostics",
@@ -79,11 +79,15 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"list-project-symbols":  "project symbols",
 		"list-document-symbols": "document symbols",
 
-		// Navigation
-		"go-back":           "go back",
-		"next-item":         "next item",
-		"previous-item":     "previous item",
-		"jump-to-reference": "jump to reference",
+        // Navigation
+        "go-back":           "go back",
+        "next-item":         "next item",
+        "previous-item":     "previous item",
+        "jump-to-reference": "jump to reference",
+
+        // Git staging
+        "toggle-stage-hunk": "toggle staging hunk",
+        "toggle-stage-line": "toggle staging line",
 
 		// Indentation
 		"indent-line":         "indent line",
@@ -127,11 +131,9 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 
 // getCategoryDescriptions returns a map of partial key sequences to category descriptions
 func (e *Editor) getCategoryDescriptions() map[string]string {
-	return map[string]string{
-		"space w":   "window management",
-		"g space":   "go with new window",
-		"g space d": "go to definition",
-	}
+    return map[string]string{
+        "space w":   "window management",
+    }
 }
 
 // showKeyHints displays the key hints popup for the current pending key sequence

@@ -135,8 +135,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "s d", "list-document-symbols")
 
 	// LSP operations
-	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
-	e.registerKeyBinding(commands.NormalMode, "g space d", "go-to-definition-new-window")
+    e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
+    e.registerKeyBinding(commands.NormalMode, "g D", "go-to-definition-new-window")
 	e.registerKeyBinding(commands.NormalMode, "s s", "show-signature")
 	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 	e.registerKeyBinding(commands.NormalMode, "g e", "diagnostics")
