@@ -534,69 +534,71 @@ func alignLines(leftLines, rightLines []string) *DiffResult {
 
 	for leftIdx < len(leftLines) || rightIdx < len(rightLines) {
 		// Check if we have a match from LCS
-		if lcsIdx < len(lcs) &&
-			leftIdx < len(leftLines) && rightIdx < len(rightLines) &&
-			lcs[lcsIdx].LeftIdx == leftIdx && lcs[lcsIdx].RightIdx == rightIdx {
-			// Common line - context
-			line := leftLines[leftIdx]
-			result.LeftLines = append(result.LeftLines, DiffLine{
-				Content:      line,
-				LineType:     DiffLineContext,
-				LeftLine:     leftIdx,
-				RightLine:    rightIdx,
-				IsFillerLine: false,
-			})
-			result.RightLines = append(result.RightLines, DiffLine{
-				Content:      line,
-				LineType:     DiffLineContext,
-				LeftLine:     leftIdx,
-				RightLine:    rightIdx,
-				IsFillerLine: false,
-			})
-			leftIdx++
-			rightIdx++
-			lcsIdx++
-		} else if leftIdx < len(leftLines) &&
-			(rightIdx >= len(rightLines) ||
-				(lcsIdx < len(lcs) && leftIdx < lcs[lcsIdx].LeftIdx)) {
-			// Line only in left (deleted)
-			result.LeftLines = append(result.LeftLines, DiffLine{
-				Content:      leftLines[leftIdx],
-				LineType:     DiffLineDeleted,
-				LeftLine:     leftIdx,
-				RightLine:    -1,
-				IsFillerLine: false,
-			})
-			result.RightLines = append(result.RightLines, DiffLine{
-				Content:      "",
-				LineType:     DiffLineDeleted, // Both sides should have same type for alignment
-				LeftLine:     -1,
-				RightLine:    -1,
-				IsFillerLine: true,
-			})
-			leftIdx++
-		} else if rightIdx < len(rightLines) {
-			// Line only in right (added)
-			result.LeftLines = append(result.LeftLines, DiffLine{
-				Content:      "",
-				LineType:     DiffLineAdded, // Both sides should have same type for alignment
-				LeftLine:     -1,
-				RightLine:    -1,
-				IsFillerLine: true,
-			})
-			result.RightLines = append(result.RightLines, DiffLine{
-				Content:      rightLines[rightIdx],
-				LineType:     DiffLineAdded,
-				LeftLine:     -1,
-				RightLine:    rightIdx,
-				IsFillerLine: false,
-			})
-			rightIdx++
-		}
+        if lcsIdx < len(lcs) &&
+            leftIdx < len(leftLines) && rightIdx < len(rightLines) &&
+            lcs[lcsIdx].LeftIdx == leftIdx && lcs[lcsIdx].RightIdx == rightIdx {
+            // Common line - context
+            line := leftLines[leftIdx]
+            result.LeftLines = append(result.LeftLines, DiffLine{
+                Content:      line,
+                LineType:     DiffLineContext,
+                LeftLine:     leftIdx,
+                RightLine:    rightIdx,
+                IsFillerLine: false,
+            })
+            result.RightLines = append(result.RightLines, DiffLine{
+                Content:      line,
+                LineType:     DiffLineContext,
+                LeftLine:     leftIdx,
+                RightLine:    rightIdx,
+                IsFillerLine: false,
+            })
+            leftIdx++
+            rightIdx++
+            lcsIdx++
+        } else if leftIdx < len(leftLines) &&
+            (rightIdx >= len(rightLines) ||
+                (lcsIdx < len(lcs) && leftIdx < lcs[lcsIdx].LeftIdx)) {
+            // Line only in left (present in HEAD, missing in current)
+            // Show green (Added) on the left, red (Deleted filler) on the right
+            result.LeftLines = append(result.LeftLines, DiffLine{
+                Content:      leftLines[leftIdx],
+                LineType:     DiffLineAdded,
+                LeftLine:     leftIdx,
+                RightLine:    -1,
+                IsFillerLine: false,
+            })
+            result.RightLines = append(result.RightLines, DiffLine{
+                Content:      "",
+                LineType:     DiffLineDeleted, // Filler opposite of left-side Added
+                LeftLine:     -1,
+                RightLine:    -1,
+                IsFillerLine: true,
+            })
+            leftIdx++
+        } else if rightIdx < len(rightLines) {
+            // Line only in right (present in current, missing in HEAD)
+            // Show red (Deleted filler) on the left, green (Added) on the right
+            result.LeftLines = append(result.LeftLines, DiffLine{
+                Content:      "",
+                LineType:     DiffLineDeleted, // Filler opposite of right-side Added
+                LeftLine:     -1,
+                RightLine:    -1,
+                IsFillerLine: true,
+            })
+            result.RightLines = append(result.RightLines, DiffLine{
+                Content:      rightLines[rightIdx],
+                LineType:     DiffLineAdded,
+                LeftLine:     -1,
+                RightLine:    rightIdx,
+                IsFillerLine: false,
+            })
+            rightIdx++
+        }
 	}
 
-	// Post-process to detect modifications (delete+insert pairs)
-	result = detectModifications(result)
+    // Post-process to detect modifications (delete+insert pairs)
+    result = detectModifications(result)
 
 	return result
 }
@@ -665,48 +667,47 @@ func detectModifications(result *DiffResult) *DiffResult {
 	}
 
 	i := 0
-	for i < len(result.LeftLines) {
-		leftLine := result.LeftLines[i]
-		rightLine := result.RightLines[i]
+    for i < len(result.LeftLines) {
+        leftLine := result.LeftLines[i]
+        rightLine := result.RightLines[i]
 
-		// Check if this is a delete+insert pair that should be a modification
-		if i+1 < len(result.LeftLines) &&
-			leftLine.LineType == DiffLineDeleted && rightLine.LineType == DiffLineDeleted &&
-			result.LeftLines[i+1].LineType == DiffLineAdded && result.RightLines[i+1].LineType == DiffLineAdded &&
-			leftLine.IsFillerLine == false && rightLine.IsFillerLine == true &&
-			result.LeftLines[i+1].IsFillerLine == true && result.RightLines[i+1].IsFillerLine == false {
+        // Detect a delete+insert pair represented with asymmetric types:
+        // i:   Left=Added (real), Right=Deleted (filler)
+        // i+1: Left=Deleted (filler), Right=Added (real)
+        if i+1 < len(result.LeftLines) &&
+            leftLine.LineType == DiffLineAdded && !leftLine.IsFillerLine &&
+            rightLine.LineType == DiffLineDeleted && rightLine.IsFillerLine &&
+            result.LeftLines[i+1].LineType == DiffLineDeleted && result.LeftLines[i+1].IsFillerLine &&
+            result.RightLines[i+1].LineType == DiffLineAdded && !result.RightLines[i+1].IsFillerLine {
 
-			// This is a delete+insert pair - convert to modification
-			nextRightLine := result.RightLines[i+1]
+            nextRightLine := result.RightLines[i+1]
+            wordRanges := computeWordDiff(leftLine.Content, nextRightLine.Content)
 
-			// Compute word-level differences for the modified lines
-			wordRanges := computeWordDiff(leftLine.Content, nextRightLine.Content)
+            newResult.LeftLines = append(newResult.LeftLines, DiffLine{
+                Content:      leftLine.Content,
+                LineType:     DiffLineModified,
+                LeftLine:     leftLine.LeftLine,
+                RightLine:    nextRightLine.RightLine,
+                IsFillerLine: false,
+                WordRanges:   wordRanges,
+            })
+            newResult.RightLines = append(newResult.RightLines, DiffLine{
+                Content:      nextRightLine.Content,
+                LineType:     DiffLineModified,
+                LeftLine:     leftLine.LeftLine,
+                RightLine:    nextRightLine.RightLine,
+                IsFillerLine: false,
+                WordRanges:   wordRanges,
+            })
+            i += 2
+            continue
+        }
 
-			newResult.LeftLines = append(newResult.LeftLines, DiffLine{
-				Content:      leftLine.Content,
-				LineType:     DiffLineModified,
-				LeftLine:     leftLine.LeftLine,
-				RightLine:    nextRightLine.RightLine,
-				IsFillerLine: false,
-				WordRanges:   wordRanges, // Add word-level diff ranges
-			})
-			newResult.RightLines = append(newResult.RightLines, DiffLine{
-				Content:      nextRightLine.Content,
-				LineType:     DiffLineModified,
-				LeftLine:     leftLine.LeftLine,
-				RightLine:    nextRightLine.RightLine,
-				IsFillerLine: false,
-				WordRanges:   wordRanges, // Add word-level diff ranges
-			})
-
-			i += 2 // Skip both lines of the pair
-		} else {
-			// Keep the line as-is
-			newResult.LeftLines = append(newResult.LeftLines, leftLine)
-			newResult.RightLines = append(newResult.RightLines, rightLine)
-			i++
-		}
-	}
+        // Keep the line as-is
+        newResult.LeftLines = append(newResult.LeftLines, leftLine)
+        newResult.RightLines = append(newResult.RightLines, rightLine)
+        i++
+    }
 
 	return newResult
 }
