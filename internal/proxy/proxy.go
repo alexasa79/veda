@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1029,7 +1030,7 @@ func (c *Client) ComputeTextDiff(left, right string) ([]AlignedLine, error) {
             }
         }
         if msg, ok := result["error"].(string); ok && msg != "" {
-            return nil, fmt.Errorf(msg)
+            return nil, errors.New(msg)
         }
     }
     return nil, fmt.Errorf("invalid proxy response")
