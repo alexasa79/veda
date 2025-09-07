@@ -43,6 +43,21 @@ func (e *Editor) scroll() {
         topScrollOffset = 0
     }
 
+    // Fast-path logical alignment for the case where PageUp/PageDown jumped
+    // the cursor outside the current view: if the cursor's logical line is
+    // above the current top, reposition the view top near the cursor first,
+    // then apply wrap-aware fine adjustments below. This prevents a frame
+    // where content appears stuck while status/context move.
+    topLine := e.CurrentBuffer().ViewIterator.LineNumber()
+    cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+    if cursorLine < topLine {
+        desiredTop := cursorLine - topScrollOffset
+        if desiredTop < 0 {
+            desiredTop = 0
+        }
+        e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredTop)
+    }
+
     // Compute current visual cursor row (relative to view) using wrapping
     visCursorY, _ := e.GetCursorVisualPosition()
 
