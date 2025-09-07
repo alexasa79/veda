@@ -403,29 +403,45 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	var lineBg ui.Color
 	var hasBg bool
 
-	// Check for diff highlighting first (if not overridden and not current line)
-	var diffBg *ui.Color
-	if bgOverride == nil && e.CurrentBuffer() != nil {
-		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
-			if lineIndex >= 0 && lineIndex < len(diffLines) {
-				diffLine := diffLines[lineIndex]
-				switch diffLine.LineType {
-				case DiffLineAdded:
-					// Use a brighter green for diff highlighting
-					bg := ui.NewRGBColor(40, 100, 40) // Even brighter green background
-					diffBg = &bg
-				case DiffLineDeleted:
-					// Use a brighter red for diff highlighting
-					bg := ui.NewRGBColor(100, 40, 40) // Even brighter red background
-					diffBg = &bg
-				case DiffLineModified:
-					// For modified lines, we'll apply word-level highlighting at the token level
-					// Don't set diffBg here - it will be handled per-character in token rendering
-					// DiffLineContext uses normal background (no special highlighting)
-				}
-			}
-		}
-	}
+    // Check for diff highlighting first (if not overridden). If this is also
+    // the current line, use a brighter variant so the caret row remains
+    // visually distinct even on diff backgrounds.
+    var diffBg *ui.Color
+    if bgOverride == nil && e.CurrentBuffer() != nil {
+        if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+            if lineIndex >= 0 && lineIndex < len(diffLines) {
+                diffLine := diffLines[lineIndex]
+                switch diffLine.LineType {
+                case DiffLineAdded:
+                    // Base/brightened green from theme
+                    if isCurrentLine {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAddedCurrentLine)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    } else {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAdded)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    }
+                case DiffLineDeleted:
+                    // Base/brightened red from theme
+                    if isCurrentLine {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeletedCurrentLine)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    } else {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeleted)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    }
+                case DiffLineModified:
+                    // For modified lines, we'll apply word-level highlighting at the token level
+                    // Don't set diffBg here - it will be handled per-character in token rendering
+                    // DiffLineContext uses normal background (no special highlighting)
+                }
+            }
+        }
+    }
 
 	if bgOverride != nil {
 		// Use the provided background override
@@ -705,26 +721,39 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 	var lineBg ui.Color
 	var hasBg bool
 
-	// Check for diff highlighting first
-	var diffBg *ui.Color
-	if e.CurrentBuffer() != nil {
-		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
-			if lineIndex >= 0 && lineIndex < len(diffLines) {
-				diffLine := diffLines[lineIndex]
-				switch diffLine.LineType {
-				case DiffLineAdded:
-					// Use a brighter green for diff highlighting
-					bg := ui.NewRGBColor(40, 100, 40) // Even brighter green background
-					diffBg = &bg
-				case DiffLineDeleted:
-					// Use a brighter red for diff highlighting
-					bg := ui.NewRGBColor(100, 40, 40) // Even brighter red background
-					diffBg = &bg
-				case DiffLineModified:
-					// For modified lines, we'll apply word-level highlighting at the token level
-					// Don't set diffBg here - it will be handled per-character in token rendering
-					// DiffLineContext uses normal background (no special highlighting)
-				}
+    // Check for diff highlighting first. Brighten for current line so the
+    // caret row remains visible even on diff backgrounds.
+    var diffBg *ui.Color
+    if e.CurrentBuffer() != nil {
+        if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+            if lineIndex >= 0 && lineIndex < len(diffLines) {
+                diffLine := diffLines[lineIndex]
+                switch diffLine.LineType {
+                case DiffLineAdded:
+                    if isCurrentLine {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAddedCurrentLine)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    } else {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAdded)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    }
+                case DiffLineDeleted:
+                    if isCurrentLine {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeletedCurrentLine)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    } else {
+                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeleted)
+                        _, bg, _ := s.Decompose()
+                        diffBg = &bg
+                    }
+                case DiffLineModified:
+                    // For modified lines, we'll apply word-level highlighting at the token level
+                    // Don't set diffBg here - it will be handled per-character in token rendering
+                    // DiffLineContext uses normal background (no special highlighting)
+                }
 			}
 		}
 	}

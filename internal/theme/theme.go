@@ -35,7 +35,12 @@ type Theme struct {
 	MatchHighlight  StyleDef // Style for matching bracket/quote highlight
 	Whitespace      StyleDef // Style for whitespace indicators (tabs, trailing spaces)
 	VerticalRuler   StyleDef // Style for vertical rulers
-	VirtualCursor   StyleDef // Style for virtual cursors in cursor mode
+    VirtualCursor   StyleDef // Style for virtual cursors in cursor mode
+    // Diff backgrounds
+    DiffAdded              StyleDef // Background for added lines
+    DiffAddedCurrentLine   StyleDef // Background for added lines when current line
+    DiffDeleted            StyleDef // Background for deleted lines (filler on opposite side)
+    DiffDeletedCurrentLine StyleDef // Background for deleted lines when current line
 
 	// Git change indicators for line numbers
 	GitAdded    StyleDef // Style for added lines
@@ -116,8 +121,8 @@ func (t *Theme) GetStyleWithFg(baseStyle ui.Style, fgColor string) ui.Style {
 
 // NewTheme returns the theme
 func NewTheme() *Theme {
-	return &Theme{
-		Name: "main",
+    return &Theme{
+        Name: "main",
 
 		StatusBar: StyleDef{
 			Foreground: "#ffffff",
@@ -210,10 +215,26 @@ func NewTheme() *Theme {
 			Background: "#24241e",
 		},
 
-		VirtualCursor: StyleDef{
-			Foreground: "#000000",
-			Background: "#f8f8f0",
-		},
+        VirtualCursor: StyleDef{
+            Foreground: "#000000",
+            Background: "#f8f8f0",
+        },
+
+        // Diff backgrounds (consolidated styles)
+        // Green for additions; brighter variant for the current line
+        DiffAdded: StyleDef{
+            Background: "#286428", // rgb(40,100,40)
+        },
+        DiffAddedCurrentLine: StyleDef{
+            Background: "#3C8C3C", // rgb(60,140,60)
+        },
+        // Red for deletions; brighter variant for the current line
+        DiffDeleted: StyleDef{
+            Background: "#642828", // rgb(100,40,40)
+        },
+        DiffDeletedCurrentLine: StyleDef{
+            Background: "#8C3C3C", // rgb(140,60,60)
+        },
 
 		// Git change indicators for line numbers
 		// Make added vs modified more distinct while keeping same glyph ▍
