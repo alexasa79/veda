@@ -516,13 +516,19 @@ func (flw *FuzzyListWidget) ApplyFilter() {
 	flw.topLines = []string{}
 	flw.topIndices = []int{}
 
-	// Filter lines and track indices
-	for i, line := range flw.allLines {
-		if fuzzysearch.Match(line, searchText) {
-			flw.topLines = append(flw.topLines, line)
-			flw.topIndices = append(flw.topIndices, i)
-		}
-	}
+    // Filter using raw (undecorated) lines to avoid decoration artifacts affecting matching
+    for i := range flw.allLines {
+        raw := ""
+        if i < len(flw.rawLines) {
+            raw = flw.rawLines[i]
+        } else {
+            raw = flw.allLines[i]
+        }
+        if fuzzysearch.Match(raw, searchText) {
+            flw.topLines = append(flw.topLines, flw.allLines[i])
+            flw.topIndices = append(flw.topIndices, i)
+        }
+    }
 
 	// Reset scroll and selection
 	flw.topScroll = 0

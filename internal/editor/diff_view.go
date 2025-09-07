@@ -162,8 +162,8 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	}
 	LL.Debug("StartDiffViewForCurrentBuffer: Git content retrieved, PreviousContentLen=%d", len(previousContent))
 
-	// Compute diff to create aligned content with same number of lines
-	diffResult := computeDiff(previousContent, currentContent)
+    // Compute diff to create aligned content with same number of lines
+    diffResult := e.computeDiffViaProxy(previousContent, currentContent)
 	alignedHeadContent := createBufferContent(diffResult.LeftLines)
 	alignedCurrentContent := createBufferContent(diffResult.RightLines)
 
@@ -382,8 +382,51 @@ const (
 
 // DiffResult contains the result of comparing two texts
 type DiffResult struct {
-	LeftLines  []DiffLine // Lines for left side display
-	RightLines []DiffLine // Lines for right side display
+    LeftLines  []DiffLine // Lines for left side display
+    RightLines []DiffLine // Lines for right side display
+}
+
+// computeDiffViaProxy prefers proxy-backed (difflib) alignment; falls back internally
+func (e *Editor) computeDiffViaProxy(leftText, rightText string) *DiffResult {
+    if e == nil || e.proxyManager == nil {
+        return computeDiff(leftText, rightText)
+    }
+    aligned, err := e.proxyManager.ComputeTextDiff(leftText, rightText)
+    if err != nil || len(aligned) == 0 {
+        return computeDiff(leftText, rightText)
+    }
+    res := &DiffResult{LeftLines: make([]DiffLine, 0, len(aligned)), RightLines: make([]DiffLine, 0, len(aligned))}
+    curL, curR := 0, 0
+    for _, it := range aligned {
+        switch it.Tag {
+        case "equal":
+            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+            curL++
+            curR++
+        case "insert":
+            res.LeftLines = append(res.LeftLines, DiffLine{Content: "", LineType: DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true})
+            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineAdded, LeftLine: -1, RightLine: curR, IsFillerLine: false})
+            curR++
+        case "delete":
+            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineAdded, LeftLine: curL, RightLine: -1, IsFillerLine: false})
+            res.RightLines = append(res.RightLines, DiffLine{Content: "", LineType: DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true})
+            curL++
+        case "replace":
+            wr := computeWordDiff(it.Left, it.Right)
+            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineModified, LeftLine: curL, RightLine: curR, IsFillerLine: false, WordRanges: wr})
+            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineModified, LeftLine: curL, RightLine: curR, IsFillerLine: false, WordRanges: wr})
+            curL++
+            curR++
+        default:
+            // Fallback to context to avoid crashing on unknown tags
+            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+            curL++
+            curR++
+        }
+    }
+    return res
 }
 
 // computeDiff compares two texts and returns a DiffResult with aligned lines
