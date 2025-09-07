@@ -12,6 +12,7 @@ import grp
 import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
+import difflib
 import logging
 import subprocess
 import threading
@@ -28,7 +29,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.27"
+PROXY_VERSION = "1.0.29"
 
 # Set up logging directory
 from datetime import datetime
@@ -1255,6 +1256,8 @@ class VedaProxy:
             'read_terminal': self.read_terminal,
             'resize_terminal': self.resize_terminal,
             'close_terminal': self.close_terminal,
+            # High quality text diff
+            'compute_text_diff': self.compute_text_diff,
         }
 
     def _run_shell_command(self, cmd, cwd=None, timeout=None, input=None):
@@ -1316,6 +1319,47 @@ class VedaProxy:
         except Exception as e:
             logger.error(f"  Command failed with exception: {e}")
             raise
+
+    @log_proxy_method
+    def compute_text_diff(self, left: str, right: str) -> Dict[str, Any]:
+        """
+        Compute high-quality line diff using Python difflib.SequenceMatcher.
+        Returns a list of aligned dicts: {'tag','left','right'}.
+        """
+        try:
+            left_lines = left.split('\n')
+            right_lines = right.split('\n')
+            if left_lines and left_lines[-1] == '':
+                left_lines = left_lines[:-1]
+            if right_lines and right_lines[-1] == '':
+                right_lines = right_lines[:-1]
+
+            sm = difflib.SequenceMatcher(a=left_lines, b=right_lines, autojunk=False)
+            aligned: List[Dict[str, str]] = []
+            for tag, i1, i2, j1, j2 in sm.get_opcodes():
+                if tag == 'equal':
+                    for ai, bi in zip(range(i1, i2), range(j1, j2)):
+                        aligned.append({'tag': 'equal', 'left': left_lines[ai], 'right': right_lines[bi]})
+                elif tag == 'delete':
+                    for ai in range(i1, i2):
+                        aligned.append({'tag': 'delete', 'left': left_lines[ai], 'right': ''})
+                elif tag == 'insert':
+                    for bi in range(j1, j2):
+                        aligned.append({'tag': 'insert', 'left': '', 'right': right_lines[bi]})
+                elif tag == 'replace':
+                    # Pair min count as replace; remainder split as delete/insert
+                    n = min(i2 - i1, j2 - j1)
+                    for k in range(n):
+                        aligned.append({'tag': 'replace', 'left': left_lines[i1 + k], 'right': right_lines[j1 + k]})
+                    for ai in range(i1 + n, i2):
+                        aligned.append({'tag': 'delete', 'left': left_lines[ai], 'right': ''})
+                    for bi in range(j1 + n, j2):
+                        aligned.append({'tag': 'insert', 'left': '', 'right': right_lines[bi]})
+
+            return {'success': True, 'aligned': aligned}
+        except Exception as e:
+            logger.error(f"compute_text_diff failed: {e}")
+            return {'success': False, 'error': str(e)}
 
     # ---- Terminal (PTY) support ----
     class _TerminalSession:
