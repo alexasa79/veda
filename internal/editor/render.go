@@ -101,36 +101,41 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 
 	// Deleted lines: do not render any indicator
 
-	// Leftmost gutter column (immediately after digits) is used for git indicators
-	indicatorX := digitsWidth
-	if indicatorX >= lineNumberWidth {
-		return
-	}
+    // Choose gutter column:
+    // - Unstaged: leftmost indicator column (immediately after digits)
+    // - Staged: rightmost indicator column
+    indicatorX := digitsWidth
+    if isStaged {
+        indicatorX = digitsWidth + 2 // rightmost column (digits + pad + 2 indicator slots)
+    }
+    if indicatorX >= lineNumberWidth {
+        return
+    }
 
 	// Only draw when added or modified
 	if !(isAdded || isModified) {
 		return
 	}
 
-	// Use distinct glyphs for added vs modified, with different chars for staged
-	var ch rune
+    // Use distinct glyphs for added vs modified; staged uses a check mark
+    var ch rune
 	indicatorStyle := lineNumberStyle
 	_, lnBg, _ := lineNumberStyle.Decompose()
-	if isAdded {
-		if isStaged {
-			ch = '●' // Filled circle for staged added
-		} else {
-			ch = '+' // Plus for unstaged added
-		}
-		indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
-	} else {
-		if isStaged {
-			ch = '◆' // Filled diamond for staged modified
-		} else {
-			ch = '≋' // Wave for unstaged modified
-		}
-		indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
-	}
+    if isAdded {
+        if isStaged {
+            ch = '✓' // Check mark for staged
+        } else {
+            ch = '+' // Plus for unstaged added
+        }
+        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
+    } else {
+        if isStaged {
+            ch = '✓' // Check mark for staged
+        } else {
+            ch = '≋' // Wave for unstaged modified
+        }
+        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+    }
 	// Make the indicator bold for visibility
 	indicatorStyle.Attrs |= ui.AttrBold
 
