@@ -1368,10 +1368,24 @@ func (e *Editor) drawEditor() {
 				e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
 			}
 
-			// Draw git change indicators in the first gutter column
-			e.drawGutterGitIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
-			// Draw diagnostics in the second gutter column
-			e.drawGutterDiagnosticsIndicator(wl, lineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+            // Choose correct line for indicators: use original line number when in diff view
+            usedLineNum := lineNum
+            if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+                if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
+                    dl := diffLines[wl.LogicalLineNum]
+                    // For @current side: use RightLine; for @HEAD no indicators will be drawn anyway
+                    if dl.RightLine >= 0 {
+                        usedLineNum = dl.RightLine + 1
+                    }
+                }
+            }
+            // Draw git indicators only for buffers backed by a real file (skip @HEAD)
+            if e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
+                // Draw git change indicators in the first gutter column
+                e.drawGutterGitIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+                // Draw diagnostics in the second gutter column
+                e.drawGutterDiagnosticsIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+            }
 			_ = e.perfTracker.ReportSince("drawEditor.lineNumber", lnTimer)
 		} else {
 			// Fill line number area with spaces for wrapped lines

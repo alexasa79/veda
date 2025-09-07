@@ -16,11 +16,13 @@ func (e *Editor) toggleStageHunk(args []string) error {
     }
 
     // Resolve real file path and working-file lines for this hunk
-    realPath := buf.FilePath
-    // Detect diff buffers and convert to real path
+    // Resolve real file path
     isDiff := e.isDiffBuffer(buf)
-    if strings.HasSuffix(realPath, "@current") || strings.HasSuffix(realPath, "@HEAD") {
-        realPath = strings.TrimSuffix(strings.TrimSuffix(realPath, "@current"), "@HEAD")
+    realPath := buf.RealPath
+    if realPath == "" {
+        if pair := e.getDiffPairBuffer(buf); pair != nil {
+            realPath = pair.RealPath
+        }
     }
 
     var hunkLines []int
@@ -117,7 +119,7 @@ func (e *Editor) toggleStageHunk(args []string) error {
 
     // Determine staged state using the real file buffer if available
     staged := false
-    if realBuf, ok := e.buffers[realPath]; ok && realBuf != nil && realBuf.GitChanges != nil {
+    if realBuf, ok := e.findBufferByRealPath(realPath); ok && realBuf != nil && realBuf.GitChanges != nil {
         for _, line := range hunkLines {
             if e.isLineStaged(realBuf, line) {
                 staged = true
@@ -137,9 +139,7 @@ func (e *Editor) toggleStageHunk(args []string) error {
         return fmt.Errorf("failed to %s hunk: %v", map[bool]string{true: "unstage", false: "stage"}[staged], err)
     }
     // Update real buffer git changes if present
-    if realBuf, ok := e.buffers[realPath]; ok && realBuf != nil {
-        realBuf.GitChanges = changes
-    }
+    e.updateGitChangesForRealPath(realPath, changes)
     return nil
 }
 
@@ -150,10 +150,12 @@ func (e *Editor) toggleStageLine(args []string) error {
         return fmt.Errorf("no buffer")
     }
 
-    realPath := buf.FilePath
     isDiff := e.isDiffBuffer(buf)
-    if strings.HasSuffix(realPath, "@current") || strings.HasSuffix(realPath, "@HEAD") {
-        realPath = strings.TrimSuffix(strings.TrimSuffix(realPath, "@current"), "@HEAD")
+    realPath := buf.RealPath
+    if realPath == "" {
+        if pair := e.getDiffPairBuffer(buf); pair != nil {
+            realPath = pair.RealPath
+        }
     }
 
     // Determine working-file 1-based line
@@ -196,7 +198,7 @@ func (e *Editor) toggleStageLine(args []string) error {
 
     // Determine staged state from real buffer if available
     staged := false
-    if realBuf, ok := e.buffers[realPath]; ok && realBuf != nil && realBuf.GitChanges != nil {
+    if realBuf, ok := e.findBufferByRealPath(realPath); ok && realBuf != nil && realBuf.GitChanges != nil {
         staged = e.isLineStaged(realBuf, line1)
     }
 
@@ -210,10 +212,30 @@ func (e *Editor) toggleStageLine(args []string) error {
     if err != nil {
         return fmt.Errorf("failed to %s line: %v", map[bool]string{true: "unstage", false: "stage"}[staged], err)
     }
-    if realBuf, ok := e.buffers[realPath]; ok && realBuf != nil {
-        realBuf.GitChanges = changes
-    }
+    e.updateGitChangesForRealPath(realPath, changes)
     return nil
+}
+
+// findBufferByRealPath returns the first buffer with the given RealPath
+func (e *Editor) findBufferByRealPath(path string) (*buffer.Buffer, bool) {
+    for _, b := range e.buffers {
+        if b != nil && b.RealPath == path {
+            return b, true
+        }
+    }
+    return nil, false
+}
+
+// updateGitChangesForRealPath updates GitChanges pointer for all buffers with the same real path
+func (e *Editor) updateGitChangesForRealPath(path string, changes *proxy.FileChanges) {
+    if path == "" {
+        return
+    }
+    for _, b := range e.buffers {
+        if b != nil && b.RealPath == path {
+            b.GitChanges = changes
+        }
+    }
 }
 
 // isLineStaged checks if a line is staged
