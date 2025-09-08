@@ -167,7 +167,10 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("↑/↓          - Navigate through completion items\n")
 	helpText.WriteString("Enter        - Accept selected completion\n")
 	helpText.WriteString("ESC          - Close completion menu\n")
-	helpText.WriteString("Any other key - Close menu and process key normally\n\n")
+	helpText.WriteString("Typing       - Filters suggestions\n")
+	helpText.WriteString("Space/Tab    - Close menu (no accept)\n")
+	helpText.WriteString("Punctuation  - Close menu\n")
+	helpText.WriteString("←/→/Home/End - Close menu and move cursor\n\n")
 
 	helpText.WriteString("== Command Mode Commands ==\n")
 	helpText.WriteString(":q           - Close current buffer (quits if last buffer)\n")

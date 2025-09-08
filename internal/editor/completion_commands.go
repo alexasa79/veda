@@ -183,13 +183,17 @@ func (e *Editor) getWordBeforeCursor() string {
 
 // handleCompletionMenuKey handles key events when the completion menu is visible
 func (e *Editor) handleCompletionMenuKey(ev *events.KeyEvent) bool {
-	switch ev.Key {
+    switch ev.Key {
 	case events.KeyEscape:
 		e.hideCompletionMenu()
 		return true
 	case events.KeyEnter:
 		e.acceptCompletion()
 		return true
+	case events.KeyTab:
+		// User intends indentation/navigation; close menu and let tab process
+		e.hideCompletionMenu()
+		return false
 	case events.KeyUp:
 		e.completionMenu.MoveUp()
 		return true
@@ -199,24 +203,64 @@ func (e *Editor) handleCompletionMenuKey(ev *events.KeyEvent) bool {
 	case events.KeyBackspace, events.KeyBackspace2:
 		// Let backspace be processed normally, then update filter
 		return false
-	case events.KeyRune:
-		// Let the character be inserted, then update filter
-		return false
-	default:
-		// For other special keys (arrows, etc), hide the menu
-		e.hideCompletionMenu()
-		return false
-	}
+    case events.KeyRune:
+        // Space should terminate completion intent immediately
+        if ev.Rune == ' ' {
+            e.hideCompletionMenu()
+            return false
+        }
+        // Non-word punctuation closes the menu
+        if !isWordChar(ev.Rune) {
+            e.hideCompletionMenu()
+            return false
+        }
+        // Let other characters insert and update filter
+        return false
+    default:
+        // For other special keys (arrows, etc), hide the menu
+        e.hideCompletionMenu()
+        return false
+    }
 }
 
 // updateCompletionFilter updates the completion menu filter based on current word
 func (e *Editor) updateCompletionFilter() {
-	if !e.completionMenu.IsVisible() {
-		return
-	}
+    if !e.completionMenu.IsVisible() {
+        return
+    }
 
-	prefix := e.getWordBeforeCursor()
-	e.completionMenu.SetFilterText(prefix)
+    prefix := e.getWordBeforeCursor()
+    e.completionMenu.SetFilterText(prefix)
+
+    // If user has typed an exact match to an item, close the menu
+    if prefix != "" {
+        lower := strings.ToLower(prefix)
+        // Check both label and insertText for exact match
+        // Note: widgets keeps only filtered items; check against all for safety
+        for _, it := range e.completionMenu.AllItems() {
+            if strings.ToLower(it.Label) == lower || strings.ToLower(it.InsertText) == lower {
+                e.hideCompletionMenu()
+                break
+            }
+        }
+    }
+
+    // Hide if the current text is not a prefix of any item
+    // (case-insensitive, check against all items)
+    if prefix != "" {
+        lower := strings.ToLower(prefix)
+        hasPrefix := false
+        for _, it := range e.completionMenu.AllItems() {
+            if strings.HasPrefix(strings.ToLower(it.Label), lower) ||
+                strings.HasPrefix(strings.ToLower(it.InsertText), lower) {
+                hasPrefix = true
+                break
+            }
+        }
+        if !hasPrefix {
+            e.hideCompletionMenu()
+        }
+    }
 }
 
 // convertLSPCompletions converts LSP completion response to widget CompletionItems
