@@ -137,29 +137,31 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 	// Rule 4: Balanced delimiters - return to block-level indentation
 	// When parentheses are balanced, we're likely at the end of a statement/expression
 	// and should return to the containing block's indentation level
-	if balance == 0 {
-		actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8)
+    if balance == 0 {
+        actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8)
 
-		// Determine base level from previous non-continuation structural line
-		curLine := b.CursorIterator.LineNumber()
-		baseLevel := b.findPreviousNonContinuationLevel(curLine - 1)
+        // Determine base level from the line that introduced the paren/bracket continuation
+        curLine := b.CursorIterator.LineNumber()
+        if baseFromOpen, ok := b.findBaseLevelFromOpenDelimiter(curLine); ok {
+            indentStr := strings.Repeat(b.GetIndentationString(), baseFromOpen)
+            visualCol :=  baseFromOpen * b.Indentation.Width
+            return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+        }
 
-		// Case A: non-standard indent (obvious continuation alignment)
-		if actualIndent > 0 && actualIndent%b.Indentation.Width != 0 {
-			indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
-			visualCol := baseLevel * b.Indentation.Width
-			return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
-		}
-
-		// Case B: standard multiple but still a parenthesis/bracket continuation
-		// If we've been in a paren continuation up to this line, return to base level.
-		if baseLevel < baseIndentInfo.Level && b.hasParenContinuationSinceBase(curLine-1, baseLevel) {
-			indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
-			visualCol := baseLevel * b.Indentation.Width
-			return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
-		}
-		// Otherwise maintain current standard indent level (fall through)
-	}
+        // Fallbacks when no open delimiter context is detected
+        baseLevel := b.findPreviousNonContinuationLevel(curLine - 1)
+        if actualIndent > 0 && actualIndent%b.Indentation.Width != 0 {
+            indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
+            visualCol := baseLevel * b.Indentation.Width
+            return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+        }
+        if baseLevel < baseIndentInfo.Level && b.hasParenContinuationSinceBase(curLine-1, baseLevel) {
+            indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
+            visualCol := baseLevel * b.Indentation.Width
+            return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+        }
+        // Otherwise maintain current standard indent level (fall through)
+    }
 
 	// Python safeguard: even if earlier checks missed, indent after ':'
 	if isPythonFile(b.FilePath) && endsWithColonBeforeCursor(line, cursorCol) {
@@ -491,6 +493,59 @@ func (b *Buffer) hasParenContinuationSinceBase(fromLine int, baseLevel int) bool
 		}
 	}
 	return balance > 0
+}
+
+// findBaseLevelFromOpenDelimiter scans backward from curLine to find the line
+// containing the unmatched opening '(' or '[' that starts a continuation block
+// reaching the current line. Returns that line's indent level and true if found.
+func (b *Buffer) findBaseLevelFromOpenDelimiter(curLine int) (int, bool) {
+    if curLine >= b.LineCount {
+        curLine = b.LineCount - 1
+    }
+    needParen := 0
+    needBracket := 0
+    for ln := curLine; ln >= 0; ln-- {
+        it := NewBufferIteratorAtLine(b, ln)
+        if it.IsEOF() {
+            continue
+        }
+        raw := it.Line()
+        if strings.TrimSpace(raw) == "" {
+            continue
+        }
+        // Scan this line right-to-left counting delimiters (ignore braces)
+        for i := len(raw) - 1; i >= 0; i-- {
+            switch raw[i] {
+            case ')':
+                needParen++
+            case ']':
+                needBracket++
+            case '(': // match a pending ')'
+                if needParen > 0 {
+                    needParen--
+                    if needParen == 0 {
+                        ii := b.GetLineIndentInfo(raw)
+                        return ii.Level, true
+                    }
+                } else {
+                    ii := b.GetLineIndentInfo(raw)
+                    return ii.Level, true
+                }
+            case '[': // match a pending ']'
+                if needBracket > 0 {
+                    needBracket--
+                    if needBracket == 0 {
+                        ii := b.GetLineIndentInfo(raw)
+                        return ii.Level, true
+                    }
+                } else {
+                    ii := b.GetLineIndentInfo(raw)
+                    return ii.Level, true
+                }
+            }
+        }
+    }
+    return 0, false
 }
 
 // isAfterStatementEndCharacter checks if the cursor is positioned after a character
