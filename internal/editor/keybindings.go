@@ -217,6 +217,9 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Comment toggling
 	e.registerKeyBinding(commands.NormalMode, "ctrl+/", "toggle-comment")
+	// Enable Ctrl+/ in visual modes as well
+	visualModes := []commands.Mode{commands.VisualMode, commands.VisualLineMode}
+	e.registerKeyBindingForModes(visualModes, "ctrl+/", "toggle-comment")
 
 	// Temporary normal mode from insert mode (like vim's Ctrl+O)
 	e.registerKeyBinding(commands.InsertMode, "ctrl+o", "enter-temporary-normal-mode")
@@ -228,7 +231,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "*", "search-word-under-cursor")
 
 	// Visual modes (both character and line) - shared keybindings
-	visualModes := []commands.Mode{commands.VisualMode, commands.VisualLineMode}
+	visualModes = []commands.Mode{commands.VisualMode, commands.VisualLineMode}
 
 	// Exit visual mode
 	e.registerKeyBindingForModes(visualModes, "escape", "exit-visual-mode")
