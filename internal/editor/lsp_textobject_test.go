@@ -158,12 +158,12 @@ func main() {
 		// Execute dib
 		te.TypeKeys("dib")
 
-		// The content inside the if block should be deleted
+		// The content inside the if block should be deleted (use tabs per gofmt)
 		expected := `package main
 
 func main() {
-    if x > 0 {
-    }
+	if x > 0 {
+	}
 }`
 		AssertBufferEquals(t, te, expected)
 	})

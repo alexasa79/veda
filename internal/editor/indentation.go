@@ -195,6 +195,7 @@ func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.Li
 	// even if their indentation is a clean multiple of the width. Map to nearest base level.
 	if e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
 		curLine := iter.LineNumber()
+		// Detect cross-line paren continuation (ignore same-line balanced)
 		baseLevel, cont := findBaseLevelFromOpenDelimiterForEditor(e.CurrentBuffer(), curLine)
 		if cont {
 			info.IsContinuation = true
@@ -231,28 +232,49 @@ func findBaseLevelFromOpenDelimiterForEditor(b *buffer.Buffer, curLine int) (int
 				needBracket++
 			case '(':
 				if needParen > 0 {
+					// closes a right-side ')'; not an anchor
 					needParen--
-					if needParen == 0 {
+				} else {
+					if ln < curLine {
 						ii := b.GetLineIndentInfo(raw)
 						return ii.Level, true
 					}
-				} else {
-					ii := b.GetLineIndentInfo(raw)
-					return ii.Level, true
 				}
 			case '[':
 				if needBracket > 0 {
+					// closes a right-side ']'; not an anchor
 					needBracket--
-					if needBracket == 0 {
+				} else {
+					if ln < curLine {
 						ii := b.GetLineIndentInfo(raw)
 						return ii.Level, true
 					}
-				} else {
-					ii := b.GetLineIndentInfo(raw)
-					return ii.Level, true
 				}
 			}
 		}
 	}
 	return 0, false
+}
+
+// findNearestNonContinuationLevelForEditor returns the nearest previous
+// non-empty line's Level that is not continuation-aligned.
+func findNearestNonContinuationLevelForEditor(b *buffer.Buffer, fromLine int) int {
+	if fromLine >= b.LineCount {
+		fromLine = b.LineCount - 1
+	}
+	for ln := fromLine; ln >= 0; ln-- {
+		it := buffer.NewBufferIteratorAtLine(b, ln)
+		if it.IsEOF() {
+			continue
+		}
+		raw := it.Line()
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		ii := b.GetLineIndentInfo(raw)
+		if !ii.IsContinuation {
+			return ii.Level
+		}
+	}
+	return 0
 }
