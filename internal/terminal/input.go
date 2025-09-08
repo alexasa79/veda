@@ -137,6 +137,7 @@ var keyCodes = []keyCode{
 	{[]byte{'\x18'}, events.KeyCtrlX, events.ModNone},
 	{[]byte{'\x19'}, events.KeyCtrlY, events.ModNone},
 	{[]byte{'\x1a'}, events.KeyCtrlZ, events.ModNone},
+	{[]byte{'\x1f'}, events.KeyCtrlUnderscore, events.ModNone},
 	{[]byte{'\x00'}, events.KeyCtrlSpace, events.ModNone},
 
 	// Alt+arrow keys (must be before ESC)

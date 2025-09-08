@@ -119,6 +119,15 @@ func ParseKey(s string) (Key, error) {
 		result.Key = events.KeyF11
 	case "f12":
 		result.Key = events.KeyF12
+	case "/", "_":
+		// Many terminals send Ctrl+/ as 0x1F (Unit Separator), same as Ctrl+_
+		if result.Mod&events.ModCtrl != 0 {
+			result.Key = events.KeyCtrlUnderscore
+			result.Mod = result.Mod &^ events.ModCtrl
+			return result, nil
+		}
+		result.Key = events.KeyRune
+		result.Rune = rune(keyName[0])
 	default:
 		// Single character - preserve case
 		if len(keyName) == 1 {
