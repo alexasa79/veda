@@ -142,10 +142,29 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 
         // Determine base level from the line that introduced the paren/bracket continuation
         curLine := b.CursorIterator.LineNumber()
-        if baseFromOpen, ok := b.findBaseLevelFromOpenDelimiter(curLine); ok {
-            indentStr := strings.Repeat(b.GetIndentationString(), baseFromOpen)
-            visualCol :=  baseFromOpen * b.Indentation.Width
-            return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+        // But avoid overriding brace-based indentation: if the last non-space
+        // character on the current line before cursor is a closing brace '}',
+        // we're finishing a block — do not use paren continuation logic here.
+        useParenBase := true
+        if cursorCol > 0 && cursorCol <= len(line) {
+            i := cursorCol - 1
+            if i >= len(line) { i = len(line) - 1 }
+            for ; i >= 0; i-- {
+                if !unicode.IsSpace(rune(line[i])) {
+                    if line[i] == '}' {
+                        useParenBase = false
+                    }
+                    break
+                }
+            }
+        }
+
+        if useParenBase {
+            if baseFromOpen, ok := b.findBaseLevelFromOpenDelimiter(curLine); ok {
+                indentStr := strings.Repeat(b.GetIndentationString(), baseFromOpen)
+                visualCol :=  baseFromOpen * b.Indentation.Width
+                return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+            }
         }
 
         // Fallbacks when no open delimiter context is detected
