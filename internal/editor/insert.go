@@ -42,16 +42,20 @@ func (e *Editor) moveDownInsert(args []string) error {
 }
 
 func (e *Editor) moveLeftInsert(args []string) error {
-	if e.CurrentBuffer().CursorX > 0 {
-		e.CurrentBuffer().CursorX--
-	}
+    // Close any active completion menu when moving with arrows in insert mode
+    e.hideCompletionMenu()
+    if e.CurrentBuffer().CursorX > 0 {
+        e.CurrentBuffer().CursorX--
+    }
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
 	return nil
 }
 
 func (e *Editor) moveRightInsert(args []string) error {
-	line := e.CurrentBuffer().CursorIterator.Line()
+    // Close any active completion menu when moving with arrows in insert mode
+    e.hideCompletionMenu()
+    line := e.CurrentBuffer().CursorIterator.Line()
 	// In insert mode, allow cursor to go past the last character
 	if e.CurrentBuffer().CursorX < len(line) {
 		e.CurrentBuffer().CursorX++
