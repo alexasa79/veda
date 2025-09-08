@@ -101,45 +101,38 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 
 	// Deleted lines: do not render any indicator
 
-    // Choose gutter column:
-    // - Unstaged: leftmost indicator column (immediately after digits)
-    // - Staged: rightmost indicator column
-    indicatorX := digitsWidth
+    // Left indicator: added/modified (any change vs HEAD)
+    // Right indicator: staged (in index). Draw both if applicable.
+    _, lnBg, _ := lineNumberStyle.Decompose()
+
+    // Draw left indicator when added/modified
+    if isAdded || isModified {
+        leftX := digitsWidth
+        if leftX < lineNumberWidth {
+            var lch rune
+            lstyle := lineNumberStyle
+            if isAdded { lch = '+'; lstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg) } else { lch = '≋'; lstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg) }
+            lstyle.Attrs |= ui.AttrBold
+            e.screen.SetContent(leftX, screenY, lch, nil, lstyle)
+        }
+    }
+
+    // Draw right indicator when staged
     if isStaged {
-        indicatorX = digitsWidth + 2 // rightmost column (digits + pad + 2 indicator slots)
-    }
-    if indicatorX >= lineNumberWidth {
-        return
-    }
-
-	// Only draw when added or modified
-	if !(isAdded || isModified) {
-		return
-	}
-
-    // Use distinct glyphs for added vs modified; staged uses a check mark
-    var ch rune
-	indicatorStyle := lineNumberStyle
-	_, lnBg, _ := lineNumberStyle.Decompose()
-    if isAdded {
-        if isStaged {
-            ch = '✓' // Check mark for staged
-        } else {
-            ch = '+' // Plus for unstaged added
+        rightX := digitsWidth + 2
+        if rightX < lineNumberWidth {
+            rstyle := lineNumberStyle
+            // Use GitAdded or GitModified style foreground depending on what type;
+            // both are fine for visibility in staged context; prefer Modified for merges
+            if isAdded {
+                rstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
+            } else {
+                rstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+            }
+            rstyle.Attrs |= ui.AttrBold
+            e.screen.SetContent(rightX, screenY, '✓', nil, rstyle)
         }
-        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
-    } else {
-        if isStaged {
-            ch = '✓' // Check mark for staged
-        } else {
-            ch = '≋' // Wave for unstaged modified
-        }
-        indicatorStyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
     }
-	// Make the indicator bold for visibility
-	indicatorStyle.Attrs |= ui.AttrBold
-
-	e.screen.SetContent(indicatorX, screenY, ch, nil, indicatorStyle)
 }
 
 // drawGutterDiagnosticsIndicator renders a diagnostics icon in the second gutter column
