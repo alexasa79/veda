@@ -543,25 +543,34 @@ func (b *Buffer) findBaseLevelFromOpenDelimiter(curLine int) (int, bool) {
 				needBracket++
 			case '(': // match a pending ')'
 				if needParen > 0 {
+					// This '(' closes a ')' from the right. If this resolves
+					// all pending closes and it's on a previous line, this is
+					// the true anchor for a multi-line continuation.
 					needParen--
-					if needParen == 0 {
+					if needParen == 0 && ln < curLine {
 						ii := b.GetLineIndentInfo(raw)
 						return ii.Level, true
 					}
 				} else {
-					ii := b.GetLineIndentInfo(raw)
-					return ii.Level, true
+					// Unmatched '(': anchor only if on a previous line
+					if ln < curLine {
+						ii := b.GetLineIndentInfo(raw)
+						return ii.Level, true
+					}
 				}
 			case '[': // match a pending ']'
 				if needBracket > 0 {
+					// This '[' closes a ']' from the right.
 					needBracket--
-					if needBracket == 0 {
+					if needBracket == 0 && ln < curLine {
 						ii := b.GetLineIndentInfo(raw)
 						return ii.Level, true
 					}
 				} else {
-					ii := b.GetLineIndentInfo(raw)
-					return ii.Level, true
+					if ln < curLine {
+						ii := b.GetLineIndentInfo(raw)
+						return ii.Level, true
+					}
 				}
 			}
 		}
