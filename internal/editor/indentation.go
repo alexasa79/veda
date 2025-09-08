@@ -191,29 +191,60 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 // getCurrentLineIndentInfo returns detailed indentation info for the line at the iterator
 func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.LineIndentInfo {
     info := e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
-    // For display purposes, map continuation-aligned lines to their base block level
-    // so that status shows e.g., L1+C instead of L12+C for parameter alignment.
-    if info.IsContinuation && e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
-        // Scan backward to find nearest non-continuation line and use its level
+    // For display purposes, treat lines aligned under an open paren/bracket as continuation
+    // even if their indentation is a clean multiple of the width. Map to nearest base level.
+    if e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
         curLine := iter.LineNumber()
-        if curLine >= e.CurrentBuffer().LineCount {
-            curLine = e.CurrentBuffer().LineCount - 1
-        }
-        for ln := curLine; ln >= 0; ln-- {
-            it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
-            if it.IsEOF() {
-                continue
-            }
-            raw := it.Line()
-            if strings.TrimSpace(raw) == "" {
-                continue
-            }
-            ii := e.CurrentBuffer().GetLineIndentInfo(raw)
-            if !ii.IsContinuation {
-                info.Level = ii.Level
-                break
+        // Scan backward for base and paren continuation
+        baseLevel, cont := detectParenContinuationBaseLevel(e.CurrentBuffer(), curLine)
+        if cont {
+            info.IsContinuation = true
+            if baseLevel < info.Level {
+                info.Level = baseLevel
             }
         }
     }
     return info
+}
+
+// detectParenContinuationBaseLevel scans backward from curLine to find the nearest
+// non-continuation line (base) and determines whether there is an outstanding
+// parenthesis/bracket continuation across those lines. Returns the base level and a flag.
+func detectParenContinuationBaseLevel(b *buffer.Buffer, curLine int) (int, bool) {
+    if curLine >= b.LineCount {
+        curLine = b.LineCount - 1
+    }
+    baseLevel := 0
+    // Track () and [] balance across lines
+    balance := 0
+    foundBase := false
+    for ln := curLine; ln >= 0; ln-- {
+        it := buffer.NewBufferIteratorAtLine(b, ln)
+        if it.IsEOF() { continue }
+        raw := it.Line()
+        if strings.TrimSpace(raw) == "" { continue }
+        // Count delimiters (ignore braces)
+        for i := 0; i < len(raw); i++ {
+            switch raw[i] {
+            case '(', '[':
+                balance++
+            case ')', ']':
+                balance--
+            }
+        }
+        ii := b.GetLineIndentInfo(raw)
+        if !ii.IsContinuation && !foundBase {
+            baseLevel = ii.Level
+            foundBase = true
+            // Do not break; we still want to include delimiters on the base line
+        }
+        if foundBase && ln < curLine-20 { // small safety window to avoid long scans
+            break
+        }
+    }
+    // Consider it a continuation if there are more opens than closes
+    if foundBase && balance > 0 {
+        return baseLevel, true
+    }
+    return baseLevel, false
 }

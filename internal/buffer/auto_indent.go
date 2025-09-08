@@ -140,29 +140,25 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
     if balance == 0 {
         actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8)
 
-        // If current indentation is not a standard indent level (parameter alignment),
-        // return to the base block level (the nearest non-continuation line above)
+        // Determine base level from previous non-continuation structural line
+        curLine := b.CursorIterator.LineNumber()
+        baseLevel := b.findPreviousNonContinuationLevel(curLine - 1)
+
+        // Case A: non-standard indent (obvious continuation alignment)
         if actualIndent > 0 && actualIndent%b.Indentation.Width != 0 {
-            // Find the nearest non-continuation line above to infer the base level
-            baseLevel := b.findPreviousNonContinuationLevel(b.CursorIterator.LineNumber())
             indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
             visualCol := baseLevel * b.Indentation.Width
-
             return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
         }
-        // Even when the current line's indentation is a clean multiple of indent width
-        // (e.g., deep alignment that happens to land on a multiple), if we are completing
-        // a parenthesis/bracket continuation, return to the base (non-continuation) level.
-        if actualIndent > 0 && actualIndent%b.Indentation.Width == 0 {
-            curLine := b.CursorIterator.LineNumber()
-            baseLevel := b.findPreviousNonContinuationLevel(curLine)
-            if baseLevel < baseIndentInfo.Level && b.hasParenContinuationSinceBase(curLine-1, baseLevel) {
-                indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
-                visualCol := baseLevel * b.Indentation.Width
-                return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
-            }
+
+        // Case B: standard multiple but still a parenthesis/bracket continuation
+        // If we've been in a paren continuation up to this line, return to base level.
+        if baseLevel < baseIndentInfo.Level && b.hasParenContinuationSinceBase(curLine-1, baseLevel) {
+            indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
+            visualCol := baseLevel * b.Indentation.Width
+            return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
         }
-        // If already at a standard indent level, maintain it (fall through)
+        // Otherwise maintain current standard indent level (fall through)
     }
 
 	// Python safeguard: even if earlier checks missed, indent after ':'
