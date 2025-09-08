@@ -1,1 +1,0 @@
-Commit the latest set of changes to the repository. Do NOT include any co-authors, specifically do not attribute the change to Claude Code. Make the commit message shorter - a header line and a few lines explaining the change.
