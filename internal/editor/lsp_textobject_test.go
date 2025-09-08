@@ -117,10 +117,10 @@ func main() {
 		blockContent := `package main
 
 func main() {
-    if x > 0 {
-        println("positive")
-        return
-    }
+	if x > 0 {
+		println("positive")
+		return
+	}
 }`
 		blockTestFile := filepath.Join(cwd, "../../artifacts/go_test_project/block_test.go")
 		err := os.WriteFile(blockTestFile, []byte(blockContent), 0644)
@@ -214,9 +214,9 @@ func main() {
 		functionContent := `package main
 
 func calculate(x, y int) int {
-    sum := x + y
-    product := x * y
-    return sum + product
+	sum := x + y
+	product := x * y
+	return sum + product
 }`
 		functionTestFile := filepath.Join(cwd, "../../artifacts/go_test_project/function_test.go")
 		err := os.WriteFile(functionTestFile, []byte(functionContent), 0644)
