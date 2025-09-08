@@ -29,7 +29,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.29"
+PROXY_VERSION = "1.0.30"
 
 # Set up logging directory
 from datetime import datetime
@@ -2597,114 +2597,108 @@ class VedaProxy:
         """
         lines = diff_text.split('\n')
         result = []
-        in_hunk = False
-        hunk_lines = []
-        hunk_header = None
-        hunk_start_line = 0
         file_headers = []
+        # We will generate a minimal unidiff-zero patch for each requested new-file line
+        # by extracting only the relevant +/- pair for modifications or a single + for additions.
         
         # Convert target_lines to a set for faster lookup
         target_set = set(target_lines)
         
+        import re
         i = 0
         while i < len(lines):
             line = lines[i]
-            
-            # File headers
             if line.startswith('diff --git'):
+                # Capture file headers (needed once at top of patch)
                 file_headers = [line]
-                # Collect all headers until we reach a hunk
                 i += 1
                 while i < len(lines) and not lines[i].startswith('@@'):
                     file_headers.append(lines[i])
                     i += 1
-                i -= 1  # Back up one since we'll increment at the end
-                
-            # Hunk header
-            elif line.startswith('@@'):
-                # Flush previous hunk if it had target lines
-                if hunk_header and hunk_lines:
-                    filtered_hunk = self._filter_hunk_lines(hunk_header, hunk_lines, target_set, hunk_start_line)
-                    if filtered_hunk:
-                        if not result:
-                            result.extend(file_headers)
-                        result.extend(filtered_hunk)
-                
-                # Parse hunk header
-                hunk_header = line
-                hunk_lines = []
-                in_hunk = True
-                
-                # Extract starting line number from hunk header
-                # Format: @@ -old_start,old_count +new_start,new_count @@
-                import re
-                match = re.search(r'\+(\d+)', line)
-                if match:
-                    hunk_start_line = int(match.group(1))
-                
-            # Hunk content
-            elif in_hunk:
-                if line.startswith('diff --git') or line.startswith('@@'):
-                    # End of current hunk
-                    i -= 1  # Process this line again
-                    in_hunk = False
-                else:
-                    hunk_lines.append(line)
-            
+                continue
+
+            if line.startswith('@@'):
+                # Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
+                m_old = re.search(r'-([0-9]+)(?:,([0-9]+))?', line)
+                m_new = re.search(r'\+([0-9]+)(?:,([0-9]+))?', line)
+                if not (m_old and m_new):
+                    i += 1
+                    continue
+                old_start = int(m_old.group(1))
+                new_start = int(m_new.group(1))
+                # Walk hunk lines and build per-line mini hunks
+                j = i + 1
+                old_ln = old_start
+                new_ln = new_start
+                # Pre-collect structure for this hunk
+                hunk_body = []
+                while j < len(lines) and not lines[j].startswith('diff --git') and not lines[j].startswith('@@'):
+                    t = lines[j]
+                    typ = 'context'
+                    if t.startswith(' '):
+                        typ = 'context'
+                        hunk_body.append((typ, t[1:], old_ln, new_ln))
+                        old_ln += 1
+                        new_ln += 1
+                    elif t.startswith('-'):
+                        typ = 'del'
+                        hunk_body.append((typ, t[1:], old_ln, new_ln))
+                        old_ln += 1
+                    elif t.startswith('+'):
+                        typ = 'add'
+                        hunk_body.append((typ, t[1:], old_ln, new_ln))
+                        new_ln += 1
+                    else:
+                        # Unexpected; treat as context
+                        hunk_body.append(('context', t, old_ln, new_ln))
+                        old_ln += 1
+                        new_ln += 1
+                    j += 1
+
+                # For each target new-file line, try to build a minimal hunk
+                for typ, text, o_ln, n_ln in hunk_body:
+                    if typ != 'add':
+                        continue
+                    if n_ln not in target_set:
+                        continue
+                    # Determine if this is a modification (paired with a '-' just before any context)
+                    # Find nearest preceding deletion line without crossing a context boundary
+                    k = hunk_body.index((typ, text, o_ln, n_ln))
+                    # Backtrack within this hunk
+                    pair_old_text = None
+                    pair_old_ln = None
+                    kk = k - 1
+                    while kk >= 0:
+                        p_typ, p_text, p_old_ln, p_new_ln = hunk_body[kk]
+                        if p_typ == 'context':
+                            break
+                        if p_typ == 'del':
+                            pair_old_text = p_text
+                            pair_old_ln = p_old_ln
+                            break
+                        kk -= 1
+                    # Compose a unidiff-zero minimal hunk
+                    if pair_old_text is not None:
+                        # Modified line: one deletion + one addition
+                        hdr = f"@@ -{pair_old_ln},1 +{n_ln},1 @@"
+                        body = [f"-{pair_old_text}", f"+{text}"]
+                    else:
+                        # Added line: no deletions; anchor at t with old count 0
+                        # Use old_start as n_ln-1 to position insertion
+                        hdr = f"@@ -{n_ln-1},0 +{n_ln},1 @@"
+                        body = [f"+{text}"]
+                    if not result:
+                        result.extend(file_headers)
+                    result.append(hdr)
+                    result.extend(body)
+
+                i = j
+                continue
             i += 1
-        
-        # Flush last hunk if needed
-        if hunk_header and hunk_lines:
-            filtered_hunk = self._filter_hunk_lines(hunk_header, hunk_lines, target_set, hunk_start_line)
-            if filtered_hunk:
-                if not result:
-                    result.extend(file_headers)
-                result.extend(filtered_hunk)
-        
-        return '\n'.join(result) + '\n' if result else ''
+
+        return '\n'.join(result) + ('\n' if result else '')
     
-    def _filter_hunk_lines(self, header: str, hunk_lines: List[str], target_lines: set, start_line: int) -> List[str]:
-        """
-        Filter a hunk to check if it contains target lines.
-        If it does, return the ENTIRE hunk unchanged (git requires complete hunks).
-        
-        Args:
-            header: Hunk header line
-            hunk_lines: Lines in the hunk
-            target_lines: Set of target line numbers (1-based)
-            start_line: Starting line number in the file (1-based from hunk header)
-            
-        Returns:
-            Complete hunk if it contains target lines, empty list otherwise
-        """
-        # Check if this hunk contains any target lines
-        current_line = start_line - 1
-        contains_target = False
-        
-        logger.debug(f"Checking hunk starting at line {start_line} for target lines: {sorted(target_lines)}")
-        
-        for line in hunk_lines:
-            if line.startswith('+'):
-                current_line += 1
-                if current_line in target_lines:
-                    contains_target = True
-                    logger.debug(f"  Hunk contains target line {current_line}")
-                    break
-            elif line.startswith('-'):
-                # Deleted lines don't advance line counter in the new file
-                # but we might want to stage deletions if they affect target area
-                pass
-            else:
-                # Context line
-                current_line += 1
-        
-        if contains_target:
-            logger.debug(f"  Including entire hunk ({len(hunk_lines)} lines)")
-            # Return the entire hunk as-is
-            return [header] + hunk_lines
-        else:
-            logger.debug("  Hunk does not contain target lines, skipping")
-            return []
+    # Removed: previous entire-hunk inclusion; replaced by minimal hunk builder above
     
     def _get_file_git_changes(self, file_path: Path) -> Dict[str, Any]:
         """

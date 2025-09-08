@@ -653,7 +653,8 @@ func (e *Editor) render() {
 		win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
 		// Do not special-case EOF here; EOF is a valid state for empty buffers
 		win.Buffer.CursorX = win.CursorX
-		e.SetCurrentBuffer(win.Buffer)
+        e.SetCurrentBuffer(win.Buffer)
+        // (debug instrumentation removed)
 		// Ensure per-buffer highlighter is initialized and parsed
 		if e.CurrentBuffer().Highlighter != nil {
 			if e.CurrentBuffer().IsInternal {
@@ -3399,4 +3400,3 @@ func (e *Editor) isInFlashRange(line, charPos int) bool {
 func (e *Editor) hasFlashHighlight() bool {
 	return e.flashStartLine != -1 && e.flashEndTime > 0 && time.Now().UnixMilli() <= e.flashEndTime
 }
-
