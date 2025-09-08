@@ -3,6 +3,7 @@ package editor
 import (
 	"strings"
 	"veda/internal/buffer"
+	"veda/internal/commands"
 )
 
 // toggleComment toggles '//' comments on the current line.
@@ -101,24 +102,48 @@ func (e *Editor) toggleCommentWithCount(n int) error {
 		}
 	}
 
-	// Apply to primary cursor and all virtual cursors
-	startLines := []int{}
-	// Primary
-	startLines = append(startLines, buf.CursorIterator.LineNumber())
-	// Virtual cursors (if any)
-	if vcs := e.GetVirtualCursors(); len(vcs) > 0 {
-		for _, vc := range vcs {
-			startLines = append(startLines, vc.Y)
+	// If in visual modes, operate over the selected line range
+	if e.mode == commands.VisualMode || e.mode == commands.VisualLineMode {
+		startOff, endOff, ok := e.getSelectionRange()
+		if ok {
+			// Map offsets to line numbers (inclusive)
+			startLine := buf.GetLineAtPosition(startOff)
+			endPos := endOff - 1
+			if endPos < 0 {
+				endPos = 0
+			}
+			endLine := buf.GetLineAtPosition(endPos)
+			if startLine > endLine {
+				startLine, endLine = endLine, startLine
+			}
+			for ln := startLine; ln <= endLine; ln++ {
+				toggleLine(ln)
+			}
+			// Do not modify visual mode state here; leave it to caller
+			goto done
 		}
 	}
 
-	// Toggle per-cursor blocks
-	for _, start := range startLines {
-		for i := 0; i < n; i++ {
-			lineIdx := start + i
-			toggleLine(lineIdx)
+	// Otherwise, apply to primary cursor and all virtual cursors with count n
+	{
+		startLines := []int{}
+		// Primary
+		startLines = append(startLines, buf.CursorIterator.LineNumber())
+		// Virtual cursors (if any)
+		if vcs := e.GetVirtualCursors(); len(vcs) > 0 {
+			for _, vc := range vcs {
+				startLines = append(startLines, vc.Y)
+			}
+		}
+		for _, start := range startLines {
+			for i := 0; i < n; i++ {
+				lineIdx := start + i
+				toggleLine(lineIdx)
+			}
 		}
 	}
+
+done:
 
 	// End composite
 	if buf.History != nil {
