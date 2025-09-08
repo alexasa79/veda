@@ -135,8 +135,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "s d", "list-document-symbols")
 
 	// LSP operations
-    e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
-    e.registerKeyBinding(commands.NormalMode, "g D", "go-to-definition-new-window")
+	e.registerKeyBinding(commands.NormalMode, "g d", "go-to-definition")
+	e.registerKeyBinding(commands.NormalMode, "g D", "go-to-definition-new-window")
 	e.registerKeyBinding(commands.NormalMode, "s s", "show-signature")
 	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 	e.registerKeyBinding(commands.NormalMode, "g e", "diagnostics")
@@ -170,7 +170,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Cursor mode: bind 'u' to remove the last virtual cursor (step-wise removal)
 	e.registerKeyBinding(commands.CursorMode, "u", "remove-last-virtual-cursor")
-	
+
 	// Multi-cursor alignment
 	// Alt+A: align all cursors to rightmost position by adding spaces
 	e.registerKeyBinding(commands.NormalMode, "alt+a", "align-cursors")
@@ -199,7 +199,7 @@ func (e *Editor) setupDefaultBindings() {
 	// Git staging operations
 	e.registerKeyBinding(commands.NormalMode, "g h", "toggle-stage-hunk")
 	e.registerKeyBinding(commands.NormalMode, "g space", "toggle-stage-line")
-	
+
 	// Git blame
 	e.registerKeyBinding(commands.NormalMode, "g b b", "git-blame-line")
 	e.registerKeyBinding(commands.NormalMode, "g b s", "git-show-commit")

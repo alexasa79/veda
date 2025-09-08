@@ -972,32 +972,32 @@ func (e *Editor) writeFile(args []string) error {
 		// Save as - use the provided filename
 		filePath = e.resolvePath(args[0])
 		saveAs = true
-    } else if buf.HasFile() {
-        // Save to current file (prefer real filesystem path)
-        if buf.RealPath != "" {
-            filePath = buf.RealPath
-        } else {
-            filePath = buf.FilePath
-        }
-        saveAs = false
-    } else {
-        // No filename and buffer has no file
-        return fmt.Errorf("no file name")
-    }
+	} else if buf.HasFile() {
+		// Save to current file (prefer real filesystem path)
+		if buf.RealPath != "" {
+			filePath = buf.RealPath
+		} else {
+			filePath = buf.FilePath
+		}
+		saveAs = false
+	} else {
+		// No filename and buffer has no file
+		return fmt.Errorf("no file name")
+	}
 
 	// Remove trailing spaces from all changed lines before saving
 	buf.RemoveTrailingSpacesFromChangedLines()
-	
+
 	// Get the content from the captured buffer
 	content := buf.Rope.String()
 
 	// Save to local history first (don't fail the save if history fails)
-    if e.localHistory != nil {
-        if err := e.localHistory.SaveFileHistory(filePath, content); err != nil {
-            LL.Error("Failed to save file history: %v", err)
-            // Continue with the actual save even if history fails
-        }
-    }
+	if e.localHistory != nil {
+		if err := e.localHistory.SaveFileHistory(filePath, content); err != nil {
+			LL.Error("Failed to save file history: %v", err)
+			// Continue with the actual save even if history fails
+		}
+	}
 
 	// Start async operation tracking
 	operationID := fmt.Sprintf("save-file-%s", filePath)
@@ -1031,10 +1031,10 @@ func (e *Editor) writeFile(args []string) error {
 		// Update buffer diagnostics with the returned diagnostics
 		target.Diagnostics = diagnostics
 
-        // Update buffer git changes with the returned git changes
-        target.GitChanges = gitChanges
-        // Propagate the new pointer to all buffers representing the same real file
-        e.updateGitChangesForRealPath(filePath, gitChanges)
+		// Update buffer git changes with the returned git changes
+		target.GitChanges = gitChanges
+		// Propagate the new pointer to all buffers representing the same real file
+		e.updateGitChangesForRealPath(filePath, gitChanges)
 
 		// If this is a "save as" operation, update the buffer's file path
 		if saveAs {
@@ -1059,17 +1059,17 @@ func (e *Editor) writeFile(args []string) error {
 				}
 			}
 
-            // Update buffer's identifiers
-            target.FilePath = filePath
-            target.RealPath = filePath
+			// Update buffer's identifiers
+			target.FilePath = filePath
+			target.RealPath = filePath
 
-            // Add buffer with new path
-            e.buffers[filePath] = target
+			// Add buffer with new path
+			e.buffers[filePath] = target
 		}
 
 		// Mark buffer as saved
 		target.MarkSaved()
-		
+
 		// Clear the changed lines tracking since file is now saved
 		target.ChangedLines = make(map[int]bool)
 

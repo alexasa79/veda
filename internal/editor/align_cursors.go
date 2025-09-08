@@ -25,7 +25,7 @@ func (e *Editor) alignCursors(args []string) error {
 	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
 	primaryLineNum := e.CurrentBuffer().CursorIterator.LineNumber()
 	primaryCursorX := e.CurrentBuffer().CursorX
-	
+
 	// Start a composite operation for undo/redo
 	if e.CurrentBuffer().History != nil {
 		e.CurrentBuffer().History.StartComposite("Align cursors")
@@ -34,13 +34,13 @@ func (e *Editor) alignCursors(args []string) error {
 	// Align virtual cursors first (in reverse order to maintain positions)
 	for i := len(e.virtualCursors) - 1; i >= 0; i-- {
 		cursor := e.virtualCursors[i]
-		
+
 		// Calculate how many spaces to add
 		spacesToAdd := maxX - cursor.X
 		if spacesToAdd > 0 {
 			// Create spaces string
 			spaces := strings.Repeat(" ", spacesToAdd)
-			
+
 			// Insert spaces at cursor position
 			entry := buffer.NewInsertTextEntry(cursor.Y, cursor.X, spaces)
 			if e.CurrentBuffer().History != nil {
@@ -49,17 +49,17 @@ func (e *Editor) alignCursors(args []string) error {
 					return err
 				}
 			}
-			
+
 			// Update virtual cursor position
 			e.virtualCursors[i].X = maxX
 		}
 	}
-	
+
 	// After modifying buffer for virtual cursors, recreate primary cursor iterator
 	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
 	// Restore the saved cursor X position
 	e.CurrentBuffer().CursorX = primaryCursorX
-	
+
 	// Align primary cursor
 	spacesToAdd := maxX - primaryCursorX
 	if spacesToAdd > 0 {
@@ -72,24 +72,24 @@ func (e *Editor) alignCursors(args []string) error {
 			}
 		}
 	}
-	
+
 	// End composite operation
 	if e.CurrentBuffer().History != nil {
 		e.CurrentBuffer().History.EndComposite()
 	}
-	
+
 	// Restore iterators and update cursor X position
 	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryLineNum)
 	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 	e.CurrentBuffer().CursorX = maxX
-	
+
 	// Sync virtual cursors back to storage
 	e.syncCurrentVirtualCursors()
-	
+
 	// Update syntax highlighting
 	if !e.inPasteMode {
 		e.updateSyntaxHighlighting()
 	}
-	
+
 	return nil
 }

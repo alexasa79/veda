@@ -71,29 +71,29 @@ func TestCompletionMenuClosesOnLeftRight(t *testing.T) {
 }
 
 func TestCompletionMenuClosesOnPunctuation(t *testing.T) {
-    te := NewTestEditorWithContent(80, 24, "")
-    te.mode = commands.InsertMode
+	te := NewTestEditorWithContent(80, 24, "")
+	te.mode = commands.InsertMode
 
-    items := []widgets.CompletionItem{{Label: "foo", InsertText: "foo"}}
-    primeCompletionMenu(te, items)
+	items := []widgets.CompletionItem{{Label: "foo", InsertText: "foo"}}
+	primeCompletionMenu(te, items)
 
-    // Type a dot '.' which is non-word punctuation
-    te.TypeKeys(".")
-    if te.completionMenu.IsVisible() {
-        t.Fatalf("expected completion menu to close on punctuation")
-    }
+	// Type a dot '.' which is non-word punctuation
+	te.TypeKeys(".")
+	if te.completionMenu.IsVisible() {
+		t.Fatalf("expected completion menu to close on punctuation")
+	}
 }
 
 func TestCompletionMenuHidesWhenNoPrefixMatch(t *testing.T) {
-    te := NewTestEditorWithContent(80, 24, "")
-    te.mode = commands.InsertMode
+	te := NewTestEditorWithContent(80, 24, "")
+	te.mode = commands.InsertMode
 
-    items := []widgets.CompletionItem{{Label: "hello", InsertText: "hello"}, {Label: "help", InsertText: "help"}}
-    primeCompletionMenu(te, items)
+	items := []widgets.CompletionItem{{Label: "hello", InsertText: "hello"}, {Label: "help", InsertText: "help"}}
+	primeCompletionMenu(te, items)
 
-    // Type a prefix that matches none of the items
-    te.TypeKeys("xz")
-    if te.completionMenu.IsVisible() {
-        t.Fatalf("expected completion menu to hide when no prefix matches")
-    }
+	// Type a prefix that matches none of the items
+	te.TypeKeys("xz")
+	if te.completionMenu.IsVisible() {
+		t.Fatalf("expected completion menu to hide when no prefix matches")
+	}
 }

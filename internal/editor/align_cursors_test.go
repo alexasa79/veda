@@ -37,7 +37,7 @@ func TestAlignCursors(t *testing.T) {
 
 		// Expected content after alignment (spaces added to align to position 4)
 		// Line 0: cursor at 2, add 2 spaces -> "li  ne1"
-		// Line 1: cursor at 4 (already rightmost) -> "line2" 
+		// Line 1: cursor at 4 (already rightmost) -> "line2"
 		// Line 2: cursor at 1, add 3 spaces -> "l   ine3"
 		// Line 3: cursor at 3, add 1 space -> "lin e4"
 		expected := "li  ne1\nline2\nl   ine3\nlin e4"
@@ -150,27 +150,27 @@ func TestAlignCursors(t *testing.T) {
 		// Create editor with test content
 		content := "hello\nworld\ntest"
 		te := NewTestEditorWithContent(80, 24, content)
-		
+
 		// Enter cursor mode
 		te.ExecuteCommand("enter-cursor-mode")
-		
+
 		// Add virtual cursor at first line, position 2
 		te.SetCursorPosition(2, 0)
 		te.PressKey(events.KeyEnter, 0)
-		
+
 		// Add virtual cursor at second line, position 5 (rightmost)
 		te.SetCursorPosition(5, 1)
 		te.PressKey(events.KeyEnter, 0)
-		
+
 		// Primary cursor at third line, position 0
 		te.SetCursorPosition(0, 2)
-		
+
 		// Exit cursor mode
 		te.PressKey(events.KeyEscape, 0)
-		
+
 		// Execute align-cursors command
 		te.ExecuteCommand("align-cursors")
-		
+
 		// Expected content after alignment
 		// Line 0: cursor at 2, add 3 spaces to reach 5 -> "he   llo"
 		// Line 1: cursor at 5 (already rightmost) -> "world"

@@ -9,19 +9,19 @@ import (
 
 // pasteAfter pastes clipboard content after the cursor (p command)
 func (e *Editor) pasteAfter(args []string) error {
-    // If we have virtual cursors, use multi-cursor paste
-    if len(e.virtualCursors) > 0 {
-        return e.pasteForAllCursorsWithContent("", func(content string) error {
-            // Determine if this is a line-wise paste
-            isLinewise := strings.HasSuffix(content, "\n")
+	// If we have virtual cursors, use multi-cursor paste
+	if len(e.virtualCursors) > 0 {
+		return e.pasteForAllCursorsWithContent("", func(content string) error {
+			// Determine if this is a line-wise paste
+			isLinewise := strings.HasSuffix(content, "\n")
 
-            if isLinewise {
-                return e.pasteAfterLine(content)
-            } else {
-                return e.pasteAfterCursor(content)
-            }
-        })
-    }
+			if isLinewise {
+				return e.pasteAfterLine(content)
+			} else {
+				return e.pasteAfterCursor(content)
+			}
+		})
+	}
 
 	// Single cursor paste - support registers prefix ' and general paste from register
 	var content string
@@ -72,19 +72,19 @@ func (e *Editor) pasteAfter(args []string) error {
 
 // pasteBefore pastes clipboard content before the cursor (P command)
 func (e *Editor) pasteBefore(args []string) error {
-    // If we have virtual cursors, use multi-cursor paste
-    if len(e.virtualCursors) > 0 {
-        return e.pasteForAllCursorsWithContent("", func(content string) error {
-            // Determine if this is a line-wise paste
-            isLinewise := strings.HasSuffix(content, "\n")
+	// If we have virtual cursors, use multi-cursor paste
+	if len(e.virtualCursors) > 0 {
+		return e.pasteForAllCursorsWithContent("", func(content string) error {
+			// Determine if this is a line-wise paste
+			isLinewise := strings.HasSuffix(content, "\n")
 
-            if isLinewise {
-                return e.pasteBeforeLine(content)
-            } else {
-                return e.pasteBeforeCursor(content)
-            }
-        })
-    }
+			if isLinewise {
+				return e.pasteBeforeLine(content)
+			} else {
+				return e.pasteBeforeCursor(content)
+			}
+		})
+	}
 
 	// Single cursor paste with registers
 	var content string

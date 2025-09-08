@@ -83,24 +83,24 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 			// Set markdown language for special buffers
 			buf.Highlighter.SetLanguage("markdown")
 			buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
-        } else if buf.HasFile() {
-            // Use real file path for language detection when available
-            filePath := buf.RealPath
-            if filePath == "" {
-                filePath = buf.FilePath
-            }
-            buf.Highlighter.SetLanguageFromFile(filePath)
-            buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
-        } else {
-            // No real file path: preserve existing highlighter (e.g., diff @HEAD buffer)
-            // Re-parse content to keep tokens in sync; do not reset language.
-            if buf.Highlighter != nil {
-                buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
-            } else {
-                // Fallback for truly unnamed buffers
-                buf.Highlighter = syntax.NewHighlighter()
-            }
-        }
+		} else if buf.HasFile() {
+			// Use real file path for language detection when available
+			filePath := buf.RealPath
+			if filePath == "" {
+				filePath = buf.FilePath
+			}
+			buf.Highlighter.SetLanguageFromFile(filePath)
+			buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
+		} else {
+			// No real file path: preserve existing highlighter (e.g., diff @HEAD buffer)
+			// Re-parse content to keep tokens in sync; do not reset language.
+			if buf.Highlighter != nil {
+				buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
+			} else {
+				// Fallback for truly unnamed buffers
+				buf.Highlighter = syntax.NewHighlighter()
+			}
+		}
 
 		// Ensure the active window owns this buffer (keeps Buffers in sync)
 		if len(e.windows) > 0 {

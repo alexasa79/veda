@@ -81,49 +81,49 @@ func (e *Editor) previousContextualItem(args []string) error {
 
 // getGitChangeHunks returns the start lines of each hunk (group of contiguous changed lines)
 func (e *Editor) getGitChangeHunks() []int {
-    buf := e.CurrentBuffer()
-    if buf == nil || buf.GitChanges == nil {
-        // If we're in diff view, derive hunks from diffLineInfo instead
-        if buf != nil {
-            if diffLines, ok := e.diffLineInfo[buf]; ok && len(diffLines) > 0 {
-                hunks := make([]int, 0)
-                inRun := false
-                runStart := 0
-                for i, dl := range diffLines {
-                    isChange := dl.LineType != DiffLineContext
-                    if isChange && !inRun {
-                        inRun = true
-                        runStart = i
-                    } else if !isChange && inRun {
-                        // Close the run [runStart, i)
-                        // Prefer the first non-filler line within the run for this buffer
-                        target := runStart
-                        for j := runStart; j < i; j++ {
-                            if !diffLines[j].IsFillerLine {
-                                target = j
-                                break
-                            }
-                        }
-                        hunks = append(hunks, target+1) // 1-based
-                        inRun = false
-                    }
-                }
-                // Handle trailing run to EOF
-                if inRun {
-                    target := runStart
-                    for j := runStart; j < len(diffLines); j++ {
-                        if !diffLines[j].IsFillerLine {
-                            target = j
-                            break
-                        }
-                    }
-                    hunks = append(hunks, target+1)
-                }
-                return hunks
-            }
-        }
-        return nil
-    }
+	buf := e.CurrentBuffer()
+	if buf == nil || buf.GitChanges == nil {
+		// If we're in diff view, derive hunks from diffLineInfo instead
+		if buf != nil {
+			if diffLines, ok := e.diffLineInfo[buf]; ok && len(diffLines) > 0 {
+				hunks := make([]int, 0)
+				inRun := false
+				runStart := 0
+				for i, dl := range diffLines {
+					isChange := dl.LineType != DiffLineContext
+					if isChange && !inRun {
+						inRun = true
+						runStart = i
+					} else if !isChange && inRun {
+						// Close the run [runStart, i)
+						// Prefer the first non-filler line within the run for this buffer
+						target := runStart
+						for j := runStart; j < i; j++ {
+							if !diffLines[j].IsFillerLine {
+								target = j
+								break
+							}
+						}
+						hunks = append(hunks, target+1) // 1-based
+						inRun = false
+					}
+				}
+				// Handle trailing run to EOF
+				if inRun {
+					target := runStart
+					for j := runStart; j < len(diffLines); j++ {
+						if !diffLines[j].IsFillerLine {
+							target = j
+							break
+						}
+					}
+					hunks = append(hunks, target+1)
+				}
+				return hunks
+			}
+		}
+		return nil
+	}
 
 	// Combine and sort all changed lines
 	allChanges := make([]int, 0)
