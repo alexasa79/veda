@@ -107,9 +107,9 @@ func TestDiffAlignment_DeletedLines(t *testing.T) {
 		t.Errorf("Expected %d lines, got %d", expectedLines, len(result.LeftLines))
 	}
 
-    // Check line types: left shows present line as Added (real), right shows Deleted (filler)
-    expectedLeft := []DiffLineType{DiffLineContext, DiffLineAdded, DiffLineContext}
-    expectedRight := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineContext}
+    // Check line types: left shows present (deleted in current) as Deleted (real), right shows Added (filler)
+    expectedLeft := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineContext}
+    expectedRight := []DiffLineType{DiffLineContext, DiffLineAdded, DiffLineContext}
     for i := range expectedLeft {
         if result.LeftLines[i].LineType != expectedLeft[i] {
             t.Errorf("Left line %d: expected type %v, got %v", i, expectedLeft[i], result.LeftLines[i].LineType)
@@ -255,15 +255,24 @@ func TestDiffAlignment_EmptyFiles(t *testing.T) {
 			t.Errorf("Expected %d lines, got %d", expectedLines, len(result.LeftLines))
 		}
 
-		// All lines should be deleted
-		for i, line := range result.RightLines {
-			if line.LineType != DiffLineDeleted {
-				t.Errorf("Line %d should be deleted, got %v", i, line.LineType)
-			}
-			if !line.IsFillerLine {
-				t.Errorf("Right line %d should be filler", i)
-			}
-		}
+    // All right-side lines should be Added filler (missing in modified)
+    for i, line := range result.RightLines {
+        if line.LineType != DiffLineAdded {
+            t.Errorf("Right line %d should be added filler, got %v", i, line.LineType)
+        }
+        if !line.IsFillerLine {
+            t.Errorf("Right line %d should be filler", i)
+        }
+    }
+    // All left-side lines should be Deleted real
+    for i, line := range result.LeftLines {
+        if line.LineType != DiffLineDeleted {
+            t.Errorf("Left line %d should be deleted real, got %v", i, line.LineType)
+        }
+        if line.IsFillerLine {
+            t.Errorf("Left line %d should not be filler", i)
+        }
+    }
 	})
 }
 

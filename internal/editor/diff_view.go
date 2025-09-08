@@ -162,38 +162,38 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	}
 	LL.Debug("StartDiffViewForCurrentBuffer: Git content retrieved, PreviousContentLen=%d", len(previousContent))
 
-    // Compute diff to create aligned content with same number of lines
-    diffResult := e.computeDiffViaProxy(previousContent, currentContent)
+	// Compute diff to create aligned content with same number of lines
+	diffResult := e.computeDiffViaProxy(previousContent, currentContent)
 	alignedHeadContent := createBufferContent(diffResult.LeftLines)
 	alignedCurrentContent := createBufferContent(diffResult.RightLines)
 
 	LL.Debug("StartDiffViewForCurrentBuffer: Aligned content created - Head lines: %d, Current lines: %d",
 		len(diffResult.LeftLines), len(diffResult.RightLines))
 
-    // Create HEAD buffer name and right buffer name
-    headBufferName := filePath + "@HEAD"
-    currentBufferName := filePath + "@current"
+	// Create HEAD buffer name and right buffer name
+	headBufferName := filePath + "@HEAD"
+	currentBufferName := filePath + "@current"
 
 	// Create or update HEAD buffer
-    if headBuffer, exists := e.buffers[headBufferName]; exists {
-        // Update existing buffer
-        headBuffer.Rope = buffer.NewRopeFromString(alignedHeadContent)
-        headBuffer.CursorX = 0
-        headBuffer.ViewIterator = buffer.NewBufferIterator(headBuffer)
-        headBuffer.CursorIterator = buffer.NewBufferIterator(headBuffer)
-        headBuffer.BufferName = headBufferName
-        headBuffer.RealPath = ""
-        headBuffer.IsReadOnly = true
-    } else {
-        // Create new HEAD buffer
-        headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-        headBuffer.IsReadOnly = true
-        headBuffer.IsInternal = false // Can be moved between windows
-        headBuffer.BufferName = headBufferName
-        headBuffer.RealPath = ""
-        e.buffers[headBufferName] = headBuffer
-        e.bufferOrder = append(e.bufferOrder, headBufferName)
-    }
+	if headBuffer, exists := e.buffers[headBufferName]; exists {
+		// Update existing buffer
+		headBuffer.Rope = buffer.NewRopeFromString(alignedHeadContent)
+		headBuffer.CursorX = 0
+		headBuffer.ViewIterator = buffer.NewBufferIterator(headBuffer)
+		headBuffer.CursorIterator = buffer.NewBufferIterator(headBuffer)
+		headBuffer.BufferName = headBufferName
+		headBuffer.RealPath = ""
+		headBuffer.IsReadOnly = true
+	} else {
+		// Create new HEAD buffer
+		headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		headBuffer.IsReadOnly = true
+		headBuffer.IsInternal = false // Can be moved between windows
+		headBuffer.BufferName = headBufferName
+		headBuffer.RealPath = ""
+		e.buffers[headBufferName] = headBuffer
+		e.bufferOrder = append(e.bufferOrder, headBufferName)
+	}
 
 	// Ensure syntax highlighter exists and is updated for HEAD buffer
 	headBuffer := e.buffers[headBufferName]
@@ -215,31 +215,31 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	currentCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 
 	// Create or update current buffer copy
-    if currentBuffer, exists := e.buffers[currentBufferName]; exists {
-        // Update existing buffer
-        currentBuffer.Rope = buffer.NewRopeFromString(alignedCurrentContent)
-        currentBuffer.CursorX = e.CurrentBuffer().CursorX
-        currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-        currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-        currentBuffer.BufferName = currentBufferName
-        currentBuffer.RealPath = filePath
-        // Share GitChanges with original buffer so gutter reflects staging
-        currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
-    } else {
-        // Create new current buffer copy
-        currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
-        currentBuffer.IsReadOnly = false
-        currentBuffer.IsInternal = false // Can be moved between windows
-        currentBuffer.CursorX = e.CurrentBuffer().CursorX
-        currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-        currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-        currentBuffer.BufferName = currentBufferName
-        currentBuffer.RealPath = filePath
-        // Share GitChanges with original buffer so gutter reflects staging
-        currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
-        e.buffers[currentBufferName] = currentBuffer
-        e.bufferOrder = append(e.bufferOrder, currentBufferName)
-    }
+	if currentBuffer, exists := e.buffers[currentBufferName]; exists {
+		// Update existing buffer
+		currentBuffer.Rope = buffer.NewRopeFromString(alignedCurrentContent)
+		currentBuffer.CursorX = e.CurrentBuffer().CursorX
+		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+		currentBuffer.BufferName = currentBufferName
+		currentBuffer.RealPath = filePath
+		// Share GitChanges with original buffer so gutter reflects staging
+		currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
+	} else {
+		// Create new current buffer copy
+		currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		currentBuffer.IsReadOnly = false
+		currentBuffer.IsInternal = false // Can be moved between windows
+		currentBuffer.CursorX = e.CurrentBuffer().CursorX
+		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+		currentBuffer.BufferName = currentBufferName
+		currentBuffer.RealPath = filePath
+		// Share GitChanges with original buffer so gutter reflects staging
+		currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
+		e.buffers[currentBufferName] = currentBuffer
+		e.bufferOrder = append(e.bufferOrder, currentBufferName)
+	}
 
 	// Ensure syntax highlighter exists and is updated for current buffer
 	currentBuffer := e.buffers[currentBufferName]
@@ -254,34 +254,34 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	// Store diff line information for current buffer
 	e.diffLineInfo[currentBuffer] = diffResult.RightLines
 
-    // Place HEAD in the same window as the original buffer (do NOT remove
-    // the original from that window's buffer list), and open the current
-    // diff copy in a window to the right.
+	// Place HEAD in the same window as the original buffer (do NOT remove
+	// the original from that window's buffer list), and open the current
+	// diff copy in a window to the right.
 
-    // 1) Add HEAD buffer to the active (left) window and make it active there.
-    if e.activeWindow < 0 || e.activeWindow >= len(e.windows) {
-        // Safety: ensure we have at least one window
-        e.windows = append(e.windows, newWindow(nil))
-        e.activeWindow = len(e.windows) - 1
-    }
-    leftIdx := e.activeWindow
-    e.windows[leftIdx].addBufferToWindow(e.buffers[headBufferName])
+	// 1) Add HEAD buffer to the active (left) window and make it active there.
+	if e.activeWindow < 0 || e.activeWindow >= len(e.windows) {
+		// Safety: ensure we have at least one window
+		e.windows = append(e.windows, newWindow(nil))
+		e.activeWindow = len(e.windows) - 1
+	}
+	leftIdx := e.activeWindow
+	e.windows[leftIdx].addBufferToWindow(e.buffers[headBufferName])
 
-    // 2) Create or insert a window immediately to the right for the current copy.
-    // Insert at position leftIdx+1 to keep relative order of existing windows.
-    rightWin := newWindow(e.buffers[currentBufferName])
-    if leftIdx+1 >= len(e.windows) {
-        e.windows = append(e.windows, rightWin)
-    } else {
-        e.windows = append(e.windows[:leftIdx+1], append([]*Window{rightWin}, e.windows[leftIdx+1:]...)...)
-    }
+	// 2) Create or insert a window immediately to the right for the current copy.
+	// Insert at position leftIdx+1 to keep relative order of existing windows.
+	rightWin := newWindow(e.buffers[currentBufferName])
+	if leftIdx+1 >= len(e.windows) {
+		e.windows = append(e.windows, rightWin)
+	} else {
+		e.windows = append(e.windows[:leftIdx+1], append([]*Window{rightWin}, e.windows[leftIdx+1:]...)...)
+	}
 
-    // Activate the right diff window (current buffer copy)
-    e.activeWindow = leftIdx + 1
-    e.switchToBuffer(e.buffers[currentBufferName])
+	// Activate the right diff window (current buffer copy)
+	e.activeWindow = leftIdx + 1
+	e.switchToBuffer(e.buffers[currentBufferName])
 
-    // Recompute window layout to apply diff-specific width rules
-    e.recomputeWindowsLayout()
+	// Recompute window layout to apply diff-specific width rules
+	e.recomputeWindowsLayout()
 
 	LL.Debug("StartDiffViewForCurrentBuffer: Diff view setup complete")
 
@@ -395,51 +395,51 @@ const (
 
 // DiffResult contains the result of comparing two texts
 type DiffResult struct {
-    LeftLines  []DiffLine // Lines for left side display
-    RightLines []DiffLine // Lines for right side display
+	LeftLines  []DiffLine // Lines for left side display
+	RightLines []DiffLine // Lines for right side display
 }
 
 // computeDiffViaProxy prefers proxy-backed (difflib) alignment; falls back internally
 func (e *Editor) computeDiffViaProxy(leftText, rightText string) *DiffResult {
-    if e == nil || e.proxyManager == nil {
-        return computeDiff(leftText, rightText)
-    }
-    aligned, err := e.proxyManager.ComputeTextDiff(leftText, rightText)
-    if err != nil || len(aligned) == 0 {
-        return computeDiff(leftText, rightText)
-    }
-    res := &DiffResult{LeftLines: make([]DiffLine, 0, len(aligned)), RightLines: make([]DiffLine, 0, len(aligned))}
-    curL, curR := 0, 0
-    for _, it := range aligned {
-        switch it.Tag {
-        case "equal":
-            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
-            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
-            curL++
-            curR++
-        case "insert":
-            res.LeftLines = append(res.LeftLines, DiffLine{Content: "", LineType: DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true})
-            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineAdded, LeftLine: -1, RightLine: curR, IsFillerLine: false})
-            curR++
-        case "delete":
-            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineAdded, LeftLine: curL, RightLine: -1, IsFillerLine: false})
-            res.RightLines = append(res.RightLines, DiffLine{Content: "", LineType: DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true})
-            curL++
-        case "replace":
-            wr := computeWordDiff(it.Left, it.Right)
-            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineModified, LeftLine: curL, RightLine: curR, IsFillerLine: false, WordRanges: wr})
-            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineModified, LeftLine: curL, RightLine: curR, IsFillerLine: false, WordRanges: wr})
-            curL++
-            curR++
-        default:
-            // Fallback to context to avoid crashing on unknown tags
-            res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
-            res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
-            curL++
-            curR++
-        }
-    }
-    return res
+	if e == nil || e.proxyManager == nil {
+		return computeDiff(leftText, rightText)
+	}
+	aligned, err := e.proxyManager.ComputeTextDiff(leftText, rightText)
+	if err != nil || len(aligned) == 0 {
+		return computeDiff(leftText, rightText)
+	}
+	res := &DiffResult{LeftLines: make([]DiffLine, 0, len(aligned)), RightLines: make([]DiffLine, 0, len(aligned))}
+	curL, curR := 0, 0
+	for _, it := range aligned {
+		switch it.Tag {
+		case "equal":
+			res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+			res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+			curL++
+			curR++
+		case "insert":
+			res.LeftLines = append(res.LeftLines, DiffLine{Content: "", LineType: DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true})
+			res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineAdded, LeftLine: -1, RightLine: curR, IsFillerLine: false})
+			curR++
+		case "delete":
+			res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineAdded, LeftLine: curL, RightLine: -1, IsFillerLine: false})
+			res.RightLines = append(res.RightLines, DiffLine{Content: "", LineType: DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true})
+			curL++
+		case "replace":
+			wr := computeWordDiff(it.Left, it.Right)
+			res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineModified, LeftLine: curL, RightLine: curR, IsFillerLine: false, WordRanges: wr})
+			res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineModified, LeftLine: curL, RightLine: curR, IsFillerLine: false, WordRanges: wr})
+			curL++
+			curR++
+		default:
+			// Fallback to context to avoid crashing on unknown tags
+			res.LeftLines = append(res.LeftLines, DiffLine{Content: it.Left, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+			res.RightLines = append(res.RightLines, DiffLine{Content: it.Right, LineType: DiffLineContext, LeftLine: curL, RightLine: curR, IsFillerLine: false})
+			curL++
+			curR++
+		}
+	}
+	return res
 }
 
 // computeDiff compares two texts and returns a DiffResult with aligned lines
@@ -590,71 +590,71 @@ func alignLines(leftLines, rightLines []string) *DiffResult {
 
 	for leftIdx < len(leftLines) || rightIdx < len(rightLines) {
 		// Check if we have a match from LCS
-        if lcsIdx < len(lcs) &&
-            leftIdx < len(leftLines) && rightIdx < len(rightLines) &&
-            lcs[lcsIdx].LeftIdx == leftIdx && lcs[lcsIdx].RightIdx == rightIdx {
-            // Common line - context
-            line := leftLines[leftIdx]
-            result.LeftLines = append(result.LeftLines, DiffLine{
-                Content:      line,
-                LineType:     DiffLineContext,
-                LeftLine:     leftIdx,
-                RightLine:    rightIdx,
-                IsFillerLine: false,
-            })
-            result.RightLines = append(result.RightLines, DiffLine{
-                Content:      line,
-                LineType:     DiffLineContext,
-                LeftLine:     leftIdx,
-                RightLine:    rightIdx,
-                IsFillerLine: false,
-            })
-            leftIdx++
-            rightIdx++
-            lcsIdx++
-        } else if leftIdx < len(leftLines) &&
-            (rightIdx >= len(rightLines) ||
-                (lcsIdx < len(lcs) && leftIdx < lcs[lcsIdx].LeftIdx)) {
-            // Line only in left (present in HEAD, missing in current)
-            // Show green (Added) on the left, red (Deleted filler) on the right
-            result.LeftLines = append(result.LeftLines, DiffLine{
-                Content:      leftLines[leftIdx],
-                LineType:     DiffLineAdded,
-                LeftLine:     leftIdx,
-                RightLine:    -1,
-                IsFillerLine: false,
-            })
-            result.RightLines = append(result.RightLines, DiffLine{
-                Content:      "",
-                LineType:     DiffLineDeleted, // Filler opposite of left-side Added
-                LeftLine:     -1,
-                RightLine:    -1,
-                IsFillerLine: true,
-            })
-            leftIdx++
-        } else if rightIdx < len(rightLines) {
-            // Line only in right (present in current, missing in HEAD)
-            // Show red (Deleted filler) on the left, green (Added) on the right
-            result.LeftLines = append(result.LeftLines, DiffLine{
-                Content:      "",
-                LineType:     DiffLineDeleted, // Filler opposite of right-side Added
-                LeftLine:     -1,
-                RightLine:    -1,
-                IsFillerLine: true,
-            })
-            result.RightLines = append(result.RightLines, DiffLine{
-                Content:      rightLines[rightIdx],
-                LineType:     DiffLineAdded,
-                LeftLine:     -1,
-                RightLine:    rightIdx,
-                IsFillerLine: false,
-            })
-            rightIdx++
-        }
+		if lcsIdx < len(lcs) &&
+			leftIdx < len(leftLines) && rightIdx < len(rightLines) &&
+			lcs[lcsIdx].LeftIdx == leftIdx && lcs[lcsIdx].RightIdx == rightIdx {
+			// Common line - context
+			line := leftLines[leftIdx]
+			result.LeftLines = append(result.LeftLines, DiffLine{
+				Content:      line,
+				LineType:     DiffLineContext,
+				LeftLine:     leftIdx,
+				RightLine:    rightIdx,
+				IsFillerLine: false,
+			})
+			result.RightLines = append(result.RightLines, DiffLine{
+				Content:      line,
+				LineType:     DiffLineContext,
+				LeftLine:     leftIdx,
+				RightLine:    rightIdx,
+				IsFillerLine: false,
+			})
+			leftIdx++
+			rightIdx++
+			lcsIdx++
+		} else if leftIdx < len(leftLines) &&
+			(rightIdx >= len(rightLines) ||
+				(lcsIdx < len(lcs) && leftIdx < lcs[lcsIdx].LeftIdx)) {
+			// Line only in left (present in HEAD, missing in current)
+			// Show red (Deleted) on the left, green (Added filler) on the right
+			result.LeftLines = append(result.LeftLines, DiffLine{
+				Content:      leftLines[leftIdx],
+				LineType:     DiffLineDeleted,
+				LeftLine:     leftIdx,
+				RightLine:    -1,
+				IsFillerLine: false,
+			})
+			result.RightLines = append(result.RightLines, DiffLine{
+				Content:      "",
+				LineType:     DiffLineAdded, // Filler opposite of left-side Deleted
+				LeftLine:     -1,
+				RightLine:    -1,
+				IsFillerLine: true,
+			})
+			leftIdx++
+		} else if rightIdx < len(rightLines) {
+			// Line only in right (present in current, missing in HEAD)
+			// Show red (Deleted filler) on the left, green (Added) on the right
+			result.LeftLines = append(result.LeftLines, DiffLine{
+				Content:      "",
+				LineType:     DiffLineDeleted, // Filler opposite of right-side Added
+				LeftLine:     -1,
+				RightLine:    -1,
+				IsFillerLine: true,
+			})
+			result.RightLines = append(result.RightLines, DiffLine{
+				Content:      rightLines[rightIdx],
+				LineType:     DiffLineAdded,
+				LeftLine:     -1,
+				RightLine:    rightIdx,
+				IsFillerLine: false,
+			})
+			rightIdx++
+		}
 	}
 
-    // Post-process to detect modifications (delete+insert pairs)
-    result = detectModifications(result)
+	// Post-process to detect modifications (delete+insert pairs)
+	result = detectModifications(result)
 
 	return result
 }
@@ -723,47 +723,82 @@ func detectModifications(result *DiffResult) *DiffResult {
 	}
 
 	i := 0
-    for i < len(result.LeftLines) {
-        leftLine := result.LeftLines[i]
-        rightLine := result.RightLines[i]
+	for i < len(result.LeftLines) {
+		leftLine := result.LeftLines[i]
+		rightLine := result.RightLines[i]
 
-        // Detect a delete+insert pair represented with asymmetric types:
-        // i:   Left=Added (real), Right=Deleted (filler)
-        // i+1: Left=Deleted (filler), Right=Added (real)
-        if i+1 < len(result.LeftLines) &&
-            leftLine.LineType == DiffLineAdded && !leftLine.IsFillerLine &&
-            rightLine.LineType == DiffLineDeleted && rightLine.IsFillerLine &&
-            result.LeftLines[i+1].LineType == DiffLineDeleted && result.LeftLines[i+1].IsFillerLine &&
-            result.RightLines[i+1].LineType == DiffLineAdded && !result.RightLines[i+1].IsFillerLine {
+		// Detect a delete+insert pair represented with asymmetric types:
+		// i:   Left=Added (real), Right=Deleted (filler)
+		// i+1: Left=Deleted (filler), Right=Added (real)
+		// Merge replace pattern into a single Modified line on both sides.
+		// Pattern A (our current aligner semantics):
+		//   i:   Left=Deleted(real), Right=Added(filler)
+		//   i+1: Left=Deleted(filler), Right=Added(real)
+		if i+1 < len(result.LeftLines) &&
+			leftLine.LineType == DiffLineDeleted && !leftLine.IsFillerLine &&
+			rightLine.LineType == DiffLineAdded && rightLine.IsFillerLine &&
+			result.LeftLines[i+1].LineType == DiffLineDeleted && result.LeftLines[i+1].IsFillerLine &&
+			result.RightLines[i+1].LineType == DiffLineAdded && !result.RightLines[i+1].IsFillerLine {
 
-            nextRightLine := result.RightLines[i+1]
-            wordRanges := computeWordDiff(leftLine.Content, nextRightLine.Content)
+			nextRightReal := result.RightLines[i+1]
+			wordRanges := computeWordDiff(leftLine.Content, nextRightReal.Content)
 
-            newResult.LeftLines = append(newResult.LeftLines, DiffLine{
-                Content:      leftLine.Content,
-                LineType:     DiffLineModified,
-                LeftLine:     leftLine.LeftLine,
-                RightLine:    nextRightLine.RightLine,
-                IsFillerLine: false,
-                WordRanges:   wordRanges,
-            })
-            newResult.RightLines = append(newResult.RightLines, DiffLine{
-                Content:      nextRightLine.Content,
-                LineType:     DiffLineModified,
-                LeftLine:     leftLine.LeftLine,
-                RightLine:    nextRightLine.RightLine,
-                IsFillerLine: false,
-                WordRanges:   wordRanges,
-            })
-            i += 2
-            continue
-        }
+			newResult.LeftLines = append(newResult.LeftLines, DiffLine{
+				Content:      leftLine.Content,
+				LineType:     DiffLineModified,
+				LeftLine:     leftLine.LeftLine,
+				RightLine:    nextRightReal.RightLine,
+				IsFillerLine: false,
+				WordRanges:   wordRanges,
+			})
+			newResult.RightLines = append(newResult.RightLines, DiffLine{
+				Content:      nextRightReal.Content,
+				LineType:     DiffLineModified,
+				LeftLine:     leftLine.LeftLine,
+				RightLine:    nextRightReal.RightLine,
+				IsFillerLine: false,
+				WordRanges:   wordRanges,
+			})
+			i += 2
+			continue
+		}
+		// Pattern B (legacy orientation):
+		//   i:   Left=Added(real), Right=Deleted(filler)
+		//   i+1: Left=Deleted(filler), Right=Added(real)
+		if i+1 < len(result.LeftLines) &&
+			leftLine.LineType == DiffLineAdded && !leftLine.IsFillerLine &&
+			rightLine.LineType == DiffLineDeleted && rightLine.IsFillerLine &&
+			result.LeftLines[i+1].LineType == DiffLineDeleted && result.LeftLines[i+1].IsFillerLine &&
+			result.RightLines[i+1].LineType == DiffLineAdded && !result.RightLines[i+1].IsFillerLine {
 
-        // Keep the line as-is
-        newResult.LeftLines = append(newResult.LeftLines, leftLine)
-        newResult.RightLines = append(newResult.RightLines, rightLine)
-        i++
-    }
+			nextRightReal := result.RightLines[i+1]
+			wordRanges := computeWordDiff(leftLine.Content, nextRightReal.Content)
+
+			newResult.LeftLines = append(newResult.LeftLines, DiffLine{
+				Content:      leftLine.Content,
+				LineType:     DiffLineModified,
+				LeftLine:     leftLine.LeftLine,
+				RightLine:    nextRightReal.RightLine,
+				IsFillerLine: false,
+				WordRanges:   wordRanges,
+			})
+			newResult.RightLines = append(newResult.RightLines, DiffLine{
+				Content:      nextRightReal.Content,
+				LineType:     DiffLineModified,
+				LeftLine:     leftLine.LeftLine,
+				RightLine:    nextRightReal.RightLine,
+				IsFillerLine: false,
+				WordRanges:   wordRanges,
+			})
+			i += 2
+			continue
+		}
+
+		// Keep the line as-is
+		newResult.LeftLines = append(newResult.LeftLines, leftLine)
+		newResult.RightLines = append(newResult.RightLines, rightLine)
+		i++
+	}
 
 	return newResult
 }

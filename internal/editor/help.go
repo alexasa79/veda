@@ -212,6 +212,8 @@ func (e *Editor) showHelp(args []string) error {
 	} else {
 		// Create new buffer
 		newBuffer := buffer.NewBuffer(helpText.String(), helpBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer.IsInternal = true
+		newBuffer.RealPath = ""
 		e.buffers[helpBufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, helpBufferName)
 		e.switchToBuffer(newBuffer)

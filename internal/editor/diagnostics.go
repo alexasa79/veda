@@ -102,10 +102,14 @@ func (e *Editor) showDiagnostics(args []string) error {
 		buf.CursorX = 0
 		buf.ViewIterator = buffer.NewBufferIterator(buf)
 		buf.CursorIterator = buffer.NewBufferIterator(buf)
+		buf.IsInternal = true
+		buf.RealPath = ""
 		e.switchToBuffer(buf)
 	} else {
 		// Create new buffer
 		newBuffer := buffer.NewBuffer(content.String(), bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer.IsInternal = true
+		newBuffer.RealPath = ""
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)
 		e.switchToBuffer(newBuffer)

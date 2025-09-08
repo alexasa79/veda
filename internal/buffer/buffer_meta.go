@@ -38,13 +38,13 @@ type ParameterInfo struct {
 
 // Buffer represents a complete text buffer with metadata
 type Buffer struct {
-    *Rope // Embed the rope data structure
+	*Rope // Embed the rope data structure
 
-    // File information
-    FilePath   string // Unique buffer identifier (legacy); may be a virtual name
-    BufferName string // Human-friendly buffer name for UI (optional)
-    RealPath   string // Real filesystem path for I/O (empty for virtual/temporary)
-    IsModified bool
+	// File information
+	FilePath   string // Unique buffer identifier (legacy); may be a virtual name
+	BufferName string // Human-friendly buffer name for UI (optional)
+	RealPath   string // Real filesystem path for I/O (empty for virtual/temporary)
+	IsModified bool
 
 	// Cursor and view state
 	CursorX        int
@@ -125,9 +125,9 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 	rope := NewRopeFromString(content)
 	b := &Buffer{
 		Rope:           rope,
-        FilePath:       filePath,
-        BufferName:     filePath,
-        RealPath:       filePath, // By default, real path matches file path; diff/virtual buffers override
+		FilePath:       filePath,
+		BufferName:     filePath,
+		RealPath:       filePath, // default; overridden below for non-file buffers
 		IsModified:     false,
 		CursorX:        0,
 		ViewIterator:   nil, // Will be created when buffer is first used
@@ -143,6 +143,11 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		VisualAnchorX:      -1,
 		VisualAnchorOffset: -1,
 	}
+	// Treat unnamed buffers as non-file: clear RealPath
+	if filePath == "" {
+		b.RealPath = ""
+	}
+
 	// Initialize per-buffer highlighter
 	b.Highlighter = syntax.NewHighlighter()
 	// Initialize context cache fields
@@ -211,18 +216,18 @@ func (b *Buffer) MarkSaved() {
 
 // HasFile returns true if this buffer is backed by a real file
 func (b *Buffer) HasFile() bool {
-    return b.RealPath != ""
+	return b.RealPath != ""
 }
 
 // DisplayName returns a user-friendly name for the buffer
 func (b *Buffer) DisplayName() string {
-    if b.BufferName != "" {
-        return b.BufferName
-    }
-    if b.FilePath == "" {
-        return "[No Name]"
-    }
-    return b.FilePath
+	if b.BufferName != "" {
+		return b.BufferName
+	}
+	if b.FilePath == "" {
+		return "[No Name]"
+	}
+	return b.FilePath
 }
 
 // FileName returns just the filename without the path
@@ -352,11 +357,11 @@ func (b *Buffer) UpdateLineNumberWidth() {
 func (b *Buffer) Insert(pos int, text string) {
 	// Track which line is being modified
 	lineNum := b.GetLineAtPosition(pos)
-	
+
 	b.Rope.Insert(pos, text)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
-	
+
 	// Mark the line(s) as changed
 	b.MarkLineChanged(lineNum)
 	// If text contains newlines, mark those new lines as changed too
@@ -380,11 +385,11 @@ func (b *Buffer) Insert(pos int, text string) {
 func (b *Buffer) Delete(start, end int) {
 	// Track which lines are being modified
 	startLine := b.GetLineAtPosition(start)
-	
+
 	b.Rope.Delete(start, end)
 	b.Generation++ // Increment generation when buffer is modified
 	b.MarkModified()
-	
+
 	// Mark the affected line(s) as changed
 	// After deletion, we only mark the line where deletion occurred
 	b.MarkLineChanged(startLine)
@@ -502,7 +507,7 @@ func (b *Buffer) RemoveTrailingSpacesFromChangedLines() {
 			b.MarkModified()
 		}
 	}
-	
+
 	// Restore iterators after all modifications
 	if b.CursorIterator != nil {
 		b.CursorIterator = NewBufferIteratorAtLine(b, savedCursorLine)
