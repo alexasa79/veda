@@ -1,13 +1,13 @@
 package editor
 
 import (
-    "os"
-    "path/filepath"
-    "strings"
-    "testing"
-    "veda/internal/buffer"
-    "veda/internal/commands"
-    "veda/internal/events"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"veda/internal/buffer"
+	"veda/internal/commands"
+	"veda/internal/events"
 )
 
 // Constants for common keys
@@ -61,17 +61,17 @@ func NewTestEditor(width, height int) *TestEditor {
 
 // NewTestEditorWithContent creates a test editor with initial content
 func NewTestEditorWithContent(width, height int, content string) *TestEditor {
-    te := NewTestEditor(width, height)
-    // Use a temp directory-backed path for the test buffer to avoid creating
-    // files in the repository directory (e.g., "internal/editor/[Test]").
-    tmpDir, err := os.MkdirTemp("", "veda-test-*")
-    if err != nil {
-        // Fallback to in-memory if temp dir creation fails
-        te.SetCurrentBuffer(buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth))
-    } else {
-        testPath := filepath.Join(tmpDir, "[Test]")
-        te.SetCurrentBuffer(buffer.NewBuffer(content, testPath, te.config.DefaultIndentType, te.config.DefaultIndentWidth))
-    }
+	te := NewTestEditor(width, height)
+	// Use a temp directory-backed path for the test buffer to avoid creating
+	// files in the repository directory (e.g., "internal/editor/[Test]").
+	tmpDir, err := os.MkdirTemp("", "veda-test-*")
+	if err != nil {
+		// Fallback to in-memory if temp dir creation fails
+		te.SetCurrentBuffer(buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth))
+	} else {
+		testPath := filepath.Join(tmpDir, "[Test]")
+		te.SetCurrentBuffer(buffer.NewBuffer(content, testPath, te.config.DefaultIndentType, te.config.DefaultIndentWidth))
+	}
 	// Update iterators to point to the new buffer
 	te.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(te.CurrentBuffer())
 	te.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(te.CurrentBuffer())

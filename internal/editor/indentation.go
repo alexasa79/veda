@@ -190,65 +190,69 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 
 // getCurrentLineIndentInfo returns detailed indentation info for the line at the iterator
 func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.LineIndentInfo {
-    info := e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
-    // For display purposes, treat lines aligned under an open paren/bracket as continuation
-    // even if their indentation is a clean multiple of the width. Map to nearest base level.
-    if e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
-        curLine := iter.LineNumber()
-        baseLevel, cont := findBaseLevelFromOpenDelimiterForEditor(e.CurrentBuffer(), curLine)
-        if cont {
-            info.IsContinuation = true
-            if baseLevel < info.Level {
-                info.Level = baseLevel
-            }
-        }
-    }
-    return info
+	info := e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
+	// For display purposes, treat lines aligned under an open paren/bracket as continuation
+	// even if their indentation is a clean multiple of the width. Map to nearest base level.
+	if e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
+		curLine := iter.LineNumber()
+		baseLevel, cont := findBaseLevelFromOpenDelimiterForEditor(e.CurrentBuffer(), curLine)
+		if cont {
+			info.IsContinuation = true
+			if baseLevel < info.Level {
+				info.Level = baseLevel
+			}
+		}
+	}
+	return info
 }
 
 // findBaseLevelFromOpenDelimiterForEditor mirrors the buffer logic to discover the
 // base indent level from the unmatched opening '(' or '[' scanning backward.
 func findBaseLevelFromOpenDelimiterForEditor(b *buffer.Buffer, curLine int) (int, bool) {
-    if curLine >= b.LineCount {
-        curLine = b.LineCount - 1
-    }
-    needParen := 0
-    needBracket := 0
-    for ln := curLine; ln >= 0; ln-- {
-        it := buffer.NewBufferIteratorAtLine(b, ln)
-        if it.IsEOF() { continue }
-        raw := it.Line()
-        if strings.TrimSpace(raw) == "" { continue }
-        for i := len(raw) - 1; i >= 0; i-- {
-            switch raw[i] {
-            case ')':
-                needParen++
-            case ']':
-                needBracket++
-            case '(':
-                if needParen > 0 {
-                    needParen--
-                    if needParen == 0 {
-                        ii := b.GetLineIndentInfo(raw)
-                        return ii.Level, true
-                    }
-                } else {
-                    ii := b.GetLineIndentInfo(raw)
-                    return ii.Level, true
-                }
-            case '[':
-                if needBracket > 0 {
-                    needBracket--
-                    if needBracket == 0 {
-                        ii := b.GetLineIndentInfo(raw)
-                        return ii.Level, true
-                    }
-                } else {
-                    ii := b.GetLineIndentInfo(raw)
-                    return ii.Level, true
-                }
-            }
-        }
-    }
-    return 0, false
+	if curLine >= b.LineCount {
+		curLine = b.LineCount - 1
+	}
+	needParen := 0
+	needBracket := 0
+	for ln := curLine; ln >= 0; ln-- {
+		it := buffer.NewBufferIteratorAtLine(b, ln)
+		if it.IsEOF() {
+			continue
+		}
+		raw := it.Line()
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		for i := len(raw) - 1; i >= 0; i-- {
+			switch raw[i] {
+			case ')':
+				needParen++
+			case ']':
+				needBracket++
+			case '(':
+				if needParen > 0 {
+					needParen--
+					if needParen == 0 {
+						ii := b.GetLineIndentInfo(raw)
+						return ii.Level, true
+					}
+				} else {
+					ii := b.GetLineIndentInfo(raw)
+					return ii.Level, true
+				}
+			case '[':
+				if needBracket > 0 {
+					needBracket--
+					if needBracket == 0 {
+						ii := b.GetLineIndentInfo(raw)
+						return ii.Level, true
+					}
+				} else {
+					ii := b.GetLineIndentInfo(raw)
+					return ii.Level, true
+				}
+			}
+		}
+	}
+	return 0, false
 }
