@@ -92,6 +92,7 @@ func (e *Editor) createMessagesBuffer() *buffer.Buffer {
 	messagesBuffer := buffer.NewBuffer(headerContent, "*Messages*", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 	messagesBuffer.IsReadOnly = true
 	messagesBuffer.IsInternal = true
+	messagesBuffer.RealPath = ""
 
 	return messagesBuffer
 }
@@ -339,11 +340,13 @@ func (e *Editor) showRegistersCmd(args []string) error {
 		buf.CursorIterator = buffer.NewBufferIterator(buf)
 		buf.IsReadOnly = true
 		buf.IsInternal = true
+		buf.RealPath = ""
 		e.switchToBuffer(buf)
 	} else {
 		newBuffer := buffer.NewBuffer(content, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		newBuffer.IsReadOnly = true
 		newBuffer.IsInternal = true
+		newBuffer.RealPath = ""
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)
 		e.switchToBuffer(newBuffer)

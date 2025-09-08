@@ -120,12 +120,14 @@ func (e *Editor) showProjectChanges(args []string) error {
 		buf.CursorIterator = buffer.NewBufferIterator(buf)
 		buf.IsReadOnly = true
 		buf.IsInternal = true
+		buf.RealPath = ""
 		e.switchToBuffer(buf)
 	} else {
 		// Create new buffer
 		newBuffer := buffer.NewBuffer(content.String(), bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		newBuffer.IsReadOnly = true
 		newBuffer.IsInternal = true
+		newBuffer.RealPath = ""
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)
 		e.switchToBuffer(newBuffer)

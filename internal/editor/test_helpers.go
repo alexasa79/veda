@@ -37,6 +37,8 @@ func NewTestEditor(width, height int) *TestEditor {
 	if te.CurrentBuffer() == nil {
 		// Create unnamed buffer and attach to active window
 		buf := buffer.NewBuffer("", "[No Name]", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+		// Unnamed test buffer is not a real file
+		buf.RealPath = ""
 		te.buffers["[No Name]"] = buf
 		te.bufferOrder = append(te.bufferOrder, "[No Name]")
 		if len(te.windows) == 0 {

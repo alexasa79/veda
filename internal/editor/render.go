@@ -101,38 +101,44 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 
 	// Deleted lines: do not render any indicator
 
-    // Left indicator: added/modified (any change vs HEAD)
-    // Right indicator: staged (in index). Draw both if applicable.
-    _, lnBg, _ := lineNumberStyle.Decompose()
+	// Left indicator: added/modified (any change vs HEAD)
+	// Right indicator: staged (in index). Draw both if applicable.
+	_, lnBg, _ := lineNumberStyle.Decompose()
 
-    // Draw left indicator when added/modified
-    if isAdded || isModified {
-        leftX := digitsWidth
-        if leftX < lineNumberWidth {
-            var lch rune
-            lstyle := lineNumberStyle
-            if isAdded { lch = '+'; lstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg) } else { lch = '≋'; lstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg) }
-            lstyle.Attrs |= ui.AttrBold
-            e.screen.SetContent(leftX, screenY, lch, nil, lstyle)
-        }
-    }
+	// Draw left indicator when added/modified
+	if isAdded || isModified {
+		leftX := digitsWidth
+		if leftX < lineNumberWidth {
+			var lch rune
+			lstyle := lineNumberStyle
+			if isAdded {
+				lch = '+'
+				lstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
+			} else {
+				lch = '≋'
+				lstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+			}
+			lstyle.Attrs |= ui.AttrBold
+			e.screen.SetContent(leftX, screenY, lch, nil, lstyle)
+		}
+	}
 
-    // Draw right indicator when staged
-    if isStaged {
-        rightX := digitsWidth + 2
-        if rightX < lineNumberWidth {
-            rstyle := lineNumberStyle
-            // Use GitAdded or GitModified style foreground depending on what type;
-            // both are fine for visibility in staged context; prefer Modified for merges
-            if isAdded {
-                rstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
-            } else {
-                rstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
-            }
-            rstyle.Attrs |= ui.AttrBold
-            e.screen.SetContent(rightX, screenY, '✓', nil, rstyle)
-        }
-    }
+	// Draw right indicator when staged
+	if isStaged {
+		rightX := digitsWidth + 2
+		if rightX < lineNumberWidth {
+			rstyle := lineNumberStyle
+			// Use GitAdded or GitModified style foreground depending on what type;
+			// both are fine for visibility in staged context; prefer Modified for merges
+			if isAdded {
+				rstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
+			} else {
+				rstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+			}
+			rstyle.Attrs |= ui.AttrBold
+			e.screen.SetContent(rightX, screenY, '✓', nil, rstyle)
+		}
+	}
 }
 
 // drawGutterDiagnosticsIndicator renders a diagnostics icon in the second gutter column
@@ -401,45 +407,46 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	var lineBg ui.Color
 	var hasBg bool
 
-    // Check for diff highlighting first (if not overridden). If this is also
-    // the current line, use a brighter variant so the caret row remains
-    // visually distinct even on diff backgrounds.
-    var diffBg *ui.Color
-    if bgOverride == nil && e.CurrentBuffer() != nil {
-        if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
-            if lineIndex >= 0 && lineIndex < len(diffLines) {
-                diffLine := diffLines[lineIndex]
-                switch diffLine.LineType {
-                case DiffLineAdded:
-                    // Base/brightened green from theme
-                    if isCurrentLine {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAddedCurrentLine)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    } else {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAdded)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    }
-                case DiffLineDeleted:
-                    // Base/brightened red from theme
-                    if isCurrentLine {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeletedCurrentLine)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    } else {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeleted)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    }
-                case DiffLineModified:
-                    // For modified lines, we'll apply word-level highlighting at the token level
-                    // Don't set diffBg here - it will be handled per-character in token rendering
-                    // DiffLineContext uses normal background (no special highlighting)
-                }
-            }
-        }
-    }
+	// Check for diff highlighting first (if not overridden). If this is also
+	// the current line, use a brighter variant so the caret row remains
+	// visually distinct even on diff backgrounds.
+	var diffBg *ui.Color
+	if bgOverride == nil && e.CurrentBuffer() != nil {
+		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+			if lineIndex >= 0 && lineIndex < len(diffLines) {
+				diffLine := diffLines[lineIndex]
+				switch diffLine.LineType {
+				case DiffLineAdded:
+					// Base/brightened green from theme
+					if isCurrentLine {
+						s := e.config.Theme.GetStyle(e.config.Theme.DiffAddedCurrentLine)
+						_, bg, _ := s.Decompose()
+						diffBg = &bg
+					} else {
+						s := e.config.Theme.GetStyle(e.config.Theme.DiffAdded)
+						_, bg, _ := s.Decompose()
+						diffBg = &bg
+					}
+				case DiffLineDeleted:
+					// Base/brightened red from theme
+					if isCurrentLine {
+						s := e.config.Theme.GetStyle(e.config.Theme.DiffDeletedCurrentLine)
+						_, bg, _ := s.Decompose()
+						diffBg = &bg
+					} else {
+						s := e.config.Theme.GetStyle(e.config.Theme.DiffDeleted)
+						_, bg, _ := s.Decompose()
+						diffBg = &bg
+					}
+				case DiffLineModified:
+					// For modified lines, apply full-line modified background as base,
+					// with word-level highlighting overlaid at token level.
+					bg := ui.NewRGBColor(100, 80, 30) // brighter yellow/orange used for modified
+					diffBg = &bg
+				}
+			}
+		}
+	}
 
 	if bgOverride != nil {
 		// Use the provided background override
@@ -523,29 +530,39 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 	// Try to get syntax tokens first, even with background overrides
 	var x int
+	// Establish a baseStyle that preserves any computed background for this line
+	baseStyle := normalStyle
+	if hasBg {
+		baseStyle = normalStyle.Background(lineBg)
+	}
 
 	// Get syntax tokens for this line using iterator position
 	// Always use the buffer's own highlighter
-    var tokens []syntax.Token
-    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-        tTok := e.perfTracker.Start()
-        tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-        _ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
-    }
+	var tokens []syntax.Token
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+		tTok := e.perfTracker.Start()
+		tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+		_ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
+	}
 
-    // If we have syntax tokens, use syntax highlighting path (even for virtual buffers like @HEAD)
-    if len(tokens) > 0 && e.CurrentBuffer() != nil {
-        // Use syntax highlighting (this will be handled below)
-    } else if e.CurrentBuffer() == nil || len(tokens) == 0 {
+	// If we have syntax tokens, use syntax highlighting path (even for virtual buffers like @HEAD)
+	if len(tokens) > 0 && e.CurrentBuffer() != nil {
+		// Use syntax highlighting (this will be handled below)
+	} else if e.CurrentBuffer() == nil || len(tokens) == 0 {
 		x = startX
-		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
+		// Preserve base background (diffBg/current-line) across plain rendering
+		baseStyle := normalStyle
+		if hasBg {
+			baseStyle = normalStyle.Background(lineBg)
+		}
+		x += e.drawText(startX, screenY, baseStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 		// Fill rest of line if we have background
 		if hasBg {
 			width, _ := e.screen.Size()
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 			for i := x; i < width; i++ {
-				fillStyle := normalStyle
+				fillStyle := baseStyle
 
 				// Check if this position has a virtual cursor beyond the end of line
 				hasVirtualCursor := false
@@ -596,9 +613,9 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		}
 	}
 
-    // Handle syntax highlighting path
-    if len(tokens) > 0 && e.CurrentBuffer() != nil {
-        // Draw with syntax highlighting
+	// Handle syntax highlighting path
+	if len(tokens) > 0 && e.CurrentBuffer() != nil {
+		// Draw with syntax highlighting
 		x = startX
 		lastEnd := 0
 
@@ -640,12 +657,12 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			suffix := originalLine[lastEnd:]
 			x += e.drawText(x, screenY, normalStyle, suffix, lineStartOffset+lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
 		}
-    } else {
-        // Use standard rendering when no syntax tokens are available
-        // No tokens, draw with normal style
-        x = startX
-        x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
-    }
+	} else {
+		// Use standard rendering when no syntax tokens are available
+		// No tokens, draw with normal style
+		x = startX
+		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
+	}
 
 	// Fill rest of line with background if needed
 	if hasBg {
@@ -653,7 +670,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 		for i := x; i < width; i++ {
-			fillStyle := normalStyle
+			fillStyle := baseStyle
 
 			// Check if this position has a virtual cursor beyond the end of line
 			hasVirtualCursor := false
@@ -671,7 +688,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 			// Apply virtual cursor style if needed
 			if hasVirtualCursor {
-				fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+				fillStyle = theme.ApplyBackgroundStyle(baseStyle, virtualCursorStyle)
 			}
 
 			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
@@ -697,7 +714,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 			// Render virtual cursor if needed
 			if hasVirtualCursor {
-				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
+				fillStyle := theme.ApplyBackgroundStyle(baseStyle, virtualCursorStyle)
 				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 			}
 		}
@@ -719,39 +736,27 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 	var lineBg ui.Color
 	var hasBg bool
 
-    // Check for diff highlighting first. Brighten for current line so the
-    // caret row remains visible even on diff backgrounds.
-    var diffBg *ui.Color
-    if e.CurrentBuffer() != nil {
-        if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
-            if lineIndex >= 0 && lineIndex < len(diffLines) {
-                diffLine := diffLines[lineIndex]
-                switch diffLine.LineType {
-                case DiffLineAdded:
-                    if isCurrentLine {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAddedCurrentLine)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    } else {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffAdded)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    }
-                case DiffLineDeleted:
-                    if isCurrentLine {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeletedCurrentLine)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    } else {
-                        s := e.config.Theme.GetStyle(e.config.Theme.DiffDeleted)
-                        _, bg, _ := s.Decompose()
-                        diffBg = &bg
-                    }
-                case DiffLineModified:
-                    // For modified lines, we'll apply word-level highlighting at the token level
-                    // Don't set diffBg here - it will be handled per-character in token rendering
-                    // DiffLineContext uses normal background (no special highlighting)
-                }
+	// Check for diff highlighting first. Brighten for current line so the
+	// caret row remains visible even on diff backgrounds.
+	var diffBg *ui.Color
+	if e.CurrentBuffer() != nil {
+		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+			if lineIndex >= 0 && lineIndex < len(diffLines) {
+				diffLine := diffLines[lineIndex]
+				switch diffLine.LineType {
+				case DiffLineAdded:
+					// Use constant brighter green for added
+					bg := ui.NewRGBColor(40, 100, 40)
+					diffBg = &bg
+				case DiffLineDeleted:
+					// Use constant brighter red for deleted
+					bg := ui.NewRGBColor(100, 40, 40)
+					diffBg = &bg
+				case DiffLineModified:
+					// Apply modified full-line background as base; word ranges overlay at token level.
+					bg := ui.NewRGBColor(100, 80, 30)
+					diffBg = &bg
+				}
 			}
 		}
 	}
@@ -848,14 +853,19 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 		}
 	}
 
-    // If no highlighter, draw without syntax highlighting
-    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
-        x := startX
-        // Draw the wrapped segment
-        segmentOffset := lineStartOffset + segStart
+	// If no highlighter, draw without syntax highlighting
+	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
+		x := startX
+		// Draw the wrapped segment
+		segmentOffset := lineStartOffset + segStart
 		// Clamp wl.Text usage to the clamped segment range
 		textSegment := originalLine[segStart:segEnd]
-		x += e.drawText(startX, screenY, normalStyle, textSegment, segmentOffset, searchMatches, lineIndex, segStart, trailingStart)
+		// Preserve base background (diffBg/current-line) by applying it to text
+		baseStyle := normalStyle
+		if hasBg {
+			baseStyle = normalStyle.Background(lineBg)
+		}
+		x += e.drawText(startX, screenY, baseStyle, textSegment, segmentOffset, searchMatches, lineIndex, segStart, trailingStart)
 
 		// Fill rest of line if we have background
 		if hasBg {
@@ -1258,9 +1268,11 @@ func (e *Editor) drawEditor() {
 						diffStyle := normalStyle.Background(bg)
 						diffFillStyle = &diffStyle
 					case DiffLineModified:
-						// For modified lines, don't highlight the fill area - only specific word ranges
-						// The diffFillStyle will remain nil for modified lines
-						// DiffLineContext uses normal background (no special highlighting)
+						// For modified lines, apply a base modified background to the full line;
+						// word-level ranges will still overlay at token level.
+						bg := ui.NewRGBColor(100, 80, 30)
+						diffStyle := normalStyle.Background(bg)
+						diffFillStyle = &diffStyle
 					}
 				}
 			}
@@ -1366,24 +1378,24 @@ func (e *Editor) drawEditor() {
 				e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
 			}
 
-            // Choose correct line for indicators: use original line number when in diff view
-            usedLineNum := lineNum
-            if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
-                if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
-                    dl := diffLines[wl.LogicalLineNum]
-                    // For @current side: use RightLine; for @HEAD no indicators will be drawn anyway
-                    if dl.RightLine >= 0 {
-                        usedLineNum = dl.RightLine + 1
-                    }
-                }
-            }
-            // Draw git indicators only for buffers backed by a real file (skip @HEAD)
-            if e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
-                // Draw git change indicators in the first gutter column
-                e.drawGutterGitIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
-                // Draw diagnostics in the second gutter column
-                e.drawGutterDiagnosticsIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
-            }
+			// Choose correct line for indicators: use original line number when in diff view
+			usedLineNum := lineNum
+			if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
+					dl := diffLines[wl.LogicalLineNum]
+					// For @current side: use RightLine; for @HEAD no indicators will be drawn anyway
+					if dl.RightLine >= 0 {
+						usedLineNum = dl.RightLine + 1
+					}
+				}
+			}
+			// Draw git indicators only for buffers backed by a real file (skip @HEAD)
+			if e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
+				// Draw git change indicators in the first gutter column
+				e.drawGutterGitIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+				// Draw diagnostics in the second gutter column
+				e.drawGutterDiagnosticsIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+			}
 			_ = e.perfTracker.ReportSince("drawEditor.lineNumber", lnTimer)
 		} else {
 			// Fill line number area with spaces for wrapped lines
@@ -1412,21 +1424,21 @@ func (e *Editor) drawEditor() {
 		if !iter.IsEOF() {
 			// Frame-local tokens cache per logical line
 			var lineTokens []syntax.Token
-            if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-                // Lazily initialize cache map on first use; kept local to this draw call
-                if lineTokensCache == nil {
-                    lineTokensCache = make(map[int][]syntax.Token)
-                }
-                if tks, ok := lineTokensCache[wl.LogicalLineNum]; ok {
-                    lineTokens = tks
-                } else {
-                    // Compute once per logical line per frame
-                    tTok := e.perfTracker.Start()
-                    lineTokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-                    _ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
-                    lineTokensCache[wl.LogicalLineNum] = lineTokens
-                }
-            }
+			if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+				// Lazily initialize cache map on first use; kept local to this draw call
+				if lineTokensCache == nil {
+					lineTokensCache = make(map[int][]syntax.Token)
+				}
+				if tks, ok := lineTokensCache[wl.LogicalLineNum]; ok {
+					lineTokens = tks
+				} else {
+					// Compute once per logical line per frame
+					tTok := e.perfTracker.Start()
+					lineTokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+					_ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
+					lineTokensCache[wl.LogicalLineNum] = lineTokens
+				}
+			}
 			// Draw the wrapped line segment using cached tokens if available
 			drawSeg := e.perfTracker.Start()
 			e.drawWrappedLine(iter, wl, lineTokens, lineNumberWidth, screenY)
