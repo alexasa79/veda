@@ -981,59 +981,59 @@ type Client struct {
 
 // AlignedLine represents one aligned diff row returned by proxy
 type AlignedLine struct {
-    Tag   string `json:"tag"`
-    Left  string `json:"left"`
-    Right string `json:"right"`
+	Tag   string `json:"tag"`
+	Left  string `json:"left"`
+	Right string `json:"right"`
 }
 
 // ComputeTextDiff requests high-quality alignment from the proxy
 func (pm *ProxyManager) ComputeTextDiff(left, right string) ([]AlignedLine, error) {
-    client, _, err := pm.getClient("")
-    if err != nil {
-        return nil, err
-    }
-    return client.ComputeTextDiff(left, right)
+	client, _, err := pm.getClient("")
+	if err != nil {
+		return nil, err
+	}
+	return client.ComputeTextDiff(left, right)
 }
 
 // ComputeTextDiff on the client
 func (c *Client) ComputeTextDiff(left, right string) ([]AlignedLine, error) {
-    c.requestID++
-    request := JSONRPCRequest{
-        Method: "compute_text_diff",
-        Params: map[string]interface{}{
-            "left":  left,
-            "right": right,
-        },
-        ID: c.requestID,
-    }
-    response, err := c.sendRequestWithTimeout(request)
-    if err != nil {
-        return nil, err
-    }
-    if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
-        return nil, fmt.Errorf("proxy error: %s", errorMsg)
-    }
-    if result, ok := response["result"].(map[string]interface{}); ok {
-        if success, ok := result["success"].(bool); ok && success {
-            if items, ok := result["aligned"].([]interface{}); ok {
-                out := make([]AlignedLine, 0, len(items))
-                for _, it := range items {
-                    if m, ok := it.(map[string]interface{}); ok {
-                        out = append(out, AlignedLine{
-                            Tag:  getString(m, "tag"),
-                            Left: getString(m, "left"),
-                            Right: getString(m, "right"),
-                        })
-                    }
-                }
-                return out, nil
-            }
-        }
-        if msg, ok := result["error"].(string); ok && msg != "" {
-            return nil, errors.New(msg)
-        }
-    }
-    return nil, fmt.Errorf("invalid proxy response")
+	c.requestID++
+	request := JSONRPCRequest{
+		Method: "compute_text_diff",
+		Params: map[string]interface{}{
+			"left":  left,
+			"right": right,
+		},
+		ID: c.requestID,
+	}
+	response, err := c.sendRequestWithTimeout(request)
+	if err != nil {
+		return nil, err
+	}
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok && success {
+			if items, ok := result["aligned"].([]interface{}); ok {
+				out := make([]AlignedLine, 0, len(items))
+				for _, it := range items {
+					if m, ok := it.(map[string]interface{}); ok {
+						out = append(out, AlignedLine{
+							Tag:   getString(m, "tag"),
+							Left:  getString(m, "left"),
+							Right: getString(m, "right"),
+						})
+					}
+				}
+				return out, nil
+			}
+		}
+		if msg, ok := result["error"].(string); ok && msg != "" {
+			return nil, errors.New(msg)
+		}
+	}
+	return nil, fmt.Errorf("invalid proxy response")
 }
 
 // getNextRequestID safely increments and returns the next request ID

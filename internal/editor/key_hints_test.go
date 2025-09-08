@@ -221,14 +221,14 @@ func TestGetAvailableKeyHints(t *testing.T) {
 		gHints := widgets.GetAvailableKeyHints(te.keyMapper, gSeq, commands.NormalMode, commandDescs, categoryDescs)
 
 		t.Logf("After pressing 'g', found %d hints:", len(gHints))
-        for i, hint := range gHints {
-            t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
-            // After updates, 'g space' is bound to git staging line toggle,
-            // so the hint should reflect that command rather than a category.
-            if hint.Key == "space" && hint.Description != "toggle staging line" {
-                t.Errorf("Expected 'space' key to have 'toggle staging line' description, got '%s'", hint.Description)
-            }
-        }
+		for i, hint := range gHints {
+			t.Logf("  Hint %d: Key='%s', Description='%s'", i, hint.Key, hint.Description)
+			// After updates, 'g space' is bound to git staging line toggle,
+			// so the hint should reflect that command rather than a category.
+			if hint.Key == "space" && hint.Description != "toggle staging line" {
+				t.Errorf("Expected 'space' key to have 'toggle staging line' description, got '%s'", hint.Description)
+			}
+		}
 
 		// Test what happens when you press "g space"
 		gSpaceSeq := []commands.Key{

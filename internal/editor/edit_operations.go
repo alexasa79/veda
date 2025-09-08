@@ -49,7 +49,6 @@ func (e *Editor) openLineBelow(args []string) error {
 	// Move cursor to end of indentation
 	e.CurrentBuffer().CursorX = len(autoIndent.IndentStr)
 
-
 	// Enter insert mode
 	e.switchToInsertMode()
 	// Start tracking insert mode changes
@@ -137,7 +136,6 @@ func (e *Editor) openLineAbove(args []string) error {
 
 	// Move cursor to end of indentation
 	e.CurrentBuffer().CursorX = len(autoIndent.IndentStr)
-
 
 	// Enter insert mode
 	e.switchToInsertMode()
@@ -501,7 +499,6 @@ func (e *Editor) insertNewline(args []string) error {
 
 	// Move cursor to end of indentation
 	e.CurrentBuffer().CursorX = finalCursorX
-
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {

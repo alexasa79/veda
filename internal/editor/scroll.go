@@ -6,107 +6,107 @@ import (
 
 // scroll ensures the cursor is visible within the viewport with appropriate margins
 func (e *Editor) scroll() {
-    t0 := e.perfTracker.Start()
+	t0 := e.perfTracker.Start()
 
-    // Skip scrolling for empty windows
-    if e.CurrentBuffer() == nil {
-        return
-    }
+	// Skip scrolling for empty windows
+	if e.CurrentBuffer() == nil {
+		return
+	}
 
-    // Perform wrap-aware scrolling using the active window region for sizing.
-    // Temporarily compute visual metrics inside a windowScreen matching the
-    // active window, so CalculateWrappedLines/GetCursorVisualPosition reflect
-    // the pane width/height (important for diff/narrow panes).
-    realScreen := e.screen
-    if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
-        win := e.windows[e.activeWindow]
-        sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
-        e.screen = sub
-    }
+	// Perform wrap-aware scrolling using the active window region for sizing.
+	// Temporarily compute visual metrics inside a windowScreen matching the
+	// active window, so CalculateWrappedLines/GetCursorVisualPosition reflect
+	// the pane width/height (important for diff/narrow panes).
+	realScreen := e.screen
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+		win := e.windows[e.activeWindow]
+		sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+		e.screen = sub
+	}
 
-    // Ensure we restore the real screen after computing/mutating view
-    defer func() { e.screen = realScreen }()
+	// Ensure we restore the real screen after computing/mutating view
+	defer func() { e.screen = realScreen }()
 
-    // Visual-space parameters for margins
-    visibleHeight := e.getVisibleHeight()
-    if visibleHeight < 1 {
-        visibleHeight = 1
-    }
+	// Visual-space parameters for margins
+	visibleHeight := e.getVisibleHeight()
+	if visibleHeight < 1 {
+		visibleHeight = 1
+	}
 
-    // Context lines reduce the effective top scroll offset
-    ctx := 0
-    if e.CurrentBuffer() != nil {
-        ctx = len(e.CurrentBuffer().ContextCache)
-    }
-    topScrollOffset := e.config.ScrollOffset - ctx
-    if topScrollOffset < 0 {
-        topScrollOffset = 0
-    }
+	// Context lines reduce the effective top scroll offset
+	ctx := 0
+	if e.CurrentBuffer() != nil {
+		ctx = len(e.CurrentBuffer().ContextCache)
+	}
+	topScrollOffset := e.config.ScrollOffset - ctx
+	if topScrollOffset < 0 {
+		topScrollOffset = 0
+	}
 
-    // Fast-path logical alignment for the case where PageUp/PageDown jumped
-    // the cursor outside the current view: if the cursor's logical line is
-    // above the current top, reposition the view top near the cursor first,
-    // then apply wrap-aware fine adjustments below. This prevents a frame
-    // where content appears stuck while status/context move.
-    topLine := e.CurrentBuffer().ViewIterator.LineNumber()
-    cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
-    if cursorLine < topLine {
-        desiredTop := cursorLine - topScrollOffset
-        if desiredTop < 0 {
-            desiredTop = 0
-        }
-        e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredTop)
-    }
+	// Fast-path logical alignment for the case where PageUp/PageDown jumped
+	// the cursor outside the current view: if the cursor's logical line is
+	// above the current top, reposition the view top near the cursor first,
+	// then apply wrap-aware fine adjustments below. This prevents a frame
+	// where content appears stuck while status/context move.
+	topLine := e.CurrentBuffer().ViewIterator.LineNumber()
+	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
+	if cursorLine < topLine {
+		desiredTop := cursorLine - topScrollOffset
+		if desiredTop < 0 {
+			desiredTop = 0
+		}
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredTop)
+	}
 
-    // Compute current visual cursor row (relative to view) using wrapping
-    visCursorY, _ := e.GetCursorVisualPosition()
+	// Compute current visual cursor row (relative to view) using wrapping
+	visCursorY, _ := e.GetCursorVisualPosition()
 
-    // Scroll up to satisfy top margin in visual rows
-    if visCursorY < topScrollOffset {
-        moveBatch := e.perfTracker.Start()
-        // Move view up one logical line at a time until the margin is satisfied
-        // or we reach the beginning of the buffer.
-        for steps := 0; steps < 4096; steps++ { // safety bound
-            if visCursorY >= topScrollOffset {
-                break
-            }
-            // Do not move above the first line
-            if e.CurrentBuffer().ViewIterator.LineNumber() == 0 {
-                break
-            }
-            step := e.perfTracker.Start()
-            e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Previous()
-            _ = e.perfTracker.ReportSince("scroll.step.prev", step)
-            // Recompute visual cursor
-            visCursorY, _ = e.GetCursorVisualPosition()
-        }
-        _ = e.perfTracker.ReportSince("scroll.move.up.batch", moveBatch)
-    }
+	// Scroll up to satisfy top margin in visual rows
+	if visCursorY < topScrollOffset {
+		moveBatch := e.perfTracker.Start()
+		// Move view up one logical line at a time until the margin is satisfied
+		// or we reach the beginning of the buffer.
+		for steps := 0; steps < 4096; steps++ { // safety bound
+			if visCursorY >= topScrollOffset {
+				break
+			}
+			// Do not move above the first line
+			if e.CurrentBuffer().ViewIterator.LineNumber() == 0 {
+				break
+			}
+			step := e.perfTracker.Start()
+			e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Previous()
+			_ = e.perfTracker.ReportSince("scroll.step.prev", step)
+			// Recompute visual cursor
+			visCursorY, _ = e.GetCursorVisualPosition()
+		}
+		_ = e.perfTracker.ReportSince("scroll.move.up.batch", moveBatch)
+	}
 
-    // Scroll down to satisfy bottom margin in visual rows
-    if visCursorY >= visibleHeight-e.config.ScrollOffset {
-        moveBatch := e.perfTracker.Start()
-        for steps := 0; steps < 4096; steps++ { // safety bound
-            if visCursorY < visibleHeight-e.config.ScrollOffset {
-                break
-            }
-            // Stop if advancing view would move beyond EOF
-            // Compute maximum allowed top line in logical units
-            maxTop := e.CurrentBuffer().LineCount - visibleHeight
-            if maxTop < 0 {
-                maxTop = 0
-            }
-            if e.CurrentBuffer().ViewIterator.LineNumber() >= maxTop {
-                break
-            }
-            step := e.perfTracker.Start()
-            e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Next()
-            _ = e.perfTracker.ReportSince("scroll.step.next", step)
-            visCursorY, _ = e.GetCursorVisualPosition()
-        }
-        _ = e.perfTracker.ReportSince("scroll.move.down.batch", moveBatch)
-    }
-    e.perfTracker.ReportSince("scroll.core", t0)
+	// Scroll down to satisfy bottom margin in visual rows
+	if visCursorY >= visibleHeight-e.config.ScrollOffset {
+		moveBatch := e.perfTracker.Start()
+		for steps := 0; steps < 4096; steps++ { // safety bound
+			if visCursorY < visibleHeight-e.config.ScrollOffset {
+				break
+			}
+			// Stop if advancing view would move beyond EOF
+			// Compute maximum allowed top line in logical units
+			maxTop := e.CurrentBuffer().LineCount - visibleHeight
+			if maxTop < 0 {
+				maxTop = 0
+			}
+			if e.CurrentBuffer().ViewIterator.LineNumber() >= maxTop {
+				break
+			}
+			step := e.perfTracker.Start()
+			e.CurrentBuffer().ViewIterator = e.CurrentBuffer().ViewIterator.Next()
+			_ = e.perfTracker.ReportSince("scroll.step.next", step)
+			visCursorY, _ = e.GetCursorVisualPosition()
+		}
+		_ = e.perfTracker.ReportSince("scroll.move.down.batch", moveBatch)
+	}
+	e.perfTracker.ReportSince("scroll.core", t0)
 }
 
 // scrollToShowAtTop positions the view so the cursor line appears at ScrollOffset from the top

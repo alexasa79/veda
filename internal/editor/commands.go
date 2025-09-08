@@ -109,7 +109,7 @@ func (e *Editor) registerCommands() {
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition, false, true)
 	e.commandRegistry.Register("go-to-definition-new-window", e.goToDefinitionNewWindow, false, true)
-	
+
 	// Git commands
 	e.commandRegistry.Register("git-blame-line", e.gitBlameCurrentLine, false, false)
 	e.commandRegistry.Register("git-show-commit", e.gitShowCommit, false, false)
@@ -167,7 +167,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("unindent-line", e.unindentLine, true, true)             // Apply to all cursors
 	e.commandRegistry.Register("reindent-line", e.reindentLine, true, true)             // Apply to all cursors
 	e.commandRegistry.Register("reindent-expression", e.reindentExpression, true, true) // Apply to all cursors
-	
+
 	// Multi-cursor alignment
 	e.commandRegistry.Register("align-cursors", e.alignCursors, false, true) // Aligns all cursors to rightmost position
 

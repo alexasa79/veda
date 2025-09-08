@@ -130,15 +130,15 @@ func TestCaseTransform_VisualMode_Selection(t *testing.T) {
 // Repeat with '.' should replay last case transform at cursor
 func TestCaseTransform_RepeatDot(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "foo bar baz")
-    // Uppercase the first word using Alt+U
-    te.SetCursorPosition(1, 0) // on 'o' in foo
-    if seq, err := commands.ParseKeySequence("alt+u"); err == nil {
-        for _, k := range seq {
-            te.handleEvent(&events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod})
-        }
-    } else {
-        t.Fatalf("failed to parse key sequence: %v", err)
-    }
+	// Uppercase the first word using Alt+U
+	te.SetCursorPosition(1, 0) // on 'o' in foo
+	if seq, err := commands.ParseKeySequence("alt+u"); err == nil {
+		for _, k := range seq {
+			te.handleEvent(&events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod})
+		}
+	} else {
+		t.Fatalf("failed to parse key sequence: %v", err)
+	}
 	AssertBufferEquals(t, te, "FOO bar baz")
 
 	// Move to start of next word and press '.'

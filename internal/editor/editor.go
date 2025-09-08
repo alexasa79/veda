@@ -41,7 +41,6 @@ type VirtualCursor struct {
 	Y int // Line number in the buffer
 }
 
-
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen Screen
@@ -131,10 +130,10 @@ type Editor struct {
 	flashStartChar int   // Start char of flashed region
 	flashEndLine   int   // End line of flashed region
 	flashEndChar   int   // End char of flashed region
-    flashEndTime   int64 // When to stop flashing (unix millis)
+	flashEndTime   int64 // When to stop flashing (unix millis)
 
-    // Bracketed paste capture buffer (collects runes during PasteEvent)
-    pasteBuffer strings.Builder
+	// Bracketed paste capture buffer (collects runes during PasteEvent)
+	pasteBuffer strings.Builder
 
 	// Matching pair highlight (applies to current buffer only)
 	matchBuf  *buffer.Buffer // Buffer this match applies to (nil if none)
@@ -653,8 +652,8 @@ func (e *Editor) render() {
 		win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
 		// Do not special-case EOF here; EOF is a valid state for empty buffers
 		win.Buffer.CursorX = win.CursorX
-        e.SetCurrentBuffer(win.Buffer)
-        // (debug instrumentation removed)
+		e.SetCurrentBuffer(win.Buffer)
+		// (debug instrumentation removed)
 		// Ensure per-buffer highlighter is initialized and parsed
 		if e.CurrentBuffer().Highlighter != nil {
 			if e.CurrentBuffer().IsInternal {
@@ -811,46 +810,46 @@ func (e *Editor) render() {
 // handleEvent processes a single event in normal (non-overlay) mode
 func (e *Editor) handleEvent(ev events.Event) {
 	switch ev := ev.(type) {
-case *events.PasteEvent:
-    if ev.Start {
-        e.inPasteMode = true
-        // Reset paste capture buffer for this bracketed paste session
-        e.pasteBuffer.Reset()
-    } else {
-        // End paste: exit paste mode and perform a single flush
-        e.inPasteMode = false
-        // If we captured paste content for editor text (not search/command),
-        // apply it in one shot, distributing across cursors when multi-line.
-        pasted := e.pasteBuffer.String()
-        if pasted != "" {
-            // In search/command mode, pasteBuffer stays unused because we route
-            // runes to the widget directly; here we handle text modes.
-            if e.mode != commands.SearchMode && e.mode != commands.CommandMode {
-                if len(e.virtualCursors) > 0 {
-                    // Multi-cursor: distribute paste buffer across cursors
-                    _ = e.pasteForAllCursorsWithContent(pasted, func(content string) error { return e.pasteBeforeCursor(content) })
-                } else {
-                    // Single cursor: insert at cursor position
-                    _ = e.pasteBeforeCursor(pasted)
-                    // If in insert mode and this is a character-wise paste, advance cursor one step
-                    if e.mode == commands.InsertMode && !strings.Contains(pasted, "\n") && e.CurrentBuffer() != nil {
-                        line := e.CurrentBuffer().CursorIterator.Line()
-                        if e.CurrentBuffer().CursorX < len(line) {
-                            e.CurrentBuffer().CursorX++
-                        }
-                    }
-                }
-            }
-            e.pasteBuffer.Reset()
-        }
-        // Re-parse syntax highlighting once
-        e.updateSyntaxHighlighting()
-        // Notify LSP once
-        e.notifyLSPFileChange()
-        // Render once
-        e.render()
-    }
-    return
+	case *events.PasteEvent:
+		if ev.Start {
+			e.inPasteMode = true
+			// Reset paste capture buffer for this bracketed paste session
+			e.pasteBuffer.Reset()
+		} else {
+			// End paste: exit paste mode and perform a single flush
+			e.inPasteMode = false
+			// If we captured paste content for editor text (not search/command),
+			// apply it in one shot, distributing across cursors when multi-line.
+			pasted := e.pasteBuffer.String()
+			if pasted != "" {
+				// In search/command mode, pasteBuffer stays unused because we route
+				// runes to the widget directly; here we handle text modes.
+				if e.mode != commands.SearchMode && e.mode != commands.CommandMode {
+					if len(e.virtualCursors) > 0 {
+						// Multi-cursor: distribute paste buffer across cursors
+						_ = e.pasteForAllCursorsWithContent(pasted, func(content string) error { return e.pasteBeforeCursor(content) })
+					} else {
+						// Single cursor: insert at cursor position
+						_ = e.pasteBeforeCursor(pasted)
+						// If in insert mode and this is a character-wise paste, advance cursor one step
+						if e.mode == commands.InsertMode && !strings.Contains(pasted, "\n") && e.CurrentBuffer() != nil {
+							line := e.CurrentBuffer().CursorIterator.Line()
+							if e.CurrentBuffer().CursorX < len(line) {
+								e.CurrentBuffer().CursorX++
+							}
+						}
+					}
+				}
+				e.pasteBuffer.Reset()
+			}
+			// Re-parse syntax highlighting once
+			e.updateSyntaxHighlighting()
+			// Notify LSP once
+			e.notifyLSPFileChange()
+			// Render once
+			e.render()
+		}
+		return
 	case *events.KeyEvent:
 		// Any key press hides transient info banner if active
 		if e.transientInfoActive {
@@ -905,39 +904,39 @@ case *events.PasteEvent:
 			return
 		}
 		// Fast-path for paste mode: route runes/enter to the active input target
-        if e.inPasteMode {
-            if ev.Key == events.KeyRune {
-                // If we're in a modal input (search/command), send characters there
-                switch e.mode {
-                case commands.SearchMode:
-                    e.searchLine.HandleKey(ev)
-                    return
-                case commands.CommandMode:
-                    e.commandLine.HandleKey(ev)
-                    return
-                default:
-                    // Editor text input (capture into paste buffer for deferred apply)
-                    e.pasteBuffer.WriteRune(ev.Rune)
-                    return
-                }
-            }
-            if ev.Key == events.KeyEnter {
-                // In paste mode, treat Enter as a newline in the paste stream unless
-                // we're in a modal input; for modals, delegate as before.
-                switch e.mode {
-                case commands.SearchMode:
-                    e.handleSearchMode(ev)
-                    return
-                case commands.CommandMode:
-                    e.handleCommandMode(ev)
-                    return
-                default:
-                    e.pasteBuffer.WriteRune('\n')
-                    return
-                }
-            }
-            // Allow Escape to cancel paste early or other control keys pass through
-        }
+		if e.inPasteMode {
+			if ev.Key == events.KeyRune {
+				// If we're in a modal input (search/command), send characters there
+				switch e.mode {
+				case commands.SearchMode:
+					e.searchLine.HandleKey(ev)
+					return
+				case commands.CommandMode:
+					e.commandLine.HandleKey(ev)
+					return
+				default:
+					// Editor text input (capture into paste buffer for deferred apply)
+					e.pasteBuffer.WriteRune(ev.Rune)
+					return
+				}
+			}
+			if ev.Key == events.KeyEnter {
+				// In paste mode, treat Enter as a newline in the paste stream unless
+				// we're in a modal input; for modals, delegate as before.
+				switch e.mode {
+				case commands.SearchMode:
+					e.handleSearchMode(ev)
+					return
+				case commands.CommandMode:
+					e.handleCommandMode(ev)
+					return
+				default:
+					e.pasteBuffer.WriteRune('\n')
+					return
+				}
+			}
+			// Allow Escape to cancel paste early or other control keys pass through
+		}
 		// Handle completion menu navigation if visible
 		if e.mode == commands.InsertMode && e.completionMenu.IsVisible() {
 			handled := e.handleCompletionMenuKey(ev)
@@ -2549,10 +2548,10 @@ func (e *Editor) setLastChange(entry buffer.HistoryEntry) {
 		return
 	}
 	e.lastCommand = nil // Clear operator+text object command for other cases
-    // Clear simple command unless it was just set (indent/unindent/reindent, case-transform set it right before calling this)
-    if e.lastSimpleCommand != "indent-line" && e.lastSimpleCommand != "unindent-line" && e.lastSimpleCommand != "reindent-line" && e.lastSimpleCommand != "to-upper" && e.lastSimpleCommand != "to-lower" {
-        e.lastSimpleCommand = ""
-    }
+	// Clear simple command unless it was just set (indent/unindent/reindent, case-transform set it right before calling this)
+	if e.lastSimpleCommand != "indent-line" && e.lastSimpleCommand != "unindent-line" && e.lastSimpleCommand != "reindent-line" && e.lastSimpleCommand != "to-upper" && e.lastSimpleCommand != "to-lower" {
+		e.lastSimpleCommand = ""
+	}
 }
 
 // Undo/Redo commands
@@ -3327,34 +3326,34 @@ func (e *Editor) handlePendingPath() {
 
 // setFlashHighlight sets a temporary highlight for a text range
 func (e *Editor) setFlashHighlight(startLine, startChar, endLine, endChar int) {
-    e.flashStartLine = startLine
-    e.flashStartChar = startChar
-    e.flashEndLine = endLine
-    e.flashEndChar = endChar
-    e.flashEndTime = time.Now().UnixMilli() + 500 // Flash for 500ms
+	e.flashStartLine = startLine
+	e.flashStartChar = startChar
+	e.flashEndLine = endLine
+	e.flashEndChar = endChar
+	e.flashEndTime = time.Now().UnixMilli() + 500 // Flash for 500ms
 
-    // Schedule an async render when the flash should expire to force a redraw
-    // This replaces the old periodic ticker and ensures the highlight disappears.
-    deadline := e.flashEndTime // capture the intended end timestamp
-    delay := time.Until(time.UnixMilli(deadline))
-    if delay < 0 {
-        delay = 0
-    }
-    go func(ch chan events.Event, d time.Duration, endAt int64) {
-        time.Sleep(d)
-        // Use an 'apply' event to clear the highlight exactly at expiry
-        // even if no further user events arrive. Guard with the captured
-        // deadline to avoid clearing a newer flash.
-        ch <- events.NewCustomEvent("apply", func(ed *Editor) {
-            if ed.flashEndTime == endAt {
-                ed.flashStartLine = -1
-                ed.flashStartChar = -1
-                ed.flashEndLine = -1
-                ed.flashEndChar = -1
-                ed.flashEndTime = 0
-            }
-        })
-    }(e.asyncEvents, delay, deadline)
+	// Schedule an async render when the flash should expire to force a redraw
+	// This replaces the old periodic ticker and ensures the highlight disappears.
+	deadline := e.flashEndTime // capture the intended end timestamp
+	delay := time.Until(time.UnixMilli(deadline))
+	if delay < 0 {
+		delay = 0
+	}
+	go func(ch chan events.Event, d time.Duration, endAt int64) {
+		time.Sleep(d)
+		// Use an 'apply' event to clear the highlight exactly at expiry
+		// even if no further user events arrive. Guard with the captured
+		// deadline to avoid clearing a newer flash.
+		ch <- events.NewCustomEvent("apply", func(ed *Editor) {
+			if ed.flashEndTime == endAt {
+				ed.flashStartLine = -1
+				ed.flashStartChar = -1
+				ed.flashEndLine = -1
+				ed.flashEndChar = -1
+				ed.flashEndTime = 0
+			}
+		})
+	}(e.asyncEvents, delay, deadline)
 }
 
 // clearFlashHighlight clears the flash highlight if it has expired

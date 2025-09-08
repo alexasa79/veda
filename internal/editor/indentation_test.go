@@ -192,26 +192,26 @@ func TestIndentationDetection(t *testing.T) {
 		}
 	})
 
-    t.Run("mixed tabs and spaces picks majority", func(t *testing.T) {
-        // Prefer the indentation style with majority support among reliable lines.
-        content := strings.Join([]string{
-            "void function1() {",
-            "    doSomething();",     // reliable (ends with ;) and 4 spaces
-            "    doAnother();",       // reliable (ends with ;) and 4 spaces
-            "}",
-            "",
-            "void function2() {",
-            "\tdoWithTabs();",       // reliable (ends with ;) and tab
-            "}",
-        }, "\n")
+	t.Run("mixed tabs and spaces picks majority", func(t *testing.T) {
+		// Prefer the indentation style with majority support among reliable lines.
+		content := strings.Join([]string{
+			"void function1() {",
+			"    doSomething();", // reliable (ends with ;) and 4 spaces
+			"    doAnother();",   // reliable (ends with ;) and 4 spaces
+			"}",
+			"",
+			"void function2() {",
+			"\tdoWithTabs();", // reliable (ends with ;) and tab
+			"}",
+		}, "\n")
 
-        te := NewTestEditorWithContent(80, 24, content)
-        info := te.detectIndentation()
+		te := NewTestEditorWithContent(80, 24, content)
+		info := te.detectIndentation()
 
-        if info.Type != config.IndentSpaces || info.Width != 4 {
-            t.Errorf("Expected IndentSpaces width 4 (majority), got %v width %d", info.Type, info.Width)
-        }
-    })
+		if info.Type != config.IndentSpaces || info.Width != 4 {
+			t.Errorf("Expected IndentSpaces width 4 (majority), got %v width %d", info.Type, info.Width)
+		}
+	})
 
 	t.Run("single space indents", func(t *testing.T) {
 		// Some old or unusual code might use single spaces

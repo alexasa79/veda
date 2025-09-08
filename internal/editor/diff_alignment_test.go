@@ -61,17 +61,17 @@ func TestDiffAlignment_AddedLines(t *testing.T) {
 		t.Errorf("Expected %d lines, got %d", expectedLines, len(result.LeftLines))
 	}
 
-    // Check line types: left shows missing line as Deleted (filler), right shows Added (real)
-    expectedLeft := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineContext}
-    expectedRight := []DiffLineType{DiffLineContext, DiffLineAdded, DiffLineContext}
-    for i := range expectedLeft {
-        if result.LeftLines[i].LineType != expectedLeft[i] {
-            t.Errorf("Left line %d: expected type %v, got %v", i, expectedLeft[i], result.LeftLines[i].LineType)
-        }
-        if result.RightLines[i].LineType != expectedRight[i] {
-            t.Errorf("Right line %d: expected type %v, got %v", i, expectedRight[i], result.RightLines[i].LineType)
-        }
-    }
+	// Check line types: left shows missing line as Deleted (filler), right shows Added (real)
+	expectedLeft := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineContext}
+	expectedRight := []DiffLineType{DiffLineContext, DiffLineAdded, DiffLineContext}
+	for i := range expectedLeft {
+		if result.LeftLines[i].LineType != expectedLeft[i] {
+			t.Errorf("Left line %d: expected type %v, got %v", i, expectedLeft[i], result.LeftLines[i].LineType)
+		}
+		if result.RightLines[i].LineType != expectedRight[i] {
+			t.Errorf("Right line %d: expected type %v, got %v", i, expectedRight[i], result.RightLines[i].LineType)
+		}
+	}
 
 	// Check that middle line is empty on left side (filler)
 	if result.LeftLines[1].Content != "" {
@@ -107,17 +107,17 @@ func TestDiffAlignment_DeletedLines(t *testing.T) {
 		t.Errorf("Expected %d lines, got %d", expectedLines, len(result.LeftLines))
 	}
 
-    // Check line types: left shows present (deleted in current) as Deleted (real), right shows Added (filler)
-    expectedLeft := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineContext}
-    expectedRight := []DiffLineType{DiffLineContext, DiffLineAdded, DiffLineContext}
-    for i := range expectedLeft {
-        if result.LeftLines[i].LineType != expectedLeft[i] {
-            t.Errorf("Left line %d: expected type %v, got %v", i, expectedLeft[i], result.LeftLines[i].LineType)
-        }
-        if result.RightLines[i].LineType != expectedRight[i] {
-            t.Errorf("Right line %d: expected type %v, got %v", i, expectedRight[i], result.RightLines[i].LineType)
-        }
-    }
+	// Check line types: left shows present (deleted in current) as Deleted (real), right shows Added (filler)
+	expectedLeft := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineContext}
+	expectedRight := []DiffLineType{DiffLineContext, DiffLineAdded, DiffLineContext}
+	for i := range expectedLeft {
+		if result.LeftLines[i].LineType != expectedLeft[i] {
+			t.Errorf("Left line %d: expected type %v, got %v", i, expectedLeft[i], result.LeftLines[i].LineType)
+		}
+		if result.RightLines[i].LineType != expectedRight[i] {
+			t.Errorf("Right line %d: expected type %v, got %v", i, expectedRight[i], result.RightLines[i].LineType)
+		}
+	}
 
 	// Check that middle line has content on left side
 	if result.LeftLines[1].Content != "line2" {
@@ -232,15 +232,15 @@ func TestDiffAlignment_EmptyFiles(t *testing.T) {
 			t.Errorf("Expected %d lines, got %d", expectedLines, len(result.LeftLines))
 		}
 
-        // Original empty: left shows all Deleted fillers; right has Added real lines
-        for i, line := range result.LeftLines {
-            if line.LineType != DiffLineDeleted {
-                t.Errorf("Left line %d should be deleted filler, got %v", i, line.LineType)
-            }
-            if !line.IsFillerLine {
-                t.Errorf("Left line %d should be filler", i)
-            }
-        }
+		// Original empty: left shows all Deleted fillers; right has Added real lines
+		for i, line := range result.LeftLines {
+			if line.LineType != DiffLineDeleted {
+				t.Errorf("Left line %d should be deleted filler, got %v", i, line.LineType)
+			}
+			if !line.IsFillerLine {
+				t.Errorf("Left line %d should be filler", i)
+			}
+		}
 	})
 
 	t.Run("modified empty", func(t *testing.T) {
@@ -255,24 +255,24 @@ func TestDiffAlignment_EmptyFiles(t *testing.T) {
 			t.Errorf("Expected %d lines, got %d", expectedLines, len(result.LeftLines))
 		}
 
-    // All right-side lines should be Added filler (missing in modified)
-    for i, line := range result.RightLines {
-        if line.LineType != DiffLineAdded {
-            t.Errorf("Right line %d should be added filler, got %v", i, line.LineType)
-        }
-        if !line.IsFillerLine {
-            t.Errorf("Right line %d should be filler", i)
-        }
-    }
-    // All left-side lines should be Deleted real
-    for i, line := range result.LeftLines {
-        if line.LineType != DiffLineDeleted {
-            t.Errorf("Left line %d should be deleted real, got %v", i, line.LineType)
-        }
-        if line.IsFillerLine {
-            t.Errorf("Left line %d should not be filler", i)
-        }
-    }
+		// All right-side lines should be Added filler (missing in modified)
+		for i, line := range result.RightLines {
+			if line.LineType != DiffLineAdded {
+				t.Errorf("Right line %d should be added filler, got %v", i, line.LineType)
+			}
+			if !line.IsFillerLine {
+				t.Errorf("Right line %d should be filler", i)
+			}
+		}
+		// All left-side lines should be Deleted real
+		for i, line := range result.LeftLines {
+			if line.LineType != DiffLineDeleted {
+				t.Errorf("Left line %d should be deleted real, got %v", i, line.LineType)
+			}
+			if line.IsFillerLine {
+				t.Errorf("Left line %d should not be filler", i)
+			}
+		}
 	})
 }
 

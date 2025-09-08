@@ -1,9 +1,9 @@
 package editor
 
 import (
-    "strings"
-    "veda/internal/buffer"
-    "veda/internal/config"
+	"strings"
+	"veda/internal/buffer"
+	"veda/internal/config"
 )
 
 // gcd calculates the greatest common divisor
@@ -132,119 +132,123 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 		}
 	}
 
-    // If we saw neither tabs nor spaces on reliable lines, use defaults
-    if tabCount == 0 && len(spaceCounts) == 0 {
-        return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
-    }
+	// If we saw neither tabs nor spaces on reliable lines, use defaults
+	if tabCount == 0 && len(spaceCounts) == 0 {
+		return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
+	}
 
-    // Count frequency of each indentation level (for spaces)
-    freqMap := make(map[int]int)
-    for _, spaces := range spaceCounts {
-        freqMap[spaces]++
-    }
+	// Count frequency of each indentation level (for spaces)
+	freqMap := make(map[int]int)
+	for _, spaces := range spaceCounts {
+		freqMap[spaces]++
+	}
 
-    // Weighted vote among standard widths {2,4,8}
-    // score(width) = 2*exactCount + multiplesCount
-    candidates := []int{2, 4, 8}
-    bestWidth := e.config.DefaultIndentWidth
-    bestScore := 0
+	// Weighted vote among standard widths {2,4,8}
+	// score(width) = 2*exactCount + multiplesCount
+	candidates := []int{2, 4, 8}
+	bestWidth := e.config.DefaultIndentWidth
+	bestScore := 0
 
-    if len(spaceCounts) > 0 {
-        bestScore = -1
-        for _, width := range candidates {
-            exact := 0
-            multiples := 0
-            for spaces, count := range freqMap {
-                if spaces == width {
-                    exact += count
-                }
-                if spaces%width == 0 {
-                    multiples += count
-                }
-            }
-            score := 2*exact + multiples
-            if score > bestScore || (score == bestScore && width > bestWidth) {
-                bestScore = score
-                bestWidth = width
-            }
-        }
-        // If no candidate gained any support, treat as zero support
-        if bestScore < 0 {
-            bestScore = 0
-        }
-    }
+	if len(spaceCounts) > 0 {
+		bestScore = -1
+		for _, width := range candidates {
+			exact := 0
+			multiples := 0
+			for spaces, count := range freqMap {
+				if spaces == width {
+					exact += count
+				}
+				if spaces%width == 0 {
+					multiples += count
+				}
+			}
+			score := 2*exact + multiples
+			if score > bestScore || (score == bestScore && width > bestWidth) {
+				bestScore = score
+				bestWidth = width
+			}
+		}
+		// If no candidate gained any support, treat as zero support
+		if bestScore < 0 {
+			bestScore = 0
+		}
+	}
 
-    // Decide between Tabs vs. Spaces by majority-style comparison.
-    // Tabs win only if they have strictly more support than the best spaces width.
-    // On ties, or when spaces have equal/greater support, choose spaces.
-    if tabCount > bestScore {
-        return buffer.IndentationInfo{Type: config.IndentTabs, Width: 1}
-    }
-    if bestScore > 0 {
-        return buffer.IndentationInfo{Type: config.IndentSpaces, Width: bestWidth}
-    }
+	// Decide between Tabs vs. Spaces by majority-style comparison.
+	// Tabs win only if they have strictly more support than the best spaces width.
+	// On ties, or when spaces have equal/greater support, choose spaces.
+	if tabCount > bestScore {
+		return buffer.IndentationInfo{Type: config.IndentTabs, Width: 1}
+	}
+	if bestScore > 0 {
+		return buffer.IndentationInfo{Type: config.IndentSpaces, Width: bestWidth}
+	}
 
-    // Fallback if both have zero support
-    return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
+	// Fallback if both have zero support
+	return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
 }
 
 // getCurrentLineIndentInfo returns detailed indentation info for the line at the iterator
 func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.LineIndentInfo {
-    info := e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
-    // For display purposes, treat lines aligned under an open paren/bracket as continuation
-    // even if their indentation is a clean multiple of the width. Map to nearest base level.
-    if e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
-        curLine := iter.LineNumber()
-        // Scan backward for base and paren continuation
-        baseLevel, cont := detectParenContinuationBaseLevel(e.CurrentBuffer(), curLine)
-        if cont {
-            info.IsContinuation = true
-            if baseLevel < info.Level {
-                info.Level = baseLevel
-            }
-        }
-    }
-    return info
+	info := e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
+	// For display purposes, treat lines aligned under an open paren/bracket as continuation
+	// even if their indentation is a clean multiple of the width. Map to nearest base level.
+	if e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
+		curLine := iter.LineNumber()
+		// Scan backward for base and paren continuation
+		baseLevel, cont := detectParenContinuationBaseLevel(e.CurrentBuffer(), curLine)
+		if cont {
+			info.IsContinuation = true
+			if baseLevel < info.Level {
+				info.Level = baseLevel
+			}
+		}
+	}
+	return info
 }
 
 // detectParenContinuationBaseLevel scans backward from curLine to find the nearest
 // non-continuation line (base) and determines whether there is an outstanding
 // parenthesis/bracket continuation across those lines. Returns the base level and a flag.
 func detectParenContinuationBaseLevel(b *buffer.Buffer, curLine int) (int, bool) {
-    if curLine >= b.LineCount {
-        curLine = b.LineCount - 1
-    }
-    baseLevel := 0
-    // Track () and [] balance across lines
-    balance := 0
-    foundBase := false
-    for ln := curLine; ln >= 0; ln-- {
-        it := buffer.NewBufferIteratorAtLine(b, ln)
-        if it.IsEOF() { continue }
-        raw := it.Line()
-        if strings.TrimSpace(raw) == "" { continue }
-        // Count delimiters (ignore braces)
-        for i := 0; i < len(raw); i++ {
-            switch raw[i] {
-            case '(', '[':
-                balance++
-            case ')', ']':
-                balance--
-            }
-        }
-        ii := b.GetLineIndentInfo(raw)
-        if !ii.IsContinuation && !foundBase {
-            baseLevel = ii.Level
-            foundBase = true
-            // Do not break; we still want to include delimiters on the base line
-        }
-        if foundBase && ln < curLine-20 { // small safety window to avoid long scans
-            break
-        }
-    }
-    // Consider it a continuation if there are more opens than closes
-    if foundBase && balance > 0 {
-        return baseLevel, true
-    }
-    return baseLevel, false
+	if curLine >= b.LineCount {
+		curLine = b.LineCount - 1
+	}
+	baseLevel := 0
+	// Track () and [] balance across lines
+	balance := 0
+	foundBase := false
+	for ln := curLine; ln >= 0; ln-- {
+		it := buffer.NewBufferIteratorAtLine(b, ln)
+		if it.IsEOF() {
+			continue
+		}
+		raw := it.Line()
+		if strings.TrimSpace(raw) == "" {
+			continue
+		}
+		// Count delimiters (ignore braces)
+		for i := 0; i < len(raw); i++ {
+			switch raw[i] {
+			case '(', '[':
+				balance++
+			case ')', ']':
+				balance--
+			}
+		}
+		ii := b.GetLineIndentInfo(raw)
+		if !ii.IsContinuation && !foundBase {
+			baseLevel = ii.Level
+			foundBase = true
+			// Do not break; we still want to include delimiters on the base line
+		}
+		if foundBase && ln < curLine-20 { // small safety window to avoid long scans
+			break
+		}
+	}
+	// Consider it a continuation if there are more opens than closes
+	if foundBase && balance > 0 {
+		return baseLevel, true
+	}
+	return baseLevel, false
 }

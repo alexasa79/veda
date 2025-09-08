@@ -196,7 +196,7 @@ func (e *Editor) gitShowCommitInternal(openInNewWindow bool) error {
 		// Switch in current window
 		e.switchToBuffer(commitBuffer)
 	}
-	
+
 	// Clear any existing search
 	e.clearSearch()
 

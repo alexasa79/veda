@@ -1,11 +1,11 @@
 package editor
 
 import (
-    "fmt"
-    "strings"
-    "veda/internal/buffer"
-    "veda/internal/clipboard"
-    "veda/internal/commands"
+	"fmt"
+	"strings"
+	"veda/internal/buffer"
+	"veda/internal/clipboard"
+	"veda/internal/commands"
 )
 
 // yankForAllCursors performs yank operation for all cursors (primary + virtual)
@@ -87,26 +87,26 @@ func (e *Editor) yankLineForCursor() (string, error) {
 // If content is non-empty, it is used directly (e.g., bracketed paste capture).
 // If content is empty, it falls back to reading from the system clipboard.
 func (e *Editor) pasteForAllCursorsWithContent(content string, pasteFunc func(string) error) error {
-    // Resolve content to paste
-    if content == "" {
-        // Get clipboard content
-        clip, err := clipboard.Paste()
-        if err != nil {
-            LL.Error("Failed to paste from clipboard: %v", err)
-            return nil
-        }
-        content = clip
-    }
+	// Resolve content to paste
+	if content == "" {
+		// Get clipboard content
+		clip, err := clipboard.Paste()
+		if err != nil {
+			LL.Error("Failed to paste from clipboard: %v", err)
+			return nil
+		}
+		content = clip
+	}
 
-    if content == "" {
-        return nil
-    }
+	if content == "" {
+		return nil
+	}
 
 	// Check if we have virtual cursors
-    if len(e.virtualCursors) == 0 {
-        // No virtual cursors, just do normal paste
-        return pasteFunc(content)
-    }
+	if len(e.virtualCursors) == 0 {
+		// No virtual cursors, just do normal paste
+		return pasteFunc(content)
+	}
 
 	// Split content into lines
 	lines := strings.Split(content, "\n")
@@ -155,8 +155,8 @@ func (e *Editor) pasteForAllCursorsWithContent(content string, pasteFunc func(st
 		// Restore view iterator
 		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
-    return nil
-}
+		return nil
+	}
 
 	// Multi-line paste: distribute lines among cursors
 	// We need to collect all cursor positions first, then paste in document order
@@ -211,23 +211,23 @@ func (e *Editor) pasteForAllCursorsWithContent(content string, pasteFunc func(st
 		}
 	}
 
-    // Determine the primary cursor index in sorted order
-    primarySortedIndex := -1
-    for idx, c := range cursors {
-        if !c.isVirtual {
-            primarySortedIndex = idx
-            break
-        }
-    }
+	// Determine the primary cursor index in sorted order
+	primarySortedIndex := -1
+	for idx, c := range cursors {
+		if !c.isVirtual {
+			primarySortedIndex = idx
+			break
+		}
+	}
 
-    // Track the primary's final position as reported by PasteCommand, and adjust
-    // for subsequent insertions above it.
-    primaryFinalY, primaryFinalX := primaryLineNum, primaryCursorX
-    primaryCaptured := false
+	// Track the primary's final position as reported by PasteCommand, and adjust
+	// for subsequent insertions above it.
+	primaryFinalY, primaryFinalX := primaryLineNum, primaryCursorX
+	primaryCaptured := false
 
-    // Now paste lines in reverse order to maintain positions
-    for i := len(cursors) - 1; i >= 0; i-- {
-        cursor := cursors[i]
+	// Now paste lines in reverse order to maintain positions
+	for i := len(cursors) - 1; i >= 0; i-- {
+		cursor := cursors[i]
 
 		// Find which sorted position this cursor is at
 		sortedIndex := -1
@@ -246,52 +246,52 @@ func (e *Editor) pasteForAllCursorsWithContent(content string, pasteFunc func(st
 		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursor.y)
 		e.CurrentBuffer().CursorX = cursor.x
 
-        // Paste the lines for this cursor
-        textToPaste := strings.Join(linesToPaste[sortedIndex], "\n")
-        insertedLines := strings.Count(textToPaste, "\n")
+		// Paste the lines for this cursor
+		textToPaste := strings.Join(linesToPaste[sortedIndex], "\n")
+		insertedLines := strings.Count(textToPaste, "\n")
 
-        // Paste at this position
-        if err := pasteFunc(textToPaste); err != nil {
-            LL.Debug("Failed to paste at cursor: %v", err)
-        }
+		// Paste at this position
+		if err := pasteFunc(textToPaste); err != nil {
+			LL.Debug("Failed to paste at cursor: %v", err)
+		}
 
-        // If we're in insert mode and this is a character-wise paste (no newlines),
-        // advance cursor one position so subsequent typing appends after the pasted text.
-        if e.mode == commands.InsertMode && !strings.Contains(textToPaste, "\n") {
-            line := e.CurrentBuffer().CursorIterator.Line()
-            if e.CurrentBuffer().CursorX < len(line) {
-                e.CurrentBuffer().CursorX++
-            } else {
-                // Already at end-of-line; keep as is
-            }
-        }
+		// If we're in insert mode and this is a character-wise paste (no newlines),
+		// advance cursor one position so subsequent typing appends after the pasted text.
+		if e.mode == commands.InsertMode && !strings.Contains(textToPaste, "\n") {
+			line := e.CurrentBuffer().CursorIterator.Line()
+			if e.CurrentBuffer().CursorX < len(line) {
+				e.CurrentBuffer().CursorX++
+			} else {
+				// Already at end-of-line; keep as is
+			}
+		}
 
-        // Update cursor position if it's a virtual cursor; capture primary position
-        if cursor.isVirtual {
-            e.virtualCursors[cursor.index].Y = e.CurrentBuffer().CursorIterator.LineNumber()
-            e.virtualCursors[cursor.index].X = e.CurrentBuffer().CursorX
-        } else {
-            primaryFinalY = e.CurrentBuffer().CursorIterator.LineNumber()
-            primaryFinalX = e.CurrentBuffer().CursorX
-            primaryCaptured = true
-        }
+		// Update cursor position if it's a virtual cursor; capture primary position
+		if cursor.isVirtual {
+			e.virtualCursors[cursor.index].Y = e.CurrentBuffer().CursorIterator.LineNumber()
+			e.virtualCursors[cursor.index].X = e.CurrentBuffer().CursorX
+		} else {
+			primaryFinalY = e.CurrentBuffer().CursorIterator.LineNumber()
+			primaryFinalX = e.CurrentBuffer().CursorX
+			primaryCaptured = true
+		}
 
-        // If we've already pasted at the primary and are now pasting above it,
-        // adjust the primary's final Y by the number of inserted lines here.
-        if primaryCaptured && i < primarySortedIndex {
-            primaryFinalY += insertedLines
-        }
-    }
+		// If we've already pasted at the primary and are now pasting above it,
+		// adjust the primary's final Y by the number of inserted lines here.
+		if primaryCaptured && i < primarySortedIndex {
+			primaryFinalY += insertedLines
+		}
+	}
 
-    // Restore primary cursor to its final position
-    if primaryFinalY < 0 {
-        primaryFinalY = 0
-    }
-    if primaryFinalY >= e.CurrentBuffer().LineCount {
-        primaryFinalY = e.CurrentBuffer().LineCount - 1
-    }
-    e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryFinalY)
-    e.CurrentBuffer().CursorX = primaryFinalX
+	// Restore primary cursor to its final position
+	if primaryFinalY < 0 {
+		primaryFinalY = 0
+	}
+	if primaryFinalY >= e.CurrentBuffer().LineCount {
+		primaryFinalY = e.CurrentBuffer().LineCount - 1
+	}
+	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), primaryFinalY)
+	e.CurrentBuffer().CursorX = primaryFinalX
 
 	// Sync updated virtual cursor positions for current buffer (no structural
 	// changes here, but keep map/shim consistent across operations)

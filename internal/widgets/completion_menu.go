@@ -69,17 +69,17 @@ func (c *CompletionMenu) Show() {
 
 // Hide makes the menu invisible
 func (c *CompletionMenu) Hide() {
-    c.visible = false
+	c.visible = false
 }
 
 // IsVisible returns whether the menu is currently visible
 func (c *CompletionMenu) IsVisible() bool {
-    return c.visible
+	return c.visible
 }
 
 // AllItems returns the complete, unfiltered set of items
 func (c *CompletionMenu) AllItems() []CompletionItem {
-    return c.allItems
+	return c.allItems
 }
 
 // MoveUp moves selection up

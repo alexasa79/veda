@@ -47,21 +47,21 @@ func (e *Editor) caseTransform(toUpper bool) error {
 		charPos := startByte - lineStart
 
 		// Replace old with transformed as a single composite unit and mark as lastChange
-        if e.CurrentBuffer().History != nil {
-            // Mark this as a repeatable simple command prior to recording lastChange
-            if toUpper {
-                e.lastSimpleCommand = "to-upper"
-            } else {
-                e.lastSimpleCommand = "to-lower"
-            }
-            composite := buffer.NewCompositeEntry("case-transform")
-            composite.Add(buffer.NewDeleteTextEntry(lineNum, charPos, old))
-            composite.Add(buffer.NewInsertTextEntry(lineNum, charPos, transformed))
-            if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
-                return err
-            } else if executed != nil {
-                e.setLastChange(executed)
-            }
+		if e.CurrentBuffer().History != nil {
+			// Mark this as a repeatable simple command prior to recording lastChange
+			if toUpper {
+				e.lastSimpleCommand = "to-upper"
+			} else {
+				e.lastSimpleCommand = "to-lower"
+			}
+			composite := buffer.NewCompositeEntry("case-transform")
+			composite.Add(buffer.NewDeleteTextEntry(lineNum, charPos, old))
+			composite.Add(buffer.NewInsertTextEntry(lineNum, charPos, transformed))
+			if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
+				return err
+			} else if executed != nil {
+				e.setLastChange(executed)
+			}
 		} else {
 			// Fallback without history
 			_ = buffer.NewDeleteTextEntry(lineNum, charPos, old).Execute(e.CurrentBuffer())
@@ -118,21 +118,21 @@ func (e *Editor) caseTransform(toUpper bool) error {
 	}
 
 	// Replace using history
-    if e.CurrentBuffer().History != nil {
-        // Mark this as a repeatable simple command prior to recording lastChange
-        if toUpper {
-            e.lastSimpleCommand = "to-upper"
-        } else {
-            e.lastSimpleCommand = "to-lower"
-        }
-        composite := buffer.NewCompositeEntry("case-transform-word")
-        composite.Add(buffer.NewDeleteTextEntry(lineNum, start, old))
-        composite.Add(buffer.NewInsertTextEntry(lineNum, start, transformed))
-        if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
-            return err
-        } else if executed != nil {
-            e.setLastChange(executed)
-        }
+	if e.CurrentBuffer().History != nil {
+		// Mark this as a repeatable simple command prior to recording lastChange
+		if toUpper {
+			e.lastSimpleCommand = "to-upper"
+		} else {
+			e.lastSimpleCommand = "to-lower"
+		}
+		composite := buffer.NewCompositeEntry("case-transform-word")
+		composite.Add(buffer.NewDeleteTextEntry(lineNum, start, old))
+		composite.Add(buffer.NewInsertTextEntry(lineNum, start, transformed))
+		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
+			return err
+		} else if executed != nil {
+			e.setLastChange(executed)
+		}
 	} else {
 		_ = buffer.NewDeleteTextEntry(lineNum, start, old).Execute(e.CurrentBuffer())
 		_ = buffer.NewInsertTextEntry(lineNum, start, transformed).Execute(e.CurrentBuffer())
