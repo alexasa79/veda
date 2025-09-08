@@ -134,37 +134,36 @@ func (b *Buffer) CalculateAutoIndent(line string, cursorCol int) AutoIndentInfo 
 		}
 	}
 
-	// Rule 4: Balanced delimiters - return to block-level indentation
-	// When parentheses are balanced, we're likely at the end of a statement/expression
-	// and should return to the containing block's indentation level
-	if balance == 0 {
-		actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8)
+    // Rule 4: Balanced delimiters - return to block-level indentation
+    // When parentheses are balanced, we're likely at the end of a statement/expression
+    // and should return to the containing block's indentation level
+    if balance == 0 {
+        actualIndent := baseIndentInfo.Spaces + (baseIndentInfo.Tabs * 8)
 
-		// If current indentation is not a standard indent level (parameter alignment),
-		// return to closest block level
-		if actualIndent > 0 && actualIndent%b.Indentation.Width != 0 {
-			// For parameter alignment, the block level should be based on the nearest
-			// standard indent level at or below the current indentation
-			blockLevel := actualIndent / b.Indentation.Width // Integer division rounds down
+        // If current indentation is not a standard indent level (parameter alignment),
+        // return to the base block level (the nearest non-continuation line above)
+        if actualIndent > 0 && actualIndent%b.Indentation.Width != 0 {
+            // Find the nearest non-continuation line above to infer the base level
+            baseLevel := b.findPreviousNonContinuationLevel(b.CursorIterator.LineNumber())
+            indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
+            visualCol := baseLevel * b.Indentation.Width
 
-			// Special case: if we have parameter alignment (like 11 spaces for 4-space indent),
-			// we should return to the same level as the line that started the alignment
-			// For example: 11 spaces parameter alignment → return to L1 (4 spaces)
-			// This assumes the function call started at L1
-			if blockLevel > 0 {
-				blockLevel-- // Go one level up from the calculated level
-			}
-
-			indentStr := strings.Repeat(b.GetIndentationString(), blockLevel)
-			visualCol := blockLevel * b.Indentation.Width
-
-			return AutoIndentInfo{
-				Column:    visualCol,
-				IndentStr: indentStr,
-			}
-		}
-		// If already at a standard indent level, maintain it (fall through)
-	}
+            return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+        }
+        // Even when the current line's indentation is a clean multiple of indent width
+        // (e.g., deep alignment that happens to land on a multiple), if we are completing
+        // a parenthesis/bracket continuation, return to the base (non-continuation) level.
+        if actualIndent > 0 && actualIndent%b.Indentation.Width == 0 {
+            curLine := b.CursorIterator.LineNumber()
+            baseLevel := b.findPreviousNonContinuationLevel(curLine)
+            if baseLevel < baseIndentInfo.Level && b.hasParenContinuationSinceBase(curLine-1, baseLevel) {
+                indentStr := strings.Repeat(b.GetIndentationString(), baseLevel)
+                visualCol := baseLevel * b.Indentation.Width
+                return AutoIndentInfo{Column: visualCol, IndentStr: indentStr}
+            }
+        }
+        // If already at a standard indent level, maintain it (fall through)
+    }
 
 	// Python safeguard: even if earlier checks missed, indent after ':'
 	if isPythonFile(b.FilePath) && endsWithColonBeforeCursor(line, cursorCol) {
@@ -437,6 +436,65 @@ func (b *Buffer) calculateIndentForEmptyLine() AutoIndentInfo {
 		Column:    visualCol,
 		IndentStr: indentStr,
 	}
+}
+
+// findPreviousNonContinuationLevel scans backward from the given line (inclusive)
+// to find the nearest non-empty line whose indentation is a standard level
+// (i.e., not a continuation alignment). Returns that line's Level, or 0 if none.
+func (b *Buffer) findPreviousNonContinuationLevel(fromLine int) int {
+    if fromLine >= b.LineCount {
+        fromLine = b.LineCount - 1
+    }
+    for lineNum := fromLine; lineNum >= 0; lineNum-- {
+        it := NewBufferIteratorAtLine(b, lineNum)
+        if it.IsEOF() {
+            continue
+        }
+        raw := it.Line()
+        if strings.TrimSpace(raw) == "" {
+            continue
+        }
+        ii := b.GetLineIndentInfo(raw)
+        if !ii.IsContinuation {
+            return ii.Level
+        }
+    }
+    return 0
+}
+
+// hasParenContinuationSinceBase scans backward from fromLine down to the nearest
+// non-continuation line at the given baseLevel and determines whether there is
+// an open parenthesis/bracket context spanning those lines (i.e., more '(' or '['
+// than ')' or ']'). It ignores braces.
+func (b *Buffer) hasParenContinuationSinceBase(fromLine int, baseLevel int) bool {
+    if fromLine >= b.LineCount {
+        fromLine = b.LineCount - 1
+    }
+    balance := 0
+    for ln := fromLine; ln >= 0; ln-- {
+        it := NewBufferIteratorAtLine(b, ln)
+        if it.IsEOF() {
+            continue
+        }
+        raw := it.Line()
+        if strings.TrimSpace(raw) == "" {
+            continue
+        }
+        // Count () and [] only
+        for i := 0; i < len(raw); i++ {
+            switch raw[i] {
+            case '(' , '[':
+                balance++
+            case ')', ']':
+                balance--
+            }
+        }
+        ii := b.GetLineIndentInfo(raw)
+        if !ii.IsContinuation && ii.Level == baseLevel {
+            break
+        }
+    }
+    return balance > 0
 }
 
 // isAfterStatementEndCharacter checks if the cursor is positioned after a character

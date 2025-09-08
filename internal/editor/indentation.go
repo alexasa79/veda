@@ -1,9 +1,9 @@
 package editor
 
 import (
-	"strings"
-	"veda/internal/buffer"
-	"veda/internal/config"
+    "strings"
+    "veda/internal/buffer"
+    "veda/internal/config"
 )
 
 // gcd calculates the greatest common divisor
@@ -190,5 +190,30 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 
 // getCurrentLineIndentInfo returns detailed indentation info for the line at the iterator
 func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.LineIndentInfo {
-	return e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
+    info := e.CurrentBuffer().GetCurrentLineIndentInfo(iter)
+    // For display purposes, map continuation-aligned lines to their base block level
+    // so that status shows e.g., L1+C instead of L12+C for parameter alignment.
+    if info.IsContinuation && e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
+        // Scan backward to find nearest non-continuation line and use its level
+        curLine := iter.LineNumber()
+        if curLine >= e.CurrentBuffer().LineCount {
+            curLine = e.CurrentBuffer().LineCount - 1
+        }
+        for ln := curLine; ln >= 0; ln-- {
+            it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
+            if it.IsEOF() {
+                continue
+            }
+            raw := it.Line()
+            if strings.TrimSpace(raw) == "" {
+                continue
+            }
+            ii := e.CurrentBuffer().GetLineIndentInfo(raw)
+            if !ii.IsContinuation {
+                info.Level = ii.Level
+                break
+            }
+        }
+    }
+    return info
 }
