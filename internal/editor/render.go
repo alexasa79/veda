@@ -533,17 +533,17 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 	// Get syntax tokens for this line using iterator position
 	// Always use the buffer's own highlighter
-	var tokens []syntax.Token
-	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-		tTok := e.perfTracker.Start()
-		tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-		_ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
-	}
+    var tokens []syntax.Token
+    if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+        tTok := e.perfTracker.Start()
+        tokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+        _ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
+    }
 
-	// If we have syntax tokens and a file-backed buffer, use syntax highlighting path
-	if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
-		// Use syntax highlighting (this will be handled below)
-	} else if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
+    // If we have syntax tokens, use syntax highlighting path (even for virtual buffers like @HEAD)
+    if len(tokens) > 0 && e.CurrentBuffer() != nil {
+        // Use syntax highlighting (this will be handled below)
+    } else if e.CurrentBuffer() == nil || len(tokens) == 0 {
 		x = startX
 		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
 		// Fill rest of line if we have background
@@ -603,9 +603,9 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		}
 	}
 
-	// Handle syntax highlighting path
-	if len(tokens) > 0 && e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
-		// Draw with syntax highlighting
+    // Handle syntax highlighting path
+    if len(tokens) > 0 && e.CurrentBuffer() != nil {
+        // Draw with syntax highlighting
 		x = startX
 		lastEnd := 0
 
@@ -647,12 +647,12 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			suffix := originalLine[lastEnd:]
 			x += e.drawText(x, screenY, normalStyle, suffix, lineStartOffset+lastEnd, searchMatches, lineIndex, lastEnd, trailingStart)
 		}
-	} else {
-		// Use standard rendering for files without syntax highlighting
-		// No tokens, draw with normal style
-		x = startX
-		x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
-	}
+    } else {
+        // Use standard rendering when no syntax tokens are available
+        // No tokens, draw with normal style
+        x = startX
+        x += e.drawText(startX, screenY, normalStyle, originalLine, lineStartOffset, searchMatches, lineIndex, 0, trailingStart)
+    }
 
 	// Fill rest of line with background if needed
 	if hasBg {
@@ -855,11 +855,11 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 		}
 	}
 
-	// If no highlighter, draw without syntax highlighting
-	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil || !e.CurrentBuffer().HasFile() {
-		x := startX
-		// Draw the wrapped segment
-		segmentOffset := lineStartOffset + segStart
+    // If no highlighter, draw without syntax highlighting
+    if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
+        x := startX
+        // Draw the wrapped segment
+        segmentOffset := lineStartOffset + segStart
 		// Clamp wl.Text usage to the clamped segment range
 		textSegment := originalLine[segStart:segEnd]
 		x += e.drawText(startX, screenY, normalStyle, textSegment, segmentOffset, searchMatches, lineIndex, segStart, trailingStart)
@@ -1419,21 +1419,21 @@ func (e *Editor) drawEditor() {
 		if !iter.IsEOF() {
 			// Frame-local tokens cache per logical line
 			var lineTokens []syntax.Token
-			if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil && e.CurrentBuffer().HasFile() {
-				// Lazily initialize cache map on first use; kept local to this draw call
-				if lineTokensCache == nil {
-					lineTokensCache = make(map[int][]syntax.Token)
-				}
-				if tks, ok := lineTokensCache[wl.LogicalLineNum]; ok {
-					lineTokens = tks
-				} else {
-					// Compute once per logical line per frame
-					tTok := e.perfTracker.Start()
-					lineTokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
-					_ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
-					lineTokensCache[wl.LogicalLineNum] = lineTokens
-				}
-			}
+            if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+                // Lazily initialize cache map on first use; kept local to this draw call
+                if lineTokensCache == nil {
+                    lineTokensCache = make(map[int][]syntax.Token)
+                }
+                if tks, ok := lineTokensCache[wl.LogicalLineNum]; ok {
+                    lineTokens = tks
+                } else {
+                    // Compute once per logical line per frame
+                    tTok := e.perfTracker.Start()
+                    lineTokens = e.CurrentBuffer().Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+                    _ = e.perfTracker.ReportSince("render.getTokensForLine", tTok)
+                    lineTokensCache[wl.LogicalLineNum] = lineTokens
+                }
+            }
 			// Draw the wrapped line segment using cached tokens if available
 			drawSeg := e.perfTracker.Start()
 			e.drawWrappedLine(iter, wl, lineTokens, lineNumberWidth, screenY)
