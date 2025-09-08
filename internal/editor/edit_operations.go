@@ -238,10 +238,10 @@ func (e *Editor) joinLines(args []string) error {
 
 // insertTab inserts appropriate indentation at the current cursor position
 func (e *Editor) insertTab(args []string) error {
-    // Close completion menu on explicit Tab in insert mode
-    e.hideCompletionMenu()
-    // Get the buffer's indentation string
-    indentStr := e.CurrentBuffer().GetIndentationString()
+	// Close completion menu on explicit Tab in insert mode
+	e.hideCompletionMenu()
+	// Get the buffer's indentation string
+	indentStr := e.CurrentBuffer().GetIndentationString()
 
 	// Remember current position
 	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
