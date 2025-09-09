@@ -224,6 +224,14 @@ func findBaseLevelFromOpenDelimiterForEditor(b *buffer.Buffer, curLine int) (int
 		if strings.TrimSpace(raw) == "" {
 			continue
 		}
+
+		// Ignore any closing delimiters that appear on the current line.
+		// We want a line that contains a same-line closing ')' to still be
+		// treated as a continuation of the open delimiter from a previous line
+		// for display purposes (show base level with +C).
+		if ln == curLine {
+			continue
+		}
 		for i := len(raw) - 1; i >= 0; i-- {
 			switch raw[i] {
 			case ')':
