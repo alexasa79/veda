@@ -1805,9 +1805,15 @@ func (e *Editor) drawStatusBar() {
 func (e *Editor) drawErrorLine() {
 	width, _ := e.screen.Size()
 
+	// Compute the bottom Y for overlays: above signature if present, else above status bar
+	bottomY := e.getStatusBarY() - 1
+	if e.CurrentBuffer() != nil && e.CurrentBuffer().CurrentSignature != nil {
+		bottomY--
+	}
+
 	// Transient info banner has highest priority and persists until next key press
 	if e.transientInfoActive && e.transientInfoMessage != "" {
-		bannerY := e.getStatusBarY() - 1
+		bannerY := bottomY
 		style := e.config.Theme.GetStyle(e.config.Theme.NotificationInfo)
 		for i := 0; i < width; i++ {
 			e.screen.SetContent(i, bannerY, ' ', nil, style)
@@ -1818,7 +1824,7 @@ func (e *Editor) drawErrorLine() {
 
 	// Show temporary banners on top (override diagnostics)
 	if currentMsg, severity := e.errorManager.GetCurrentBanner(); currentMsg != "" {
-		bannerY := e.getStatusBarY() - 1
+		bannerY := bottomY
 		var style ui.Style
 		switch severity {
 		case "info":
@@ -1875,9 +1881,8 @@ func (e *Editor) drawErrorLine() {
 			}
 
 			// Render each line, starting from the bottom and working up
-			statusBarY := e.getStatusBarY()
 			for i, line := range lines {
-				bannerY := statusBarY - len(lines) + i
+				bannerY := bottomY - len(lines) + 1 + i
 
 				// Fill the entire line with background
 				for j := 0; j < width; j++ {
