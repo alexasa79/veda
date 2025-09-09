@@ -2417,6 +2417,8 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 
 				// Store the signature
 				buf.CurrentSignature = help
+				// Update active parameter using our buffer-aware algorithm
+				e.recomputeSignatureActiveParameter(buf)
 				LL.Info("Stored async signature: %s", help.Label)
 			}
 		} else {
