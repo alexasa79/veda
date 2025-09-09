@@ -1,15 +1,34 @@
 package editor
 
-import "veda/internal/commands"
+import (
+	"veda/internal/commands"
+)
 
 // getSignatureY returns the Y position where signature should be drawn
 func (e *Editor) getSignatureY() int {
-	y := e.getStatusBarY() - e.getSignatureLines()
-	// Adjust for error line if present
-	if e.errorManager.GetCurrentError() != "" {
-		y -= 1
+	// Signature should sit directly above the status bar when present.
+	return e.getStatusBarY() - e.getSignatureLines()
+}
+
+// getErrorOverlayLines returns how many lines are currently occupied by
+// banners/diagnostics above the status bar.
+func (e *Editor) getErrorOverlayLines() int {
+	// Transient info banner has highest priority and uses one line
+	if e.transientInfoActive && e.transientInfoMessage != "" {
+		return 1
 	}
-	return y
+	// Current banner (info or error) uses one line while visible
+	if msg, _ := e.errorManager.GetCurrentBanner(); msg != "" {
+		return 1
+	}
+	// Otherwise, diagnostics for the current line may take multiple lines
+	if e.CurrentBuffer() != nil {
+		cursorLine := e.CurrentBuffer().CursorIterator.LineNumber() + 1
+		if diag, ok := e.CurrentBuffer().GetDiagnosticForLine(cursorLine); ok {
+			return e.getDiagnosticLineCount(diag.Message)
+		}
+	}
+	return 0
 }
 
 // getSignatureLines returns the number of lines needed for signature display
