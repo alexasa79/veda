@@ -1927,14 +1927,15 @@ func (e *Editor) drawSignature() {
 
 	LL.Debug("Drawing signature at Y=%d: %s", signatureY, displayText)
 
-	// Find active parameter range
+	// Find active parameter and function name ranges
 	activeStart, activeEnd := e.getActiveParameterRange(sig)
+	nameStart, nameEnd := e.getFunctionNameRange(sig)
 
 	// Draw the signature
 	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-		e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+		e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd, nameStart, nameEnd)
 	} else {
-		e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd)
+		e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd, nameStart, nameEnd)
 	}
 }
 
@@ -1983,17 +1984,17 @@ func (e *Editor) getActiveParameterRange(sig *buffer.SignatureHelp) (int, int) {
 	return -1, -1
 }
 
-// drawSignatureWithHighlighting draws the signature with syntax highlighting and bold active parameter
-func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int) {
+// drawSignatureWithHighlighting draws the signature with syntax highlighting and emphasized (bold+underlined) active parameter
+func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.Style, activeStart, activeEnd int, nameStart, nameEnd int) {
 	if e.CurrentBuffer() == nil || e.CurrentBuffer().Highlighter == nil {
-		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd, nameStart, nameEnd)
 		return
 	}
 	tTok := e.perfTracker.Start()
 	tokens := e.CurrentBuffer().Highlighter.GetTokensForString(text)
 	_ = e.perfTracker.ReportSince("render.getTokensForString", tTok)
 	if len(tokens) == 0 {
-		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd)
+		e.drawSignatureWithBold(text, y, baseStyle, activeStart, activeEnd, nameStart, nameEnd)
 		return
 	}
 
@@ -2004,7 +2005,9 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 		// Draw text before token
 		if token.Start > lastEnd {
 			beforeText := text[lastEnd:token.Start]
-			style := e.applyBoldIfInRange(baseStyle, lastEnd, token.Start, activeStart, activeEnd)
+			style := baseStyle
+			style = e.applyNameBoldIfInRange(style, lastEnd, token.Start, nameStart, nameEnd)
+			style = e.applyBoldIfInRange(style, lastEnd, token.Start, activeStart, activeEnd)
 			x += e.drawText(x, y, style, beforeText, 0, nil, -1, 0, -1)
 		}
 
@@ -2014,6 +2017,7 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 			tokenText := text[token.Start:endPos]
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 			tokenStyle = tokenStyle.Background(baseStyle.Bg)
+			tokenStyle = e.applyNameBoldIfInRange(tokenStyle, token.Start, endPos, nameStart, nameEnd)
 			tokenStyle = e.applyBoldIfInRange(tokenStyle, token.Start, endPos, activeStart, activeEnd)
 			x += e.drawText(x, y, tokenStyle, tokenText, 0, nil, -1, 0, -1)
 			lastEnd = endPos
@@ -2023,15 +2027,18 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 	// Draw remaining text
 	if lastEnd < len(text) {
 		remainingText := text[lastEnd:]
-		style := e.applyBoldIfInRange(baseStyle, lastEnd, len(text), activeStart, activeEnd)
+		style := baseStyle
+		style = e.applyNameBoldIfInRange(style, lastEnd, len(text), nameStart, nameEnd)
+		style = e.applyBoldIfInRange(style, lastEnd, len(text), activeStart, activeEnd)
 		e.drawText(x, y, style, remainingText, 0, nil, -1, 0, -1)
 	}
 }
 
-// drawSignatureWithBold draws the signature with bold active parameter but no syntax highlighting
-func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activeStart, activeEnd int) {
+// drawSignatureWithBold draws the signature with emphasized (bold+underlined) active parameter but no syntax highlighting
+func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activeStart, activeEnd int, nameStart, nameEnd int) {
 	if activeStart < 0 || activeEnd <= activeStart {
-		e.drawText(0, y, style, text, 0, nil, -1, 0, -1)
+		// Bold the function name if present
+		e.drawTextWithNameBold(0, y, style, text, 0, nameStart, nameEnd)
 		return
 	}
 
@@ -2039,28 +2046,95 @@ func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activ
 
 	// Before active parameter
 	if activeStart > 0 {
-		x += e.drawText(x, y, style, text[:activeStart], 0, nil, -1, 0, -1)
+		x += e.drawTextWithNameBold(x, y, style, text[:activeStart], 0, nameStart, nameEnd)
 	}
 
-	// Active parameter (bold)
+	// Active parameter (bold + underlined)
 	if activeEnd <= len(text) {
-		boldStyle := style
-		boldStyle.Attrs |= ui.AttrBold
-		x += e.drawText(x, y, boldStyle, text[activeStart:activeEnd], 0, nil, -1, 0, -1)
+		emph := style
+		emph.Attrs |= ui.AttrBold | ui.AttrUnderline
+		x += e.drawText(x, y, emph, text[activeStart:activeEnd], 0, nil, -1, 0, -1)
 	}
 
 	// After active parameter
 	if activeEnd < len(text) {
-		e.drawText(x, y, style, text[activeEnd:], 0, nil, -1, 0, -1)
+		x += e.drawTextWithNameBold(x, y, style, text[activeEnd:], activeEnd, nameStart, nameEnd)
 	}
 }
 
-// applyBoldIfInRange applies bold attribute if the range overlaps with the active parameter
+// applyBoldIfInRange applies emphasis (bold + underline) if the range overlaps with the active parameter
 func (e *Editor) applyBoldIfInRange(style ui.Style, start, end, activeStart, activeEnd int) ui.Style {
 	if activeStart >= 0 && e.rangesOverlap(start, end, activeStart, activeEnd) {
+		style.Attrs |= ui.AttrBold | ui.AttrUnderline
+	}
+	return style
+}
+
+// applyNameBoldIfInRange applies bold if [segStart,segEnd) overlaps the function name range
+func (e *Editor) applyNameBoldIfInRange(style ui.Style, segStart, segEnd, nameStart, nameEnd int) ui.Style {
+	if nameStart >= 0 && e.rangesOverlap(segStart, segEnd, nameStart, nameEnd) {
 		style.Attrs |= ui.AttrBold
 	}
 	return style
+}
+
+// drawTextWithNameBold draws segmentText and applies bold to any overlap with [nameStart,nameEnd)
+// baseOffset is the starting offset of segmentText within the full label
+func (e *Editor) drawTextWithNameBold(x, y int, baseStyle ui.Style, segmentText string, baseOffset int, nameStart, nameEnd int) int {
+	if nameStart < 0 || nameEnd <= nameStart {
+		return x + e.drawText(x, y, baseStyle, segmentText, 0, nil, -1, 0, -1)
+	}
+	segLen := len(segmentText)
+	segStart := baseOffset
+	segEnd := baseOffset + segLen
+	if segEnd <= nameStart || segStart >= nameEnd {
+		return x + e.drawText(x, y, baseStyle, segmentText, 0, nil, -1, 0, -1)
+	}
+	// Compute relative indices into segmentText
+	beforeEnd := max(0, nameStart-segStart)
+	nameRelStart := max(0, nameStart-segStart)
+	nameRelEnd := min(segLen, nameEnd-segStart)
+	if beforeEnd > 0 {
+		x += e.drawText(x, y, baseStyle, segmentText[:beforeEnd], 0, nil, -1, 0, -1)
+	}
+	if nameRelEnd > nameRelStart {
+		bold := baseStyle
+		bold.Attrs |= ui.AttrBold
+		x += e.drawText(x, y, bold, segmentText[nameRelStart:nameRelEnd], 0, nil, -1, 0, -1)
+	}
+	if nameRelEnd < segLen {
+		x += e.drawText(x, y, baseStyle, segmentText[nameRelEnd:], 0, nil, -1, 0, -1)
+	}
+	return x
+}
+
+// getFunctionNameRange returns the [start,end) of the function name within the signature label
+func (e *Editor) getFunctionNameRange(sig *buffer.SignatureHelp) (int, int) {
+	if sig == nil || sig.Label == "" {
+		return -1, -1
+	}
+	label := sig.Label
+	idx := strings.Index(label, "(")
+	if idx <= 0 {
+		return -1, -1
+	}
+	i := idx - 1
+	for i >= 0 && (label[i] == ' ' || label[i] == '\t') {
+		i--
+	}
+	end := i + 1
+	for i >= 0 && isIdentChar(label[i]) {
+		i--
+	}
+	start := i + 1
+	if start < end {
+		return start, end
+	}
+	return -1, -1
+}
+
+func isIdentChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == ':' || b == '.'
 }
 
 // rangesOverlap checks if two ranges overlap
