@@ -59,9 +59,13 @@ func getTreeSitterContext(buf *buffer.Buffer, highlighter *syntax.Highlighter, c
 		}
 	}
 
-	// Keep only the last maxLines (closest outer ancestors last)
+	// Reverse so that outer-most ancestors appear first, then inner-most
+	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
+		lines[i], lines[j] = lines[j], lines[i]
+	}
+	// Keep only up to maxLines from the start (outer to inner)
 	if len(lines) > maxLines {
-		lines = lines[len(lines)-maxLines:]
+		lines = lines[:maxLines]
 	}
 	return lines
 }
