@@ -1679,7 +1679,11 @@ func (e *Editor) drawStatusBar() {
 			} else if navContext == "diagnostics" {
 				navText = " [diagnostics] "
 			} else if navContext == "changes" {
-				navText = " [changes] "
+				if cur, total, ok := e.getProjectChangesProgress(); ok {
+					navText = fmt.Sprintf(" [changes %d/%d] ", cur, total)
+				} else {
+					navText = " [changes] "
+				}
 			}
 
 			if navText != "" {

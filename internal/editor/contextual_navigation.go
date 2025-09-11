@@ -235,6 +235,37 @@ func parseProjectChangeLink(line string) (string, int, bool) {
 	return "", 0, false
 }
 
+// getProjectChangesProgress returns (currentIndex, total) of project hunks based
+// on the selection position inside the *Project Changes* buffer. currentIndex is
+// 1-based and counts the number of hunk links up to and including the selected line.
+func (e *Editor) getProjectChangesProgress() (int, int, bool) {
+	buf, exists := e.buffers["*Project Changes*"]
+	if !exists || buf == nil {
+		return 0, 0, false
+	}
+	sel := buf.CursorIterator.LineNumber()
+	total := 0
+	current := 0
+	for i := 0; i < buf.LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		line := iter.Line()
+		if _, _, ok := parseProjectChangeLink(line); ok {
+			total++
+			if i <= sel {
+				current++
+			}
+		}
+	}
+	if total == 0 {
+		return 0, 0, false
+	}
+	// Clamp current to at least 1 when selection is above first link
+	if current == 0 {
+		current = 1
+	}
+	return current, total, true
+}
+
 // nextProjectChange navigates to the next change across the project by opening the
 // referenced file and jumping to the hunk line. Uses the selection position in
 // the *Project Changes* buffer to keep progress.
