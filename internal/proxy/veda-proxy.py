@@ -2509,7 +2509,8 @@ class VedaProxy:
                 logger.debug(f"Generated patch ({len(patch)} bytes):\n{patch[:500]}")
                 
                 # Apply the patch to stage the specific lines
-                cmd = ['git', 'apply', '--cached', '--unidiff-zero', '-']
+                # Try with --recount and --3way for resilience
+                cmd = ['git', 'apply', '--cached', '--unidiff-zero', '--recount', '--3way', '-']
                 result = self._run_shell_command(cmd, cwd=file_path.parent, input=patch)
                 if result.returncode != 0:
                     logger.error(f"Failed to apply patch: {result.stderr}")
@@ -2570,7 +2571,7 @@ class VedaProxy:
                     }
                 
                 # Apply the reverse patch to unstage the specific lines
-                cmd = ['git', 'apply', '--cached', '--reverse', '--unidiff-zero', '-']
+                cmd = ['git', 'apply', '--cached', '--reverse', '--unidiff-zero', '--recount', '--3way', '-']
                 result = self._run_shell_command(cmd, cwd=file_path.parent, input=patch)
                 if result.returncode != 0:
                     logger.error(f"Failed to apply reverse patch: {result.stderr}")
@@ -2655,11 +2656,62 @@ class VedaProxy:
                         new_ln += 1
                     j += 1
 
-                # For each target new-file line, try to build a minimal hunk
+                # First, try to emit grouped hunks for blocks where ALL additions are selected.
+                consumed_adds = set()
+                # Identify non-context blocks
+                bidx = 0
+                while bidx < len(hunk_body):
+                    if hunk_body[bidx][0] == 'context':
+                        bidx += 1
+                        continue
+                    # Collect block
+                    block_dels = []  # List[Tuple[str,int]] (text, old_ln)
+                    block_adds = []  # List[Tuple[str,int]] (text, new_ln)
+                    start_b = bidx
+                    while bidx < len(hunk_body) and hunk_body[bidx][0] != 'context':
+                        typ_b, text_b, o_ln_b, n_ln_b = hunk_body[bidx]
+                        if typ_b == 'del':
+                            block_dels.append((text_b, o_ln_b))
+                        elif typ_b == 'add':
+                            block_adds.append((text_b, n_ln_b))
+                        bidx += 1
+                    # Decide grouping
+                    if block_adds:
+                        add_lines = [n for (_t, n) in block_adds]
+                        all_selected = all(n in target_set for n in add_lines)
+                        if all_selected:
+                            if not result:
+                                result.extend(file_headers)
+                            if block_dels:
+                                old_start_block = block_dels[0][1]
+                                old_count_block = len(block_dels)
+                                new_start_block = block_adds[0][1]
+                                new_count_block = len(block_adds)
+                                hdr = f"@@ -{old_start_block},{old_count_block} +{new_start_block},{new_count_block} @@"
+                                result.append(hdr)
+                                for d_text, _ in block_dels:
+                                    result.append(f"-{d_text}")
+                                for a_text, _ in block_adds:
+                                    result.append(f"+{a_text}")
+                            else:
+                                # Pure insertion block
+                                new_start_block = block_adds[0][1]
+                                new_count_block = len(block_adds)
+                                hdr = f"@@ -{new_start_block-1},0 +{new_start_block},{new_count_block} @@"
+                                result.append(hdr)
+                                for a_text, _ in block_adds:
+                                    result.append(f"+{a_text}")
+                            # Mark additions as consumed so we don't emit per-line hunks
+                            for _t, n in block_adds:
+                                consumed_adds.add(n)
+
+                # For remaining target additions, build minimal per-line hunks
                 for typ, text, o_ln, n_ln in hunk_body:
                     if typ != 'add':
                         continue
                     if n_ln not in target_set:
+                        continue
+                    if n_ln in consumed_adds:
                         continue
                     # Determine if this is a modification (paired with a '-' just before any context)
                     # Find nearest preceding deletion line without crossing a context boundary

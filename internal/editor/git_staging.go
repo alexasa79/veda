@@ -30,10 +30,12 @@ func (e *Editor) toggleStageHunk(args []string) error {
 		// Use diffLineInfo to find run and map to working-file lines (RightLine)
 		diffLines := e.diffLineInfo[buf]
 		if len(diffLines) == 0 {
+			e.ShowError("git: no diff info; cannot stage hunk")
 			return fmt.Errorf("no diff info")
 		}
 		row := buf.CursorIterator.LineNumber()
 		if row < 0 || row >= len(diffLines) {
+			e.ShowError("git: invalid cursor in diff (row=%d of %d)", row, len(diffLines))
 			return fmt.Errorf("invalid cursor position")
 		}
 		// Find run bounds
@@ -68,16 +70,19 @@ func (e *Editor) toggleStageHunk(args []string) error {
 		}
 		sort.Ints(hunkLines)
 		if len(hunkLines) == 0 {
+			e.ShowError("git: no working-file lines in diff hunk at row=%d", row)
 			return fmt.Errorf("no working-file lines in hunk")
 		}
 	} else {
 		if buf.GitChanges == nil {
+			e.ShowError("git: no git changes loaded for buffer path=%s", buf.FilePath)
 			return fmt.Errorf("no git changes in current buffer")
 		}
 		// Build hunk based on git changes arrays
 		currentLine := buf.CursorIterator.LineNumber() + 1
 		hunks := e.getGitChangeHunks()
 		if len(hunks) == 0 {
+			e.ShowError("git: no git change hunks; added=%d modified=%d deleted=%d", len(buf.GitChanges.Added), len(buf.GitChanges.Modified), len(buf.GitChanges.Deleted))
 			return fmt.Errorf("no git changes in current buffer")
 		}
 		var hunkStart, hunkEnd int
@@ -102,6 +107,7 @@ func (e *Editor) toggleStageHunk(args []string) error {
 			}
 		}
 		if !found {
+			e.ShowError("git: cursor not on a git change (cursor=%d, hunks=%v)", currentLine, hunks)
 			return fmt.Errorf("cursor not on a git change")
 		}
 		allChanges := append([]int{}, buf.GitChanges.Added...)
@@ -113,6 +119,7 @@ func (e *Editor) toggleStageHunk(args []string) error {
 			}
 		}
 		if len(hunkLines) == 0 {
+			e.ShowError("git: no lines to stage (hunkStart=%d)", hunkStart)
 			return fmt.Errorf("no lines to stage in hunk")
 		}
 	}
@@ -136,10 +143,19 @@ func (e *Editor) toggleStageHunk(args []string) error {
 		changes, err = e.proxyManager.StageLines(realPath, hunkLines)
 	}
 	if err != nil {
+		e.ShowError("Failed to %s hunk: %v", map[bool]string{true: "unstage", false: "stage"}[staged], err)
 		return fmt.Errorf("failed to %s hunk: %v", map[bool]string{true: "unstage", false: "stage"}[staged], err)
 	}
-	// Update real buffer git changes if present
-	e.updateGitChangesForRealPath(realPath, changes)
+	// Update real buffer git changes if present; if proxy returned nil, force refresh
+	if changes != nil {
+		// Fast path: update from proxy response
+		e.updateGitChangesForRealPath(realPath, changes)
+	} else {
+		// Fallback: force refresh from proxy
+		if fc, err2 := e.proxyManager.GetFile(realPath); err2 == nil {
+			e.updateGitChangesForRealPath(realPath, &fc.Changes)
+		}
+	}
 	return nil
 }
 
@@ -164,6 +180,7 @@ func (e *Editor) toggleStageLine(args []string) error {
 		row := buf.CursorIterator.LineNumber()
 		info := e.diffLineInfo[buf]
 		if row < 0 || row >= len(info) {
+			e.ShowError("git: invalid cursor in diff (row=%d of %d)", row, len(info))
 			return fmt.Errorf("invalid cursor position")
 		}
 		// For @HEAD buffer, use paired current buffer’s RightLine
@@ -178,10 +195,12 @@ func (e *Editor) toggleStageLine(args []string) error {
 		if dl.RightLine >= 0 {
 			line1 = dl.RightLine + 1
 		} else {
+			e.ShowError("git: selected diff row has no working-file line mapping")
 			return fmt.Errorf("current row has no working-file line")
 		}
 	} else {
 		if buf.GitChanges == nil {
+			e.ShowError("git: no git changes loaded for buffer path=%s", buf.FilePath)
 			return fmt.Errorf("no git changes in current buffer")
 		}
 		line1 = buf.CursorIterator.LineNumber() + 1
@@ -202,6 +221,7 @@ func (e *Editor) toggleStageLine(args []string) error {
 			}
 		}
 		if !has {
+			e.ShowError("git: current line %d has no git changes", line1)
 			return fmt.Errorf("current line has no git changes")
 		}
 	}
@@ -220,9 +240,16 @@ func (e *Editor) toggleStageLine(args []string) error {
 		changes, err = e.proxyManager.StageLines(realPath, []int{line1})
 	}
 	if err != nil {
+		e.ShowError("Failed to %s line: %v", map[bool]string{true: "unstage", false: "stage"}[staged], err)
 		return fmt.Errorf("failed to %s line: %v", map[bool]string{true: "unstage", false: "stage"}[staged], err)
 	}
-	e.updateGitChangesForRealPath(realPath, changes)
+	if changes != nil {
+		e.updateGitChangesForRealPath(realPath, changes)
+	} else {
+		if fc, err2 := e.proxyManager.GetFile(realPath); err2 == nil {
+			e.updateGitChangesForRealPath(realPath, &fc.Changes)
+		}
+	}
 	return nil
 }
 
