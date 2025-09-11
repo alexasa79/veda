@@ -1317,6 +1317,12 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 	// Re-parse syntax highlighting
 	e.updateSyntaxHighlighting()
 
+	// If a diff view is open for this file, refresh the aligned diff buffers
+	if path != "" {
+		// Use the freshly reloaded content
+		e.refreshDiffBuffersForRealPath(path, content)
+	}
+
 	// Show success message
 	e.ShowInfo("File reloaded from disk")
 }

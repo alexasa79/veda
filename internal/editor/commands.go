@@ -128,6 +128,10 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("toggle-stage-hunk", e.toggleStageHunk, false, true)
 	e.commandRegistry.Register("toggle-stage-line", e.toggleStageLine, false, true)
 
+	// Git drop (revert to HEAD) operations
+	e.commandRegistry.Register("drop-change-hunk", e.dropChangeHunk, false, true)
+	e.commandRegistry.Register("drop-change-line", e.dropChangeLine, false, true)
+
 	// Buffer commands
 	e.commandRegistry.Register("switch-to-previous-buffer", e.showBufferListWithPrevious, false, false)
 	e.commandRegistry.Register("show-buffer-list-previous", e.showBufferListWithPrevious, false, false) // More descriptive alias

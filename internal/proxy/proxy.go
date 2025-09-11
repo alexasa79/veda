@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.31"
+const ProxyVersion = "1.0.32"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -453,6 +453,26 @@ func (pm *ProxyManager) UnstageLines(path string, lines []int) (*FileChanges, er
 		if _, rerr := pm.reconnect(host); rerr == nil {
 			if client2, _, gerr := pm.getClient(path); gerr == nil {
 				changes, err = client2.UnstageLines(actualPath, lines)
+			}
+		}
+	}
+	return changes, err
+}
+
+// DropLines reverts the specified working-tree lines in a file back to HEAD and returns updated git changes
+func (pm *ProxyManager) DropLines(path string, lines []int) (*FileChanges, error) {
+	client, actualPath, err := pm.getClient(path)
+	if err != nil {
+		return nil, err
+	}
+
+	changes, err := client.DropLines(actualPath, lines)
+	if shouldReconnect(err) {
+		host, _, _ := parseRemotePath(path)
+		pm.reportStatus("Disconnected")
+		if _, rerr := pm.reconnect(host); rerr == nil {
+			if client2, _, gerr := pm.getClient(path); gerr == nil {
+				changes, err = client2.DropLines(actualPath, lines)
 			}
 		}
 	}
@@ -2429,6 +2449,46 @@ func (c *Client) UnstageLines(path string, lines []int) (*FileChanges, error) {
 	}
 
 	return nil, fmt.Errorf("failed to unstage lines")
+}
+
+// DropLines reverts the specified working-tree lines back to HEAD
+func (c *Client) DropLines(path string, lines []int) (*FileChanges, error) {
+	id := c.getNextRequestID()
+	request := JSONRPCRequest{
+		Method: "drop_lines",
+		Params: map[string]interface{}{
+			"path":  path,
+			"lines": lines,
+		},
+		ID: id,
+	}
+
+	response, err := c.sendRequestWithTimeout(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if errorMsg, ok := response["error"].(string); ok && errorMsg != "" {
+		return nil, fmt.Errorf("proxy error: %s", errorMsg)
+	}
+
+	if result, ok := response["result"].(map[string]interface{}); ok {
+		if success, ok := result["success"].(bool); ok {
+			if success {
+				// Parse git changes if present
+				if changesData, ok := result["changes"]; ok {
+					return parseFileChanges(changesData), nil
+				}
+				return nil, nil
+			}
+			// Bubble up proxy error detail if provided
+			if errMsg, ok := result["error"].(string); ok && errMsg != "" {
+				return nil, fmt.Errorf("%s", errMsg)
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to drop lines")
 }
 
 // parseFileChanges parses a FileChanges object from the response data
