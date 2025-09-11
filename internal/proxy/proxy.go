@@ -2373,12 +2373,18 @@ func (c *Client) StageLines(path string, lines []int) (*FileChanges, error) {
 	}
 
 	if result, ok := response["result"].(map[string]interface{}); ok {
-		if success, ok := result["success"].(bool); ok && success {
-			// Parse git changes if present
-			if changesData, ok := result["changes"]; ok {
-				return parseFileChanges(changesData), nil
+		if success, ok := result["success"].(bool); ok {
+			if success {
+				// Parse git changes if present
+				if changesData, ok := result["changes"]; ok {
+					return parseFileChanges(changesData), nil
+				}
+				return nil, nil
 			}
-			return nil, nil
+			// Bubble up proxy error detail if provided
+			if errMsg, ok := result["error"].(string); ok && errMsg != "" {
+				return nil, fmt.Errorf("%s", errMsg)
+			}
 		}
 	}
 
@@ -2407,12 +2413,18 @@ func (c *Client) UnstageLines(path string, lines []int) (*FileChanges, error) {
 	}
 
 	if result, ok := response["result"].(map[string]interface{}); ok {
-		if success, ok := result["success"].(bool); ok && success {
-			// Parse git changes if present
-			if changesData, ok := result["changes"]; ok {
-				return parseFileChanges(changesData), nil
+		if success, ok := result["success"].(bool); ok {
+			if success {
+				// Parse git changes if present
+				if changesData, ok := result["changes"]; ok {
+					return parseFileChanges(changesData), nil
+				}
+				return nil, nil
 			}
-			return nil, nil
+			// Bubble up proxy error detail if provided
+			if errMsg, ok := result["error"].(string); ok && errMsg != "" {
+				return nil, fmt.Errorf("%s", errMsg)
+			}
 		}
 	}
 

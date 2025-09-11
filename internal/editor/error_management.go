@@ -118,18 +118,28 @@ func (e *Editor) getOrCreateMessagesBuffer() *buffer.Buffer {
 func (e *Editor) ShowError(format string, args ...interface{}) {
 	errorMsg := fmt.Sprintf(format, args...)
 
-	// Show in error line
-	e.errorManager.ShowError("%s", errorMsg)
+	// Prettify multi-line errors for the banner: show first line + count of more lines
+	trimmed := strings.TrimSpace(errorMsg)
+	lines := strings.Split(trimmed, "\n")
+	banner := lines[0]
+	if len(lines) > 1 {
+		banner = fmt.Sprintf("%s (+%d more lines)", banner, len(lines)-1)
+	}
 
-	// Log to messages buffer
+	// Show in error line
+	e.errorManager.ShowError("%s", banner)
+
+	// Log full message to messages buffer, preserving multiple lines
 	messagesBuffer := e.getOrCreateMessagesBuffer()
 
 	// Format with timestamp
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	logEntry := fmt.Sprintf("[%s] %s", timestamp, errorMsg)
-
-	// Append to messages buffer; recreating iterators afterwards to avoid generation mismatch
-	messagesBuffer.AppendLine(logEntry)
+	first := fmt.Sprintf("[%s] %s", timestamp, lines[0])
+	messagesBuffer.AppendLine(first)
+	for i := 1; i < len(lines); i++ {
+		// Indent continuation lines for readability
+		messagesBuffer.AppendLine("    " + lines[i])
+	}
 
 	// Ensure the buffer stays read-only
 	messagesBuffer.IsReadOnly = true
