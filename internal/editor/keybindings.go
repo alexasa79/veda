@@ -200,6 +200,10 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g h", "toggle-stage-hunk")
 	e.registerKeyBinding(commands.NormalMode, "g space", "toggle-stage-line")
 
+	// Git drop (revert) operations
+	e.registerKeyBinding(commands.NormalMode, "g j j", "drop-change-line")
+	e.registerKeyBinding(commands.NormalMode, "g j J", "drop-change-hunk")
+
 	// Git blame
 	e.registerKeyBinding(commands.NormalMode, "g b b", "git-blame-line")
 	e.registerKeyBinding(commands.NormalMode, "g b s", "git-show-commit")

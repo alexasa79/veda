@@ -89,6 +89,11 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"toggle-stage-hunk": "toggle staging hunk",
 		"toggle-stage-line": "toggle staging line",
 
+		// Some weird comment
+		// Git drop
+		"drop-change-hunk": "drop hunk (revert)",
+		"drop-change-line": "drop line (revert)",
+
 		// Indentation
 		"indent-line":         "indent line",
 		"unindent-line":       "unindent line",

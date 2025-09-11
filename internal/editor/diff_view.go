@@ -844,3 +844,93 @@ func createBufferContent(diffLines []DiffLine) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// refreshDiffBuffersForRealPath updates existing diff buffers (path@HEAD and path@current)
+// after the working file content changes. It recomputes alignment and updates
+// iterators, highlighters, and diff metadata in place without creating windows.
+func (e *Editor) refreshDiffBuffersForRealPath(path string, currentContent string) {
+	if path == "" {
+		return
+	}
+	// Find diff buffers for this real path
+	headName := path + "@HEAD"
+	curName := path + "@current"
+	headBuf, okHead := e.buffers[headName]
+	curBuf, okCur := e.buffers[curName]
+	if !okHead || !okCur || headBuf == nil || curBuf == nil {
+		return
+	}
+
+	// Get HEAD content
+	prevContent, err := e.proxyManager.GetGitFileVersion(path, "HEAD")
+	if err != nil {
+		return
+	}
+
+	// Compute aligned diff
+	diffResult := e.computeDiffViaProxy(prevContent, currentContent)
+	alignedHead := createBufferContent(diffResult.LeftLines)
+	alignedCur := createBufferContent(diffResult.RightLines)
+
+	// Preserve cursor and view lines
+	prevHeadCurLine := headBuf.CursorIterator.LineNumber()
+	prevHeadViewLine := headBuf.ViewIterator.LineNumber()
+	prevCurCurLine := curBuf.CursorIterator.LineNumber()
+	prevCurViewLine := curBuf.ViewIterator.LineNumber()
+	prevCurX := curBuf.CursorX
+
+	// Update ropes
+	headBuf.Rope = buffer.NewRopeFromString(alignedHead)
+	curBuf.Rope = buffer.NewRopeFromString(alignedCur)
+
+	// Clamp and restore iterators
+	maxHead := headBuf.LineCount - 1
+	if prevHeadCurLine > maxHead {
+		prevHeadCurLine = maxHead
+	}
+	maxCur := curBuf.LineCount - 1
+	if prevCurCurLine > maxCur {
+		prevCurCurLine = maxCur
+	}
+	headBuf.ViewIterator = buffer.NewBufferIteratorAtLine(headBuf, prevHeadViewLine)
+	headBuf.CursorIterator = buffer.NewBufferIteratorAtLine(headBuf, prevHeadCurLine)
+	curBuf.ViewIterator = buffer.NewBufferIteratorAtLine(curBuf, prevCurViewLine)
+	curBuf.CursorIterator = buffer.NewBufferIteratorAtLine(curBuf, prevCurCurLine)
+	// Restore cursor X conservatively within line bounds
+	line := curBuf.CursorIterator.Line()
+	if prevCurX > len(line) {
+		prevCurX = len(line)
+	}
+	curBuf.CursorX = prevCurX
+
+	// Update diff metadata
+	if e.diffLineInfo == nil {
+		e.diffLineInfo = make(map[*buffer.Buffer][]DiffLine)
+	}
+	e.diffLineInfo[headBuf] = diffResult.LeftLines
+	e.diffLineInfo[curBuf] = diffResult.RightLines
+
+	// Update highlighters
+	if e.bufferHighlighters == nil {
+		e.bufferHighlighters = make(map[*buffer.Buffer]*syntax.Highlighter)
+	}
+	headHL := syntax.NewHighlighter()
+	headHL.SetLanguageFromFile(path)
+	headHL.ParseFull([]byte(alignedHead))
+	headBuf.Highlighter = headHL
+	e.bufferHighlighters[headBuf] = headHL
+
+	curHL := syntax.NewHighlighter()
+	curHL.SetLanguageFromFile(path)
+	curHL.ParseFull([]byte(alignedCur))
+	curBuf.Highlighter = curHL
+	e.bufferHighlighters[curBuf] = curHL
+
+	// Keep GitChanges in sync for the right pane
+	if baseBuf, exists := e.buffers[path]; exists {
+		curBuf.GitChanges = baseBuf.GitChanges
+	}
+
+	// Ensure paired cursor/view sync respects current active buffer
+	e.syncDiffCursors()
+}

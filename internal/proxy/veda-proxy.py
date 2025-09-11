@@ -29,7 +29,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.31"
+PROXY_VERSION = "1.0.32"
 
 # Set up logging directory
 from datetime import datetime
@@ -1264,6 +1264,7 @@ class VedaProxy:
             'get_git_commit_info': self.get_git_commit_info,
             'stage_lines': self.stage_lines,
             'unstage_lines': self.unstage_lines,
+            'drop_lines': self.drop_lines,
             'notify_file_change': self.notify_file_change,
             # Terminal methods
             'start_terminal': self.start_terminal,
@@ -2614,7 +2615,78 @@ class VedaProxy:
         except Exception as e:
             logger.error(f"Failed to unstage lines in {path}: {e}")
             return {'success': False, 'error': str(e)}
-    
+
+    @log_proxy_method
+    def drop_lines(self, path: str, lines: List[int]) -> Dict[str, Any]:
+        """
+        Revert specific working-tree lines back to HEAD.
+
+        Args:
+            path: File path
+            lines: List of line numbers (1-based) to revert
+
+        Returns:
+            Dictionary with updated git changes
+        """
+        file_path = Path(path).expanduser().resolve()
+
+        try:
+            # Read current file content
+            if not file_path.exists():
+                return {'success': False, 'error': 'File does not exist'}
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                current_text = f.read()
+
+            # Get HEAD content via existing helper
+            head_res = self.get_git_file_version(str(file_path), 'HEAD')
+            if not head_res.get('success'):
+                return {'success': False, 'error': head_res.get('error', 'Failed to get HEAD version')}
+            head_text = head_res.get('content', '')
+
+            # Split into lines preserving newlines
+            cur_lines = current_text.splitlines(keepends=True)
+            head_lines = head_text.splitlines(keepends=True)
+
+            if not lines:
+                # Replace entire file with HEAD
+                new_text = head_text
+            else:
+                # Revert specified working-file lines: replace with HEAD or delete if added
+                # Process in descending order to avoid index shifting on deletions
+                new_lines = list(cur_lines)
+                for ln in sorted(set(lines), reverse=True):
+                    idx = ln - 1
+                    if idx < 0:
+                        continue
+                    if idx < len(head_lines):
+                        # Replace current line with HEAD's line
+                        if idx < len(new_lines):
+                            new_lines[idx] = head_lines[idx]
+                        else:
+                            # Current file shorter than index; append missing HEAD line at end
+                            # This case is rare; treat as append
+                            # Ensure we fill gaps with newlines if needed
+                            while len(new_lines) < idx:
+                                new_lines.append('\n')
+                            new_lines.append(head_lines[idx])
+                    else:
+                        # HEAD doesn't have this line -> it was an insertion; remove it if present
+                        if idx < len(new_lines):
+                            new_lines.pop(idx)
+                new_text = ''.join(new_lines)
+
+            # Write updated content back to disk
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_text)
+
+            # Report updated changes
+            changes = self._get_file_git_changes(file_path)
+            return {'success': True, 'changes': changes}
+
+        except Exception as e:
+            logger.error(f"Failed to drop lines in {path}: {e}")
+            return {'success': False, 'error': str(e)}
+
     def _create_patch_for_lines(self, diff_text: str, target_lines: List[int]) -> str:
         """
         Create a patch containing only changes for specific lines.
