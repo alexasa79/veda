@@ -69,15 +69,15 @@ func TestCtrlSlashKeybindingWithCount(t *testing.T) {
 	// Build numeric count prefix '2'
 	te.TypeKeys("2")
 
-	// Press Ctrl+/
-	te.handleEvent(&events.KeyEvent{Key: events.KeyRune, Rune: '/', Modifiers: events.ModCtrl})
+	// Press Ctrl+/ (normalized as KeyCtrlUnderscore)
+	te.handleEvent(&events.KeyEvent{Key: events.KeyCtrlUnderscore})
 
 	expected := "a\n// b\n// c\n"
 	AssertBufferEquals(t, te, expected)
 
 	// Now uncomment the same two lines using count again
 	te.TypeKeys("2")
-	te.handleEvent(&events.KeyEvent{Key: events.KeyRune, Rune: '/', Modifiers: events.ModCtrl})
+	te.handleEvent(&events.KeyEvent{Key: events.KeyCtrlUnderscore})
 	AssertBufferEquals(t, te, content)
 }
 
