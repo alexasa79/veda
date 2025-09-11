@@ -484,7 +484,9 @@ class LSPManager:
                 return None
                 
         server = self.servers[language]
-        file_uri = f"file://{Path(file_path).absolute()}"
+        # Normalize path (expand ~, make absolute) and build proper file URI
+        abs_path = Path(file_path).expanduser().resolve()
+        file_uri = abs_path.as_uri()
         
         server['request_id'] += 1
         request_id = server['request_id']
@@ -548,8 +550,8 @@ class LSPManager:
         server = self.servers[language]
         server['request_id'] += 1
         request_id = server['request_id']
-        # Convert to absolute path before creating URI
-        abs_path = Path(file_path).absolute()
+        # Normalize path (expand ~, make absolute) and build proper file URI
+        abs_path = Path(file_path).expanduser().resolve()
         file_uri = abs_path.as_uri()
         
         request = {
@@ -601,7 +603,9 @@ class LSPManager:
         self._open_file(language, file_path)
                 
         server = self.servers[language]
-        file_uri = f"file://{Path(file_path).absolute()}"
+        # Normalize path (expand ~, make absolute) and build proper file URI
+        abs_path = Path(file_path).expanduser().resolve()
+        file_uri = abs_path.as_uri()
         
         server['request_id'] += 1
         request_id = server['request_id']
@@ -665,8 +669,8 @@ class LSPManager:
         server = self.servers[language]
         server['request_id'] += 1
         request_id = server['request_id']
-        # Convert to absolute path before creating URI
-        abs_path = Path(file_path).absolute()
+        # Normalize path (expand ~, make absolute) and build proper file URI
+        abs_path = Path(file_path).expanduser().resolve()
         file_uri = abs_path.as_uri()
         
         request = {
@@ -719,7 +723,9 @@ class LSPManager:
         self._open_file(language, file_path)
         
         server = self.servers[language]
-        file_uri = f"file://{Path(file_path).absolute()}"
+        # Normalize path (expand ~, make absolute) and build proper file URI
+        abs_path = Path(file_path).expanduser().resolve()
+        file_uri = abs_path.as_uri()
         
         server['request_id'] += 1
         request_id = server['request_id']
@@ -849,7 +855,9 @@ class LSPManager:
         self._open_file(language, file_path)
         
         server = self.servers[language]
-        file_uri = f"file://{Path(file_path).absolute()}"
+        # Normalize path (expand ~, make absolute) and build proper file URI
+        abs_path = Path(file_path).expanduser().resolve()
+        file_uri = abs_path.as_uri()
         
         server['request_id'] += 1
         request_id = server['request_id']
@@ -897,27 +905,31 @@ class LSPManager:
                 self.pending_file_opens = {}
             if language not in self.pending_file_opens:
                 self.pending_file_opens[language] = set()
-            self.pending_file_opens[language].add(file_path)
-            logger.info(f"Deferring opening of {file_path} until {language} server is ready")
+            # Normalize path for consistency
+            norm_path = str(Path(file_path).expanduser().resolve())
+            self.pending_file_opens[language].add(norm_path)
+            logger.info(f"Deferring opening of {norm_path} until {language} server is ready")
             return
             
         # Check if file is already open
-        if file_path in server.get('open_files', set()):
-            logger.debug(f"File {file_path} is already open in {language} LSP server")
+        norm_path = str(Path(file_path).expanduser().resolve())
+        if norm_path in server.get('open_files', set()):
+            logger.debug(f"File {norm_path} is already open in {language} LSP server")
             return
             
         # Read file content
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(norm_path, 'r', encoding='utf-8') as f:
                 content = f.read()
         except Exception as e:
-            logger.error(f"Failed to read file {file_path}: {e}")
+            logger.error(f"Failed to read file {norm_path}: {e}")
             return
             
-        file_uri = f"file://{Path(file_path).absolute()}"
+        # Build proper file URI
+        file_uri = Path(norm_path).as_uri()
         
         # Detect language ID based on extension
-        ext = Path(file_path).suffix.lower()
+        ext = Path(norm_path).suffix.lower()
         language_id = {
             '.go': 'go',
             '.c': 'c',
@@ -935,7 +947,7 @@ class LSPManager:
         # Initialize version tracking for this file
         if 'file_versions' not in self.servers[language]:
             self.servers[language]['file_versions'] = {}
-        self.servers[language]['file_versions'][file_path] = 1
+        self.servers[language]['file_versions'][norm_path] = 1
         
         notification = {
             "jsonrpc": "2.0",
@@ -952,8 +964,8 @@ class LSPManager:
         
         self._send_message(language, notification)
         
-        # Track that this file is open
-        self.servers[language]['open_files'].add(file_path)
+        # Track that this file is open (normalized path)
+        self.servers[language]['open_files'].add(norm_path)
     
     def _send_did_change(self, language: str, file_path: str, content: str):
         """Send textDocument/didChange notification to the LSP server."""
@@ -961,20 +973,23 @@ class LSPManager:
             return
             
         server = self.servers[language]
+        # Normalize path for consistency with _open_file
+        norm_path = str(Path(file_path).expanduser().resolve())
         
         # Check if server is initialized and file is open
-        if server.get('initializing') or file_path not in server.get('open_files', set()):
+        if server.get('initializing') or norm_path not in server.get('open_files', set()):
             return
             
         # Increment version number for this file
         if 'file_versions' not in server:
             server['file_versions'] = {}
         
-        current_version = server['file_versions'].get(file_path, 0)
+        current_version = server['file_versions'].get(norm_path, 0)
         new_version = current_version + 1
-        server['file_versions'][file_path] = new_version
+        server['file_versions'][norm_path] = new_version
         
-        file_uri = f"file://{Path(file_path).absolute()}"
+        # Build proper file URI
+        file_uri = Path(norm_path).as_uri()
         
         notification = {
             "jsonrpc": "2.0",
