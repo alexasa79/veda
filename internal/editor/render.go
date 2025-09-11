@@ -1677,12 +1677,16 @@ func (e *Editor) drawStatusBar() {
 						e.currentReferencesBuffer.CurrentIndex+1, len(e.currentReferencesBuffer.References))
 				}
 			} else if navContext == "diagnostics" {
-				navText = " [diagnostics] "
+				if cur, total, ok := e.getDiagnosticsProgress(); ok {
+					navText = fmt.Sprintf(" diagnostics %d/%d ", cur, total)
+				} else {
+					navText = " diagnostics "
+				}
 			} else if navContext == "changes" {
 				if cur, total, ok := e.getProjectChangesProgress(); ok {
-					navText = fmt.Sprintf(" [changes %d/%d] ", cur, total)
+					navText = fmt.Sprintf(" changes %d/%d ", cur, total)
 				} else {
-					navText = " [changes] "
+					navText = " changes "
 				}
 			}
 

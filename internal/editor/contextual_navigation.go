@@ -244,26 +244,76 @@ func (e *Editor) getProjectChangesProgress() (int, int, bool) {
 		return 0, 0, false
 	}
 	sel := buf.CursorIterator.LineNumber()
+	// First, count total hunk links
 	total := 0
-	current := 0
 	for i := 0; i < buf.LineCount; i++ {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
-		line := iter.Line()
-		if _, _, ok := parseProjectChangeLink(line); ok {
+		if _, _, ok := parseProjectChangeLink(iter.Line()); ok {
 			total++
-			if i <= sel {
-				current++
-			}
 		}
 	}
 	if total == 0 {
 		return 0, 0, false
 	}
-	// Clamp current to at least 1 when selection is above first link
-	if current == 0 {
-		current = 1
+	// Only show progress if the selection is on a hunk link
+	selIter := buffer.NewBufferIteratorAtLine(buf, sel)
+	if _, _, ok := parseProjectChangeLink(selIter.Line()); !ok {
+		return 0, total, false
 	}
-	return current, total, true
+	// Compute 1-based index of the selected link
+	idx := 0
+	for i := 0; i <= sel; i++ {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		if _, _, ok := parseProjectChangeLink(iter.Line()); ok {
+			idx++
+		}
+	}
+	if idx < 1 {
+		return 0, total, false
+	}
+	return idx, total, true
+}
+
+// getDiagnosticsProgress returns (currentIndex, total) of diagnostic entries
+// within the *Diagnostics* buffer based on the current selection. It treats
+// any line with a markdown file link that includes a #L anchor as an entry.
+func (e *Editor) getDiagnosticsProgress() (int, int, bool) {
+	buf, exists := e.buffers["*Diagnostics*"]
+	if !exists || buf == nil {
+		return 0, 0, false
+	}
+	sel := buf.CursorIterator.LineNumber()
+	// Count total diagnostic entries (lines with a link + #L anchor)
+	total := 0
+	for i := 0; i < buf.LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		line := iter.Line()
+		if strings.Contains(line, "](") && strings.Contains(line, "#L") {
+			total++
+		}
+	}
+	if total == 0 {
+		return 0, 0, false
+	}
+	// Only show progress if selection is on a diagnostic entry line
+	selIter := buffer.NewBufferIteratorAtLine(buf, sel)
+	selLine := selIter.Line()
+	if !(strings.Contains(selLine, "](") && strings.Contains(selLine, "#L")) {
+		return 0, total, false
+	}
+	// Compute 1-based index
+	idx := 0
+	for i := 0; i <= sel; i++ {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		line := iter.Line()
+		if strings.Contains(line, "](") && strings.Contains(line, "#L") {
+			idx++
+		}
+	}
+	if idx < 1 {
+		return 0, total, false
+	}
+	return idx, total, true
 }
 
 // nextProjectChange navigates to the next change across the project by opening the
