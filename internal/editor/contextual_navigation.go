@@ -250,6 +250,14 @@ func (e *Editor) nextProjectChange() error {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
 		line := iter.Line()
 		if path, ln, ok := parseProjectChangeLink(line); ok {
+			// Check if file exists; skip deleted files
+			if attrs, err := e.proxyManager.GetFileAttributes(path); err == nil {
+				if !attrs.Exists {
+					// Skip this deleted entry and continue scanning
+					continue
+				}
+			}
+
 			// Update selection for next call
 			buf.CursorIterator = iter
 			buf.CursorX = 0
@@ -282,6 +290,11 @@ func (e *Editor) nextProjectChange() error {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
 		line := iter.Line()
 		if path, ln, ok := parseProjectChangeLink(line); ok {
+			if attrs, err := e.proxyManager.GetFileAttributes(path); err == nil {
+				if !attrs.Exists {
+					continue
+				}
+			}
 			buf.CursorIterator = iter
 			buf.CursorX = 0
 			e.openFile(path)
@@ -320,6 +333,11 @@ func (e *Editor) previousProjectChange() error {
 		iter := buffer.NewBufferIteratorAtLine(buf, i)
 		line := iter.Line()
 		if path, ln, ok := parseProjectChangeLink(line); ok {
+			if attrs, err := e.proxyManager.GetFileAttributes(path); err == nil {
+				if !attrs.Exists {
+					continue
+				}
+			}
 			buf.CursorIterator = iter
 			buf.CursorX = 0
 			e.openFile(path)

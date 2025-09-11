@@ -29,7 +29,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.30"
+PROXY_VERSION = "1.0.31"
 
 # Set up logging directory
 from datetime import datetime
@@ -2212,6 +2212,16 @@ class VedaProxy:
                             status, filepath = parts[0], parts[1]
                             staged_files[filepath] = status
             
+            # Get untracked files (not staged, not in HEAD)
+            cmd_untracked = ['git', 'ls-files', '--others', '--exclude-standard']
+            result_untracked = self._run_shell_command(cmd_untracked, cwd=cwd)
+
+            untracked_files = []
+            if result_untracked.returncode == 0 and result_untracked.stdout:
+                for line in result_untracked.stdout.strip().split('\n'):
+                    if line:
+                        untracked_files.append(line)
+
             # Combine all changes
             all_files = {}
             for f, status in unstaged_files.items():
@@ -2221,6 +2231,11 @@ class VedaProxy:
                     all_files[f]['staged'] = True
                 else:
                     all_files[f] = {'status': status, 'staged': True}
+
+            # Add untracked files as added (A) and unstaged
+            for f in untracked_files:
+                if f not in all_files:
+                    all_files[f] = {'status': 'A', 'staged': False}
             
             # Get detailed changes for each file
             changes = []
