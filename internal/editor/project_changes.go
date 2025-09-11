@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"veda/internal/buffer"
+	"veda/internal/proxy"
 )
 
 // showProjectChanges displays all project changes in a buffer
@@ -69,18 +70,61 @@ func (e *Editor) showProjectChanges(args []string) error {
 				len(change.AddedLines), len(change.DeletedLines)))
 
 			// Show hunks with better formatting
+			// Pre-fetch actual git changes for this file to compute accurate anchor lines
+			resolvedPath := e.resolvePath(change.File)
+			var fileChanges *proxy.FileChanges
+			if fc, err := e.proxyManager.GetFile(resolvedPath); err == nil {
+				fileChanges = &fc.Changes
+			}
+
 			for _, hunk := range change.Hunks {
 				// Parse the hunk header to get line counts
 				var oldCount, newCount int
 				fmt.Sscanf(hunk.Header, "@@ -%d,%d +%d,%d @@", &hunk.OldStart, &oldCount, &hunk.NewStart, &newCount)
 
-				// Create a more descriptive hunk link
-				hunkDesc := fmt.Sprintf("Lines %d-%d", hunk.NewStart, hunk.NewStart+newCount-1)
-				if newCount == 1 {
-					hunkDesc = fmt.Sprintf("Line %d", hunk.NewStart)
+				// Compute accurate anchor: first actual changed line at/after hunk.NewStart
+				anchorLine := hunk.NewStart
+				minChanged := 0
+				maxChanged := 0
+				if fileChanges != nil {
+					inRange := func(v int) bool { return v >= hunk.NewStart && v < hunk.NewStart+newCount }
+					for _, v := range fileChanges.Added {
+						if inRange(v) {
+							if minChanged == 0 || v < minChanged {
+								minChanged = v
+							}
+							if v > maxChanged {
+								maxChanged = v
+							}
+						}
+					}
+					for _, v := range fileChanges.Modified {
+						if inRange(v) {
+							if minChanged == 0 || v < minChanged {
+								minChanged = v
+							}
+							if v > maxChanged {
+								maxChanged = v
+							}
+						}
+					}
+					if minChanged > 0 {
+						anchorLine = minChanged
+					}
 				}
 
-				content.WriteString(fmt.Sprintf("  • [%s](%s#L%d)", hunkDesc, change.File, hunk.NewStart))
+				// Create a more descriptive hunk link based on actual changed lines when available
+				hunkStart := anchorLine
+				hunkEnd := hunk.NewStart + newCount - 1
+				if maxChanged > 0 {
+					hunkEnd = maxChanged
+				}
+				hunkDesc := fmt.Sprintf("Lines %d-%d", hunkStart, hunkEnd)
+				if hunkStart == hunkEnd {
+					hunkDesc = fmt.Sprintf("Line %d", hunkStart)
+				}
+
+				content.WriteString(fmt.Sprintf("  • [%s](%s#L%d)", hunkDesc, change.File, anchorLine))
 
 				// Count additions and deletions in this hunk
 				hunkAdded := 0

@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"veda/internal/buffer"
 )
@@ -44,8 +45,8 @@ func (e *Editor) nextContextualItem(args []string) error {
 				// Navigate to next diagnostic in *Diagnostics* buffer
 				return e.nextDiagnosticInBuffer()
 			} else if e.lastActiveSpecialBuffer == "*Project Changes*" {
-				// Navigate to next change in *Project Changes* buffer
-				return e.nextChangeInProjectBuffer()
+				// Navigate to next change across the project (open file and jump to hunk)
+				return e.nextProjectChange()
 			}
 		}
 	}
@@ -69,8 +70,8 @@ func (e *Editor) previousContextualItem(args []string) error {
 				// Navigate to previous diagnostic in *Diagnostics* buffer
 				return e.previousDiagnosticInBuffer()
 			} else if e.lastActiveSpecialBuffer == "*Project Changes*" {
-				// Navigate to previous change in *Project Changes* buffer
-				return e.previousChangeInProjectBuffer()
+				// Navigate to previous change across the project (open file and jump to hunk)
+				return e.previousProjectChange()
 			}
 		}
 	}
@@ -210,6 +211,152 @@ func (e *Editor) previousGitChange() error {
 	// We're before all hunks or at the first hunk - wrap to last
 	e.goToLine(hunks[len(hunks)-1] - 1)
 	return nil
+}
+
+// parseProjectChangeLink extracts (path, line) from a markdown link in the form "...](PATH#LNUM)".
+// Returns ok=false if the line doesn't contain a link with a line anchor.
+func parseProjectChangeLink(line string) (string, int, bool) {
+	// Find parens containing the URL
+	start := strings.IndexByte(line, '(')
+	end := strings.IndexByte(line, ')')
+	if start < 0 || end < 0 || end <= start+1 {
+		return "", 0, false
+	}
+	target := line[start+1 : end]
+	// Expect optional #LNNN anchor
+	if i := strings.Index(target, "#L"); i >= 0 {
+		path := target[:i]
+		numStr := target[i+2:]
+		if n, err := strconv.Atoi(numStr); err == nil && n > 0 {
+			return path, n, true
+		}
+		return "", 0, false
+	}
+	return "", 0, false
+}
+
+// nextProjectChange navigates to the next change across the project by opening the
+// referenced file and jumping to the hunk line. Uses the selection position in
+// the *Project Changes* buffer to keep progress.
+func (e *Editor) nextProjectChange() error {
+	buf, exists := e.buffers["*Project Changes*"]
+	if !exists {
+		return fmt.Errorf("project changes buffer not open")
+	}
+	// Start after current selection
+	start := buf.CursorIterator.LineNumber() + 1
+	// Search forward for a link with a line anchor (hunk entry)
+	for i := start; i < buf.LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		line := iter.Line()
+		if path, ln, ok := parseProjectChangeLink(line); ok {
+			// Update selection for next call
+			buf.CursorIterator = iter
+			buf.CursorX = 0
+			// Open file and jump to the first actual changed line at/after hunk start
+			e.openFile(path)
+			target := ln
+			if e.CurrentBuffer() != nil && e.CurrentBuffer().GitChanges != nil {
+				// Find the minimal added/modified line >= ln
+				minLine := 0
+				for _, v := range e.CurrentBuffer().GitChanges.Added {
+					if v >= ln && (minLine == 0 || v < minLine) {
+						minLine = v
+					}
+				}
+				for _, v := range e.CurrentBuffer().GitChanges.Modified {
+					if v >= ln && (minLine == 0 || v < minLine) {
+						minLine = v
+					}
+				}
+				if minLine > 0 {
+					target = minLine
+				}
+			}
+			e.goToLine(target - 1)
+			return nil
+		}
+	}
+	// Wrap around to top
+	for i := 0; i <= buf.CursorIterator.LineNumber(); i++ {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		line := iter.Line()
+		if path, ln, ok := parseProjectChangeLink(line); ok {
+			buf.CursorIterator = iter
+			buf.CursorX = 0
+			e.openFile(path)
+			target := ln
+			if e.CurrentBuffer() != nil && e.CurrentBuffer().GitChanges != nil {
+				minLine := 0
+				for _, v := range e.CurrentBuffer().GitChanges.Added {
+					if v >= ln && (minLine == 0 || v < minLine) {
+						minLine = v
+					}
+				}
+				for _, v := range e.CurrentBuffer().GitChanges.Modified {
+					if v >= ln && (minLine == 0 || v < minLine) {
+						minLine = v
+					}
+				}
+				if minLine > 0 {
+					target = minLine
+				}
+			}
+			e.goToLine(target - 1)
+			return nil
+		}
+	}
+	return fmt.Errorf("no project changes to navigate")
+}
+
+// previousProjectChange navigates to the previous project change (wraps around).
+func (e *Editor) previousProjectChange() error {
+	buf, exists := e.buffers["*Project Changes*"]
+	if !exists {
+		return fmt.Errorf("project changes buffer not open")
+	}
+	start := buf.CursorIterator.LineNumber() - 1
+	for i := start; i >= 0; i-- {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		line := iter.Line()
+		if path, ln, ok := parseProjectChangeLink(line); ok {
+			buf.CursorIterator = iter
+			buf.CursorX = 0
+			e.openFile(path)
+			target := ln
+			if e.CurrentBuffer() != nil && e.CurrentBuffer().GitChanges != nil {
+				minLine := 0
+				for _, v := range e.CurrentBuffer().GitChanges.Added {
+					if v >= ln && (minLine == 0 || v < minLine) {
+						minLine = v
+					}
+				}
+				for _, v := range e.CurrentBuffer().GitChanges.Modified {
+					if v >= ln && (minLine == 0 || v < minLine) {
+						minLine = v
+					}
+				}
+				if minLine > 0 {
+					target = minLine
+				}
+			}
+			e.goToLine(target - 1)
+			return nil
+		}
+	}
+	// Wrap to bottom
+	for i := buf.LineCount - 1; i >= buf.CursorIterator.LineNumber(); i-- {
+		iter := buffer.NewBufferIteratorAtLine(buf, i)
+		line := iter.Line()
+		if path, ln, ok := parseProjectChangeLink(line); ok {
+			buf.CursorIterator = iter
+			buf.CursorX = 0
+			e.openFile(path)
+			e.goToLine(ln - 1)
+			return nil
+		}
+	}
+	return fmt.Errorf("no project changes to navigate")
 }
 
 // nextDiagnosticInBuffer navigates to next diagnostic entry in *Diagnostics* buffer
