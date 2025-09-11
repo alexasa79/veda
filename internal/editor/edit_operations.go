@@ -2,6 +2,7 @@ package editor
 
 import (
 	"strings"
+	"unicode/utf8"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
@@ -354,8 +355,8 @@ func (e *Editor) insertChar(ch rune) error {
 	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
-	// Move cursor forward by one position
-	e.CurrentBuffer().CursorX = cursorX + 1
+	// Move cursor forward by the byte length of the inserted rune
+	e.CurrentBuffer().CursorX = cursorX + len(textToInsert)
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
@@ -705,10 +706,19 @@ func (e *Editor) backspace(args []string) error {
 				}
 			}
 
-			// Default: delete a single character before cursor
-			deletedChar := e.CurrentBuffer().Rope.ByteAt(pos - 1)
-			deletedText := string(deletedChar)
-			entry := buffer.NewDeleteTextEntry(lineNum, cursorX-1, deletedText)
+			// Default: delete a single Unicode rune before cursor
+			// Determine previous rune boundaries within the current line
+			linePrefix := line[:cursorX]
+			_, size := utf8.DecodeLastRuneInString(linePrefix)
+			if size <= 0 {
+				size = 1
+			}
+			startX := cursorX - size
+			if startX < 0 {
+				startX = 0
+			}
+			deletedText := line[startX:cursorX]
+			entry := buffer.NewDeleteTextEntry(lineNum, startX, deletedText)
 
 			// Execute through history
 			if e.CurrentBuffer().History != nil {
@@ -728,12 +738,12 @@ func (e *Editor) backspace(args []string) error {
 			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 
-			// Move cursor back one position
-			e.CurrentBuffer().CursorX = cursorX - 1
+			// Move cursor back by the size of the deleted rune
+			e.CurrentBuffer().CursorX = startX
 
 			// Update syntax highlighting (skip during paste mode)
 			if !e.inPasteMode {
-				e.updateSyntaxApplyEdit(pos-1, deletedText, "")
+				e.updateSyntaxApplyEdit(pos-len(deletedText), deletedText, "")
 			}
 
 			// Update completion menu filter if visible
