@@ -54,9 +54,9 @@ func getWordLevelDiffBg(e *Editor, lineIndex, tokenStart, tokenEnd int) *ui.Colo
 	return nil
 }
 
-// drawGutterGitIndicator renders git added/modified indicator in the gutter for a given wrapped line.
-// - Renders a space with background color corresponding to the change type
-// - Deleted indicators are intentionally not rendered
+// drawGutterGitIndicator renders git added/modified/deleted indicator in the gutter for a given wrapped line.
+// - Left column: change against HEAD (added, modified, deleted)
+// - Right column: staged marker for the change on that line
 func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, lineNumberWidth, screenY int, lineNumberStyle ui.Style) {
 	if e.CurrentBuffer().GitChanges == nil {
 		return
@@ -64,6 +64,7 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 
 	isAdded := false
 	isModified := false
+	isDeleted := false
 	isStaged := false
 
 	// Added/Modified are 1-based
@@ -77,6 +78,15 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 		for _, m := range e.CurrentBuffer().GitChanges.Modified {
 			if m == lineNum {
 				isModified = true
+				break
+			}
+		}
+	}
+
+	if !isAdded && !isModified {
+		for _, d := range e.CurrentBuffer().GitChanges.Deleted {
+			if d == lineNum {
+				isDeleted = true
 				break
 			}
 		}
@@ -97,16 +107,21 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 				break
 			}
 		}
+	} else if isDeleted {
+		for _, s := range e.CurrentBuffer().GitChanges.StagedDeleted {
+			if s == lineNum {
+				isStaged = true
+				break
+			}
+		}
 	}
 
-	// Deleted lines: do not render any indicator
-
-	// Left indicator: added/modified (any change vs HEAD)
+	// Left indicator: added/modified/deleted (any change vs HEAD)
 	// Right indicator: staged (in index). Draw both if applicable.
 	_, lnBg, _ := lineNumberStyle.Decompose()
 
-	// Draw left indicator when added/modified
-	if isAdded || isModified {
+	// Draw left indicator when added/modified/deleted
+	if isAdded || isModified || isDeleted {
 		leftX := digitsWidth
 		if leftX < lineNumberWidth {
 			var lch rune
@@ -114,9 +129,12 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 			if isAdded {
 				lch = '+'
 				lstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
-			} else {
+			} else if isModified {
 				lch = '≋'
 				lstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+			} else { // deleted
+				lch = '−' // U+2212 minus sign
+				lstyle = e.config.Theme.GetStyle(e.config.Theme.GitDeleted).Background(lnBg)
 			}
 			lstyle.Attrs |= ui.AttrBold
 			e.screen.SetContent(leftX, screenY, lch, nil, lstyle)
@@ -132,8 +150,10 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 			// both are fine for visibility in staged context; prefer Modified for merges
 			if isAdded {
 				rstyle = e.config.Theme.GetStyle(e.config.Theme.GitAdded).Background(lnBg)
-			} else {
+			} else if isModified {
 				rstyle = e.config.Theme.GetStyle(e.config.Theme.GitModified).Background(lnBg)
+			} else {
+				rstyle = e.config.Theme.GetStyle(e.config.Theme.GitDeleted).Background(lnBg)
 			}
 			rstyle.Attrs |= ui.AttrBold
 			e.screen.SetContent(rightX, screenY, '✓', nil, rstyle)
