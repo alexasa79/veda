@@ -23,7 +23,7 @@ func runGit(t *testing.T, repo string, args ...string) string {
 }
 
 func TestDropLine_SimpleModified(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	runGit(t, repo, "init", ".")
 	runGit(t, repo, "config", "user.name", "Test User")
 	runGit(t, repo, "config", "user.email", "test@example.com")
@@ -73,7 +73,7 @@ func TestDropLine_SimpleModified(t *testing.T) {
 }
 
 func TestDropHunk_ContiguousBlock(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	runGit(t, repo, "init", ".")
 	runGit(t, repo, "config", "user.name", "Test User")
 	runGit(t, repo, "config", "user.email", "test@example.com")
@@ -130,7 +130,7 @@ func TestDropHunk_ContiguousBlock(t *testing.T) {
 }
 
 func TestDiffAutoRefreshAfterDrop(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	runGit(t, repo, "init", ".")
 	runGit(t, repo, "config", "user.name", "Test User")
 	runGit(t, repo, "config", "user.email", "test@example.com")

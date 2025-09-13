@@ -12,7 +12,7 @@ import (
 // TestLineStagingGutter verifies staging specific lines updates git and gutter indicators,
 // and that re-editing a staged line shows both changed and staged markers.
 func TestLineStagingGutter(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repo
@@ -165,7 +165,7 @@ func TestLineStagingGutter(t *testing.T) {
 func TestHunkStaging_MultiLineReplaceLargeFile(t *testing.T) {
 	// This test validates staging of a 1→2 split within a single hunk on a large file
 
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repo
@@ -283,7 +283,7 @@ func TestHunkStaging_MultiLineReplaceLargeFile(t *testing.T) {
 
 // Test partial selection within a replace block (1→2 split: stage only first line)
 func TestHunkStaging_PartialSelectionWithinReplaceLargeFile(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repo
@@ -394,7 +394,7 @@ func TestHunkStaging_PartialSelectionWithinReplaceLargeFile(t *testing.T) {
 
 // Test staging of a pure insertion line
 func TestHunkStaging_PureInsertionLargeFile(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repo
@@ -482,7 +482,7 @@ func TestHunkStaging_PureInsertionLargeFile(t *testing.T) {
 
 // Test that unstage reverses a staging operation
 func TestUnstageLines_SymmetryLargeFile(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repo

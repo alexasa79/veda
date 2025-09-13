@@ -11,7 +11,7 @@ import (
 // TestGnFileGitChangesExact ensures that "g n" jumps exactly to the first line
 // of each changed hunk in the current file (not a few lines before).
 func TestGnFileGitChangesExact(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repo

@@ -19,8 +19,8 @@ func TestDiffViewLeftPaneSyntaxHighlighting(t *testing.T) {
 		t.Skipf("Skipping: Go syntax highlighting not available: %v", err)
 	}
 
-	// Create temporary git repo
-	repoDir := t.TempDir()
+	// Create temporary git repo (preserved on failure)
+	repoDir := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repoDir

@@ -12,7 +12,7 @@ import (
 // TestProjectChangesListsUntrackedAddedFile verifies that the "*Project Changes*" buffer
 // lists files that were newly created (untracked) in the project.
 func TestProjectChangesListsUntrackedAddedFile(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)

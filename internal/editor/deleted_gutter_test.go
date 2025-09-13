@@ -11,7 +11,7 @@ import (
 // there is a visible indicator in the left gutter at the deletion location.
 // The test mirrors the structure of the staging gutter test.
 func TestDeletedLinesGutter(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
 		cmd.Dir = repo
