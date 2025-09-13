@@ -14,7 +14,7 @@ import (
 // in the project changes buffer but navigation (g n) skips them and jumps to
 // the next available change.
 func TestProjectChangesListsAndSkipsDeletedFile(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)

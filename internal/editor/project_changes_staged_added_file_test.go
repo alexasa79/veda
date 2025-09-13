@@ -12,7 +12,7 @@ import (
 // TestProjectChangesListsStagedAddedFile verifies that newly added and staged files
 // appear in the Project Changes buffer and are marked as staged (A●).
 func TestProjectChangesListsStagedAddedFile(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)

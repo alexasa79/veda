@@ -124,6 +124,28 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	return te
 }
 
+// NewGitTestRepo creates a temporary directory intended to be used as a git
+// repository for tests. It removes the directory only if the test succeeds,
+// preserving it on failure for debugging.
+func NewGitTestRepo(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "veda-git-repo-*")
+	if err != nil {
+		t.Fatalf("failed to create temp git repo: %v", err)
+	}
+	// Cleanup only on success; keep repo on failure for inspection.
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("test failed; preserving git repo at %s", dir)
+			return
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			t.Logf("failed to remove temp git repo %s: %v", dir, err)
+		}
+	})
+	return dir
+}
+
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
 	// Use executeWithRepeatCount to properly handle multiple cursors

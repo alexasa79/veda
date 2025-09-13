@@ -13,7 +13,7 @@ import (
 // opens the project changes buffer (s C), then uses "g n" to jump through each change.
 // It verifies we visit actual code locations in the right files/lines, not just the list.
 func TestProjectChangesGnNavigation(t *testing.T) {
-	repo := t.TempDir()
+	repo := NewGitTestRepo(t)
 
 	run := func(name string, args ...string) {
 		cmd := exec.Command(name, args...)
