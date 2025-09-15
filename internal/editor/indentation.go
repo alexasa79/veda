@@ -196,7 +196,10 @@ func (e *Editor) getCurrentLineIndentInfo(iter *buffer.BufferIterator) buffer.Li
 	if e.CurrentBuffer().Indentation.Type == config.IndentSpaces {
 		curLine := iter.LineNumber()
 		// Detect cross-line paren continuation (ignore same-line balanced)
+		// Instrument the delimiter scan to confirm its runtime impact.
+		tScan := e.perfTracker.Start()
 		baseLevel, cont := findBaseLevelFromOpenDelimiterForEditor(e.CurrentBuffer(), curLine)
+		_ = e.perfTracker.ReportSince("indent.findBaseLevelFromOpenDelimiter", tScan)
 		if cont {
 			info.IsContinuation = true
 			if baseLevel < info.Level {
@@ -215,6 +218,9 @@ func findBaseLevelFromOpenDelimiterForEditor(b *buffer.Buffer, curLine int) (int
 	}
 	needParen := 0
 	needBracket := 0
+	// Limit how far we scan upward to avoid O(N) work on huge files
+	const maxScanLines = 50
+	linesScanned := 0
 	for ln := curLine; ln >= 0; ln-- {
 		it := buffer.NewBufferIteratorAtLine(b, ln)
 		if it.IsEOF() {
@@ -231,6 +237,10 @@ func findBaseLevelFromOpenDelimiterForEditor(b *buffer.Buffer, curLine int) (int
 		// for display purposes (show base level with +C).
 		if ln == curLine {
 			continue
+		}
+		linesScanned++
+		if linesScanned > maxScanLines {
+			break
 		}
 		for i := len(raw) - 1; i >= 0; i-- {
 			switch raw[i] {
