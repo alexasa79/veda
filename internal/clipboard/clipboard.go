@@ -19,19 +19,13 @@ func Copy(text string) error {
 	case "linux":
 		// Linux: detect WSL and use Windows clipboard interop if available
 		if isWSL() {
-			if _, err := exec.LookPath("clip.exe"); err == nil {
-				cmd := exec.Command("clip.exe")
-				cmd.Stdin = strings.NewReader(text)
-				return cmd.Run()
-			}
-			// Fallback to PowerShell if clip.exe isn't in PATH
+			// Use PowerShell exclusively in WSL to avoid clip.exe newline behavior
 			if _, err := exec.LookPath("powershell.exe"); err == nil {
-				// Read from stdin inside PowerShell
 				cmd := exec.Command("powershell.exe", "-NoProfile", "-Command", "Set-Clipboard -Value ([Console]::In.ReadToEnd())")
 				cmd.Stdin = strings.NewReader(text)
 				return cmd.Run()
 			}
-			return fmt.Errorf("WSL detected but neither clip.exe nor powershell.exe found")
+			return fmt.Errorf("WSL detected but powershell.exe not found")
 		}
 		// Native Linux: try xclip first, then xsel
 		// Try xclip
@@ -94,6 +88,21 @@ func Paste() (string, error) {
 	s := string(output)
 	if strings.Contains(s, "\r\n") {
 		s = strings.ReplaceAll(s, "\r\n", "\n")
+	}
+
+	// WSL-only: some Windows clipboard paths append an extra trailing newline.
+	// Collapse multiple trailing LFs to exactly one to preserve line-wise semantics
+	// without introducing an extra blank line. Default behavior when running in WSL.
+	if isWSL() {
+		// Count trailing LFs
+		i := len(s) - 1
+		for i >= 0 && i < len(s) && s[i] == '\n' {
+			i--
+		}
+		trailing := len(s) - 1 - i
+		if trailing > 1 {
+			s = s[:i+1] + "\n"
+		}
 	}
 	return s, nil
 }
