@@ -807,10 +807,26 @@ func (e *Editor) deleteCurrentCharacter(args []string) error {
 	// Get cursor X position
 	cursorX := e.CurrentBuffer().CursorX
 
-	// Get the character being deleted
+	// Compute UTF-8 rune at cursor and delete the full rune slice
 	pos := e.getAbsolutePosition()
-	deletedChar := e.CurrentBuffer().Rope.ByteAt(pos)
-	deletedText := string(deletedChar)
+	// Safeguard bounds
+	if cursorX < 0 {
+		cursorX = 0
+	}
+	if cursorX > len(line) {
+		cursorX = len(line)
+	}
+	_, size := utf8.DecodeRuneInString(line[cursorX:])
+	if size <= 0 {
+		size = 1
+	}
+	if cursorX+size > len(line) {
+		size = len(line) - cursorX
+		if size < 0 {
+			size = 0
+		}
+	}
+	deletedText := line[cursorX : cursorX+size]
 
 	// Create history entry
 	entry := buffer.NewDeleteTextEntry(lineNum, cursorX, deletedText)
@@ -899,13 +915,28 @@ func (e *Editor) deleteCharacterInsert(args []string) error {
 		return nil
 	}
 
-	// Get the character being deleted
-	pos := e.getAbsolutePosition()
-	deletedChar := e.CurrentBuffer().Rope.ByteAt(pos)
-	deletedText := string(deletedChar)
+	// Get the UTF-8 rune under the cursor and delete the full rune slice
+	cursorX := e.CurrentBuffer().CursorX
+	if cursorX < 0 {
+		cursorX = 0
+	}
+	if cursorX > len(line) {
+		cursorX = len(line)
+	}
+	_, size := utf8.DecodeRuneInString(line[cursorX:])
+	if size <= 0 {
+		size = 1
+	}
+	if cursorX+size > len(line) {
+		size = len(line) - cursorX
+		if size < 0 {
+			size = 0
+		}
+	}
+	deletedText := line[cursorX : cursorX+size]
 
 	// Create history entry
-	entry := buffer.NewDeleteTextEntry(lineNum, e.CurrentBuffer().CursorX, deletedText)
+	entry := buffer.NewDeleteTextEntry(lineNum, cursorX, deletedText)
 
 	// Execute through history
 	if e.CurrentBuffer().History != nil {
