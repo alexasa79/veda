@@ -369,25 +369,28 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 
 	// Set up proxy status callback to update connection status
 	proxyManager.SetStatusCallback(func(status string) {
-		// Special sentinel: reconnect failed, exit the editor with the message
-		const failPrefix = "__RECONNECT_FAILED__:"
-		if strings.HasPrefix(status, failPrefix) {
-			msg := strings.TrimSpace(strings.TrimPrefix(status, failPrefix))
-			if msg == "" {
-				msg = "Failed to reconnect to proxy"
-			}
-			editor.exitMessage = msg
-			editor.exitCode = 1
-			_ = editor.actuallyQuit(nil)
-			return
-		}
-
+		// Connection-status only (spinner text, etc.)
 		editor.connectionStatus = status
 		// Wake main loop so the status/spinner updates without keypress
 		editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
 		// If status becomes empty (completion), force a final render wake
 		if status == "" {
 			editor.asyncEvents <- events.NewCustomEvent("render", nil)
+		}
+	})
+
+	// Route proxy messages to *Messages* buffer
+	proxyManager.SetMessageCallback(func(level, message string) {
+		if strings.TrimSpace(message) == "" {
+			return
+		}
+		switch strings.ToLower(strings.TrimSpace(level)) {
+		case "warn", "warning":
+			editor.ShowInfo("%s", message)
+		case "error":
+			editor.ShowError("%s", message)
+		default:
+			editor.ShowInfo("%s", message)
 		}
 	})
 

@@ -34,13 +34,18 @@ const ProxyVersion = "1.0.32"
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
 
+// MessageCallback is a function that receives log-style messages with a level
+// like "info", "warn", or "error" for display in the editor's *Messages* buffer.
+type MessageCallback func(level string, message string)
+
 // ProxyManager manages multiple proxy instances for different hosts
 type ProxyManager struct {
 	clients map[string]*Client // key is hostname, empty string for local
 	// mu protects access to the clients map and related state.
 	// Do not hold mu while performing network I/O or long-running operations.
-	mu             sync.Mutex
-	statusCallback StatusCallback // callback for status updates
+	mu              sync.Mutex
+	statusCallback  StatusCallback  // callback for status updates
+	messageCallback MessageCallback // callback for log/messages
 }
 
 // NewProxyManager creates a new proxy manager
@@ -70,6 +75,18 @@ func (pm *ProxyManager) reportStatus(status string) {
 		pm.statusCallback(status)
 	}
 	// Also emit a final blank status to signal completion cases explicitly
+}
+
+// SetMessageCallback sets the callback for log-style messages
+func (pm *ProxyManager) SetMessageCallback(callback MessageCallback) {
+	pm.messageCallback = callback
+}
+
+// reportMessage sends a log-style message to the editor if callback set
+func (pm *ProxyManager) reportMessage(level, message string) {
+	if pm.messageCallback != nil {
+		pm.messageCallback(level, message)
+	}
 }
 
 // getClient returns the appropriate client for the given path
@@ -158,7 +175,8 @@ func (pm *ProxyManager) startRemoteProxy(host string) (*Client, *exec.Cmd, error
 		for scanner.Scan() {
 			line := scanner.Text()
 			LL.Debug("Remote proxy stderr [%s]: %s", host, line)
-			fmt.Fprintf(os.Stderr, "REMOTE PROXY STDERR [%s]: %s\n", host, line)
+			// Forward to editor as a message; do not write to stderr
+			pm.reportMessage("error", fmt.Sprintf("REMOTE PROXY STDERR [%s]: %s", host, line))
 		}
 	}()
 
@@ -1079,6 +1097,13 @@ func shouldReconnect(err error) bool {
 	if strings.Contains(s, "failed to write request") || strings.Contains(s, "failed to flush request") {
 		return true
 	}
+	// Newer error phrasing and common transport failures
+	if strings.Contains(s, "failed to send request") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(s), "broken pipe") {
+		return true
+	}
 	return false
 }
 
@@ -1107,8 +1132,8 @@ func (pm *ProxyManager) reconnect(host string) (*Client, error) {
 	}
 	if err != nil {
 		pm.reportStatus("Disconnected")
-		// Emit a special failure status so the editor can react (exit with message)
-		pm.reportStatus(fmt.Sprintf("__RECONNECT_FAILED__: %s", err.Error()))
+		// Notify editor via message callback, but do not exit
+		pm.reportMessage("error", fmt.Sprintf("Failed to reconnect: %s", err.Error()))
 		return nil, err
 	}
 	pm.mu.Lock()
@@ -1500,8 +1525,6 @@ func NewClient() (*Client, error) {
 		for scanner.Scan() {
 			line := scanner.Text()
 			LL.Debug("Proxy stderr: %s", line)
-			// Also print to stdout for test visibility
-			fmt.Fprintf(os.Stderr, "PROXY STDERR: %s\n", line)
 		}
 	}()
 
