@@ -58,8 +58,8 @@ func Paste() (string, error) {
 		// Linux: detect WSL and use Windows clipboard interop if available
 		if isWSL() {
 			if _, err := exec.LookPath("powershell.exe"); err == nil {
-				// Use -Raw to avoid PowerShell adding its own formatting
-				cmd = exec.Command("powershell.exe", "-NoProfile", "-Command", "Get-Clipboard -Raw")
+				// Avoid PowerShell adding a trailing newline by writing directly to Console.Out
+				cmd = exec.Command("powershell.exe", "-NoProfile", "-Command", "[Console]::Out.Write((Get-Clipboard -Raw))")
 			} else {
 				return "", fmt.Errorf("WSL detected but powershell.exe not found")
 			}
@@ -88,21 +88,6 @@ func Paste() (string, error) {
 	s := string(output)
 	if strings.Contains(s, "\r\n") {
 		s = strings.ReplaceAll(s, "\r\n", "\n")
-	}
-
-	// WSL-only: some Windows clipboard paths append an extra trailing newline.
-	// Collapse multiple trailing LFs to exactly one to preserve line-wise semantics
-	// without introducing an extra blank line. Default behavior when running in WSL.
-	if isWSL() {
-		// Count trailing LFs
-		i := len(s) - 1
-		for i >= 0 && i < len(s) && s[i] == '\n' {
-			i--
-		}
-		trailing := len(s) - 1 - i
-		if trailing > 1 {
-			s = s[:i+1] + "\n"
-		}
 	}
 	return s, nil
 }
