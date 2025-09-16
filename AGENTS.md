@@ -9,7 +9,9 @@
 - Code examples you receive verbatim are often part of a proprietary codebase.
   If you use these pieces of code, change the name to avoid including
   proprietary code in this project.
-- Use `make` to build and `make test` to run all tests.
+- Use `make` to build.
+- To run all tests use `make test`. Note it can take long time.
+- To run a specific test, use `go test`.
 
 ## More information
 See CLAUDE.md for additional information about the project.
