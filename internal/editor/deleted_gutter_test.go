@@ -1,9 +1,11 @@
 package editor
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -84,5 +86,88 @@ func TestDeletedLinesGutter(t *testing.T) {
 	}
 	if r := readLeftGutterRune(8); r == ' ' || r == 0 {
 		t.Fatalf("expected deletion indicator at line 8; got %q", r)
+	}
+}
+
+// TestDeletedMultiLineHunkGutter ensures we only draw a single deletion indicator
+// for a contiguous deleted hunk, placed at the first surviving line.
+func TestDeletedMultiLineHunkGutter(t *testing.T) {
+	repo := NewGitTestRepo(t)
+	run := func(name string, args ...string) {
+		cmd := exec.Command(name, args...)
+		cmd.Dir = repo
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %s %v\n%s", name, args, string(out))
+		}
+	}
+
+	var baseLines []string
+	for i := 1; i <= 20; i++ {
+		baseLines = append(baseLines, fmt.Sprintf("line%d", i))
+	}
+	base := strings.Join(baseLines, "\n") + "\n"
+
+	path := filepath.Join(repo, "file.txt")
+	if err := os.WriteFile(path, []byte(base), 0644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+
+	run("git", "init", ".")
+	run("git", "config", "user.name", "Test User")
+	run("git", "config", "user.email", "test@example.com")
+	run("git", "add", filepath.Base(path))
+	run("git", "commit", "-m", "initial")
+
+	var modifiedLines []string
+	for i := 1; i <= 20; i++ {
+		if i >= 3 && i <= 8 {
+			continue
+		}
+		modifiedLines = append(modifiedLines, fmt.Sprintf("line%d", i))
+	}
+	modified := strings.Join(modifiedLines, "\n") + "\n"
+	if err := os.WriteFile(path, []byte(modified), 0644); err != nil {
+		t.Fatalf("write modified: %v", err)
+	}
+
+	te := NewTestEditorWithContent(100, 25, modified)
+	oldKey := te.CurrentBuffer().FilePath
+	te.CurrentBuffer().FilePath = path
+	te.CurrentBuffer().RealPath = path
+	te.buffers[path] = te.CurrentBuffer()
+	delete(te.buffers, oldKey)
+
+	fc, err := te.Editor.proxyManager.GetFile(path)
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	te.CurrentBuffer().GitChanges = &fc.Changes
+
+	te.render()
+
+	readLeftGutterRune := func(oneBasedLine int) rune {
+		lnw := te.CurrentBuffer().LineNumberWidth
+		digits := lnw - 3
+		if digits < 1 {
+			digits = 1
+		}
+		leftX := digits
+		contentStartY := len(te.CurrentBuffer().ContextCache)
+		viewTop := te.CurrentBuffer().ViewIterator.LineNumber()
+		screenY := contentStartY + (oneBasedLine - 1 - viewTop)
+		r, _ := te.mockScreen.GetCell(leftX, screenY)
+		return r
+	}
+
+	if r := readLeftGutterRune(3); r == ' ' || r == 0 {
+		t.Fatalf("expected deletion indicator at line 3; got %q", r)
+	}
+
+	for line := 4; line <= 10; line++ {
+		if r := readLeftGutterRune(line); r != ' ' && r != 0 {
+			t.Fatalf("expected no deletion indicator at line %d; got %q", line, r)
+		}
 	}
 }

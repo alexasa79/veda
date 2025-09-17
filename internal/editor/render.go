@@ -12,6 +12,22 @@ import (
 	"veda/internal/ui"
 )
 
+// isDeletedHunkStart reports whether the provided line is the first line of a
+// contiguous deleted block.
+func isDeletedHunkStart(line int, deleted []int) bool {
+	prev := -1
+	for _, d := range deleted {
+		if d == line {
+			return prev != line-1
+		}
+		if d > line {
+			break
+		}
+		prev = d
+	}
+	return false
+}
+
 // isInWordRange checks if a character position is within any of the word diff ranges
 func isInWordRange(pos int, ranges []DiffRange) bool {
 	for _, r := range ranges {
@@ -84,11 +100,8 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 	}
 
 	if !isAdded && !isModified {
-		for _, d := range e.CurrentBuffer().GitChanges.Deleted {
-			if d == lineNum {
-				isDeleted = true
-				break
-			}
+		if isDeletedHunkStart(lineNum, e.CurrentBuffer().GitChanges.Deleted) {
+			isDeleted = true
 		}
 	}
 
