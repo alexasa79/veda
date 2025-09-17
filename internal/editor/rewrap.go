@@ -3,6 +3,7 @@ package editor
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 )
@@ -354,6 +355,23 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		cursorLine = len(lines) - 1
 	}
 
+	// Track cursor whitespace context before we trim lines so we can preserve
+	// intent when re-positioning after wrap.
+	cursorWasWhitespace := false
+	cursorWasTrailingWhitespace := false
+	if cursorLine >= 0 && cursorLine < len(lines) {
+		line := lines[cursorLine]
+		if cursorX < len(line) {
+			if r, _ := utf8.DecodeRuneInString(line[cursorX:]); unicode.IsSpace(r) {
+				cursorWasWhitespace = true
+			}
+		}
+		trimmedRight := strings.TrimRightFunc(line, unicode.IsSpace)
+		if cursorX >= len(trimmedRight) {
+			cursorWasTrailingWhitespace = true
+		}
+	}
+
 	// Initial naive bounds
 	startLine, endLine := findParagraphBounds(lines, cursorLine)
 	// Detect context near the cursor line (more accurate for comments)
@@ -549,7 +567,25 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		paragraphText.WriteString(trimmed)
 	}
 
-	LL.Trace("rewrapParagraphWithWidth: Final paragraph text: '%s'", paragraphText.String())
+	paraText := paragraphText.String()
+	LL.Trace("rewrapParagraphWithWidth: Final paragraph text: '%s'", paraText)
+
+	if cursorOffsetInParagraph >= 0 {
+		if cursorWasTrailingWhitespace {
+			cursorOffsetInParagraph = len(paraText)
+		} else if cursorWasWhitespace && len(paraText) > 0 {
+			for cursorOffsetInParagraph > 0 && cursorOffsetInParagraph <= len(paraText) {
+				r, size := utf8.DecodeLastRuneInString(paraText[:cursorOffsetInParagraph])
+				if !unicode.IsSpace(r) {
+					break
+				}
+				cursorOffsetInParagraph -= size
+			}
+		}
+		if cursorOffsetInParagraph > len(paraText) {
+			cursorOffsetInParagraph = len(paraText)
+		}
+	}
 
 	// Now prepare wrapped output and replacement region based on context
 	wrappedLines := []string{}
