@@ -1373,17 +1373,49 @@ func (e *Editor) reindentExpression(args []string) error {
 	// Helper: unit indentation string
 	unit := e.CurrentBuffer().GetIndentationString()
 
+	desiredIndentCache := make(map[int]string)
+
 	for ln := startLine; ln <= endLine; ln++ {
 		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
 		if iter.IsEOF() {
 			continue
 		}
 		line := iter.Line()
-		// Place CursorIterator at this line to let CalculateAutoIndent analyze context
+
+		// Compute desired indentation by emulating the newline path: reuse the
+		// previous line's context when available so continuation indentation is
+		// preserved (e.g. multi-line function calls).
+		desired := ""
+		cursorBackup := e.CurrentBuffer().CursorIterator
+		cursorXBackup := e.CurrentBuffer().CursorX
+
+		if ln > 0 {
+			prevIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln-1)
+			if !prevIter.IsEOF() {
+				prevLine := prevIter.Line()
+				if cached := desiredIndentCache[ln-1]; cached != "" || ln-1 >= startLine {
+					// Reconstruct the previous line with its soon-to-be applied indentation so
+					// CalculateAutoIndent observes the updated continuation alignment.
+					prevTrimmed := strings.TrimLeft(prevLine, " \t")
+					prevLine = cached + prevTrimmed
+				}
+				e.CurrentBuffer().CursorIterator = prevIter
+				e.CurrentBuffer().CursorX = len(prevLine)
+				auto := e.CurrentBuffer().CalculateAutoIndent(prevLine, e.CurrentBuffer().CursorX)
+				desired = auto.IndentStr
+			}
+		}
+		if desired == "" {
+			// Fallback to the previous behaviour when no previous line context is available.
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
+			e.CurrentBuffer().CursorX = 0
+			auto := e.CurrentBuffer().CalculateAutoIndent("", 0)
+			desired = auto.IndentStr
+		}
+
+		// Restore cursor iterator so subsequent logic (e.g. brace matching) operates on the current line.
 		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
-		// Desired indentation for an empty line at this position (block-level)
-		auto := e.CurrentBuffer().CalculateAutoIndent("", 0)
-		desired := auto.IndentStr
+		e.CurrentBuffer().CursorX = 0
 
 		// If this line begins with a closing brace, align to its matching open brace's indent
 		trimmed := strings.TrimLeft(line, " \t")
@@ -1392,6 +1424,12 @@ func (e *Editor) reindentExpression(args []string) error {
 				desired = strings.Repeat(unit, openIndent)
 			}
 		}
+
+		// Restore original cursor iterator before potential continue/next iteration.
+		e.CurrentBuffer().CursorIterator = cursorBackup
+		e.CurrentBuffer().CursorX = cursorXBackup
+
+		desiredIndentCache[ln] = desired
 
 		// Current leading whitespace
 		i := 0
