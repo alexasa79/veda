@@ -61,3 +61,30 @@ func TestReindentExpression_CyclesRulerIndexWithoutChangingIndent(t *testing.T) 
 		t.Fatalf("expected lastRewrapIndex 1, got %d", te.Editor.lastRewrapIndex)
 	}
 }
+
+func TestReindentExpression_AlignsFunctionArguments(t *testing.T) {
+	content := strings.Join([]string{
+		"int res = function(arg1,",
+		"              arg2,",
+		"              arg3,",
+		"              arg4);",
+	}, "\n")
+
+	te := NewTestEditorWithContent(80, 24, content)
+	te.SetCursorPosition(len("              "), 1) // Cursor on the start of arg2
+
+	if err := te.ExecuteCommand("reindent-expression"); err != nil {
+		t.Fatalf("reindent-expression failed: %v", err)
+	}
+
+	got := te.GetBufferContent()
+	want := strings.Join([]string{
+		"int res = function(arg1,",
+		"                   arg2,",
+		"                   arg3,",
+		"                   arg4);",
+	}, "\n")
+	if got != want {
+		t.Fatalf("unexpected content after reindent-expression.\nGot:\n%q\nWant:\n%q", got, want)
+	}
+}
