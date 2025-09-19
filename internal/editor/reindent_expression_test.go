@@ -3,6 +3,8 @@ package editor
 import (
 	"strings"
 	"testing"
+
+	"veda/internal/proxy"
 )
 
 func TestReindentExpression_UsesBlockAndDedentsBraces(t *testing.T) {
@@ -86,5 +88,30 @@ func TestReindentExpression_AlignsFunctionArguments(t *testing.T) {
 	}, "\n")
 	if got != want {
 		t.Fatalf("unexpected content after reindent-expression.\nGot:\n%q\nWant:\n%q", got, want)
+	}
+}
+
+func TestReindentExpression_TrailingCommentWithinFoldingRange(t *testing.T) {
+	content := strings.Join([]string{
+		"int sum(int a, int b) {",
+		"    return a + b;",
+		"}",
+		"    // helper summary lives outside the function",
+	}, "\n")
+
+	te := NewTestEditorWithContent(80, 24, content)
+	te.CurrentBuffer().FoldingRanges = []proxy.FoldingRange{
+		{StartLine: 0, EndLine: 3},
+	}
+
+	te.SetCursorPosition(4, 1) // Inside the function body
+
+	if err := te.ExecuteCommand("reindent-expression"); err != nil {
+		t.Fatalf("reindent-expression failed: %v", err)
+	}
+
+	got := te.GetBufferContent()
+	if got != content {
+		t.Fatalf("trailing comment outside function was modified.\nGot:\n%q\nWant:\n%q", got, content)
 	}
 }

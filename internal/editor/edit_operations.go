@@ -1513,21 +1513,101 @@ func (e *Editor) findExpressionRange() (int, int, int, int, bool) {
 	if len(e.CurrentBuffer().FoldingRanges) > 0 {
 		tb := NewBlockTextObject(ModifierAround)
 		if sL, sC, eL, eC, ok := tb.GetRange(e.CurrentBuffer(), line, x); ok {
+			sL, sC, eL, eC = e.refineExpressionRange(sL, sC, eL, eC, line, x)
 			return sL, sC, eL, eC, true
 		}
 	}
 
 	// Try braces
-	bt := NewBracketTextObject('{', ModifierAround)
-	if sL, sC, eL, eC, ok := bt.GetRange(e.CurrentBuffer(), line, x); ok {
-		return sL, sC, eL, eC, true
+	if bt := NewBracketTextObject('{', ModifierAround); bt != nil {
+		if sL, sC, eL, eC, ok := bt.GetRange(e.CurrentBuffer(), line, x); ok {
+			sL, sC, eL, eC = e.refineExpressionRange(sL, sC, eL, eC, line, x)
+			return sL, sC, eL, eC, true
+		}
 	}
 	// Try parentheses
-	pt := NewBracketTextObject('(', ModifierAround)
-	if sL, sC, eL, eC, ok := pt.GetRange(e.CurrentBuffer(), line, x); ok {
-		return sL, sC, eL, eC, true
+	if pt := NewBracketTextObject('(', ModifierAround); pt != nil {
+		if sL, sC, eL, eC, ok := pt.GetRange(e.CurrentBuffer(), line, x); ok {
+			sL, sC, eL, eC = e.refineExpressionRange(sL, sC, eL, eC, line, x)
+			return sL, sC, eL, eC, true
+		}
 	}
 	return 0, 0, 0, 0, false
+}
+
+func (e *Editor) refineExpressionRange(startLine, startChar, endLine, endChar, cursorLine, cursorChar int) (int, int, int, int) {
+	if e.CurrentBuffer() == nil {
+		return startLine, startChar, endLine, endChar
+	}
+
+	// If a brace-delimited block sits within the candidate, prefer that narrower span.
+	if brace := NewBracketTextObject('{', ModifierAround); brace != nil {
+		if bStart, bStartChar, bEnd, bEndChar, ok := brace.GetRange(e.CurrentBuffer(), cursorLine, cursorChar); ok {
+			if bStart >= startLine && bEnd <= endLine {
+				startLine, startChar, endLine, endChar = bStart, bStartChar, bEnd, bEndChar
+			}
+		}
+	}
+
+	// Trim leading/trailing blank lines that lie outside the cursor's block.
+	originalStart, originalEnd := startLine, endLine
+	startLine, endLine = e.trimExpressionRangeWhitespace(startLine, endLine, cursorLine)
+
+	if startLine != originalStart {
+		startChar = 0
+	}
+	if endLine != originalEnd {
+		endChar = e.lineLength(endLine)
+	}
+
+	return startLine, startChar, endLine, endChar
+}
+
+func (e *Editor) trimExpressionRangeWhitespace(startLine, endLine, cursorLine int) (int, int) {
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return startLine, endLine
+	}
+
+	for startLine < endLine && startLine < cursorLine {
+		iter := buffer.NewBufferIteratorAtLine(buf, startLine)
+		if iter.IsEOF() {
+			startLine++
+			continue
+		}
+		if strings.TrimSpace(iter.Line()) == "" {
+			startLine++
+			continue
+		}
+		break
+	}
+
+	for endLine > startLine && endLine > cursorLine {
+		iter := buffer.NewBufferIteratorAtLine(buf, endLine)
+		if iter.IsEOF() {
+			endLine--
+			continue
+		}
+		if strings.TrimSpace(iter.Line()) == "" {
+			endLine--
+			continue
+		}
+		break
+	}
+
+	return startLine, endLine
+}
+
+func (e *Editor) lineLength(line int) int {
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return 0
+	}
+	iter := buffer.NewBufferIteratorAtLine(buf, line)
+	if iter.IsEOF() {
+		return 0
+	}
+	return len(iter.Line())
 }
 
 // indentLine indents the current line by one level (>> in vim)
