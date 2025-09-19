@@ -74,6 +74,12 @@ var keyCodes = []keyCode{
 	{[]byte{'\x1b', '[', '1', ';', '2', 'C'}, events.KeyRight, events.ModShift},
 	{[]byte{'\x1b', '[', '1', ';', '2', 'D'}, events.KeyLeft, events.ModShift},
 
+	// Ctrl+Arrow keys (common CSI modifier encoding: 1;5X)
+	{[]byte{'\x1b', '[', '1', ';', '5', 'A'}, events.KeyUp, events.ModCtrl},
+	{[]byte{'\x1b', '[', '1', ';', '5', 'B'}, events.KeyDown, events.ModCtrl},
+	{[]byte{'\x1b', '[', '1', ';', '5', 'C'}, events.KeyRight, events.ModCtrl},
+	{[]byte{'\x1b', '[', '1', ';', '5', 'D'}, events.KeyLeft, events.ModCtrl},
+
 	// Home/End keys (various encodings)
 	{[]byte{'\x1b', '[', 'H'}, events.KeyHome, events.ModNone},
 	{[]byte{'\x1b', '[', 'F'}, events.KeyEnd, events.ModNone},

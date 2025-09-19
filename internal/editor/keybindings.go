@@ -88,6 +88,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
 	e.registerKeyBinding(commands.InsertMode, "alt+left", "word-backward-insert")
 	e.registerKeyBinding(commands.InsertMode, "alt+right", "word-forward-insert")
+	e.registerKeyBinding(commands.InsertMode, "ctrl+left", "word-backward-insert")
+	e.registerKeyBinding(commands.InsertMode, "ctrl+right", "word-forward-insert")
 
 	// Completion
 	e.registerKeyBinding(commands.InsertMode, "ctrl+space", "show-completions")
