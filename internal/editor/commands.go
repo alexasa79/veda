@@ -77,6 +77,10 @@ func (e *Editor) registerCommands() {
 	// Comment commands
 	e.commandRegistry.Register("toggle-comment", e.toggleComment, true, true)
 
+	// Line movement commands
+	e.commandRegistry.Register("move-lines-up", e.moveLinesUp, false, true)
+	e.commandRegistry.Register("move-lines-down", e.moveLinesDown, false, true)
+
 	// Visual mode operations
 	e.commandRegistry.Register("delete-selection", e.deleteSelection, false, true)
 	e.commandRegistry.Register("yank-selection", e.yankSelection, false, true)

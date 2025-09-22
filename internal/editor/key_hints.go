@@ -24,6 +24,8 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"page-down":                   "page down",
 		"go-to-beginning":             "beginning of file",
 		"go-to-end":                   "end of file",
+		"move-lines-up":               "move lines up",
+		"move-lines-down":             "move lines down",
 
 		// Mode commands
 		"enter-command-mode":     "command mode",

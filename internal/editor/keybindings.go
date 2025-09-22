@@ -275,4 +275,10 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBindingForModes(shiftArrowModes, "shift+right", "start-visual-right")
 	e.registerKeyBindingForModes(shiftArrowModes, "shift+up", "start-visual-up")
 	e.registerKeyBindingForModes(shiftArrowModes, "shift+down", "start-visual-down")
+
+	lineMoveModes := []commands.Mode{commands.NormalMode, commands.InsertMode, commands.VisualLineMode}
+	e.registerKeyBindingForModes(lineMoveModes, "ctrl+up", "move-lines-up")
+	e.registerKeyBindingForModes(lineMoveModes, "ctrl+down", "move-lines-down")
+	e.registerKeyBindingForModes(lineMoveModes, "alt+up", "move-lines-up")
+	e.registerKeyBindingForModes(lineMoveModes, "alt+down", "move-lines-down")
 }
