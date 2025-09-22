@@ -491,6 +491,32 @@ func TestRepeatLastChange(t *testing.T) {
 		AssertBufferEquals(t, te, "a 20 b\nc 20 d")
 	})
 
+	t.Run("repeat complex cw edit", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello world\nhello world")
+
+		// Change the first word using cw and mimic a series of cursor movements in insert mode
+		te.TypeKeys("cw")
+		te.InsertChar('H')
+		te.InsertChar('E')
+		te.ExecuteCommand("left-insert")
+		te.ExecuteCommand("right-insert")
+		te.InsertChar('L')
+		te.InsertChar('L')
+		te.InsertChar('L')
+		te.ExecuteCommand("backspace")
+		te.InsertChar('O')
+		te.ExecuteCommand("exit-insert-mode")
+
+		AssertBufferEquals(t, te, "HELLO world\nhello world")
+
+		// Move to the next line and repeat the same change
+		te.ExecuteCommand("down")
+		te.ExecuteCommand("beginning-of-line")
+		te.ExecuteCommand("repeat-last-change")
+
+		AssertBufferEquals(t, te, "HELLO world\nHELLO world")
+	})
+
 	t.Run("repeat cw with iterator validation", func(t *testing.T) {
 		// Test to ensure iterators are properly updated during cw repeat
 		te := NewTestEditorWithContent(80, 24, "hello world\nfoo bar\nbaz qux")

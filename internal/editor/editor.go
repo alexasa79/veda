@@ -2825,23 +2825,49 @@ func (e *Editor) repeatLastChange(args []string) error {
 				lineNum := savedCursorLine
 				cursorX := e.CurrentBuffer().CursorX
 
-				// Simply replay all the insert operations at the current position
+				composite := buffer.NewCompositeEntry("Repeat change insert")
+				var baseLineOffset, baseCharOffset int
+				firstLine := 0
+				haveBase := false
+
 				for _, entry := range insertEntry.Entries {
 					switch origEntry := entry.(type) {
 					case *buffer.InsertTextEntry:
-						// Create new entry at current position
-						newEntry := buffer.NewInsertTextEntry(lineNum, cursorX, origEntry.Text)
-						if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), newEntry); err != nil {
-							return err
-						} else if executed != nil {
-							// Update cursor position based on the insert
-							e.CurrentBuffer().CursorX = cursorX + len(origEntry.Text)
-							cursorX = e.CurrentBuffer().CursorX
+						if !haveBase {
+							firstLine = origEntry.Line
+							baseLineOffset = lineNum - origEntry.Line
+							baseCharOffset = cursorX - origEntry.Character
+							haveBase = true
 						}
+						newLine := origEntry.Line + baseLineOffset
+						newChar := origEntry.Character
+						if haveBase && origEntry.Line == firstLine {
+							newChar += baseCharOffset
+						}
+						composite.Add(buffer.NewInsertTextEntry(newLine, newChar, origEntry.Text))
+					case *buffer.DeleteTextEntry:
+						if !haveBase {
+							firstLine = origEntry.Line
+							baseLineOffset = lineNum - origEntry.Line
+							baseCharOffset = cursorX - origEntry.Character
+							haveBase = true
+						}
+						newLine := origEntry.Line + baseLineOffset
+						newChar := origEntry.Character
+						if haveBase && origEntry.Line == firstLine {
+							newChar += baseCharOffset
+						}
+						composite.Add(buffer.NewDeleteTextEntry(newLine, newChar, origEntry.Text))
 					}
 				}
 
-				// Recreate iterators after all inserts are complete
+				if len(composite.Entries) > 0 {
+					if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
+						return err
+					}
+				}
+
+				// Recreate iterators after all edits are complete
 				e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 				if savedViewLine >= e.CurrentBuffer().LineCount {
 					savedViewLine = e.CurrentBuffer().LineCount - 1
