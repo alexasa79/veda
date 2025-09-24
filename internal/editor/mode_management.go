@@ -18,6 +18,9 @@ import (
 func (e *Editor) handleCommandMode(ev *events.KeyEvent) {
 	switch ev.Key {
 	case events.KeyEscape:
+		if e.dismissSignatureIfVisible() {
+			return
+		}
 		// Exit command mode
 		e.exitCommandMode()
 	case events.KeyEnter:
@@ -63,6 +66,9 @@ func (e *Editor) exitCommandMode() {
 func (e *Editor) handleCursorMode(ev *events.KeyEvent) {
 	switch ev.Key {
 	case events.KeyEscape:
+		if e.dismissSignatureIfVisible() {
+			return
+		}
 		// Exit cursor mode
 		e.exitCursorMode()
 		return

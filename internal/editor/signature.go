@@ -112,6 +112,15 @@ func (e *Editor) clearSignature(buf *buffer.Buffer) {
 	}
 }
 
+func (e *Editor) dismissSignatureIfVisible() bool {
+	buf := e.CurrentBuffer()
+	if buf != nil && buf.CurrentSignature != nil {
+		e.clearSignature(buf)
+		return true
+	}
+	return false
+}
+
 func (e *Editor) getSignatureAnchor(buf *buffer.Buffer, funcName string, cursorLine, cursorChar int) (*signatureAnchor, bool) {
 	if buf == nil || funcName == "" {
 		return nil, false
