@@ -2176,7 +2176,7 @@ func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activ
 // applyBoldIfInRange applies emphasis (bold + underline) if the range overlaps with the active parameter
 func (e *Editor) applyActiveParamStyle(style ui.Style, start, end, activeStart, activeEnd int) ui.Style {
 	if activeStart >= 0 && e.rangesOverlap(start, end, activeStart, activeEnd) {
-		highlight := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+		highlight := e.config.Theme.GetStyle(e.config.Theme.SignatureActive)
 		if highlight.Fg != ui.ColorDefault {
 			style = style.Foreground(highlight.Fg)
 		}

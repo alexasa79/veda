@@ -30,6 +30,7 @@ type Theme struct {
 	LineNumber      StyleDef
 	CurrentLine     StyleDef
 	Context         StyleDef // Style for context lines and signature help
+	SignatureActive StyleDef // Style for active parameter in signature help
 	SearchHighlight StyleDef // Style for search matches
 	FlashHighlight  StyleDef // Style for flashing yanked/changed text
 	MatchHighlight  StyleDef // Style for matching bracket/quote highlight
@@ -188,6 +189,11 @@ func NewTheme() *Theme {
 		Context: StyleDef{
 			Foreground: "#66d9ef",
 			Background: "#000000",
+		},
+
+		SignatureActive: StyleDef{
+			Foreground: "#1b1d1e",
+			Background: "#a6e22e",
 		},
 
 		SearchHighlight: StyleDef{
