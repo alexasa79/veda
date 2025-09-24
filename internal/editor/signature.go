@@ -6,6 +6,60 @@ import (
 	"veda/internal/commands"
 )
 
+type signatureArgRange struct {
+	startLine int
+	startChar int
+	endLine   int
+	endChar   int
+}
+
+type signatureAnchor struct {
+	funcName         string
+	openLine         int
+	openChar         int
+	closeLine        int
+	closeChar        int
+	nameStartLine    int
+	nameStartChar    int
+	nameEndLine      int
+	nameEndChar      int
+	args             []signatureArgRange
+	sigGeneration    uint64
+	bufferGeneration uint64
+}
+
+func (a signatureAnchor) contains(line, char int) bool {
+	if posLT(line, char, a.nameStartLine, a.nameStartChar) {
+		return false
+	}
+	if posLT(a.closeLine, a.closeChar, line, char) {
+		return false
+	}
+	return true
+}
+
+func (a signatureAnchor) argumentIndexAt(line, char int) int {
+	for idx, arg := range a.args {
+		if arg.contains(line, char) {
+			return idx
+		}
+	}
+	return -1
+}
+
+func (r signatureArgRange) contains(line, char int) bool {
+	if line < r.startLine || line > r.endLine {
+		return false
+	}
+	if line == r.startLine && char < r.startChar {
+		return false
+	}
+	if line == r.endLine && char > r.endChar {
+		return false
+	}
+	return true
+}
+
 // getSignatureY returns the Y position where signature should be drawn
 func (e *Editor) getSignatureY() int {
 	// Signature should sit directly above the status bar when present.
@@ -38,9 +92,117 @@ func (e *Editor) getSignatureLines() int {
 	if e.CurrentBuffer().CurrentSignature == nil {
 		return 0
 	}
-	// For now, we'll use 1 line for the signature
-	// Later we can expand this if we need multi-line signatures
-	return 1
+	width, _ := e.screen.Size()
+	maxWidth := width - 2
+	if maxWidth < 1 {
+		maxWidth = width
+	}
+	text := e.formatSignatureText(e.CurrentBuffer().CurrentSignature)
+	lines := e.wrapSignatureText(text, maxWidth)
+	return len(lines)
+}
+
+func (e *Editor) clearSignature(buf *buffer.Buffer) {
+	if buf == nil {
+		return
+	}
+	buf.CurrentSignature = nil
+	if e.signatureAnchors != nil {
+		delete(e.signatureAnchors, buf)
+	}
+}
+
+func (e *Editor) getSignatureAnchor(buf *buffer.Buffer, funcName string, cursorLine, cursorChar int) (*signatureAnchor, bool) {
+	if buf == nil || funcName == "" {
+		return nil, false
+	}
+
+	if e.signatureAnchors == nil {
+		e.signatureAnchors = make(map[*buffer.Buffer]*signatureAnchor)
+	}
+
+	if anchor, ok := e.signatureAnchors[buf]; ok {
+		if anchor.funcName == funcName && anchor.sigGeneration == buf.SignatureGeneration && anchor.bufferGeneration == buf.Generation {
+			return anchor, anchor.contains(cursorLine, cursorChar)
+		}
+		delete(e.signatureAnchors, buf)
+	}
+
+	anchor, ok := e.buildSignatureAnchor(buf, funcName, cursorLine, cursorChar)
+	if !ok {
+		return nil, false
+	}
+	e.signatureAnchors[buf] = anchor
+	return anchor, anchor.contains(cursorLine, cursorChar)
+}
+
+func (e *Editor) buildSignatureAnchor(buf *buffer.Buffer, funcName string, cursorLine, cursorChar int) (*signatureAnchor, bool) {
+	ato := NewArgumentTextObject(ModifierInside)
+	ol, oc, ok := findCallOpeningParenForName(ato, buf, cursorLine, cursorChar, funcName)
+	if !ok {
+		return nil, false
+	}
+	cl, cc := ato.findClosingFor(buf, ol, oc, '(', ')')
+	if cl == -1 {
+		return nil, false
+	}
+
+	args := ato.parseArguments(buf, ol, oc, cl, cc)
+	ranges := make([]signatureArgRange, len(args))
+	for i, arg := range args {
+		ranges[i] = signatureArgRange{
+			startLine: arg.start.line,
+			startChar: arg.start.char,
+			endLine:   arg.end.line,
+			endChar:   arg.end.char,
+		}
+	}
+
+	nameStartLine, nameStartChar, nameEndLine, nameEndChar := computeFunctionNameRangeForAnchor(buf, ol, oc)
+
+	anchor := &signatureAnchor{
+		funcName:         funcName,
+		openLine:         ol,
+		openChar:         oc,
+		closeLine:        cl,
+		closeChar:        cc,
+		nameStartLine:    nameStartLine,
+		nameStartChar:    nameStartChar,
+		nameEndLine:      nameEndLine,
+		nameEndChar:      nameEndChar,
+		args:             ranges,
+		sigGeneration:    buf.SignatureGeneration,
+		bufferGeneration: buf.Generation,
+	}
+	return anchor, true
+}
+
+func computeFunctionNameRangeForAnchor(buf *buffer.Buffer, openLine, openChar int) (int, int, int, int) {
+	line, char, ok := prevNonSpace(buf, openLine, openChar)
+	if !ok {
+		return openLine, openChar, openLine, openChar
+	}
+	iter := buffer.NewBufferIteratorAtLine(buf, line)
+	if iter.IsEOF() {
+		return openLine, openChar, openLine, openChar
+	}
+	lineStr := iter.Line()
+	start := char
+	for start >= 0 && isIdentChar(lineStr[start]) {
+		start--
+	}
+	start++
+	end := char + 1
+	for start < end && start < len(lineStr) && !isIdentChar(lineStr[start]) {
+		start++
+	}
+	for end < len(lineStr) && isIdentChar(lineStr[end]) {
+		end++
+	}
+	if start >= end {
+		return openLine, openChar, openLine, openChar
+	}
+	return line, start, line, end
 }
 
 // requestSignatureHelpAsync sends an asynchronous request for signature help
@@ -64,7 +226,7 @@ func (e *Editor) requestSignatureHelpAsync() {
 		if generation == e.CurrentBuffer().SignatureGeneration {
 			if err != nil {
 				LL.Debug("LSP signature help error for %s: %v", e.CurrentBuffer().FilePath, err)
-				e.CurrentBuffer().CurrentSignature = nil
+				e.clearSignature(e.CurrentBuffer())
 			} else {
 				// Parse and store the signature help
 				e.parseSignatureHelpResponse(e.CurrentBuffer(), sigHelp)
@@ -102,7 +264,7 @@ func (e *Editor) checkSignatureUpdate() {
 			if !insideAnchor {
 				// If anchor fails but heuristic says we're inside, keep signature.
 				if !e.isLikelyInsideCallOnCurrentLine() {
-					e.CurrentBuffer().CurrentSignature = nil
+					e.clearSignature(e.CurrentBuffer())
 					return
 				}
 			} else {
@@ -138,7 +300,7 @@ func (e *Editor) checkSignatureUpdate() {
 
 	// If we've moved away from the anchored call, clear the signature.
 	if !e.isInsideSignatureCall() && !e.isLikelyInsideCallOnCurrentLine() {
-		e.CurrentBuffer().CurrentSignature = nil
+		e.clearSignature(e.CurrentBuffer())
 		return
 	}
 
@@ -212,40 +374,16 @@ func (e *Editor) isInsideSignatureCall() bool {
 	if funcName == "" {
 		return e.isLikelyInsideCallOnCurrentLine()
 	}
-	ato := NewArgumentTextObject(ModifierInside)
 	cLine := buf.CursorIterator.LineNumber()
 	cChar := buf.CursorX
-	ol, oc, ok := findCallOpeningParenForName(ato, buf, cLine, cChar, funcName)
-	if !ok {
-		// If we can't find the paren anchor, consider being on the function name as inside
-		if onName, _, _ := isCursorOnFunctionName(buf, cLine, cChar, funcName); onName {
-			return true
-		}
-		return false
+	anchor, contains := e.getSignatureAnchor(buf, funcName, cLine, cChar)
+	if anchor != nil {
+		return contains
 	}
-	cl, cc := ato.findClosingFor(buf, ol, oc, '(', ')')
-	if cl == -1 {
-		return false
+	if onName, _, _ := isCursorOnFunctionName(buf, cLine, cChar, funcName); onName {
+		return true
 	}
-	// Include the function name token to the left of '('
-	nameStartLine, nameStartChar := ol, oc
-	if pl, pc, ok := prevNonSpace(buf, ol, oc); ok {
-		// Scan left over identifier-like characters and dots
-		iter := buffer.NewBufferIteratorAtLine(buf, pl)
-		line := iter.Line()
-		start := pc
-		for start >= 0 {
-			b := line[start]
-			if (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '.' {
-				start--
-				continue
-			}
-			break
-		}
-		nameStartLine, nameStartChar = pl, start+1
-	}
-	// Visible anywhere from function name start through the closing paren (inclusive)
-	return posLE(nameStartLine, nameStartChar, cLine, cChar) && posLE(cLine, cChar, cl, cc)
+	return e.isLikelyInsideCallOnCurrentLine()
 }
 
 func posLT(l1, c1, l2, c2 int) bool {
@@ -329,29 +467,15 @@ func (e *Editor) recomputeSignatureActiveParameter(buf *buffer.Buffer) {
 		return // keep LSP-provided value
 	}
 
-	// Locate the call parentheses for funcName nearest to the cursor.
-	ato := NewArgumentTextObject(ModifierInside)
-	cursorLine := buf.CursorIterator.LineNumber()
-	cursorChar := buf.CursorX
-
-	ol, oc, ok := findCallOpeningParenForName(ato, buf, cursorLine, cursorChar, funcName)
-	if !ok {
-		return // no reliable anchor; keep existing
+	anchor, contains := e.getSignatureAnchor(buf, funcName, buf.CursorIterator.LineNumber(), buf.CursorX)
+	if anchor == nil {
+		return
 	}
-	cl, cc := ato.findClosingFor(buf, ol, oc, '(', ')')
-	if cl == -1 {
-		return // no matching close; keep existing
+	if !contains {
+		return
 	}
 
-	// Parse arguments within these parens and find current argument.
-	args := ato.parseArguments(buf, ol, oc, cl, cc)
-	idx := -1
-	for i, a := range args {
-		if ato.positionInRange(cursorLine, cursorChar, a.start, a.end) {
-			idx = i
-			break
-		}
-	}
+	idx := anchor.argumentIndexAt(buf.CursorIterator.LineNumber(), buf.CursorX)
 
 	if idx >= 0 {
 		if idx < len(buf.CurrentSignature.Parameters) {

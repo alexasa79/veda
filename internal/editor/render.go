@@ -1943,40 +1943,48 @@ func (e *Editor) drawErrorLine() {
 }
 
 // drawSignature renders the function signature above the status bar
+type signatureLine struct {
+	text   string
+	offset int
+}
+
 func (e *Editor) drawSignature() {
-	// Skip if no buffer
 	if e.CurrentBuffer() == nil {
 		return
 	}
 
 	LL.Trace("Drawing signature %v", e.CurrentBuffer().CurrentSignature)
-	if e.CurrentBuffer().CurrentSignature == nil {
+	sig := e.CurrentBuffer().CurrentSignature
+	if sig == nil {
 		return
 	}
 
 	width, _ := e.screen.Size()
-	signatureY := e.getSignatureY()
+	maxWidth := width - 2
+	if maxWidth < 1 {
+		maxWidth = width
+	}
+
 	signatureStyle := e.config.Theme.GetStyle(e.config.Theme.Context)
-
-	// Fill signature background
-	e.fillLine(signatureY, signatureStyle)
-
-	// Prepare display text
-	sig := e.CurrentBuffer().CurrentSignature
 	displayText := e.formatSignatureText(sig)
-	displayText = e.truncateText(displayText, width-2)
+	lines := e.wrapSignatureText(displayText, maxWidth)
 
-	LL.Debug("Drawing signature at Y=%d: %s", signatureY, displayText)
-
-	// Find active parameter and function name ranges
+	signatureY := e.getSignatureY()
 	activeStart, activeEnd := e.getActiveParameterRange(sig)
 	nameStart, nameEnd := e.getFunctionNameRange(sig)
 
-	// Draw the signature
-	if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
-		e.drawSignatureWithHighlighting(displayText, signatureY, signatureStyle, activeStart, activeEnd, nameStart, nameEnd)
-	} else {
-		e.drawSignatureWithBold(displayText, signatureY, signatureStyle, activeStart, activeEnd, nameStart, nameEnd)
+	for idx, line := range lines {
+		y := signatureY + idx
+		e.fillLine(y, signatureStyle)
+
+		localActiveStart, localActiveEnd := adjustRangeForLine(activeStart, activeEnd, line.offset, line.offset+len(line.text))
+		localNameStart, localNameEnd := adjustRangeForLine(nameStart, nameEnd, line.offset, line.offset+len(line.text))
+
+		if e.CurrentBuffer() != nil && e.CurrentBuffer().Highlighter != nil {
+			e.drawSignatureWithHighlighting(line.text, y, signatureStyle, localActiveStart, localActiveEnd, localNameStart, localNameEnd)
+		} else {
+			e.drawSignatureWithBold(line.text, y, signatureStyle, localActiveStart, localActiveEnd, localNameStart, localNameEnd)
+		}
 	}
 }
 
@@ -1996,12 +2004,74 @@ func (e *Editor) formatSignatureText(sig *buffer.SignatureHelp) string {
 	return sig.Label
 }
 
-// truncateText truncates text if it exceeds maxLen
-func (e *Editor) truncateText(text string, maxLen int) string {
-	if len(text) > maxLen {
-		return text[:maxLen-3] + "..."
+func (e *Editor) wrapSignatureText(text string, maxWidth int) []signatureLine {
+	if maxWidth <= 0 {
+		return []signatureLine{{text: text, offset: 0}}
 	}
-	return text
+	if len(text) <= maxWidth {
+		return []signatureLine{{text: text, offset: 0}}
+	}
+
+	lines := make([]signatureLine, 0)
+	start := 0
+	limit := maxWidth
+	if limit < 4 {
+		limit = 4
+	}
+
+	for start < len(text) {
+		remaining := len(text) - start
+		if remaining <= limit {
+			lines = append(lines, signatureLine{text: text[start:], offset: start})
+			break
+		}
+
+		split := start + limit
+		segment := text[start:split]
+		breakPos := -1
+		for i := len(segment) - 1; i >= 0; i-- {
+			ch := segment[i]
+			if ch == ',' {
+				breakPos = start + i + 1
+				break
+			}
+			if ch == ' ' || ch == '\t' {
+				if breakPos == -1 {
+					breakPos = start + i + 1
+				}
+			}
+		}
+		if breakPos > start {
+			split = breakPos
+		}
+		if split == start {
+			split = start + limit
+		}
+
+		lines = append(lines, signatureLine{text: text[start:split], offset: start})
+		start = split
+	}
+
+	return lines
+}
+
+func adjustRangeForLine(start, end, lineStart, lineEnd int) (int, int) {
+	if start < 0 || end <= start {
+		return -1, -1
+	}
+	if start >= lineEnd || end <= lineStart {
+		return -1, -1
+	}
+	if start < lineStart {
+		start = lineStart
+	}
+	if end > lineEnd {
+		end = lineEnd
+	}
+	if end <= start {
+		return -1, -1
+	}
+	return start - lineStart, end - lineStart
 }
 
 // getActiveParameterRange returns the start and end positions of the active parameter
@@ -2048,7 +2118,7 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 			beforeText := text[lastEnd:token.Start]
 			style := baseStyle
 			style = e.applyNameBoldIfInRange(style, lastEnd, token.Start, nameStart, nameEnd)
-			style = e.applyBoldIfInRange(style, lastEnd, token.Start, activeStart, activeEnd)
+			style = e.applyActiveParamStyle(style, lastEnd, token.Start, activeStart, activeEnd)
 			x += e.drawText(x, y, style, beforeText, 0, nil, -1, 0, -1)
 		}
 
@@ -2059,7 +2129,7 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 			tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
 			tokenStyle = tokenStyle.Background(baseStyle.Bg)
 			tokenStyle = e.applyNameBoldIfInRange(tokenStyle, token.Start, endPos, nameStart, nameEnd)
-			tokenStyle = e.applyBoldIfInRange(tokenStyle, token.Start, endPos, activeStart, activeEnd)
+			tokenStyle = e.applyActiveParamStyle(tokenStyle, token.Start, endPos, activeStart, activeEnd)
 			x += e.drawText(x, y, tokenStyle, tokenText, 0, nil, -1, 0, -1)
 			lastEnd = endPos
 		}
@@ -2070,7 +2140,7 @@ func (e *Editor) drawSignatureWithHighlighting(text string, y int, baseStyle ui.
 		remainingText := text[lastEnd:]
 		style := baseStyle
 		style = e.applyNameBoldIfInRange(style, lastEnd, len(text), nameStart, nameEnd)
-		style = e.applyBoldIfInRange(style, lastEnd, len(text), activeStart, activeEnd)
+		style = e.applyActiveParamStyle(style, lastEnd, len(text), activeStart, activeEnd)
 		e.drawText(x, y, style, remainingText, 0, nil, -1, 0, -1)
 	}
 }
@@ -2092,9 +2162,9 @@ func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activ
 
 	// Active parameter (bold + underlined)
 	if activeEnd <= len(text) {
-		emph := style
-		emph.Attrs |= ui.AttrBold | ui.AttrUnderline
-		x += e.drawText(x, y, emph, text[activeStart:activeEnd], 0, nil, -1, 0, -1)
+		highlight := style
+		highlight = e.applyActiveParamStyle(highlight, activeStart, activeEnd, activeStart, activeEnd)
+		x += e.drawText(x, y, highlight, text[activeStart:activeEnd], 0, nil, -1, 0, -1)
 	}
 
 	// After active parameter
@@ -2104,9 +2174,20 @@ func (e *Editor) drawSignatureWithBold(text string, y int, style ui.Style, activ
 }
 
 // applyBoldIfInRange applies emphasis (bold + underline) if the range overlaps with the active parameter
-func (e *Editor) applyBoldIfInRange(style ui.Style, start, end, activeStart, activeEnd int) ui.Style {
+func (e *Editor) applyActiveParamStyle(style ui.Style, start, end, activeStart, activeEnd int) ui.Style {
 	if activeStart >= 0 && e.rangesOverlap(start, end, activeStart, activeEnd) {
-		style.Attrs |= ui.AttrBold | ui.AttrUnderline
+		highlight := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
+		if highlight.Fg != ui.ColorDefault {
+			style = style.Foreground(highlight.Fg)
+		}
+		if highlight.Bg != ui.ColorDefault {
+			style = style.Background(highlight.Bg)
+		}
+		// Remove bold/underline emphasis for active parameter highlight
+		style.Attrs &^= (ui.AttrBold | ui.AttrUnderline)
+		if highlight.Attrs != ui.AttrNone {
+			style.Attrs |= highlight.Attrs
+		}
 	}
 	return style
 }

@@ -56,6 +56,7 @@ type Editor struct {
 	bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
 	diffLineInfo       map[*buffer.Buffer][]DiffLine // Stores diff line information for diff buffers
 	perfTracker        *perf.TimeTracker
+	signatureAnchors   map[*buffer.Buffer]*signatureAnchor
 
 	// Buffer management
 	buffers        map[string]*buffer.Buffer // Map of file path to buffer
@@ -341,6 +342,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		lastWindow:           0,
 		minActiveWindowWidth: 110,
 		terminalSessions:     make(map[string]*TerminalSessionState),
+		signatureAnchors:     make(map[*buffer.Buffer]*signatureAnchor),
 	}
 
 	// Initialize windows with a single empty window (always have a window)
@@ -2361,9 +2363,14 @@ func (e *Editor) changeDirectory(args []string) error {
 
 // parseSignatureHelpResponse parses the raw signature help response and stores it in the buffer
 func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse interface{}) {
+	shouldRender := false
+
 	if rawResponse == nil {
 		LL.Debug("No signature help available")
-		buf.CurrentSignature = nil
+		if buf.CurrentSignature != nil {
+			e.clearSignature(buf)
+			shouldRender = true
+		}
 		return
 	}
 
@@ -2419,7 +2426,9 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 				}
 
 				// Store the signature
+				delete(e.signatureAnchors, buf)
 				buf.CurrentSignature = help
+				shouldRender = true
 				// Update active parameter using our buffer-aware algorithm
 				e.recomputeSignatureActiveParameter(buf)
 				LL.Info("Stored async signature: %s", help.Label)
@@ -2427,11 +2436,25 @@ func (e *Editor) parseSignatureHelpResponse(buf *buffer.Buffer, rawResponse inte
 		} else {
 			// No signatures available - we're outside a function call
 			LL.Debug("No signatures in response - clearing signature help")
-			buf.CurrentSignature = nil
+			if buf.CurrentSignature != nil {
+				e.clearSignature(buf)
+				shouldRender = true
+			}
 		}
 	} else {
 		LL.Debug("Unexpected signature help response format: %T", rawResponse)
-		buf.CurrentSignature = nil
+		if buf.CurrentSignature != nil {
+			e.clearSignature(buf)
+			shouldRender = true
+		}
+	}
+
+	if shouldRender && buf == e.CurrentBuffer() {
+		select {
+		case e.asyncEvents <- events.NewCustomEvent("render", nil):
+		default:
+			// If the channel is full, drop the render request; next user input will refresh.
+		}
 	}
 }
 
