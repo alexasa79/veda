@@ -547,9 +547,7 @@ func (e *Editor) exitInsertMode(args []string) error {
 	e.temporaryNormal = false
 
 	// Hide signature help when exiting insert mode
-	if e.CurrentBuffer() != nil {
-		e.CurrentBuffer().CurrentSignature = nil
-	}
+	e.clearSignature(e.CurrentBuffer())
 
 	// End the insert session
 	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {

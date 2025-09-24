@@ -210,6 +210,38 @@ func TestParseSignatureHelpResponse(t *testing.T) {
 	}
 }
 
+func TestSignatureWrapsAcrossLines(t *testing.T) {
+	te := NewTestEditorWithContent(32, 10, "")
+	sig := &buffer.SignatureHelp{
+		Label: "func veryLongFunctionName(arg1 int, arg2 string, arg3 []byte)",
+		Parameters: []buffer.ParameterInfo{
+			{Label: "arg1 int"},
+			{Label: "arg2 string"},
+			{Label: "arg3 []byte"},
+		},
+		ActiveParameter: 1,
+	}
+	te.CurrentBuffer().CurrentSignature = sig
+
+	width, _ := te.screen.Size()
+	maxWidth := width - 2
+	lines := te.wrapSignatureText(te.formatSignatureText(sig), maxWidth)
+
+	if len(lines) <= 1 {
+		t.Fatalf("expected signature to wrap into multiple lines, got %d", len(lines))
+	}
+
+	for _, line := range lines {
+		if len(line.text) > maxWidth {
+			t.Fatalf("line %q exceeds maxWidth %d", line.text, maxWidth)
+		}
+	}
+
+	if got := te.getSignatureLines(); got != len(lines) {
+		t.Fatalf("getSignatureLines()=%d, want %d", got, len(lines))
+	}
+}
+
 // TODO: Update this test to work with the new goroutine-based approach
 func TestSignatureHelpGeneration(t *testing.T) {
 	t.Skip("Test needs to be updated for new goroutine-based approach")
