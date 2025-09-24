@@ -861,6 +861,11 @@ func (e *Editor) handleEvent(ev events.Event) {
 			e.transientInfoActive = false
 			// Fall through to normal handling after clearing; render will hide it next frame
 		}
+		if ev.Key == events.KeyEscape {
+			if e.dismissSignatureIfVisible() {
+				return
+			}
+		}
 		// Terminal mode: forward all keys to terminal session; Esc switches to normal browse
 		if e.mode == commands.TerminalMode {
 			if ev.Key == events.KeyEscape {
