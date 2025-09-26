@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 	"veda/internal/buffer"
 	"veda/internal/config"
@@ -123,5 +124,35 @@ func TestContinuationIndentWithEnter(t *testing.T) {
 	actualContent := te.CurrentBuffer().Rope.String()
 	if actualContent != expectedContent {
 		t.Errorf("Content mismatch.\nExpected:\n%q\nGot:\n%q", expectedContent, actualContent)
+	}
+}
+
+// TestOpenLineBelowCTernaryRegression reproduces the over-indentation that occurs
+// when pressing 'o' on a C-style ternary expression that contains a nested
+// parenthesized conditional.
+func TestOpenLineBelowCTernaryRegression(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, `void report_status(void)
+{
+    /* Emit status for diagnostics */
+    int outcome = response_flag ? STATUS_OK : (needs_reset ? STATUS_INVALID : STATUS_WAITING);
+    return outcome;
+}`)
+
+	// Position cursor on the ternary line like the user would before pressing 'o'.
+	te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 3)
+
+	if err := te.ExecuteCommand("open-line-below"); err != nil {
+		t.Fatalf("open-line-below command failed: %v", err)
+	}
+
+	lines := strings.Split(te.CurrentBuffer().Rope.String(), "\n")
+	if len(lines) < 6 {
+		t.Fatalf("expected at least 6 lines after opening a new line, got %d (content=%q)", len(lines), te.CurrentBuffer().Rope.String())
+	}
+
+	newLine := lines[4]
+	expectedIndent := te.CurrentBuffer().GetIndentationString()
+	if newLine != expectedIndent {
+		t.Fatalf("expected new line to indent to %q (L1), got %q (len=%d). lines=%q", expectedIndent, newLine, len(newLine), lines)
 	}
 }

@@ -13,6 +13,10 @@ type AutoIndentInfo struct {
 	IndentStr string // The actual string to use for indentation
 }
 
+// openDelimiterScanLimit bounds the backward scan when we search for
+// continuation anchors so large files don't incur full-buffer walks.
+const openDelimiterScanLimit = 256
+
 // CalculateAutoIndent determines the indentation for a new line based on the current line
 // and cursor position. It implements the following rules:
 //  1. If cursor is between curly braces {} or after an open brace at end of line,
@@ -525,7 +529,9 @@ func (b *Buffer) findBaseLevelFromOpenDelimiter(curLine int) (int, bool) {
 	}
 	needParen := 0
 	needBracket := 0
-	for ln := curLine; ln >= 0; ln-- {
+	scanned := 0
+	for ln := curLine; ln >= 0 && scanned < openDelimiterScanLimit; ln-- {
+		scanned++
 		it := NewBufferIteratorAtLine(b, ln)
 		if it.IsEOF() {
 			continue
@@ -534,45 +540,54 @@ func (b *Buffer) findBaseLevelFromOpenDelimiter(curLine int) (int, bool) {
 		if strings.TrimSpace(raw) == "" {
 			continue
 		}
+		ii := b.GetLineIndentInfo(raw)
+		linePendingParen := 0
+		linePendingBracket := 0
 		// Scan this line right-to-left counting delimiters (ignore braces)
 		for i := len(raw) - 1; i >= 0; i-- {
 			switch raw[i] {
 			case ')':
-				needParen++
+				linePendingParen++
 			case ']':
-				needBracket++
+				linePendingBracket++
 			case '(': // match a pending ')'
+				if linePendingParen > 0 {
+					linePendingParen--
+					continue
+				}
 				if needParen > 0 {
-					// This '(' closes a ')' from the right. If this resolves
-					// all pending closes and it's on a previous line, this is
-					// the true anchor for a multi-line continuation.
 					needParen--
-					if needParen == 0 && ln < curLine {
-						ii := b.GetLineIndentInfo(raw)
+					if needParen == 0 && linePendingParen == 0 && ln < curLine {
 						return ii.Level, true
 					}
-				} else {
-					// Unmatched '(': anchor only if on a previous line
-					if ln < curLine {
-						ii := b.GetLineIndentInfo(raw)
-						return ii.Level, true
-					}
+					continue
+				}
+				if ln < curLine {
+					return ii.Level, true
 				}
 			case '[': // match a pending ']'
+				if linePendingBracket > 0 {
+					linePendingBracket--
+					continue
+				}
 				if needBracket > 0 {
-					// This '[' closes a ']' from the right.
 					needBracket--
-					if needBracket == 0 && ln < curLine {
-						ii := b.GetLineIndentInfo(raw)
+					if needBracket == 0 && linePendingBracket == 0 && ln < curLine {
 						return ii.Level, true
 					}
-				} else {
-					if ln < curLine {
-						ii := b.GetLineIndentInfo(raw)
-						return ii.Level, true
-					}
+					continue
+				}
+				if ln < curLine {
+					return ii.Level, true
 				}
 			}
+		}
+		// Any remaining closes on this line must be matched by earlier lines.
+		if linePendingParen > 0 {
+			needParen += linePendingParen
+		}
+		if linePendingBracket > 0 {
+			needBracket += linePendingBracket
 		}
 	}
 	return 0, false
