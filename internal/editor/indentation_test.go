@@ -106,6 +106,24 @@ func TestIndentationDetection(t *testing.T) {
 		}
 	})
 
+	t.Run("config file with tabs", func(t *testing.T) {
+		content := strings.Join([]string{
+			"[user]",
+			"\tname = Sasha",
+			"\temail = sasha@example.com",
+		}, "\n")
+
+		te := NewTestEditorWithContent(80, 24, content)
+		te.CurrentBuffer().RealPath = "/tmp/home/.gitconfig"
+		te.CurrentBuffer().FilePath = "/tmp/home/.gitconfig"
+
+		info := te.detectIndentation()
+
+		if info.Type != config.IndentTabs {
+			t.Errorf("Expected IndentTabs for config file, got %v", info.Type)
+		}
+	})
+
 	t.Run("C++ with 2 spaces", func(t *testing.T) {
 		content := strings.Join([]string{
 			"namespace example {",
