@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"path/filepath"
 	"strings"
 	"veda/internal/buffer"
 	"veda/internal/config"
@@ -92,25 +93,30 @@ func isReliableIndentLine(line string) bool {
 	return false
 }
 
-// detectIndentation analyzes the buffer to determine indentation style
-func (e *Editor) detectIndentation() buffer.IndentationInfo {
-	lines := e.CurrentBuffer().Lines()
+func shouldUseReliableIndentHeuristic(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".c", ".cc", ".cpp", ".cxx", ".c++", ".h", ".hh", ".hpp", ".hxx", ".go", ".js", ".jsx", ".ts", ".tsx":
+		return true
+	default:
+		return false
+	}
+}
 
-	// Count occurrences of different indentation patterns
+func collectIndentationStats(lines []string, include func(string) bool) (int, []int) {
 	tabCount := 0
-	spaceCounts := []int{} // Indentation levels from reliable lines
-
+	spaceCounts := []int{}
 	for _, line := range lines {
 		if len(line) == 0 {
 			continue
 		}
-
-		// Skip lines that aren't reliable indicators
-		if !isReliableIndentLine(line) {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if !include(line) {
 			continue
 		}
 
-		// Count leading whitespace
 		leadingSpaces := 0
 		leadingTabs := 0
 
@@ -124,12 +130,32 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 			}
 		}
 
-		// If line starts with tabs, count it
 		if leadingTabs > 0 {
 			tabCount++
 		} else if leadingSpaces > 0 {
 			spaceCounts = append(spaceCounts, leadingSpaces)
 		}
+	}
+	return tabCount, spaceCounts
+}
+
+// detectIndentation analyzes the buffer to determine indentation style
+func (e *Editor) detectIndentation() buffer.IndentationInfo {
+	lines := e.CurrentBuffer().Lines()
+	filePath := e.CurrentBuffer().RealPath
+	if filePath == "" {
+		filePath = e.CurrentBuffer().FilePath
+	}
+	useReliable := shouldUseReliableIndentHeuristic(filePath)
+
+	tabCount, spaceCounts := collectIndentationStats(lines, func(line string) bool {
+		if !useReliable {
+			return true
+		}
+		return isReliableIndentLine(line)
+	})
+	if useReliable && tabCount == 0 && len(spaceCounts) == 0 {
+		tabCount, spaceCounts = collectIndentationStats(lines, func(string) bool { return true })
 	}
 
 	// If we saw neither tabs nor spaces on reliable lines, use defaults
