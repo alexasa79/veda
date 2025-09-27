@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/events"
@@ -204,6 +205,46 @@ func (te *TestEditor) TypeKeys(keys string) {
 		}
 		// Delegate to the main event handler logic
 		te.handleEvent(ev)
+	}
+}
+
+// drainAsyncEventsOnce processes any pending async events without blocking.
+func (te *TestEditor) drainAsyncEventsOnce() bool {
+	handled := false
+	for {
+		select {
+		case ev := <-te.asyncEvents:
+			handled = true
+			if ev != nil {
+				te.handleEvent(ev)
+			}
+		default:
+			return handled
+		}
+	}
+}
+
+// WaitForAsyncOperations waits until async operations complete or timeout.
+func (te *TestEditor) WaitForAsyncOperations() {
+	te.WaitForAsyncOperationsTimeout(2 * time.Second)
+}
+
+// WaitForAsyncOperationsTimeout waits for async work, draining queued events.
+func (te *TestEditor) WaitForAsyncOperationsTimeout(timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for {
+		handled := te.drainAsyncEventsOnce()
+		if !te.hasAsyncOperations() {
+			if !handled {
+				return
+			}
+			// Continue draining in case callbacks queued further events.
+			continue
+		}
+		if time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

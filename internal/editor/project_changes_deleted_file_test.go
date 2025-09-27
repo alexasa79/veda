@@ -67,6 +67,7 @@ func TestProjectChangesListsAndSkipsDeletedFile(t *testing.T) {
 	te := NewTestEditor(120, 30)
 	te.Editor.workingDirectory = repo
 	te.TypeKeys("s C")
+	te.WaitForAsyncOperations()
 
 	pc, ok := te.buffers["*Project Changes*"]
 	if !ok || pc == nil {

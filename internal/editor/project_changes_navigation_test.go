@@ -84,6 +84,7 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 
 	// Open the project changes buffer
 	te.TypeKeys("s C")
+	te.WaitForAsyncOperations()
 
 	// Ensure the project changes buffer exists
 	pcBuf, ok := te.buffers["*Project Changes*"]
