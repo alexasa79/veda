@@ -49,6 +49,7 @@ func TestProjectChangesListsUntrackedAddedFile(t *testing.T) {
 	te := NewTestEditor(120, 30)
 	te.Editor.workingDirectory = repo
 	te.TypeKeys("s C")
+	te.WaitForAsyncOperations()
 
 	// Locate the *Project Changes* buffer and check for the new file
 	pc, ok := te.buffers["*Project Changes*"]
