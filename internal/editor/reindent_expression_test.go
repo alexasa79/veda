@@ -115,3 +115,36 @@ func TestReindentExpression_TrailingCommentWithinFoldingRange(t *testing.T) {
 		t.Fatalf("trailing comment outside function was modified.\nGot:\n%q\nWant:\n%q", got, content)
 	}
 }
+
+func TestReindentExpression_MultiLineCallInsideBlock(t *testing.T) {
+	content := strings.Join([]string{
+		"if outer {",
+		"    foo(",
+		"        a,",
+		"    b,",
+		"    c,",
+		"    )",
+		"}",
+	}, "\n") + "\n"
+
+	te := NewTestEditorWithContent(80, 24, content)
+	te.SetCursorPosition(0, 2)
+
+	if err := te.ExecuteCommand("reindent-expression"); err != nil {
+		t.Fatalf("reindent-expression failed: %v", err)
+	}
+
+	want := strings.Join([]string{
+		"if outer {",
+		"    foo(",
+		"        a,",
+		"        b,",
+		"        c,",
+		"    )",
+		"}",
+	}, "\n") + "\n"
+
+	if got := te.GetBufferContent(); got != want {
+		t.Fatalf("unexpected content after reindent-expression.\nGot:\n%s\nWant:\n%s", got, want)
+	}
+}

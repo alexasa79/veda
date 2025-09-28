@@ -1375,6 +1375,7 @@ func (e *Editor) reindentExpression(args []string) error {
 
 	desiredIndentCache := make(map[int]string)
 
+	continuationTargets := make([]int, 0)
 	for ln := startLine; ln <= endLine; ln++ {
 		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
 		if iter.IsEOF() {
@@ -1431,6 +1432,25 @@ func (e *Editor) reindentExpression(args []string) error {
 
 		desiredIndentCache[ln] = desired
 
+		desiredCols := visualIndentColumns(desired)
+
+		effectiveTargets := continuationTargets
+		trimmedLine := strings.TrimSpace(line)
+		if len(trimmedLine) > 0 {
+			r, _ := utf8.DecodeRuneInString(trimmedLine)
+			if (r == ')' || r == ']') && len(effectiveTargets) > 0 {
+				effectiveTargets = effectiveTargets[:len(effectiveTargets)-1]
+			}
+		}
+		if len(effectiveTargets) > 0 {
+			contCols := effectiveTargets[len(effectiveTargets)-1]
+			if desiredCols < contCols {
+				desired = indentStringForColumns(e.CurrentBuffer(), contCols)
+				desiredCols = contCols
+				desiredIndentCache[ln] = desired
+			}
+		}
+
 		// Current leading whitespace
 		i := 0
 		for i < len(line) {
@@ -1442,7 +1462,9 @@ func (e *Editor) reindentExpression(args []string) error {
 			}
 		}
 		current := line[:i]
+		normalizedLine := desired + strings.TrimLeft(line, " \t")
 		if current == desired {
+			continuationTargets = updateContinuationTargets(continuationTargets, normalizedLine)
 			continue
 		}
 		// Apply: delete current, insert desired
@@ -1452,6 +1474,7 @@ func (e *Editor) reindentExpression(args []string) error {
 		if desired != "" {
 			composite.Add(buffer.NewInsertTextEntry(ln, 0, desired))
 		}
+		continuationTargets = updateContinuationTargets(continuationTargets, normalizedLine)
 	}
 
 	if e.CurrentBuffer().History != nil {
@@ -1561,6 +1584,53 @@ func (e *Editor) refineExpressionRange(startLine, startChar, endLine, endChar, c
 	}
 
 	return startLine, startChar, endLine, endChar
+}
+
+func visualIndentColumns(prefix string) int {
+	cols := 0
+	for i := 0; i < len(prefix); i++ {
+		switch prefix[i] {
+		case '\t':
+			cols += 8
+		case ' ':
+			cols++
+		}
+	}
+	return cols
+}
+
+func indentStringForColumns(buf *buffer.Buffer, cols int) string {
+	if cols <= 0 {
+		return ""
+	}
+	if buf.Indentation.Type == config.IndentTabs {
+		tabs := cols / 8
+		spaces := cols % 8
+		return strings.Repeat("\t", tabs) + strings.Repeat(" ", spaces)
+	}
+	return strings.Repeat(" ", cols)
+}
+
+func updateContinuationTargets(targets []int, line string) []int {
+	col := 0
+	for _, r := range line {
+		switch r {
+		case '\t':
+			col += 8
+			continue
+		case '\n', '\r':
+			continue
+		}
+		if r == '(' || r == '[' {
+			targets = append(targets, col+1)
+		} else if r == ')' || r == ']' {
+			if len(targets) > 0 {
+				targets = targets[:len(targets)-1]
+			}
+		}
+		col++
+	}
+	return targets
 }
 
 func (e *Editor) trimExpressionRangeWhitespace(startLine, endLine, cursorLine int) (int, int) {
