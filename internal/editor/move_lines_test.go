@@ -37,6 +37,48 @@ func TestMoveLinesUpReindent(t *testing.T) {
 	}
 }
 
+func TestMoveLinesUpReindentMultiLineCall(t *testing.T) {
+	content := strings.Join([]string{
+		"if outer {",
+		"}",
+		"foo(",
+		"    a,",
+		"    b,",
+		"    c,",
+		")",
+	}, "\n") + "\n"
+
+	te := NewTestEditorWithContent(80, 24, content)
+	te.SetCursorPosition(0, 2)
+
+	if err := te.ExecuteCommand("enter-visual-line-mode"); err != nil {
+		t.Fatalf("enter-visual-line-mode failed: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		if err := te.ExecuteCommand("down"); err != nil {
+			t.Fatalf("extending selection failed: %v", err)
+		}
+	}
+
+	if err := te.ExecuteCommand("move-lines-up"); err != nil {
+		t.Fatalf("move-lines-up failed: %v", err)
+	}
+
+	want := strings.Join([]string{
+		"if outer {",
+		"    foo(",
+		"        a,",
+		"        b,",
+		"        c,",
+		"    )",
+		"}",
+	}, "\n") + "\n"
+
+	if got := te.GetBufferContent(); got != want {
+		t.Fatalf("unexpected buffer after moving multi-line call.\nGot:\n%s\nWant:\n%s", got, want)
+	}
+}
+
 func TestMoveLinesDownReindent(t *testing.T) {
 	content := strings.Join([]string{
 		"if (foo) {",
