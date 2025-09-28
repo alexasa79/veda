@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"unicode"
@@ -42,8 +43,12 @@ func TestLineWrapping_Basic(t *testing.T) {
 	gutter1 := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	// Compose numeric gutter directly
 	numGutter := func(n int) string {
-		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
-			func() string { return string('0' + byte(n)) }()) + strings.Repeat(" ", 3)
+		digits := fmt.Sprintf("%*d", digitsWidth, n)
+		padding := te.CurrentBuffer().LineNumberWidth - digitsWidth
+		if padding < 0 {
+			padding = 0
+		}
+		return digits + strings.Repeat(" ", padding)
 	}
 	// For single-digit, numGutter produces digit + 3 spaces
 	AssertScreenLine(t, screen, 0, numGutter(1)+"This is a very")
@@ -74,8 +79,12 @@ func TestLineWrapping_WordBoundary(t *testing.T) {
 		digitsWidth = 1
 	}
 	numGutter := func(n int) string {
-		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
-			func() string { return string('0' + byte(n)) }()) + strings.Repeat(" ", 3)
+		digits := fmt.Sprintf("%*d", digitsWidth, n)
+		padding := te.CurrentBuffer().LineNumberWidth - digitsWidth
+		if padding < 0 {
+			padding = 0
+		}
+		return digits + strings.Repeat(" ", padding)
 	}
 	wrappedGutter := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	AssertScreenLine(t, screen, 0, numGutter(1)+"Hello world")
@@ -105,8 +114,12 @@ func TestLineWrapping_LongWord(t *testing.T) {
 		digitsWidth = 1
 	}
 	numGutter := func(n int) string {
-		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
-			func() string { return string('0' + byte(n)) }()) + strings.Repeat(" ", 3)
+		digits := fmt.Sprintf("%*d", digitsWidth, n)
+		padding := te.CurrentBuffer().LineNumberWidth - digitsWidth
+		if padding < 0 {
+			padding = 0
+		}
+		return digits + strings.Repeat(" ", padding)
 	}
 	wrappedGutter := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	AssertScreenLine(t, screen, 0, numGutter(1)+"superc") // length depends on width; keep prefix check minimal
@@ -149,23 +162,52 @@ func TestLineWrapping_MultipleLines(t *testing.T) {
 		digitsWidth = 1
 	}
 	numGutter := func(n int) string {
-		return strings.TrimSpace(strings.Repeat(" ", digitsWidth-1)+
-			func() string { return string('0' + byte(n)) }()) + strings.Repeat(" ", 3)
+		digits := fmt.Sprintf("%*d", digitsWidth, n)
+		padding := te.CurrentBuffer().LineNumberWidth - digitsWidth
+		if padding < 0 {
+			padding = 0
+		}
+		return digits + strings.Repeat(" ", padding)
+	}
+
+	cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
+	useRelative := cursorLine >= 0
+	if te.CurrentBuffer().IsInternal {
+		if ts := te.terminalSessions[te.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
+			useRelative = false
+		}
+	}
+	if _, ok := te.diffLineInfo[te.CurrentBuffer()]; ok {
+		useRelative = false
+	}
+	displayNumber := func(logicalLine int) int {
+		n := logicalLine + 1
+		if useRelative && logicalLine != cursorLine {
+			diff := logicalLine - cursorLine
+			if diff < 0 {
+				diff = -diff
+			}
+			n = diff
+		}
+		return n
 	}
 	wrappedGutter := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
-	AssertScreenLine(t, screen, 0, numGutter(1)+"Short line")
-	AssertScreenLine(t, screen, 1, numGutter(2)+"This is a much")
+	AssertScreenLine(t, screen, 0, numGutter(displayNumber(0))+"Short line")
+	AssertScreenLine(t, screen, 1, numGutter(displayNumber(1))+"This is a much")
 	AssertScreenLine(t, screen, 2, wrappedGutter+"longer line that")
 	AssertScreenLine(t, screen, 3, wrappedGutter+"wraps")
-	AssertScreenLine(t, screen, 4, numGutter(3)+"Another short")
+	AssertScreenLine(t, screen, 4, numGutter(displayNumber(2))+"Another short")
 
-	// Check line numbers
-	// Adjust to new gutter: first column still shows first digit or space; check at digit column 0
-	AssertScreenContent(t, screen, 0, 0, "1")
-	AssertScreenContent(t, screen, 0, 1, "2")
-	AssertScreenContent(t, screen, 0, 2, " ") // Wrapped line
-	AssertScreenContent(t, screen, 0, 3, " ") // Wrapped line
-	AssertScreenContent(t, screen, 0, 4, "3")
+	// Check rendered line numbers using helper
+	if got := extractRenderedLineNumber(te, 0); got != fmt.Sprintf("%d", displayNumber(0)) {
+		t.Fatalf("line 0 number mismatch: want %d, got %q", displayNumber(0), got)
+	}
+	if got := extractRenderedLineNumber(te, 1); got != fmt.Sprintf("%d", displayNumber(1)) {
+		t.Fatalf("line 1 number mismatch: want %d, got %q", displayNumber(1), got)
+	}
+	if got := extractRenderedLineNumber(te, 4); got != fmt.Sprintf("%d", displayNumber(2)) {
+		t.Fatalf("line 4 number mismatch: want %d, got %q", displayNumber(2), got)
+	}
 }
 
 // TestLineWrapping_CursorNavigation tests cursor movement with wrapped lines

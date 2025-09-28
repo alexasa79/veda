@@ -1247,6 +1247,27 @@ func (e *Editor) drawEditor() {
 	// Use cached line number width from buffer
 	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
 
+	cursorLine := -1
+	if buf := e.CurrentBuffer(); buf != nil && buf.CursorIterator != nil {
+		cursorLine = buf.CursorIterator.LineNumber()
+	}
+
+	isTerminalBuffer := false
+	if buf := e.CurrentBuffer(); buf != nil {
+		if ts, ok := e.terminalSessions[buf.FilePath]; ok && ts != nil && ts.term != nil {
+			isTerminalBuffer = true
+		}
+	}
+
+	currentIsDiffBuffer := false
+	if buf := e.CurrentBuffer(); buf != nil {
+		if _, ok := e.diffLineInfo[buf]; ok {
+			currentIsDiffBuffer = true
+		}
+	}
+
+	useRelativeLineNumbers := cursorLine >= 0 && !isTerminalBuffer && !currentIsDiffBuffer
+
 	// Step timer to break down drawEditor phases
 	tStep := e.perfTracker.Start()
 
@@ -1382,13 +1403,21 @@ func (e *Editor) drawEditor() {
 					}
 				}
 			} else {
-				// Regular buffer - use sequential line numbers
+				// Regular buffer - use sequential or relative line numbers
 				// Compute digit area width (exclude 2 indicator columns and 1 space padding)
 				digitsWidth := lineNumberWidth - 3
 				if digitsWidth < 1 {
 					digitsWidth = 1
 				}
-				lineNumStr = fmt.Sprintf("%*d", digitsWidth, lineNum)
+				displayNum := lineNum
+				if useRelativeLineNumbers && wl.LogicalLineNum >= 0 && wl.LogicalLineNum != cursorLine {
+					diff := wl.LogicalLineNum - cursorLine
+					if diff < 0 {
+						diff = -diff
+					}
+					displayNum = diff
+				}
+				lineNumStr = fmt.Sprintf("%*d", digitsWidth, displayNum)
 			}
 
 			// Fill entire line number area with the standard background
