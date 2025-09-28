@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,14 +28,12 @@ func TestLSPTextObjects(t *testing.T) {
 	}
 	defer pm.Close()
 
-	// Get absolute path to test file
+	// Copy the Go test project into a temporary directory to avoid mutating repository files
 	cwd, _ := os.Getwd()
-	testFile := filepath.Join(cwd, "../../artifacts/go_test_project/main.go")
-
-	// Make sure the test file exists
-	if _, err := os.Stat(testFile); os.IsNotExist(err) {
-		t.Fatalf("Test file not found: %s", testFile)
-	}
+	projectDir := copyGoTestProject(t, filepath.Join(cwd, "../../artifacts/go_test_project"))
+	testFile := filepath.Join(projectDir, "main.go")
+	blockTestFile := filepath.Join(projectDir, "block_test.go")
+	functionTestFile := filepath.Join(projectDir, "function_test.go")
 
 	t.Logf("Using test file: %s", testFile)
 
@@ -56,7 +55,6 @@ func main() {
 		println("positive")
 	}
 }`
-		blockTestFile := filepath.Join(cwd, "../../artifacts/go_test_project/block_test.go")
 		err := os.WriteFile(blockTestFile, []byte(blockContent), 0644)
 		if err != nil {
 			t.Fatalf("Failed to write block test file: %v", err)
@@ -122,7 +120,6 @@ func main() {
 		return
 	}
 }`
-		blockTestFile := filepath.Join(cwd, "../../artifacts/go_test_project/block_test.go")
 		err := os.WriteFile(blockTestFile, []byte(blockContent), 0644)
 		if err != nil {
 			t.Fatalf("Failed to write block test file: %v", err)
@@ -169,8 +166,6 @@ func main() {
 	})
 
 	t.Run("daf deletes around function", func(t *testing.T) {
-		functionTestFile := filepath.Join(cwd, "../../artifacts/go_test_project/function_test.go")
-
 		// Open file via proxy to get LSP data
 		fileContent, err := pm.GetFile(functionTestFile)
 		if err != nil {
@@ -218,7 +213,6 @@ func calculate(x, y int) int {
 	product := x * y
 	return sum + product
 }`
-		functionTestFile := filepath.Join(cwd, "../../artifacts/go_test_project/function_test.go")
 		err := os.WriteFile(functionTestFile, []byte(functionContent), 0644)
 		if err != nil {
 			t.Fatalf("Failed to write function test file: %v", err)
@@ -294,4 +288,47 @@ func calculate(x, y int) int {
 		expected := `result := calculate(firstValue, , thirdValue)`
 		AssertBufferEquals(t, te, expected)
 	})
+}
+
+func copyGoTestProject(t *testing.T, srcDir string) string {
+	t.Helper()
+	destDir := t.TempDir()
+
+	err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+
+		if rel == "." {
+			return nil
+		}
+
+		destPath := filepath.Join(destDir, rel)
+
+		if d.IsDir() {
+			return os.MkdirAll(destPath, 0755)
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		return os.WriteFile(destPath, data, info.Mode())
+	})
+	if err != nil {
+		t.Fatalf("Failed to copy go test project: %v", err)
+	}
+
+	return destDir
 }
