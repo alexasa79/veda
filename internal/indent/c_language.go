@@ -64,7 +64,7 @@ func (c *CLanguage) ExpressionRanges(tokens []Token, cursorLine, cursorColumn in
 		set[[2]int{start, end}] = struct{}{}
 	}
 
-	selectForToken := func(tokenIdx int) (start, end int, ok bool) {
+	rangeFromPairs := func(tokenIdx int) (start, end int, ok bool) {
 		bestSpan := 1 << 30
 		bestKind := TokenUnknown
 		for _, pr := range pairs {
@@ -88,36 +88,68 @@ func (c *CLanguage) ExpressionRanges(tokens []Token, cursorLine, cursorColumn in
 				}
 			}
 		}
-		if ok {
-			return
+		return
+	}
+
+	boundaryRangeForToken := func(tokenIdx int) (start, end int) {
+		current := tokens[tokenIdx]
+		start = current.Start.Line
+		end = current.Start.Line
+
+		for i := tokenIdx - 1; i >= 0; i-- {
+			tok := tokens[i]
+			if isSkippableToken(tok.Kind) {
+				continue
+			}
+			if tok.Start.Line == current.Start.Line {
+				start = tok.Start.Line
+				continue
+			}
+			if isBoundaryToken(tok.Kind) {
+				candidate := startAfterBoundary(tok)
+				if candidate > start {
+					candidate = start
+				}
+				start = candidate
+				break
+			}
+			start = tok.Start.Line
 		}
 
-		prevLine := tokens[tokenIdx].Start.Line
-		nextLine := prevLine
-		for i := tokenIdx; i >= 0; i-- {
-			if tokens[i].Kind == TokenSemicolon {
-				prevLine = tokens[i].Start.Line
+		for i := tokenIdx + 1; i < len(tokens); i++ {
+			tok := tokens[i]
+			if isSkippableToken(tok.Kind) {
+				continue
+			}
+			if tok.Start.Line == current.Start.Line {
+				end = tok.Start.Line
+				continue
+			}
+			if isBoundaryToken(tok.Kind) {
+				candidate := endBeforeBoundary(tok)
+				if candidate < start {
+					candidate = start
+				}
+				end = candidate
 				break
 			}
+			end = tok.Start.Line
 		}
-		for i := tokenIdx; i < len(tokens); i++ {
-			if tokens[i].Kind == TokenSemicolon {
-				nextLine = tokens[i].Start.Line
-				break
-			}
-		}
-		start = prevLine
-		if start < tokens[tokenIdx].Start.Line {
-			start++
-		}
-		if start > tokens[tokenIdx].Start.Line {
-			start = tokens[tokenIdx].Start.Line
-		}
-		end = nextLine
+
 		if end < start {
 			end = start
 		}
-		return start, end, true
+		return
+	}
+
+	selectForToken := func(tokenIdx int) (start, end int, ok bool) {
+		boundaryStart, boundaryEnd := boundaryRangeForToken(tokenIdx)
+		if pairStart, pairEnd, okPairs := rangeFromPairs(tokenIdx); okPairs {
+			if pairStart >= boundaryStart && pairEnd <= boundaryEnd {
+				return pairStart, pairEnd, true
+			}
+		}
+		return boundaryStart, boundaryEnd, true
 	}
 
 	results := make(map[[2]int]struct{})
@@ -159,24 +191,7 @@ func (c *CLanguage) ExpressionRanges(tokens []Token, cursorLine, cursorColumn in
 		if found {
 			add(results, best.start, best.end)
 		} else {
-			start := cursorLine
-			end := cursorLine
-			for _, tok := range tokens {
-				if tok.Start.Line <= cursorLine {
-					if tok.Kind == TokenSemicolon {
-						start = tok.Start.Line
-					}
-				} else {
-					if tok.Kind == TokenSemicolon {
-						end = tok.Start.Line
-						break
-					}
-				}
-			}
-			if start < cursorLine {
-				start++
-			}
-			add(results, start, end)
+			add(results, cursorLine, cursorLine)
 		}
 	}
 
@@ -195,6 +210,41 @@ func (c *CLanguage) ExpressionRanges(tokens []Token, cursorLine, cursorColumn in
 		return ranges[i].StartLine < ranges[j].StartLine
 	})
 	return ranges
+}
+
+func isSkippableToken(kind TokenKind) bool {
+	switch kind {
+	case TokenWhitespace, TokenNewline, TokenCommentStart, TokenCommentEnd, TokenCommentWord, TokenLineCommentStart:
+		return true
+	default:
+		return false
+	}
+}
+
+func isBoundaryToken(kind TokenKind) bool {
+	switch kind {
+	case TokenSemicolon, TokenKeyword, TokenOpenBrace, TokenCloseBrace, TokenOpenParen, TokenCloseParen, TokenOpenBracket, TokenCloseBracket, TokenPreprocessor:
+		return true
+	default:
+		return false
+	}
+}
+
+func startAfterBoundary(tok Token) int {
+	line := tok.Start.Line + 1
+	if line < 0 {
+		return 0
+	}
+	return line
+}
+
+func endBeforeBoundary(tok Token) int {
+	switch tok.Kind {
+	case TokenSemicolon, TokenCloseBrace, TokenCloseParen, TokenCloseBracket:
+		return tok.Start.Line
+	default:
+		return tok.Start.Line - 1
+	}
 }
 
 func locationBeforeLocation(loc Location, line, column int) bool {
