@@ -173,7 +173,6 @@ func (e *Editor) registerCommands() {
 	// Indentation commands
 	e.commandRegistry.Register("indent-line", e.indentLine, true, true)                 // Apply to all cursors
 	e.commandRegistry.Register("unindent-line", e.unindentLine, true, true)             // Apply to all cursors
-	e.commandRegistry.Register("reindent-line", e.reindentLine, true, true)             // Apply to all cursors
 	e.commandRegistry.Register("reindent-expression", e.reindentExpression, true, true) // Apply to all cursors
 
 	// Multi-cursor alignment

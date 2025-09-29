@@ -99,7 +99,6 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		// Indentation
 		"indent-line":         "indent line",
 		"unindent-line":       "unindent line",
-		"reindent-line":       "reindent line",
 		"reindent-expression": "reindent expression",
 
 		// Comments
