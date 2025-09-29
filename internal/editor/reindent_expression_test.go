@@ -269,3 +269,35 @@ func TestReindentExpression_DoesNotReindentWholeFunction(t *testing.T) {
 		t.Fatalf("expected targeted expression lines to change")
 	}
 }
+
+func TestReindentExpression_AlignedCallIsIdempotent(t *testing.T) {
+	lines := []string{
+		"static void foxtrot(void) {",
+		"    struct aurora_cluster *cluster = mkaurora_cluster(",
+		"        /*flag_sync=*/1, /*factor_sigma*/1, /*skip_bootstrap*/1,",
+		"        DEFAULT_AURORA_CAPACITY);",
+		"}",
+	}
+	content := strings.Join(lines, "\n") + "\n"
+
+	te := NewTestEditorWithContent(120, 40, content)
+	setBufferPath(te, "foxtrot.c")
+	te.SetCursorPosition(8, 2)
+
+	before := te.GetBufferContent()
+	if err := te.ExecuteCommand("reindent-expression"); err != nil {
+		t.Fatalf("reindent-expression failed: %v", err)
+	}
+	afterFirst := te.GetBufferContent()
+	if afterFirst != before {
+		t.Fatalf("call alignment changed unexpectedly on first run.\nBefore:\n%s\nAfter:\n%s", before, afterFirst)
+	}
+
+	if err := te.ExecuteCommand("reindent-expression"); err != nil {
+		t.Fatalf("second reindent-expression failed: %v", err)
+	}
+	afterSecond := te.GetBufferContent()
+	if afterSecond != afterFirst {
+		t.Fatalf("call alignment drifted across runs.\nFirst:\n%s\nSecond:\n%s", afterFirst, afterSecond)
+	}
+}

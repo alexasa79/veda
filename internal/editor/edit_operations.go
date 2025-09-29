@@ -1376,8 +1376,9 @@ func (e *Editor) reindentExpression(args []string) error {
 		if buf.Indentation.Type == config.IndentTabs {
 			desiredColumns = effectiveLevel * 8
 		}
-		if col, ok := contColumns[line]; ok && col > desiredColumns {
-			desiredColumns = col
+		contCol, hasContCol := contColumns[line]
+		if hasContCol && contCol > desiredColumns {
+			desiredColumns = contCol
 		}
 		desired := indentStringForColumns(buf, desiredColumns)
 		info := buf.GetLineIndentInfo(lineText)
@@ -1459,7 +1460,7 @@ func computeContinuationColumns(tokens []indent.Token) map[int]int {
 			if len(stack) > 0 {
 				stack = stack[:len(stack)-1]
 			}
-		case indent.TokenWhitespace, indent.TokenNewline, indent.TokenCommentStart, indent.TokenCommentEnd, indent.TokenLineCommentStart:
+		case indent.TokenWhitespace, indent.TokenNewline, indent.TokenCommentEnd, indent.TokenLineCommentStart:
 			// ignore
 		default:
 			if len(stack) == 0 {
