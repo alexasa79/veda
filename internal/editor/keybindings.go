@@ -188,8 +188,6 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "< <", "unindent-line")
 	// Reindent expression (vim '==')
 	e.registerKeyBinding(commands.NormalMode, "= =", "reindent-expression")
-	// Reindent current line now bound to '=-'
-	e.registerKeyBinding(commands.NormalMode, "= -", "reindent-line")
 
 	// Navigation operations
 	e.registerKeyBinding(commands.NormalMode, "g ,", "go-back")

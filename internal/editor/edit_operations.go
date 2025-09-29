@@ -1,11 +1,14 @@
 package editor
 
 import (
+	"path/filepath"
+	"sort"
 	"strings"
 	"unicode/utf8"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
+	"veda/internal/indent"
 )
 
 // Edit operations handle text insertion, deletion, and manipulation
@@ -1260,343 +1263,331 @@ func (e *Editor) wordBackwardInsert(args []string) error {
 	return e.wordBackward(args)
 }
 
-// reindentLine recalculates indentation of the current line based on context (vim '==')
-func (e *Editor) reindentLine(args []string) error {
-	if e.CurrentBuffer() == nil {
-		return nil
-	}
-	// Preserve view position
-	curLine := e.CurrentBuffer().CursorIterator.LineNumber()
-	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
-
-	// Get current line text and its current indent info
-	line := e.CurrentBuffer().CursorIterator.Line()
-	indentInfo := e.CurrentBuffer().GetLineIndentInfo(line)
-
-	// Compute desired indentation string using buffer's auto-indent context for empty line
-	// We reuse calculateIndentForEmptyLine-like logic via Buffer.CalculateAutoIndent on an empty line context.
-	// Use beginning of line as cursor column.
-	auto := e.CurrentBuffer().CalculateAutoIndent("", 0)
-	desired := auto.IndentStr
-
-	// If desired equals current actual prefix, nothing to do
-	if desired == indentInfo.ActualPrefix {
-		return nil
-	}
-
-	// Build composite: replace current leading whitespace with desired
-	// First, delete current prefix (if any), then insert desired (if any)
-	composite := buffer.NewCompositeEntry("Reindent line")
-	if indentInfo.ActualPrefix != "" {
-		composite.Add(buffer.NewDeleteTextEntry(curLine, 0, indentInfo.ActualPrefix))
-	}
-	if desired != "" {
-		composite.Add(buffer.NewInsertTextEntry(curLine, 0, desired))
-	}
-
-	if e.CurrentBuffer().History != nil {
-		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
-			// Treat as simple command for '.' repeat compatibility similar to indent/unindent
-			e.lastSimpleCommand = "reindent-line"
-		}
-	} else {
-		// Fallback direct edits without history
-		lineStart := e.CurrentBuffer().CursorIterator.Position() - e.CurrentBuffer().CursorX
-		if indentInfo.ActualPrefix != "" {
-			e.CurrentBuffer().Delete(lineStart, len(indentInfo.ActualPrefix))
-		}
-		if desired != "" {
-			e.CurrentBuffer().Insert(lineStart, desired)
-		}
-	}
-
-	// Restore iterators
-	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), curLine)
-	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
-
-	// Place cursor at first non-whitespace character
-	newLine := e.CurrentBuffer().CursorIterator.Line()
-	e.CurrentBuffer().CursorX = 0
-	for i := 0; i < len(newLine); i++ {
-		if newLine[i] != ' ' && newLine[i] != '\t' {
-			e.CurrentBuffer().CursorX = i
-			break
-		}
-	}
-
-	e.updateSyntaxHighlighting()
-	return nil
-}
-
-// reindentExpression recalculates indentation for the entire enclosing expression or block.
-// It attempts to find a structural region (LSP folding block, then {..}, then (..)),
-// and replaces leading whitespace on each line within that region using the editor's
-// auto-indent heuristics. Repeated invocations at the same position will cycle the
-// target width index (stored in lastRewrap* fields) to mirror Alt+Q behavior, so we
-// can later extend line-breaking by rulers. For now, width cycling is recorded but
-// does not change indentation.
+// reindentExpression recalculates indentation for the current buffer using the
+// experimental indentation engine. Unsupported file types are left untouched.
 func (e *Editor) reindentExpression(args []string) error {
-	if e.CurrentBuffer() == nil {
+	buf := e.CurrentBuffer()
+	if buf == nil {
 		return nil
 	}
 
-	// Determine width cycling index similar to rewrapParagraph
-	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
-	cursorX := e.CurrentBuffer().CursorX
-	width := 0
-	if len(e.config.VerticalRulers) > 0 {
-		if e.lastRewrapLine == cursorLine && e.lastRewrapChar == cursorX {
-			e.lastRewrapIndex = (e.lastRewrapIndex + 1) % len(e.config.VerticalRulers)
+	lang := detectIndentLanguage(buf.FilePath)
+	if lang == nil {
+		ext := strings.ToLower(filepath.Ext(buf.FilePath))
+		if ext == "" {
+			e.ShowInfo("reindent-expression is not yet supported for this file type")
 		} else {
-			e.lastRewrapIndex = 0
+			e.ShowInfo("reindent-expression is not yet supported for %s files", ext)
 		}
-		width = e.config.VerticalRulers[e.lastRewrapIndex]
-	}
-	_ = width // Reserved for future line-breaking based on rulers
-
-	// Find expression range:
-	startLine, _, endLine, _, ok := e.findExpressionRange()
-	if !ok {
-		// Fallback to current line only
-		startLine, endLine = cursorLine, cursorLine
+		return nil
 	}
 
-	// Build a composite history edit
-	composite := buffer.NewCompositeEntry("Reindent expression")
+	text := buf.Rope.Extract(0, buf.Rope.Length())
+	tokens, err := lang.Tokenize([]rune(text))
+	if err != nil {
+		return err
+	}
 
-	// Preserve view position
-	viewLine := e.CurrentBuffer().ViewIterator.LineNumber()
+	annotated, err := indent.NewAnalyzer(tokens, lang.Rules()).Analyze()
+	if err != nil {
+		return err
+	}
 
-	// Helper: unit indentation string
-	unit := e.CurrentBuffer().GetIndentationString()
+	indentPerLine := make(map[int]int)
+	continuationPerLine := make(map[int]int)
+	for _, at := range annotated {
+		switch at.Token.Kind {
+		case indent.TokenWhitespace, indent.TokenNewline:
+			continue
+		}
+		if _, ok := indentPerLine[at.Token.Start.Line]; !ok {
+			indentPerLine[at.Token.Start.Line] = at.IndentLevel
+			continuationPerLine[at.Token.Start.Line] = at.ContinuationLevel
+		}
+	}
 
-	desiredIndentCache := make(map[int]string)
+	if len(indentPerLine) == 0 {
+		return nil
+	}
 
-	continuationTargets := make([]int, 0)
-	for ln := startLine; ln <= endLine; ln++ {
-		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
+	cursorLine := buf.CursorIterator.LineNumber()
+	cursorX := buf.CursorX
+	ranges := lang.ExpressionRanges(tokens, cursorLine, cursorX)
+	if len(ranges) == 0 {
+		ranges = []indent.Range{{StartLine: cursorLine, EndLine: cursorLine}}
+	}
+
+	lineSet := make(map[int]struct{})
+	for _, r := range ranges {
+		start := r.StartLine
+		if start < 0 {
+			start = 0
+		}
+		if start >= buf.LineCount {
+			start = buf.LineCount - 1
+		}
+		end := r.EndLine
+		if end >= buf.LineCount {
+			end = buf.LineCount - 1
+		}
+		if end < start {
+			end = start
+		}
+		for line := start; line <= end; line++ {
+			lineSet[line] = struct{}{}
+		}
+	}
+	if len(lineSet) == 0 {
+		lineSet[cursorLine] = struct{}{}
+	}
+
+	lines := make([]int, 0, len(lineSet))
+	for line := range lineSet {
+		if line < 0 || line >= buf.LineCount {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	sort.Ints(lines)
+
+	contColumns := computeContinuationColumns(tokens)
+
+	viewLine := buf.ViewIterator.LineNumber()
+
+	changes := buffer.NewCompositeEntry("Reindent expression")
+	modified := false
+
+	for _, line := range lines {
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
 		if iter.IsEOF() {
 			continue
 		}
-		line := iter.Line()
-
-		// Compute desired indentation by emulating the newline path: reuse the
-		// previous line's context when available so continuation indentation is
-		// preserved (e.g. multi-line function calls).
-		desired := ""
-		cursorBackup := e.CurrentBuffer().CursorIterator
-		cursorXBackup := e.CurrentBuffer().CursorX
-
-		if ln > 0 {
-			prevIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln-1)
-			if !prevIter.IsEOF() {
-				prevLine := prevIter.Line()
-				if cached := desiredIndentCache[ln-1]; cached != "" || ln-1 >= startLine {
-					// Reconstruct the previous line with its soon-to-be applied indentation so
-					// CalculateAutoIndent observes the updated continuation alignment.
-					prevTrimmed := strings.TrimLeft(prevLine, " \t")
-					prevLine = cached + prevTrimmed
-				}
-				e.CurrentBuffer().CursorIterator = prevIter
-				e.CurrentBuffer().CursorX = len(prevLine)
-				auto := e.CurrentBuffer().CalculateAutoIndent(prevLine, e.CurrentBuffer().CursorX)
-				desired = auto.IndentStr
-			}
-		}
-		if desired == "" {
-			// Fallback to the previous behaviour when no previous line context is available.
-			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
-			e.CurrentBuffer().CursorX = 0
-			auto := e.CurrentBuffer().CalculateAutoIndent("", 0)
-			desired = auto.IndentStr
-		}
-
-		// Restore cursor iterator so subsequent logic (e.g. brace matching) operates on the current line.
-		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), ln)
-		e.CurrentBuffer().CursorX = 0
-
-		// If this line begins with a closing brace, align to its matching open brace's indent
-		trimmed := strings.TrimLeft(line, " \t")
-		if len(trimmed) > 0 && trimmed[0] == '}' {
-			if openLine, openIndent := e.findMatchingOpenBrace(ln); openLine >= 0 {
-				desired = strings.Repeat(unit, openIndent)
-			}
-		}
-
-		// Restore original cursor iterator before potential continue/next iteration.
-		e.CurrentBuffer().CursorIterator = cursorBackup
-		e.CurrentBuffer().CursorX = cursorXBackup
-
-		desiredIndentCache[ln] = desired
-
-		desiredCols := visualIndentColumns(desired)
-
-		effectiveTargets := continuationTargets
-		trimmedLine := strings.TrimSpace(line)
-		if len(trimmedLine) > 0 {
-			r, _ := utf8.DecodeRuneInString(trimmedLine)
-			if (r == ')' || r == ']') && len(effectiveTargets) > 0 {
-				effectiveTargets = effectiveTargets[:len(effectiveTargets)-1]
-			}
-		}
-		if len(effectiveTargets) > 0 {
-			contCols := effectiveTargets[len(effectiveTargets)-1]
-			if desiredCols < contCols {
-				desired = indentStringForColumns(e.CurrentBuffer(), contCols)
-				desiredCols = contCols
-				desiredIndentCache[ln] = desired
-			}
-		}
-
-		// Current leading whitespace
-		i := 0
-		for i < len(line) {
-			ch := line[i]
-			if ch == ' ' || ch == '\t' {
-				i++
-			} else {
-				break
-			}
-		}
-		current := line[:i]
-		normalizedLine := desired + strings.TrimLeft(line, " \t")
-		if current == desired {
-			continuationTargets = updateContinuationTargets(continuationTargets, normalizedLine)
+		lineText := iter.Line()
+		if strings.TrimSpace(lineText) == "" {
 			continue
 		}
-		// Apply: delete current, insert desired
-		if current != "" {
-			composite.Add(buffer.NewDeleteTextEntry(ln, 0, current))
+		level, ok := indentPerLine[line]
+		if !ok {
+			continue
+		}
+		cont := continuationPerLine[line]
+		effectiveLevel := level + cont
+		desiredColumns := effectiveLevel * buf.Indentation.Width
+		if buf.Indentation.Type == config.IndentTabs {
+			desiredColumns = effectiveLevel * 8
+		}
+		if col, ok := contColumns[line]; ok && col > desiredColumns {
+			desiredColumns = col
+		}
+		desired := indentStringForColumns(buf, desiredColumns)
+		info := buf.GetLineIndentInfo(lineText)
+		trimmed := strings.TrimLeft(lineText, " \t")
+		if effectiveLevel == 0 && strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		if info.ActualPrefix == desired {
+			continue
+		}
+		if info.ActualPrefix != "" {
+			changes.Add(buffer.NewDeleteTextEntry(line, 0, info.ActualPrefix))
 		}
 		if desired != "" {
-			composite.Add(buffer.NewInsertTextEntry(ln, 0, desired))
+			changes.Add(buffer.NewInsertTextEntry(line, 0, desired))
 		}
-		continuationTargets = updateContinuationTargets(continuationTargets, normalizedLine)
+		modified = true
 	}
 
-	if e.CurrentBuffer().History != nil {
-		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
+	if !modified {
+		return nil
+	}
+
+	if buf.History != nil {
+		executed, err := buf.History.Execute(buf, changes)
+		if err != nil {
 			return err
-		} else if executed != nil {
+		}
+		if executed != nil {
 			e.setLastChange(executed)
-			e.lastSimpleCommand = "reindent-line" // repeat-friendly; treat like simple reindent
+			e.lastSimpleCommand = "reindent-expression"
 		}
 	} else {
-		// Fallback: execute entries directly
-		_ = composite.Execute(e.CurrentBuffer())
+		_ = changes.Execute(buf)
 	}
 
-	// Restore iterators
-	if viewLine >= e.CurrentBuffer().LineCount {
-		viewLine = e.CurrentBuffer().LineCount - 1
+	if buf.LineCount == 0 {
+		e.updateSyntaxHighlighting()
+		return nil
+	}
+
+	if cursorLine >= buf.LineCount {
+		cursorLine = buf.LineCount - 1
+	}
+	if cursorLine < 0 {
+		cursorLine = 0
+	}
+	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, cursorLine)
+	lineText := buf.CursorIterator.Line()
+	if cursorX > len(lineText) {
+		cursorX = len(lineText)
+	}
+	buf.CursorX = cursorX
+
+	if viewLine >= buf.LineCount {
+		viewLine = buf.LineCount - 1
 		if viewLine < 0 {
 			viewLine = 0
 		}
 	}
-	if cursorLine >= e.CurrentBuffer().LineCount {
-		cursorLine = e.CurrentBuffer().LineCount - 1
-		if cursorLine < 0 {
-			cursorLine = 0
-		}
-	}
-	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLine)
-	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
-
-	// Move cursor to first non-whitespace of its line
-	newLine := e.CurrentBuffer().CursorIterator.Line()
-	e.CurrentBuffer().CursorX = 0
-	for i := 0; i < len(newLine); i++ {
-		if newLine[i] != ' ' && newLine[i] != '\t' {
-			e.CurrentBuffer().CursorX = i
-			break
-		}
-	}
-
-	// Remember position for width cycling
-	e.lastRewrapLine = cursorLine
-	e.lastRewrapChar = e.CurrentBuffer().CursorX
+	buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, viewLine)
 
 	e.updateSyntaxHighlighting()
 	return nil
 }
 
-// findExpressionRange tries to find a structural range around the cursor:
-// 1) LSP folding block (around), 2) braces {..}, 3) parentheses (..).
-func (e *Editor) findExpressionRange() (int, int, int, int, bool) {
-	if e.CurrentBuffer() == nil {
-		return 0, 0, 0, 0, false
+func computeContinuationColumns(tokens []indent.Token) map[int]int {
+	columns := make(map[int]int)
+	type entry struct {
+		openLine int
+		column   int
 	}
-	line := e.CurrentBuffer().CursorIterator.LineNumber()
-	x := e.CurrentBuffer().CursorX
-
-	// Prefer LSP folding range if available
-	if len(e.CurrentBuffer().FoldingRanges) > 0 {
-		tb := NewBlockTextObject(ModifierAround)
-		if sL, sC, eL, eC, ok := tb.GetRange(e.CurrentBuffer(), line, x); ok {
-			sL, sC, eL, eC = e.refineExpressionRange(sL, sC, eL, eC, line, x)
-			return sL, sC, eL, eC, true
-		}
-	}
-
-	// Try braces
-	if bt := NewBracketTextObject('{', ModifierAround); bt != nil {
-		if sL, sC, eL, eC, ok := bt.GetRange(e.CurrentBuffer(), line, x); ok {
-			sL, sC, eL, eC = e.refineExpressionRange(sL, sC, eL, eC, line, x)
-			return sL, sC, eL, eC, true
-		}
-	}
-	// Try parentheses
-	if pt := NewBracketTextObject('(', ModifierAround); pt != nil {
-		if sL, sC, eL, eC, ok := pt.GetRange(e.CurrentBuffer(), line, x); ok {
-			sL, sC, eL, eC = e.refineExpressionRange(sL, sC, eL, eC, line, x)
-			return sL, sC, eL, eC, true
-		}
-	}
-	return 0, 0, 0, 0, false
-}
-
-func (e *Editor) refineExpressionRange(startLine, startChar, endLine, endChar, cursorLine, cursorChar int) (int, int, int, int) {
-	if e.CurrentBuffer() == nil {
-		return startLine, startChar, endLine, endChar
-	}
-
-	// If a brace-delimited block sits within the candidate, prefer that narrower span.
-	if brace := NewBracketTextObject('{', ModifierAround); brace != nil {
-		if bStart, bStartChar, bEnd, bEndChar, ok := brace.GetRange(e.CurrentBuffer(), cursorLine, cursorChar); ok {
-			if bStart >= startLine && bEnd <= endLine {
-				startLine, startChar, endLine, endChar = bStart, bStartChar, bEnd, bEndChar
+	var stack []entry
+	for _, tok := range tokens {
+		switch tok.Kind {
+		case indent.TokenOpenParen, indent.TokenOpenBracket:
+			stack = append(stack, entry{openLine: tok.Start.Line, column: -1})
+		case indent.TokenCloseParen, indent.TokenCloseBracket:
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		case indent.TokenWhitespace, indent.TokenNewline, indent.TokenCommentStart, indent.TokenCommentEnd, indent.TokenLineCommentStart:
+			// ignore
+		default:
+			if len(stack) == 0 {
+				continue
+			}
+			top := &stack[len(stack)-1]
+			if top.column < 0 {
+				top.column = tok.Start.Column
+			}
+			if top.column >= 0 && tok.Start.Line != top.openLine {
+				if existing, ok := columns[tok.Start.Line]; !ok || existing < top.column {
+					columns[tok.Start.Line] = top.column
+				}
 			}
 		}
 	}
-
-	// Trim leading/trailing blank lines that lie outside the cursor's block.
-	originalStart, originalEnd := startLine, endLine
-	startLine, endLine = e.trimExpressionRangeWhitespace(startLine, endLine, cursorLine)
-
-	if startLine != originalStart {
-		startChar = 0
-	}
-	if endLine != originalEnd {
-		endChar = e.lineLength(endLine)
-	}
-
-	return startLine, startChar, endLine, endChar
+	return columns
 }
 
-func visualIndentColumns(prefix string) int {
-	cols := 0
-	for i := 0; i < len(prefix); i++ {
-		switch prefix[i] {
-		case '\t':
-			cols += 8
-		case ' ':
-			cols++
+func findReindentRange(tokens []indent.Token, cursorLine, cursorCol int) (int, int) {
+	bestOpen := -1
+	bestClose := -1
+	bestSpan := 1 << 30
+	type frame struct {
+		kind indent.TokenKind
+		idx  int
+	}
+	var stack []frame
+	for idx, tok := range tokens {
+		switch tok.Kind {
+		case indent.TokenOpenBrace, indent.TokenOpenParen, indent.TokenOpenBracket:
+			stack = append(stack, frame{kind: tok.Kind, idx: idx})
+		case indent.TokenCloseBrace, indent.TokenCloseParen, indent.TokenCloseBracket:
+			if len(stack) == 0 {
+				continue
+			}
+			frame := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			op := tokens[frame.idx]
+			closeTok := tok
+			if positionWithinRange(cursorLine, cursorCol, op.Start, closeTok.End) {
+				span := closeTok.Start.Line - op.Start.Line
+				if span < 0 {
+					span = 0
+				}
+				if bestOpen == -1 || span < bestSpan || (span == bestSpan && prefersKind(frame.kind, tokens[bestOpen].Kind)) {
+					bestOpen = frame.idx
+					bestClose = idx
+					bestSpan = span
+				}
+			}
 		}
 	}
-	return cols
+	if bestOpen != -1 {
+		start := tokens[bestOpen].Start.Line
+		end := tokens[bestClose].Start.Line
+		return start, end
+	}
+
+	lastSemi := -1
+	nextSemi := -1
+	for _, tok := range tokens {
+		if tok.Kind != indent.TokenSemicolon {
+			continue
+		}
+		if positionLessEqual(tok.End, cursorLine, cursorCol) {
+			lastSemi = tok.Start.Line
+			continue
+		}
+		if positionLess(cursorLine, cursorCol, tok.Start) {
+			nextSemi = tok.Start.Line
+			break
+		}
+	}
+	start := cursorLine
+	if lastSemi >= 0 {
+		start = lastSemi
+		if start < cursorLine {
+			start++
+		}
+	}
+	end := cursorLine
+	if nextSemi >= 0 {
+		end = nextSemi
+	}
+	return start, end
+}
+
+func prefersKind(candidate, current indent.TokenKind) bool {
+	if candidate == indent.TokenOpenBrace && current != indent.TokenOpenBrace {
+		return true
+	}
+	return false
+}
+
+func positionWithinRange(cursorLine, cursorCol int, startLoc, endLoc indent.Location) bool {
+	if positionLess(cursorLine, cursorCol, startLoc) {
+		return false
+	}
+	if !positionLess(cursorLine, cursorCol, endLoc) && !positionEqual(cursorLine, cursorCol, endLoc) {
+		return false
+	}
+	return true
+}
+
+func positionLess(line1, col1 int, loc indent.Location) bool {
+	if line1 != loc.Line {
+		return line1 < loc.Line
+	}
+	return col1 < loc.Column
+}
+
+func positionLessEqual(loc indent.Location, line1, col1 int) bool {
+	if loc.Line != line1 {
+		return loc.Line < line1
+	}
+	return loc.Column <= col1
+}
+
+func positionLess2(line1, col1 int, loc indent.Location) bool {
+	if line1 != loc.Line {
+		return line1 < loc.Line
+	}
+	return col1 < loc.Column
+}
+
+func positionEqual(line1, col1 int, loc indent.Location) bool {
+	return line1 == loc.Line && col1 == loc.Column
 }
 
 func indentStringForColumns(buf *buffer.Buffer, cols int) string {
@@ -1611,73 +1602,14 @@ func indentStringForColumns(buf *buffer.Buffer, cols int) string {
 	return strings.Repeat(" ", cols)
 }
 
-func updateContinuationTargets(targets []int, line string) []int {
-	col := 0
-	for _, r := range line {
-		switch r {
-		case '\t':
-			col += 8
-			continue
-		case '\n', '\r':
-			continue
-		}
-		if r == '(' || r == '[' {
-			targets = append(targets, col+1)
-		} else if r == ')' || r == ']' {
-			if len(targets) > 0 {
-				targets = targets[:len(targets)-1]
-			}
-		}
-		col++
+func detectIndentLanguage(path string) indent.Language {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh":
+		return indent.NewCLanguage()
+	default:
+		return nil
 	}
-	return targets
-}
-
-func (e *Editor) trimExpressionRangeWhitespace(startLine, endLine, cursorLine int) (int, int) {
-	buf := e.CurrentBuffer()
-	if buf == nil {
-		return startLine, endLine
-	}
-
-	for startLine < endLine && startLine < cursorLine {
-		iter := buffer.NewBufferIteratorAtLine(buf, startLine)
-		if iter.IsEOF() {
-			startLine++
-			continue
-		}
-		if strings.TrimSpace(iter.Line()) == "" {
-			startLine++
-			continue
-		}
-		break
-	}
-
-	for endLine > startLine && endLine > cursorLine {
-		iter := buffer.NewBufferIteratorAtLine(buf, endLine)
-		if iter.IsEOF() {
-			endLine--
-			continue
-		}
-		if strings.TrimSpace(iter.Line()) == "" {
-			endLine--
-			continue
-		}
-		break
-	}
-
-	return startLine, endLine
-}
-
-func (e *Editor) lineLength(line int) int {
-	buf := e.CurrentBuffer()
-	if buf == nil {
-		return 0
-	}
-	iter := buffer.NewBufferIteratorAtLine(buf, line)
-	if iter.IsEOF() {
-		return 0
-	}
-	return len(iter.Line())
 }
 
 // indentLine indents the current line by one level (>> in vim)
@@ -2018,7 +1950,7 @@ func (e *Editor) adjustIndentForOpeningBrace(lineNum int) error {
 			return err
 		} else if executed != nil {
 			e.setLastChange(executed)
-			e.lastSimpleCommand = "reindent-line" // treat like reindent for '.' repeat
+			e.lastSimpleCommand = "reindent-expression" // treat like reindent for '.' repeat
 		}
 	} else {
 		// Fallback direct edit

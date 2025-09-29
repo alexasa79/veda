@@ -6,6 +6,23 @@ import (
 	"veda/internal/commands"
 )
 
+func setTestBufferPath(te *TestEditor, path string) {
+	buf := te.CurrentBuffer()
+	old := buf.FilePath
+	buf.FilePath = path
+	buf.RealPath = path
+	if old != path {
+		delete(te.buffers, old)
+		te.buffers[path] = buf
+		for i, p := range te.bufferOrder {
+			if p == old {
+				te.bufferOrder[i] = path
+				break
+			}
+		}
+	}
+}
+
 func TestMoveLinesUpReindent(t *testing.T) {
 	content := strings.Join([]string{
 		"if (foo) {",
@@ -15,6 +32,7 @@ func TestMoveLinesUpReindent(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
+	setTestBufferPath(te, "move_up.c")
 	te.SetCursorPosition(0, 3)
 
 	if err := te.ExecuteCommand("move-lines-up"); err != nil {
@@ -49,6 +67,7 @@ func TestMoveLinesUpReindentMultiLineCall(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
+	setTestBufferPath(te, "move_up_multi.c")
 	te.SetCursorPosition(0, 2)
 
 	if err := te.ExecuteCommand("enter-visual-line-mode"); err != nil {
@@ -88,6 +107,7 @@ func TestMoveLinesDownReindent(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
+	setTestBufferPath(te, "move_down.c")
 	te.SetCursorPosition(0, 1)
 
 	if err := te.ExecuteCommand("move-lines-down"); err != nil {
