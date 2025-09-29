@@ -38,20 +38,17 @@ func (a *Analyzer) Analyze() ([]AnnotatedToken, error) {
 	annotated := make([]AnnotatedToken, 0, len(a.tokens))
 
 	for _, tok := range a.tokens {
-		switch tok.Kind {
-		case TokenCloseBrace, TokenCloseParen, TokenCloseBracket:
-			if opener, ok := anchorClosers[tok.Kind]; ok {
-				if len(anchorStack) == 0 || anchorStack[len(anchorStack)-1] != opener {
-					return nil, fmt.Errorf("indent: unmatched closing anchor %v at %v", tok.Kind, tok.Start)
-				}
-				anchorStack = anchorStack[:len(anchorStack)-1]
+		if opener, ok := anchorClosers[tok.Kind]; ok {
+			if len(anchorStack) == 0 || anchorStack[len(anchorStack)-1] != opener {
+				return nil, fmt.Errorf("indent: unmatched closing anchor %v at %v", tok.Kind, tok.Start)
 			}
-			if opener, ok := continuationClosers[tok.Kind]; ok {
-				if len(continuationStack) == 0 || continuationStack[len(continuationStack)-1] != opener {
-					return nil, fmt.Errorf("indent: unmatched closing continuation %v at %v", tok.Kind, tok.Start)
-				}
-				continuationStack = continuationStack[:len(continuationStack)-1]
+			anchorStack = anchorStack[:len(anchorStack)-1]
+		}
+		if opener, ok := continuationClosers[tok.Kind]; ok {
+			if len(continuationStack) == 0 || continuationStack[len(continuationStack)-1] != opener {
+				return nil, fmt.Errorf("indent: unmatched closing continuation %v at %v", tok.Kind, tok.Start)
 			}
+			continuationStack = continuationStack[:len(continuationStack)-1]
 		}
 
 		annotated = append(annotated, AnnotatedToken{
@@ -60,14 +57,11 @@ func (a *Analyzer) Analyze() ([]AnnotatedToken, error) {
 			ContinuationLevel: len(continuationStack),
 		})
 
-		switch tok.Kind {
-		case TokenOpenBrace, TokenOpenParen, TokenOpenBracket:
-			if _, ok := anchorPairs[tok.Kind]; ok {
-				anchorStack = append(anchorStack, tok.Kind)
-			}
-			if _, ok := continuationPairs[tok.Kind]; ok {
-				continuationStack = append(continuationStack, tok.Kind)
-			}
+		if _, ok := anchorPairs[tok.Kind]; ok {
+			anchorStack = append(anchorStack, tok.Kind)
+		}
+		if _, ok := continuationPairs[tok.Kind]; ok {
+			continuationStack = append(continuationStack, tok.Kind)
 		}
 	}
 

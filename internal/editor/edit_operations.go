@@ -1297,7 +1297,7 @@ func (e *Editor) reindentExpression(args []string) error {
 	continuationPerLine := make(map[int]int)
 	for _, at := range annotated {
 		switch at.Token.Kind {
-		case indent.TokenWhitespace, indent.TokenNewline:
+		case indent.TokenWhitespace, indent.TokenNewline, indent.TokenIndent, indent.TokenDedent:
 			continue
 		}
 		if _, ok := indentPerLine[at.Token.Start.Line]; !ok {
@@ -1608,6 +1608,10 @@ func detectIndentLanguage(path string) indent.Language {
 	switch ext {
 	case ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh":
 		return indent.NewCLanguage()
+	case ".py":
+		return indent.NewPythonLanguage()
+	case ".go":
+		return indent.NewGoLanguage()
 	default:
 		return nil
 	}
