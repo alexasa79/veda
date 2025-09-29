@@ -26,6 +26,8 @@ const (
 	TokenCloseParen
 	TokenOpenBracket
 	TokenCloseBracket
+	TokenIndent
+	TokenDedent
 	TokenSemicolon
 	TokenColon
 	TokenComma
