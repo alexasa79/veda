@@ -41,6 +41,11 @@ type VirtualCursor struct {
 	Y int // Line number in the buffer
 }
 
+type wordRange struct {
+	start int
+	end   int
+}
+
 // Editor represents the state of the text editor.
 type Editor struct {
 	screen Screen
@@ -172,7 +177,12 @@ type Editor struct {
 	lastCommandArgs []string // Arguments from the last ex-command
 
 	// Rendering state
-	renderingState *RenderingState // Manages overlay/modal state
+	renderingState           *RenderingState // Manages overlay/modal state
+	cursorWordHighlights     map[int][]wordRange
+	cursorWordLastSignature  string
+	cursorWordLastMove       time.Time
+	cursorWordHighlightDelay time.Duration
+	cursorWordHighlightTimer *time.Timer
 
 	// Registers support
 	registers              map[rune]string // Named registers by single character
@@ -323,26 +333,27 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		transientInfoActive:    false,
 		referencesBuffers:      make(map[string]*ReferencesBuffer),
 		// Removed lspRequestChan and proxyResponseChan - using goroutines on demand
-		whitespaceStyle:      newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
-		workingDirectory:     ".", // Default to current directory
-		asyncOperations:      make(map[string]bool),
-		spinnerStop:          make(chan struct{}),
-		lastSpinnerTime:      time.Now(),
-		connectionStatus:     "",
-		errorManager:         NewErrorManager(),
-		completionMenu:       widgets.NewCompletionMenu(config.Theme),
-		keyHintsPopup:        widgets.NewKeyHintsPopup(config.Theme),
-		lastRewrapLine:       -1, // -1 means no previous rewrap
-		lastRewrapChar:       -1,
-		lastRewrapIndex:      0,
-		inPasteMode:          false,
-		dirCache:             make(map[string][]proxy.FileInfo),
-		windows:              nil,
-		activeWindow:         0,
-		lastWindow:           0,
-		minActiveWindowWidth: 110,
-		terminalSessions:     make(map[string]*TerminalSessionState),
-		signatureAnchors:     make(map[*buffer.Buffer]*signatureAnchor),
+		whitespaceStyle:          newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
+		cursorWordHighlightDelay: 200 * time.Millisecond,
+		workingDirectory:         ".", // Default to current directory
+		asyncOperations:          make(map[string]bool),
+		spinnerStop:              make(chan struct{}),
+		lastSpinnerTime:          time.Now(),
+		connectionStatus:         "",
+		errorManager:             NewErrorManager(),
+		completionMenu:           widgets.NewCompletionMenu(config.Theme),
+		keyHintsPopup:            widgets.NewKeyHintsPopup(config.Theme),
+		lastRewrapLine:           -1, // -1 means no previous rewrap
+		lastRewrapChar:           -1,
+		lastRewrapIndex:          0,
+		inPasteMode:              false,
+		dirCache:                 make(map[string][]proxy.FileInfo),
+		windows:                  nil,
+		activeWindow:             0,
+		lastWindow:               0,
+		minActiveWindowWidth:     110,
+		terminalSessions:         make(map[string]*TerminalSessionState),
+		signatureAnchors:         make(map[*buffer.Buffer]*signatureAnchor),
 	}
 
 	// Initialize windows with a single empty window (always have a window)

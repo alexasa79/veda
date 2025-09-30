@@ -29,6 +29,7 @@ type Theme struct {
 	Selection       StyleDef
 	LineNumber      StyleDef
 	CurrentLine     StyleDef
+	CurrentWord     StyleDef // Style for word under primary cursor(s)
 	Context         StyleDef // Style for context lines and signature help
 	SignatureActive StyleDef // Style for active parameter in signature help
 	SearchHighlight StyleDef // Style for search matches
@@ -184,6 +185,11 @@ func NewTheme() *Theme {
 		CurrentLine: StyleDef{
 			Foreground: "#f8f8f2",
 			Background: "#24241e",
+		},
+
+		CurrentWord: StyleDef{
+			Foreground: "",
+			Background: "#353c29",
 		},
 
 		Context: StyleDef{
