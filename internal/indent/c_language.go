@@ -541,6 +541,10 @@ func (t *tokenizer) scanOperator() Token {
 		if r == '/' && (t.peek('*') || t.peek('/')) {
 			break
 		}
+		// Stop before structural tokens that should be separate
+		if r == '(' || r == ')' || r == '[' || r == ']' || r == '{' || r == '}' || r == ';' || r == ':' || r == ',' {
+			break
+		}
 		t.advance()
 	}
 	return Token{Kind: TokenOperator, Lexeme: string(t.src[start.Offset:t.index]), Start: start, End: t.location()}
