@@ -2,10 +2,13 @@ package editor
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
+	"veda/internal/events"
 	"veda/internal/proxy"
 	"veda/internal/syntax"
 	"veda/internal/theme"
@@ -216,6 +219,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 	selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 	flashStyle := e.config.Theme.GetStyle(e.config.Theme.FlashHighlight)
+	currentWordStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentWord)
 	whitespaceStyle := e.whitespaceStyle.style
 	screenX := x
 	charPos := textOffset
@@ -281,12 +285,20 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			}
 		}
 
+		inTextArea := false
+		if e.CurrentBuffer() != nil && lineNum >= 0 && screenX >= e.CurrentBuffer().LineNumberWidth {
+			inTextArea = true
+		}
+		inCurrentWord := false
+		if inTextArea {
+			inCurrentWord = e.isInCursorWord(lineNum, charPosInLine)
+		}
+
 		// Check if this position has a virtual cursor
 		hasVirtualCursor := false
 		// Virtual cursors store the logical column position (CursorX)
 		// We need to compare with the actual position in the line
-		// Only check for virtual cursors if we're rendering in the text area (not line numbers)
-		if e.CurrentBuffer() != nil && screenX >= e.CurrentBuffer().LineNumberWidth && lineNum >= 0 {
+		if inTextArea {
 			for _, vc := range e.virtualCursors {
 				if vc.Y == lineNum && vc.X == charPosInLine {
 					hasVirtualCursor = true
@@ -327,6 +339,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
 			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
+		} else if inCurrentWord {
+			// Mild highlight for the word under the active cursor
+			currentStyle = theme.ApplyBackgroundStyle(style, currentWordStyle)
 		}
 
 		// Check if we should visualize this character
@@ -1290,6 +1305,8 @@ func (e *Editor) drawEditor() {
 	wrappedLines := e.CalculateWrappedLines()
 	_ = e.perfTracker.ReportSince("drawEditor.calculateWrappedLines", tWrap)
 
+	e.prepareCursorWordHighlights(wrappedLines)
+
 	// Prepare iterator and per-frame token cache reuse across the entire visible region
 	var cachedIter *buffer.BufferIterator
 	cachedIterLine := -1
@@ -1528,6 +1545,240 @@ func (e *Editor) drawEditor() {
 			e.screen.SetContent(x, screenY, '~', nil, lineNumberStyle)
 		}
 	}
+}
+
+func (e *Editor) prepareCursorWordHighlights(wrappedLines []WrappedLine) {
+	// Reset highlights for this draw pass
+	e.cursorWordHighlights = nil
+
+	buf := e.CurrentBuffer()
+	if buf == nil || buf.CursorIterator == nil || len(wrappedLines) == 0 {
+		return
+	}
+
+	now := time.Now()
+	delay := e.cursorWordHighlightDelay
+	if delay <= 0 {
+		delay = 180 * time.Millisecond
+	}
+
+	var sigBuilder strings.Builder
+	sigBuilder.WriteString(fmt.Sprintf("%p|", buf))
+	cursorLine := buf.CursorIterator.LineNumber()
+	cursorCol := buf.CursorX
+	sigBuilder.WriteString(fmt.Sprintf("%d:%d", cursorLine, cursorCol))
+
+	if len(e.virtualCursors) > 0 {
+		virtuals := append([]VirtualCursor(nil), e.virtualCursors...)
+		sort.Slice(virtuals, func(i, j int) bool {
+			if virtuals[i].Y == virtuals[j].Y {
+				return virtuals[i].X < virtuals[j].X
+			}
+			return virtuals[i].Y < virtuals[j].Y
+		})
+		sigBuilder.WriteString("|")
+		for _, vc := range virtuals {
+			sigBuilder.WriteString(fmt.Sprintf("%d:%d;", vc.Y, vc.X))
+		}
+	}
+
+	signature := sigBuilder.String()
+	if signature != e.cursorWordLastSignature {
+		e.cursorWordLastSignature = signature
+		e.cursorWordLastMove = now
+		if e.cursorWordHighlightTimer != nil {
+			e.cursorWordHighlightTimer.Stop()
+		}
+		if delay > 0 {
+			e.cursorWordHighlightTimer = time.AfterFunc(delay, func() {
+				select {
+				case e.asyncEvents <- events.NewCustomEvent("render", nil):
+				default:
+				}
+			})
+		}
+	}
+
+	if now.Sub(e.cursorWordLastMove) < delay {
+		return
+	}
+
+	visibleLines := make(map[int]struct{})
+	for _, wl := range wrappedLines {
+		if wl.LogicalLineNum >= 0 {
+			visibleLines[wl.LogicalLineNum] = struct{}{}
+		}
+	}
+	if len(visibleLines) == 0 {
+		return
+	}
+
+	allowLine := func(line int) bool {
+		if line < 0 || line >= buf.LineCount {
+			return false
+		}
+		if diffLines, ok := e.diffLineInfo[buf]; ok {
+			if line >= 0 && line < len(diffLines) {
+				return diffLines[line].LineType == DiffLineContext
+			}
+		}
+		return true
+	}
+
+	addRange := func(line, start, end int, highlights map[int][]wordRange) {
+		if start >= end {
+			return
+		}
+		entries := highlights[line]
+		for _, existing := range entries {
+			if existing.start == start && existing.end == end {
+				return
+			}
+		}
+		highlights[line] = append(entries, wordRange{start: start, end: end})
+	}
+
+	type wordTarget struct {
+		line  int
+		start int
+		end   int
+		text  string
+	}
+
+	var targets []wordTarget
+	wordsToFind := make(map[string]struct{})
+
+	collectTarget := func(line, col int) {
+		if _, ok := visibleLines[line]; !ok {
+			return
+		}
+		if !allowLine(line) {
+			return
+		}
+		if line < 0 || col < 0 {
+			return
+		}
+		it := buffer.NewBufferIteratorAtLine(buf, line)
+		if it.IsEOF() {
+			return
+		}
+		lineText := it.Line()
+		if col >= len(lineText) {
+			return
+		}
+		if !isWordCharByte(lineText[col]) {
+			return
+		}
+		boundary := FindCurrentWordBoundary(buf, line, col, false)
+		if boundary == nil {
+			return
+		}
+		if boundary.StartLine != line || boundary.EndLine != line {
+			return
+		}
+		if boundary.EndChar <= boundary.StartChar {
+			return
+		}
+		word := lineText[boundary.StartChar:boundary.EndChar]
+		targets = append(targets, wordTarget{line: line, start: boundary.StartChar, end: boundary.EndChar, text: word})
+		wordsToFind[word] = struct{}{}
+	}
+
+	collectTarget(cursorLine, cursorCol)
+	for _, vc := range e.virtualCursors {
+		collectTarget(vc.Y, vc.X)
+	}
+
+	if len(targets) == 0 {
+		return
+	}
+
+	highlights := make(map[int][]wordRange)
+	for _, target := range targets {
+		addRange(target.line, target.start, target.end, highlights)
+	}
+
+	lineCache := make(map[int]string)
+	getLine := func(line int) string {
+		if cached, ok := lineCache[line]; ok {
+			return cached
+		}
+		it := buffer.NewBufferIteratorAtLine(buf, line)
+		if it.IsEOF() {
+			lineCache[line] = ""
+			return ""
+		}
+		text := it.Line()
+		lineCache[line] = text
+		return text
+	}
+
+	findOccurrences := func(text, word string) []int {
+		if len(word) == 0 || len(text) < len(word) {
+			return nil
+		}
+		var positions []int
+		searchStart := 0
+		for {
+			idx := strings.Index(text[searchStart:], word)
+			if idx == -1 {
+				break
+			}
+			start := searchStart + idx
+			end := start + len(word)
+			beforeOK := start == 0 || !isWordCharByte(text[start-1])
+			afterOK := end >= len(text) || !isWordCharByte(text[end])
+			if beforeOK && afterOK {
+				positions = append(positions, start)
+			}
+			searchStart = start + len(word)
+		}
+		return positions
+	}
+
+	for line := range visibleLines {
+		if !allowLine(line) {
+			continue
+		}
+		text := getLine(line)
+		if text == "" {
+			continue
+		}
+		for word := range wordsToFind {
+			for _, start := range findOccurrences(text, word) {
+				addRange(line, start, start+len(word), highlights)
+			}
+		}
+	}
+
+	if len(highlights) > 0 {
+		e.cursorWordHighlights = highlights
+	}
+}
+
+func (e *Editor) isInCursorWord(lineNum, charPos int) bool {
+	if len(e.cursorWordHighlights) == 0 {
+		return false
+	}
+	if buf := e.CurrentBuffer(); buf != nil {
+		if diffLines, ok := e.diffLineInfo[buf]; ok {
+			if lineNum >= 0 && lineNum < len(diffLines) {
+				if diffLines[lineNum].LineType != DiffLineContext {
+					return false
+				}
+			}
+		}
+	}
+	ranges, ok := e.cursorWordHighlights[lineNum]
+	if !ok {
+		return false
+	}
+	for _, r := range ranges {
+		if charPos >= r.start && charPos < r.end {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Editor) drawStatusBar() {
