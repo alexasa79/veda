@@ -39,6 +39,9 @@ func (e *Editor) findReferences(args []string) error {
 		return nil
 	}
 
+	// Remember current spot so g, returns here after jumping through references
+	e.pushNavigationHistory()
+
 	// Get the symbol name under cursor
 	symbolName := e.getSymbolAtCursor()
 
