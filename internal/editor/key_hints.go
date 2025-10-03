@@ -122,6 +122,7 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"move-buffer-right":        "move buffer right",
 		"move-buffer-center":       "move buffer center",
 		"toggle-window-fullscreen": "toggle fullscreen",
+		"toggle-zen-mode":          "toggle zen mode",
 
 		// Terminal
 		"term":            "open terminal",

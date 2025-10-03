@@ -245,6 +245,7 @@ type Editor struct {
 	// Window sizing preferences
 	minActiveWindowWidth int  // Minimum width (columns) for the active window
 	windowFullscreen     bool // Whether active window is in fullscreen mode
+	zenMode              bool // Hide other windows and center the active window
 
 	// Terminal sessions per buffer (PTY via proxy)
 	terminalSessions map[string]*TerminalSessionState
@@ -625,9 +626,27 @@ func (e *Editor) render() {
 		}
 	}
 
+	if e.zenMode {
+		normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+		screenW, screenH := e.screen.Size()
+		contentH := screenH - 1
+		if contentH < 0 {
+			contentH = 0
+		}
+		for y := 0; y < contentH; y++ {
+			for x := 0; x < screenW; x++ {
+				e.screen.SetContent(x, y, ' ', nil, normalStyle)
+			}
+		}
+	}
+
 	// Draw each window using a windowScreen. Inactive windows are dimmed unless in diff view.
 	diffViewActive := e.isDiffViewActive()
 	for i, win := range e.windows {
+		if e.zenMode && i != e.activeWindow {
+			continue
+		}
+
 		// Per-window performance breakdown to analyze drawWindows cost
 		winTimer := e.perfTracker.Start()
 		if win == nil {

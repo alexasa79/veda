@@ -4,8 +4,10 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
+	"unicode"
 	"veda/internal/events"
 )
 
@@ -365,6 +367,11 @@ func (t *Terminal) matchKeyCodeWithAlt(buf *[]byte) (bool, int) {
 // matchKeyCode tries to match the buffer against known key codes
 // Returns (matched, needMoreData)
 func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
+	// Handle kitty CSI-u extended keyboard sequences (ESC [ code ; mod u)
+	if matched, needMore := t.matchCSIuSequence(buf); matched || needMore {
+		return matched, needMore
+	}
+
 	for _, kc := range keyCodes {
 		if len(*buf) >= len(kc.seq) && bytesEqual((*buf)[:len(kc.seq)], kc.seq) {
 			// Found a match
@@ -382,7 +389,6 @@ func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
 			return true, false
 		}
 	}
-
 	// Check for partial matches (need more data)
 
 	for _, kc := range keyCodes {
@@ -393,6 +399,124 @@ func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
 	}
 
 	return false, false
+}
+
+// matchCSIuSequence decodes kitty extended keyboard sequences (CSI ... u)
+func (t *Terminal) matchCSIuSequence(buf *[]byte) (bool, bool) {
+	data := *buf
+	if len(data) < 3 || data[0] != '\x1b' || data[1] != '[' {
+		return false, false
+	}
+
+	i := 2
+	startCode := i
+	for i < len(data) && data[i] >= '0' && data[i] <= '9' {
+		i++
+	}
+	if i == startCode {
+		return false, false
+	}
+	if i >= len(data) {
+		return false, true
+	}
+	if data[i] != ';' {
+		return false, false
+	}
+	codeStr := string(data[startCode:i])
+	i++
+	if i >= len(data) {
+		return false, true
+	}
+	startMod := i
+	for i < len(data) && data[i] >= '0' && data[i] <= '9' {
+		i++
+	}
+	if i == startMod {
+		return false, false
+	}
+	if i >= len(data) {
+		return false, true
+	}
+	if data[i] != 'u' {
+		return false, false
+	}
+	modStr := string(data[startMod:i])
+	i++
+
+	codePoint, err := strconv.Atoi(codeStr)
+	if err != nil {
+		return false, false
+	}
+	modCode, err := strconv.Atoi(modStr)
+	if err != nil {
+		return false, false
+	}
+
+	modFlags := modCode - 1
+	if modFlags < 0 {
+		modFlags = 0
+	}
+
+	var key events.Key
+	var ch rune
+	var mod events.ModMask
+
+	ch = rune(codePoint)
+
+	// Map Ctrl+letter combos to KeyCtrl* constants to align with existing bindings
+	if modFlags&4 != 0 {
+		lower := unicode.ToLower(ch)
+		if lower >= 'a' && lower <= 'z' {
+			offset := int(lower - 'a')
+			key = events.Key(int(events.KeyCtrlA) + offset)
+			ch = 0
+			modFlags &^= 4
+		} else if codePoint == 13 {
+			key = events.KeyCtrlM
+			ch = 0
+			modFlags &^= 4
+		}
+	}
+
+	if key == 0 {
+		switch codePoint {
+		case 9:
+			key = events.KeyTab
+		case 13:
+			key = events.KeyEnter
+		case 27:
+			key = events.KeyEscape
+		default:
+			key = events.KeyRune
+		}
+	}
+
+	if key == events.KeyRune {
+		// Preserve rune; uppercase if Shift modifier present
+		if modFlags&1 == 0 {
+			ch = unicode.ToLower(ch)
+		}
+	} else if ch != 0 {
+		ch = 0
+	}
+
+	if modFlags&1 != 0 {
+		mod |= events.ModShift
+	}
+	if modFlags&2 != 0 {
+		mod |= events.ModAlt
+	}
+	if modFlags&4 != 0 {
+		mod |= events.ModCtrl
+	}
+	if modFlags&(8|16|32) != 0 {
+		mod |= events.ModMeta
+	}
+
+	event := events.NewKeyEvent(key, ch, mod)
+	t.inputChan <- event
+	*buf = data[i:]
+	return true, false
 }
 
 // resizeHandler watches for terminal resize events

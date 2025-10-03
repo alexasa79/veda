@@ -244,6 +244,7 @@ func (e *Editor) registerCommands() {
 	// Window management commands
 	e.commandRegistry.Register("close-window", e.closeCurrentWindow, false, false)
 	e.commandRegistry.Register("toggle-window-fullscreen", e.toggleWindowFullscreen, false, false)
+	e.commandRegistry.Register("toggle-zen-mode", e.toggleZenMode, false, false)
 
 	// Info commands
 	e.commandRegistry.Register("show-file-info", e.showFileInfoCommand, false, true)
