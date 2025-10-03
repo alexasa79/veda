@@ -7,6 +7,13 @@ import (
 	"veda/internal/ui"
 )
 
+const (
+	zenModePaddingX        = 4
+	zenModePaddingY        = 1
+	zenModeContentMargin   = 10
+	zenModeMinContentWidth = 20
+)
+
 // Window represents a rectangular area of the screen showing a buffer
 type Window struct {
 	Buffer  *buffer.Buffer   // Current active buffer in the window
@@ -106,6 +113,108 @@ func (e *Editor) recomputeWindowsLayout() {
 		contentH = 1
 	}
 	n := len(e.windows)
+
+	if e.zenMode {
+		activeIdx := e.activeWindow
+		if activeIdx < 0 || activeIdx >= n {
+			activeIdx = 0
+		}
+
+		padX := zenModePaddingX
+		if padX*2 >= screenW {
+			padX = 0
+		}
+
+		availableWidth := screenW - padX*2
+		if availableWidth < 1 {
+			availableWidth = screenW
+		}
+
+		gutterWidth := 7
+		if activeIdx >= 0 && activeIdx < len(e.windows) {
+			if win := e.windows[activeIdx]; win != nil && win.Buffer != nil {
+				win.Buffer.UpdateLineNumberWidth()
+				if win.Buffer.LineNumberWidth > 0 {
+					gutterWidth = win.Buffer.LineNumberWidth
+				}
+			}
+		}
+
+		maxRuler := 0
+		for _, ruler := range e.config.VerticalRulers {
+			if ruler > maxRuler {
+				maxRuler = ruler
+			}
+		}
+
+		targetWidth := availableWidth
+		if maxRuler > 0 {
+			contentWidth := maxRuler + zenModeContentMargin
+			if contentWidth < zenModeMinContentWidth {
+				contentWidth = zenModeMinContentWidth
+			}
+			targetWidth = contentWidth + gutterWidth
+			if targetWidth < gutterWidth+1 {
+				targetWidth = gutterWidth + 1
+			}
+		}
+
+		if targetWidth > availableWidth && availableWidth > 0 {
+			targetWidth = availableWidth
+		}
+		if targetWidth > screenW {
+			targetWidth = screenW
+		}
+		if targetWidth < 1 {
+			targetWidth = 1
+		}
+
+		x := (screenW - targetWidth) / 2
+		if x < padX {
+			x = padX
+		}
+		width := targetWidth
+		if x+width > screenW {
+			width = screenW - x
+		}
+		if width < 1 {
+			width = 1
+		}
+
+		padY := zenModePaddingY
+		if padY*2 >= contentH {
+			padY = 0
+		}
+		height := contentH - padY*2
+		if height < 5 {
+			height = contentH
+		}
+		if height < 1 {
+			height = 1
+		}
+		y := 0
+		if height < contentH {
+			y = (contentH - height) / 2
+		}
+
+		for i, win := range e.windows {
+			if win == nil {
+				continue
+			}
+			if i == activeIdx {
+				win.X = x
+				win.Y = y
+				win.Width = width
+				win.Height = height
+			} else {
+				win.X = 0
+				win.Y = 0
+				win.Width = 0
+				win.Height = 0
+			}
+		}
+		return
+	}
 
 	// Single window: fill screen
 	if n == 1 {
@@ -587,6 +696,16 @@ func (e *Editor) toggleWindowFullscreen(args []string) error {
 	// Recompute layout with new fullscreen state
 	e.recomputeWindowsLayout()
 
+	return nil
+}
+
+// toggleZenMode hides all but the active window and centers it on screen
+func (e *Editor) toggleZenMode(args []string) error {
+	e.zenMode = !e.zenMode
+	if e.zenMode {
+		e.windowFullscreen = false
+	}
+	e.recomputeWindowsLayout()
 	return nil
 }
 

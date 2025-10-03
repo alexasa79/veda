@@ -218,6 +218,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Info
 	e.registerKeyBinding(commands.NormalMode, "ctrl+g", "show-file-info")
+	e.registerKeyBinding(commands.NormalMode, "ctrl+m", "toggle-zen-mode")
 
 	// Comment toggling
 	e.registerKeyBinding(commands.NormalMode, "ctrl+/", "toggle-comment")
