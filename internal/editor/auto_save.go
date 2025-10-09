@@ -12,13 +12,11 @@ import (
 // AutoSaveManager handles local auto-save functionality to protect against data loss
 type AutoSaveManager struct {
 	autoSaveDir   string
-	saveInterval  time.Duration
 	minEditDelay  time.Duration
 	lastSaveTimes map[string]time.Time // Maps file paths to last save times
 	pendingSaves  map[string]time.Time // Maps file paths to when they were marked dirty
+	timers        map[string]*time.Timer
 	mutex         sync.RWMutex
-	stopChan      chan struct{}
-	done          chan struct{}
 	saveCallback  func(string) // Callback to request editor to save a file
 }
 
@@ -37,20 +35,13 @@ func NewAutoSaveManager() *AutoSaveManager {
 		LL.Error("Failed to create auto-save directory: %v", err)
 	}
 
-	manager := &AutoSaveManager{
+	return &AutoSaveManager{
 		autoSaveDir:   autoSaveDir,
-		saveInterval:  10 * time.Second, // Save every 10 seconds
-		minEditDelay:  2 * time.Second,  // Wait at least 2 seconds after last edit
+		minEditDelay:  2 * time.Second,
 		lastSaveTimes: make(map[string]time.Time),
 		pendingSaves:  make(map[string]time.Time),
-		stopChan:      make(chan struct{}),
-		done:          make(chan struct{}),
+		timers:        make(map[string]*time.Timer),
 	}
-
-	// Start the auto-save loop
-	go manager.saveLoop()
-
-	return manager
 }
 
 // getAutoSavePath returns the local auto-save path for a file
@@ -79,8 +70,58 @@ func (asm *AutoSaveManager) getAutoSavePath(filePath string) string {
 	return filepath.Join(asm.autoSaveDir, autoSaveFileName)
 }
 
-// Note: We use the same escapePathForFilename function as local history
-// It's defined in local_history.go and handles path escaping consistently
+// scheduleAutoSaveLocked schedules an auto-save timer for the given file.
+func (asm *AutoSaveManager) scheduleAutoSaveLocked(filePath string, dirtyTime time.Time) {
+	if asm.timers == nil {
+		asm.timers = make(map[string]*time.Timer)
+	}
+
+	if timer, exists := asm.timers[filePath]; exists {
+		timer.Stop()
+		delete(asm.timers, filePath)
+	}
+
+	delay := asm.minEditDelay - time.Since(dirtyTime)
+	if delay < 0 {
+		delay = 0
+	}
+
+	var timer *time.Timer
+	timer = time.AfterFunc(delay, func() {
+		asm.handleAutoSaveTimer(filePath, dirtyTime, timer)
+	})
+
+	asm.timers[filePath] = timer
+}
+
+// handleAutoSaveTimer is invoked when the per-file timer fires.
+func (asm *AutoSaveManager) handleAutoSaveTimer(filePath string, dirtyTime time.Time, timer *time.Timer) {
+	asm.mutex.Lock()
+	currentTimer, timerExists := asm.timers[filePath]
+	if timerExists && currentTimer == timer {
+		delete(asm.timers, filePath)
+	}
+
+	pendingTime, pendingExists := asm.pendingSaves[filePath]
+	asm.mutex.Unlock()
+
+	if !pendingExists || !pendingTime.Equal(dirtyTime) {
+		return
+	}
+
+	asm.requestAutoSave(filePath)
+}
+
+// cancelTimerLocked stops and removes an active timer for the given file.
+func (asm *AutoSaveManager) cancelTimerLocked(filePath string) {
+	if asm.timers == nil {
+		return
+	}
+	if timer, exists := asm.timers[filePath]; exists {
+		timer.Stop()
+		delete(asm.timers, filePath)
+	}
+}
 
 // MarkDirty marks a file as having unsaved changes
 func (asm *AutoSaveManager) MarkDirty(filePath string) {
@@ -88,10 +129,16 @@ func (asm *AutoSaveManager) MarkDirty(filePath string) {
 		return
 	}
 
-	asm.mutex.Lock()
-	defer asm.mutex.Unlock()
+	now := time.Now()
 
-	asm.pendingSaves[filePath] = time.Now()
+	asm.mutex.Lock()
+	if asm.pendingSaves == nil {
+		asm.pendingSaves = make(map[string]time.Time)
+	}
+	asm.pendingSaves[filePath] = now
+	asm.scheduleAutoSaveLocked(filePath, now)
+	asm.mutex.Unlock()
+
 	LL.Debug("Marked file as dirty for auto-save: %s", filePath)
 }
 
@@ -117,14 +164,20 @@ func (asm *AutoSaveManager) MarkAutoSaved(filePath string, dirtyTime time.Time) 
 	asm.mutex.Lock()
 	defer asm.mutex.Unlock()
 
-	if pendingTime, exists := asm.pendingSaves[filePath]; exists {
-		if !dirtyTime.IsZero() && !pendingTime.Equal(dirtyTime) {
-			// Changes were made after this auto-save was requested; keep pending entry
-			return
+	if asm.pendingSaves != nil {
+		if pendingTime, exists := asm.pendingSaves[filePath]; exists {
+			if !dirtyTime.IsZero() && !pendingTime.Equal(dirtyTime) {
+				// Changes were made after this auto-save was requested; keep pending entry
+				return
+			}
+			delete(asm.pendingSaves, filePath)
 		}
-		delete(asm.pendingSaves, filePath)
 	}
 
+	asm.cancelTimerLocked(filePath)
+	if asm.lastSaveTimes == nil {
+		asm.lastSaveTimes = make(map[string]time.Time)
+	}
 	asm.lastSaveTimes[filePath] = time.Now()
 }
 
@@ -195,9 +248,13 @@ func (asm *AutoSaveManager) CleanupAutoSave(filePath string) {
 	asm.mutex.Lock()
 	defer asm.mutex.Unlock()
 
-	// Remove from pending saves
-	delete(asm.pendingSaves, filePath)
-	delete(asm.lastSaveTimes, filePath)
+	asm.cancelTimerLocked(filePath)
+	if asm.pendingSaves != nil {
+		delete(asm.pendingSaves, filePath)
+	}
+	if asm.lastSaveTimes != nil {
+		delete(asm.lastSaveTimes, filePath)
+	}
 
 	// Remove auto-save file
 	autoSavePath := asm.getAutoSavePath(filePath)
@@ -210,68 +267,34 @@ func (asm *AutoSaveManager) CleanupAutoSave(filePath string) {
 	}
 }
 
-// saveLoop runs the auto-save background process
-func (asm *AutoSaveManager) saveLoop() {
-	defer close(asm.done)
-
-	ticker := time.NewTicker(asm.saveInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-asm.stopChan:
-			return
-		case <-ticker.C:
-			asm.processPendingSaves()
-		}
-	}
-}
-
-// processPendingSaves checks for files that need auto-saving
-func (asm *AutoSaveManager) processPendingSaves() {
-	asm.mutex.Lock()
-	now := time.Now()
-	filesToSave := make([]string, 0)
-
-	// Find files that are ready to be saved
-	for filePath, dirtyTime := range asm.pendingSaves {
-		if lastSave, exists := asm.lastSaveTimes[filePath]; exists {
-			// Don't save too frequently
-			if now.Sub(lastSave) < asm.saveInterval {
-				continue
-			}
-		}
-
-		// Wait for minimum delay since last edit
-		if now.Sub(dirtyTime) >= asm.minEditDelay {
-			filesToSave = append(filesToSave, filePath)
-		}
-	}
-	asm.mutex.Unlock()
-
-	// Save the files (outside of lock to avoid blocking)
-	for _, filePath := range filesToSave {
-		asm.requestAutoSave(filePath)
-	}
-}
-
 // requestAutoSave requests the editor to perform an auto-save for a specific file
 func (asm *AutoSaveManager) requestAutoSave(filePath string) {
-	// This will be called by the editor to perform the actual save
-	if asm.saveCallback != nil {
-		asm.saveCallback(filePath)
+	asm.mutex.RLock()
+	callback := asm.saveCallback
+	asm.mutex.RUnlock()
+	if callback != nil {
+		callback(filePath)
 	}
 }
 
 // SetSaveCallback sets the callback function for saving files
 func (asm *AutoSaveManager) SetSaveCallback(callback func(string)) {
+	asm.mutex.Lock()
+	defer asm.mutex.Unlock()
 	asm.saveCallback = callback
 }
 
 // Stop stops the auto-save manager
 func (asm *AutoSaveManager) Stop() {
-	close(asm.stopChan)
-	<-asm.done // Wait for saveLoop to finish
+	asm.mutex.Lock()
+	defer asm.mutex.Unlock()
+
+	for path, timer := range asm.timers {
+		timer.Stop()
+		delete(asm.timers, path)
+	}
+
+	asm.saveCallback = nil
 }
 
 // GetAutoSaveInfo returns information about auto-save files

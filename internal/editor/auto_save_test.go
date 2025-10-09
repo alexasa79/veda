@@ -101,6 +101,39 @@ func TestAutoSavePathGeneration(t *testing.T) {
 
 // TestAutoSaveEscapePathForFilename removed - we now use the same function as local_history.go
 
+func TestAutoSaveTimerFiresAfterMinDelay(t *testing.T) {
+	manager := NewAutoSaveManager()
+	manager.autoSaveDir = t.TempDir()
+	manager.minEditDelay = 50 * time.Millisecond
+
+	const filePath = "/tmp/timer-test.txt"
+	done := make(chan time.Time, 1)
+
+	manager.SetSaveCallback(func(path string) {
+		if path == filePath {
+			done <- time.Now()
+		}
+	})
+
+	start := time.Now()
+	manager.MarkDirty(filePath)
+
+	select {
+	case fireTime := <-done:
+		elapsed := fireTime.Sub(start)
+		if elapsed < manager.minEditDelay {
+			t.Fatalf("auto-save fired too early: %v < %v", elapsed, manager.minEditDelay)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("auto-save did not fire within expected window")
+	}
+
+	if dirtyTime, ok := manager.GetPendingDirtyTime(filePath); ok {
+		manager.MarkAutoSaved(filePath, dirtyTime)
+	}
+	manager.Stop()
+}
+
 func TestAutoSaveFileNamingConsistency(t *testing.T) {
 	manager := &AutoSaveManager{
 		autoSaveDir: "/test/auto-save",
