@@ -65,6 +65,9 @@ func (e *Editor) openLineBelow(args []string) error {
 		e.updateSyntaxHighlighting()
 	}
 
+	// Refine indentation using analyzer if available
+	e.adjustIndentationForLines([]int{lineNum + 1}, lineNum+1)
+
 	// Ensure the new line is visible
 	e.scroll()
 
@@ -152,6 +155,9 @@ func (e *Editor) openLineAbove(args []string) error {
 	if !e.inPasteMode {
 		e.updateSyntaxHighlighting()
 	}
+
+	// Refine indentation using analyzer if available
+	e.adjustIndentationForLines([]int{lineNum}, lineNum)
 
 	return nil
 }
@@ -511,11 +517,34 @@ func (e *Editor) insertNewline(args []string) error {
 		e.updateSyntaxApplyEdit(startByte, "", textToInsert)
 	}
 
+	// Refine indentation using analyzer if available
+	linesToAdjust := []int{lineNum + 1}
+	if isBetweenBraces {
+		linesToAdjust = append(linesToAdjust, lineNum+2)
+	}
+	e.adjustIndentationForLines(linesToAdjust, lineNum+1)
+
+	finalIndentStr := autoIndent.IndentStr
+	if buf := e.CurrentBuffer(); buf != nil {
+		if buf.LineCount > 0 {
+			if lineNum+1 >= buf.LineCount {
+				buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, buf.LineCount-1)
+			} else {
+				buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, lineNum+1)
+			}
+			lineText := buf.CursorIterator.Line()
+			indentInfo := buf.GetLineIndentInfo(lineText)
+			buf.CursorX = len(indentInfo.ActualPrefix)
+			finalCursorX = buf.CursorX
+			finalIndentStr = indentInfo.ActualPrefix
+		}
+	}
+
 	// Ensure the cursor's new line is visible immediately to avoid one-frame misplacement
 	e.scroll()
 
 	LL.Debug("insertNewline: end -> line=%d, x=%d, viewTop=%d (finalX=%d, betweenBraces=%v, indent=%q)",
-		e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber(), finalCursorX, isBetweenBraces, autoIndent.IndentStr)
+		e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber(), finalCursorX, isBetweenBraces, finalIndentStr)
 
 	return nil
 }
@@ -1293,18 +1322,7 @@ func (e *Editor) reindentExpression(args []string) error {
 		return err
 	}
 
-	indentPerLine := make(map[int]int)
-	continuationPerLine := make(map[int]int)
-	for _, at := range annotated {
-		switch at.Token.Kind {
-		case indent.TokenWhitespace, indent.TokenNewline, indent.TokenIndent, indent.TokenDedent:
-			continue
-		}
-		if _, ok := indentPerLine[at.Token.Start.Line]; !ok {
-			indentPerLine[at.Token.Start.Line] = at.IndentLevel
-			continuationPerLine[at.Token.Start.Line] = at.ContinuationLevel
-		}
-	}
+	indentPerLine, continuationPerLine := buildIndentMaps(annotated)
 
 	if len(indentPerLine) == 0 {
 		return nil
@@ -1478,6 +1496,220 @@ func computeContinuationColumns(tokens []indent.Token) map[int]int {
 		}
 	}
 	return columns
+}
+
+func buildIndentMaps(annotated []indent.AnnotatedToken) (map[int]int, map[int]int) {
+	indentPerLine := make(map[int]int)
+	continuationPerLine := make(map[int]int)
+	for _, at := range annotated {
+		switch at.Token.Kind {
+		case indent.TokenWhitespace, indent.TokenNewline, indent.TokenIndent, indent.TokenDedent:
+			continue
+		}
+		if _, ok := indentPerLine[at.Token.Start.Line]; !ok {
+			indentPerLine[at.Token.Start.Line] = at.IndentLevel
+			continuationPerLine[at.Token.Start.Line] = at.ContinuationLevel
+		}
+	}
+	return indentPerLine, continuationPerLine
+}
+
+func (e *Editor) computeIndentAdjustments(lines []int) (map[int]string, map[int]string, error) {
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return nil, nil, nil
+	}
+	if len(lines) == 0 {
+		return nil, nil, nil
+	}
+	lang := detectIndentLanguage(buf.FilePath)
+	if lang == nil {
+		return nil, nil, nil
+	}
+	unique := make(map[int]struct{}, len(lines))
+	for _, line := range lines {
+		unique[line] = struct{}{}
+	}
+	if len(unique) == 0 {
+		return nil, nil, nil
+	}
+	sortedLines := make([]int, 0, len(unique))
+	for line := range unique {
+		sortedLines = append(sortedLines, line)
+	}
+	sort.Ints(sortedLines)
+
+	text := buf.Rope.Extract(0, buf.Rope.Length())
+	tokens, err := lang.Tokenize([]rune(text))
+	if err != nil {
+		return nil, nil, err
+	}
+	annotated, err := indent.NewAnalyzer(tokens, lang.Rules()).Analyze()
+	if err != nil {
+		return nil, nil, err
+	}
+	indentPerLine, continuationPerLine := buildIndentMaps(annotated)
+	contColumns := computeContinuationColumns(tokens)
+
+	desired := make(map[int]string)
+	current := make(map[int]string)
+	for _, line := range sortedLines {
+		if line < 0 || line >= buf.LineCount {
+			continue
+		}
+		iter := buffer.NewBufferIteratorAtLine(buf, line)
+		if iter.IsEOF() {
+			continue
+		}
+		lineText := iter.Line()
+		if strings.TrimSpace(lineText) == "" {
+			continue
+		}
+		level, ok := indentPerLine[line]
+		if !ok {
+			continue
+		}
+		cont := continuationPerLine[line]
+		effectiveLevel := level + cont
+		desiredColumns := effectiveLevel * buf.Indentation.Width
+		if buf.Indentation.Type == config.IndentTabs {
+			desiredColumns = effectiveLevel * 8
+		}
+		if col, ok := contColumns[line]; ok && col > desiredColumns {
+			desiredColumns = col
+		}
+		desiredStr := indentStringForColumns(buf, desiredColumns)
+		info := buf.GetLineIndentInfo(lineText)
+		trimmed := strings.TrimLeft(lineText, " \t")
+		if effectiveLevel == 0 && strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		if info.ActualPrefix == desiredStr {
+			continue
+		}
+		desired[line] = desiredStr
+		current[line] = info.ActualPrefix
+	}
+
+	if len(desired) == 0 {
+		return nil, nil, nil
+	}
+	return desired, current, nil
+}
+
+func (e *Editor) applyIndentAdjustments(desired, current map[int]string) error {
+	if len(desired) == 0 {
+		return nil
+	}
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return nil
+	}
+	lines := make([]int, 0, len(desired))
+	for line := range desired {
+		lines = append(lines, line)
+	}
+	sort.Ints(lines)
+
+	changes := buffer.NewCompositeEntry("Auto indentation adjustment")
+	modified := false
+	for _, line := range lines {
+		if cur, ok := current[line]; ok && cur != "" {
+			changes.Add(buffer.NewDeleteTextEntry(line, 0, cur))
+			modified = true
+		}
+		des := desired[line]
+		if des != "" {
+			changes.Add(buffer.NewInsertTextEntry(line, 0, des))
+			modified = true
+		}
+	}
+	if !modified {
+		return nil
+	}
+
+	cursorLine := buf.CursorIterator.LineNumber()
+	cursorX := buf.CursorX
+	viewLine := buf.ViewIterator.LineNumber()
+
+	if buf.History != nil {
+		if _, err := buf.History.Execute(buf, changes); err != nil {
+			return err
+		}
+	} else {
+		if err := changes.Execute(buf); err != nil {
+			return err
+		}
+	}
+
+	if buf.LineCount == 0 {
+		buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, 0)
+		buf.CursorX = 0
+		buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, 0)
+		e.updateSyntaxHighlighting()
+		return nil
+	}
+
+	if cursorLine >= buf.LineCount {
+		cursorLine = buf.LineCount - 1
+	}
+	if cursorLine < 0 {
+		cursorLine = 0
+	}
+	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, cursorLine)
+	lineText := buf.CursorIterator.Line()
+	if cursorX > len(lineText) {
+		cursorX = len(lineText)
+	}
+	buf.CursorX = cursorX
+
+	if viewLine >= buf.LineCount {
+		viewLine = buf.LineCount - 1
+	}
+	if viewLine < 0 {
+		viewLine = 0
+	}
+	buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, viewLine)
+
+	e.updateSyntaxHighlighting()
+	return nil
+}
+
+func (e *Editor) adjustIndentationForLines(lines []int, focusLine int) {
+	desired, current, err := e.computeIndentAdjustments(lines)
+	if err != nil {
+		LL.Warning("indent analyzer failed: %v", err)
+		return
+	}
+	if len(desired) == 0 {
+		return
+	}
+	if err := e.applyIndentAdjustments(desired, current); err != nil {
+		LL.Warning("indent adjustment apply failed: %v", err)
+		return
+	}
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return
+	}
+	if focusLine < 0 {
+		return
+	}
+	if buf.LineCount == 0 {
+		buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, 0)
+		buf.CursorX = 0
+		return
+	}
+	if focusLine >= buf.LineCount {
+		focusLine = buf.LineCount - 1
+	}
+	if focusLine < 0 {
+		focusLine = 0
+	}
+	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, focusLine)
+	lineText := buf.CursorIterator.Line()
+	indentInfo := buf.GetLineIndentInfo(lineText)
+	buf.CursorX = len(indentInfo.ActualPrefix)
 }
 
 func findReindentRange(tokens []indent.Token, cursorLine, cursorCol int) (int, int) {
