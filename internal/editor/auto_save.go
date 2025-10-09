@@ -95,6 +95,39 @@ func (asm *AutoSaveManager) MarkDirty(filePath string) {
 	LL.Debug("Marked file as dirty for auto-save: %s", filePath)
 }
 
+// GetPendingDirtyTime returns the time when the file was marked dirty, if pending
+func (asm *AutoSaveManager) GetPendingDirtyTime(filePath string) (time.Time, bool) {
+	if filePath == "" {
+		return time.Time{}, false
+	}
+
+	asm.mutex.RLock()
+	defer asm.mutex.RUnlock()
+
+	dirtyTime, exists := asm.pendingSaves[filePath]
+	return dirtyTime, exists
+}
+
+// MarkAutoSaved records that auto-save completed successfully for the given file
+func (asm *AutoSaveManager) MarkAutoSaved(filePath string, dirtyTime time.Time) {
+	if filePath == "" {
+		return
+	}
+
+	asm.mutex.Lock()
+	defer asm.mutex.Unlock()
+
+	if pendingTime, exists := asm.pendingSaves[filePath]; exists {
+		if !dirtyTime.IsZero() && !pendingTime.Equal(dirtyTime) {
+			// Changes were made after this auto-save was requested; keep pending entry
+			return
+		}
+		delete(asm.pendingSaves, filePath)
+	}
+
+	asm.lastSaveTimes[filePath] = time.Now()
+}
+
 // HasAutoSave checks if an auto-save file exists and is newer than the original
 func (asm *AutoSaveManager) HasAutoSave(filePath string, originalModTime time.Time) bool {
 	if filePath == "" {

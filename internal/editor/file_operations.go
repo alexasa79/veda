@@ -1153,18 +1153,64 @@ func (e *Editor) showRecoveryDialog(filePath string) bool {
 
 // performAutoSave performs auto-save for a specific file
 func (e *Editor) performAutoSave(filePath string) {
-	// Find the buffer for this file
-	if buf, exists := e.buffers[filePath]; exists {
-		content := buf.Rope.String()
-		if err := e.autoSaveManager.saveFile(filePath, content); err != nil {
-			LL.Error("Failed to auto-save file %s: %v", filePath, err)
-		} else {
-			// Update last save time
-			e.autoSaveManager.mutex.Lock()
-			e.autoSaveManager.lastSaveTimes[filePath] = time.Now()
-			e.autoSaveManager.mutex.Unlock()
-		}
+	if e.autoSaveManager == nil {
+		return
 	}
+
+	buf, exists := e.buffers[filePath]
+	if !exists || buf == nil || !buf.HasFile() {
+		return
+	}
+
+	content := buf.Rope.String()
+	dirtyTime, _ := e.autoSaveManager.GetPendingDirtyTime(filePath)
+
+	if err := e.autoSaveManager.saveFile(filePath, content); err != nil {
+		LL.Error("Failed to auto-save file %s: %v", filePath, err)
+	}
+
+	targetPath := buf.RealPath
+	if targetPath == "" {
+		targetPath = buf.FilePath
+	}
+	if targetPath == "" {
+		return
+	}
+
+	startGeneration := buf.Generation
+	e.pendingSaves.Add(1)
+
+	go func(b *buffer.Buffer, originalPath, pendingPath, snapshot string, dirtyAt time.Time, generation uint64) {
+		defer e.pendingSaves.Done()
+
+		diagnostics, gitChanges, err := e.proxyManager.WriteFile(originalPath, snapshot)
+		if err != nil {
+			LL.Error("Auto-save failed to write original file %s: %v", originalPath, err)
+			return
+		}
+
+		if generation != b.Generation {
+			// Buffer changed again while the save was running; keep modified state
+			return
+		}
+
+		b.Diagnostics = diagnostics
+		b.GitChanges = gitChanges
+		e.updateGitChangesForRealPath(originalPath, gitChanges)
+		b.MarkSaved()
+		b.ChangedLines = make(map[int]bool)
+
+		if e.CurrentBuffer() == b {
+			select {
+			case e.asyncEvents <- events.NewCustomEvent("render", nil):
+			default:
+			}
+		}
+
+		if e.autoSaveManager != nil {
+			e.autoSaveManager.MarkAutoSaved(pendingPath, dirtyAt)
+		}
+	}(buf, targetPath, filePath, content, dirtyTime, startGeneration)
 }
 
 // markBufferDirty marks a buffer as having unsaved changes for auto-save
