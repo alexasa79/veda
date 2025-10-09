@@ -1837,7 +1837,7 @@ func (e *Editor) drawStatusBar() {
 
 			// Add modified indicator if buffer is modified
 			if e.CurrentBuffer().IsModified {
-				x += e.drawText(x, statusBarY, statusBarStyle, " [+]", 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, statusBarStyle, " [unsaved]", 0, nil, -1, 0, -1)
 			}
 		} else {
 			// Show empty window indicator

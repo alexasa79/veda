@@ -246,6 +246,57 @@ func TestAutoSaveCleanupOnSuccessfulSave(t *testing.T) {
 	manager.mutex.RUnlock()
 }
 
+func TestMarkAutoSavedClearsPendingEntry(t *testing.T) {
+	manager := &AutoSaveManager{
+		lastSaveTimes: make(map[string]time.Time),
+		pendingSaves:  make(map[string]time.Time),
+	}
+
+	filePath := "/tmp/example.txt"
+	dirtyTime := time.Now()
+	manager.pendingSaves[filePath] = dirtyTime
+
+	manager.MarkAutoSaved(filePath, dirtyTime)
+
+	manager.mutex.RLock()
+	defer manager.mutex.RUnlock()
+
+	if _, exists := manager.pendingSaves[filePath]; exists {
+		t.Fatalf("expected pending entry for %s to be cleared", filePath)
+	}
+
+	if savedTime, exists := manager.lastSaveTimes[filePath]; !exists {
+		t.Fatalf("expected lastSaveTimes entry for %s", filePath)
+	} else if savedTime.Before(dirtyTime) {
+		t.Fatalf("expected last save time %v to be >= dirty time %v", savedTime, dirtyTime)
+	}
+}
+
+func TestMarkAutoSavedIgnoresOutdatedDirtyTime(t *testing.T) {
+	manager := &AutoSaveManager{
+		lastSaveTimes: make(map[string]time.Time),
+		pendingSaves:  make(map[string]time.Time),
+	}
+
+	filePath := "/tmp/example.txt"
+	originalDirty := time.Now()
+	newDirty := originalDirty.Add(2 * time.Second)
+	manager.pendingSaves[filePath] = newDirty
+
+	manager.MarkAutoSaved(filePath, originalDirty)
+
+	manager.mutex.RLock()
+	defer manager.mutex.RUnlock()
+
+	if _, exists := manager.pendingSaves[filePath]; !exists {
+		t.Fatalf("pending entry for %s should remain when dirty time changes", filePath)
+	}
+
+	if _, exists := manager.lastSaveTimes[filePath]; exists {
+		t.Fatalf("lastSaveTimes should not be updated for outdated auto-save on %s", filePath)
+	}
+}
+
 func TestAutoSaveCleanupOnAllQuitOperations(t *testing.T) {
 	// This tests that ALL quit operations clean up auto-save files
 	// The goal is that when the user quits without saving, they don't want to be
