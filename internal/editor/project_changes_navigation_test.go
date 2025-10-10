@@ -105,9 +105,10 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 		it := buffer.NewBufferIteratorAtLine(pcBuf, i)
 		line := it.Line()
 		if p, ln, ok := parseProjectChangeLink(line); ok {
-			// Resolve to absolute for later GetFile calls
-			abs := filepath.Join(repo, p)
-			targets = append(targets, target{path: abs, line: ln})
+			if !filepath.IsAbs(p) {
+				t.Fatalf("expected absolute path in project changes link, got %s", p)
+			}
+			targets = append(targets, target{path: p, line: ln})
 		}
 	}
 	if len(targets) == 0 {

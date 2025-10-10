@@ -147,6 +147,19 @@ func NewGitTestRepo(t *testing.T) string {
 	return dir
 }
 
+func canonicalTestPath(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	if dirResolved, err := filepath.EvalSymlinks(filepath.Dir(path)); err == nil {
+		return filepath.Join(dirResolved, filepath.Base(path))
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return filepath.Clean(path)
+}
+
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
 	// Use executeWithRepeatCount to properly handle multiple cursors

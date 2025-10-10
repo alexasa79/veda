@@ -57,7 +57,8 @@ func TestProjectChangesListsUntrackedAddedFile(t *testing.T) {
 		t.Fatalf("Project Changes buffer not opened")
 	}
 	bufText := pc.Rope.String()
-	if !strings.Contains(bufText, "](added.txt)") {
+	addedPath := canonicalTestPath(filepath.Join(repo, "added.txt"))
+	if !strings.Contains(bufText, fmt.Sprintf("](%s)", addedPath)) {
 		t.Fatalf("expected *Project Changes* to list added.txt, but it did not. Buffer was:\n%s", bufText)
 	}
 }

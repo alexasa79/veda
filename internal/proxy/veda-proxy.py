@@ -29,7 +29,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.32"
+PROXY_VERSION = "1.0.35"
 
 # Set up logging directory
 from datetime import datetime
@@ -2202,6 +2202,18 @@ class VedaProxy:
             # Use provided working directory or current directory
             cwd = Path(working_dir).expanduser().resolve() if working_dir else Path.cwd()
             
+            def to_absolute_path(path_str: str) -> str:
+                """Convert git-reported paths to absolute paths anchored at cwd."""
+                raw_path = Path(path_str).expanduser()
+                if raw_path.is_absolute():
+                    candidate = raw_path
+                else:
+                    candidate = cwd / raw_path
+                try:
+                    return str(candidate.resolve(strict=False))
+                except TypeError:
+                    return str(candidate.resolve())
+
             # Get list of changed files
             cmd = ['git', 'diff', '--name-status', 'HEAD']
             result = self._run_shell_command(cmd, cwd=cwd)
@@ -2267,7 +2279,7 @@ class VedaProxy:
                     if result.returncode == 0:
                         diff_info = self._parse_git_diff(result.stdout)
                         changes.append({
-                            'file': filepath,
+                            'file': to_absolute_path(filepath),
                             'status': info['status'],
                             'staged': info['staged'],
                             'added_lines': diff_info.get('added', []),

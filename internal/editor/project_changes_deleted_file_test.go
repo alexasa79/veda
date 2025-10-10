@@ -74,11 +74,13 @@ func TestProjectChangesListsAndSkipsDeletedFile(t *testing.T) {
 		t.Fatalf("Project Changes buffer not opened")
 	}
 	bufText := pc.Rope.String()
+	deletedPath := canonicalTestPath(filepath.Join(repo, "deleted.txt"))
+	keptPath := canonicalTestPath(filepath.Join(repo, "kept.txt"))
 
 	if !strings.Contains(bufText, "[D●] [deleted.txt]") {
 		t.Fatalf("expected staged deletion for deleted.txt, got:\n%s", bufText)
 	}
-	if !strings.Contains(bufText, "[(kept.txt)") && !strings.Contains(bufText, "]("+"kept.txt"+")") {
+	if !strings.Contains(bufText, fmt.Sprintf("](%s)", keptPath)) {
 		t.Fatalf("expected kept.txt to be listed, got:\n%s", bufText)
 	}
 
@@ -87,7 +89,7 @@ func TestProjectChangesListsAndSkipsDeletedFile(t *testing.T) {
 	for i := 0; i < pc.LineCount; i++ {
 		it := buffer.NewBufferIteratorAtLine(pc, i)
 		line := it.Line()
-		if strings.Contains(line, "]("+"deleted.txt"+")") {
+		if strings.Contains(line, fmt.Sprintf("](%s)", deletedPath)) {
 			delLine = i
 			break
 		}
