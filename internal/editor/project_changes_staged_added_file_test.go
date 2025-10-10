@@ -58,7 +58,8 @@ func TestProjectChangesListsStagedAddedFile(t *testing.T) {
 	bufText := pc.Rope.String()
 
 	// Expect the added file to be listed and flagged as staged (A●)
-	if !strings.Contains(bufText, "]("+"added.txt"+")") {
+	addedPath := canonicalTestPath(filepath.Join(repo, "added.txt"))
+	if !strings.Contains(bufText, fmt.Sprintf("](%s)", addedPath)) {
 		t.Fatalf("expected Project Changes to list added.txt, but got:\n%s", bufText)
 	}
 	if !strings.Contains(bufText, "[A●] [added.txt]") {

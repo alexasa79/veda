@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.32"
+const ProxyVersion = "1.0.35"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -756,6 +756,24 @@ func (pm *ProxyManager) ListProjectSymbols(path string, query string) ([]Project
 
 // GetProjectChanges gets all changed files in the project
 func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) {
+	remoteHost, _, isRemote := parseRemotePath(path)
+
+	prefixRemotePaths := func(changes []ProjectChange) []ProjectChange {
+		if !isRemote || remoteHost == "" {
+			return changes
+		}
+		for i := range changes {
+			if changes[i].File == "" {
+				continue
+			}
+			if strings.HasPrefix(changes[i].File, remoteHost+":") {
+				continue
+			}
+			changes[i].File = remoteHost + ":" + changes[i].File
+		}
+		return changes
+	}
+
 	client, actualPath, err := pm.getClient(path)
 	if err != nil {
 		return nil, err
@@ -765,16 +783,21 @@ func (pm *ProxyManager) GetProjectChanges(path string) ([]ProjectChange, error) 
 		workingDir = path
 	}
 	changes, err := client.GetProjectChanges(workingDir)
+	if err == nil {
+		changes = prefixRemotePaths(changes)
+	}
 	if shouldReconnect(err) {
-		host, _, _ := parseRemotePath(path)
 		pm.reportStatus("Disconnected")
-		if _, rerr := pm.reconnect(host); rerr == nil {
+		if _, rerr := pm.reconnect(remoteHost); rerr == nil {
 			if client2, actualPath2, gerr := pm.getClient(path); gerr == nil {
 				wd := actualPath2
 				if wd == "" || wd == "." {
 					wd = path
 				}
 				changes, err = client2.GetProjectChanges(wd)
+				if err == nil {
+					changes = prefixRemotePaths(changes)
+				}
 			}
 		}
 	}
