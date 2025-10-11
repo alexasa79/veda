@@ -55,7 +55,7 @@ func TestGoReindent_FixesMisalignedBlock(t *testing.T) {
 	content := strings.Join(lines, "\n") + "\n"
 
 	te := NewTestEditorWithContent(120, 40, content)
-	setBufferPath(te, "handle.go")
+	setBufferPath(te, testFixturePath("handle.go"))
 	te.SetCursorPosition(4, 4)
 
 	if err := te.ExecuteCommand("reindent-expression"); err != nil {

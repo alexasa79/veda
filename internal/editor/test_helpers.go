@@ -160,6 +160,10 @@ func canonicalTestPath(path string) string {
 	return filepath.Clean(path)
 }
 
+func testFixturePath(name string) string {
+	return filepath.Join("artifacts", "editor-fixtures", name)
+}
+
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
 	// Use executeWithRepeatCount to properly handle multiple cursors

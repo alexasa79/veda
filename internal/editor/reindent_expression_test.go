@@ -34,7 +34,7 @@ func TestReindentExpression_FixesMisalignedInnerBlock(t *testing.T) {
 	}, "\n")
 
 	te := NewTestEditorWithContent(80, 24, content)
-	setBufferPath(te, "test1.c")
+	setBufferPath(te, testFixturePath("test1.c"))
 	te.SetCursorPosition(4, 2)
 
 	if err := te.ExecuteCommand("reindent-expression"); err != nil {
@@ -121,7 +121,7 @@ func TestReindentExpression_ReflowsCallArguments(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
-	setBufferPath(te, "test4.c")
+	setBufferPath(te, testFixturePath("test4.c"))
 	te.SetCursorPosition(0, 2)
 
 	if err := te.ExecuteCommand("reindent-expression"); err != nil {
@@ -152,7 +152,7 @@ func TestReindentExpression_ReducesIndentAfterBlockExit(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
-	setBufferPath(te, "move_down_case.c")
+	setBufferPath(te, testFixturePath("move_down_case.c"))
 	te.SetCursorPosition(0, 3)
 
 	lang := indent.NewCLanguage()
@@ -242,7 +242,7 @@ func TestReindentExpression_DoesNotReindentWholeFunction(t *testing.T) {
 	content := strings.Join(lines, "\n") + "\n"
 
 	te := NewTestEditorWithContent(120, 40, content)
-	setBufferPath(te, "scramble_outcome.c")
+	setBufferPath(te, testFixturePath("scramble_outcome.c"))
 	te.SetCursorPosition(8, 9)
 
 	before := te.GetBufferContent()

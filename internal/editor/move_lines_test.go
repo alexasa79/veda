@@ -32,7 +32,7 @@ func TestMoveLinesUpReindent(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
-	setTestBufferPath(te, "move_up.c")
+	setTestBufferPath(te, testFixturePath("move_up.c"))
 	te.SetCursorPosition(0, 3)
 
 	if err := te.ExecuteCommand("move-lines-up"); err != nil {
@@ -67,7 +67,7 @@ func TestMoveLinesUpReindentMultiLineCall(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
-	setTestBufferPath(te, "move_up_multi.c")
+	setTestBufferPath(te, testFixturePath("move_up_multi.c"))
 	te.SetCursorPosition(0, 2)
 
 	if err := te.ExecuteCommand("enter-visual-line-mode"); err != nil {
@@ -107,7 +107,7 @@ func TestMoveLinesDownReindent(t *testing.T) {
 	}, "\n") + "\n"
 
 	te := NewTestEditorWithContent(80, 24, content)
-	setTestBufferPath(te, "move_down.c")
+	setTestBufferPath(te, testFixturePath("move_down.c"))
 	te.SetCursorPosition(0, 1)
 
 	if err := te.ExecuteCommand("move-lines-down"); err != nil {

@@ -126,10 +126,11 @@ type Editor struct {
 	pendingCount    int                // Count for pending operations (dd, cc, etc.)
 
 	// Search state
-	searchPattern   string // Current search pattern
-	searchDirection bool   // true = forward, false = backward
-	searchMatches   []int  // Positions of all search matches
-	currentMatch    int    // Index of current match in searchMatches (-1 if none)
+	searchPattern       string         // Current search pattern
+	searchDirection     bool           // true = forward, false = backward
+	searchMatches       []int          // Positions of all search matches
+	currentMatch        int            // Index of current match in searchMatches (-1 if none)
+	searchMatchesBuffer *buffer.Buffer // Buffer the searchMatches correspond to (nil if none)
 
 	// Flash highlight state
 	flashStartLine int   // Start line of flashed region
