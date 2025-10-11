@@ -126,6 +126,8 @@ func (e *Editor) executeSearch() {
 
 // findNext finds the next occurrence of the search pattern
 func (e *Editor) findNext() {
+	e.ensureSearchMatchesCurrentBuffer()
+
 	if e.searchPattern == "" || len(e.searchMatches) == 0 {
 		return
 	}
@@ -154,6 +156,8 @@ func (e *Editor) findNext() {
 
 // findPrevious finds the previous occurrence of the search pattern
 func (e *Editor) findPrevious() {
+	e.ensureSearchMatchesCurrentBuffer()
+
 	if e.searchPattern == "" || len(e.searchMatches) == 0 {
 		return
 	}
@@ -351,17 +355,45 @@ func (e *Editor) enterSearchModeBackwardCmd(args []string) error {
 	return nil
 }
 
+// ensureSearchMatchesCurrentBuffer recalculates matches if the active buffer changed.
+func (e *Editor) ensureSearchMatchesCurrentBuffer() {
+	if e.searchPattern == "" {
+		return
+	}
+
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		e.searchMatches = []int{}
+		e.currentMatch = -1
+		e.searchMatchesBuffer = nil
+		return
+	}
+
+	if e.searchMatchesBuffer != buf {
+		e.updateSearchMatches()
+	}
+}
+
 // updateSearchMatches finds all occurrences of the search pattern
 func (e *Editor) updateSearchMatches() {
 	e.searchMatches = []int{}
 	e.currentMatch = -1
 
 	if e.searchPattern == "" {
+		e.searchMatchesBuffer = nil
 		return
 	}
 
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		e.searchMatchesBuffer = nil
+		return
+	}
+
+	e.searchMatchesBuffer = buf
+
 	// Get buffer content
-	content := e.CurrentBuffer().Rope.String()
+	content := buf.Rope.String()
 
 	// Find all matches
 	pos := 0
@@ -380,6 +412,7 @@ func (e *Editor) clearSearch() {
 	e.searchPattern = ""
 	e.searchMatches = []int{}
 	e.currentMatch = -1
+	e.searchMatchesBuffer = nil
 }
 
 // getCurrentMatchIndex returns the index in searchMatches that corresponds to the given position

@@ -52,7 +52,7 @@ func TestPythonReindent_RealignsNestedList(t *testing.T) {
 	content := strings.Join(lines, "\n") + "\n"
 
 	te := NewTestEditorWithContent(120, 40, content)
-	setBufferPath(te, "list_fix.py")
+	setBufferPath(te, testFixturePath("list_fix.py"))
 	te.SetCursorPosition(4, 3)
 
 	if err := te.ExecuteCommand("reindent-expression"); err != nil {

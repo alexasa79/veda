@@ -50,7 +50,7 @@ func TestInternalBuffersExcludedFromUnsavedChecks(t *testing.T) {
 		te := NewTestEditor(80, 24)
 
 		// Create a real file buffer (use a non-internal dummy path)
-		te.openFile("test_file.txt")
+		te.openFile(testFixturePath("test_file.txt"))
 
 		// Modify the buffer
 		te.InsertChar('x')
@@ -82,7 +82,7 @@ func TestInternalBuffersExcludedFromUnsavedChecks(t *testing.T) {
 		te.ShowError("Test error")
 
 		// Create a regular file buffer but don't modify it
-		te.openFile("test_file2.txt")
+		te.openFile(testFixturePath("test_file2.txt"))
 
 		// Both buffers exist, but only Messages is modified
 		messagesBuffer := te.buffers["*Messages*"]
