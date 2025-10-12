@@ -88,8 +88,8 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		// Add some content on new line
 		te.InsertChar('\t') // Tab for indentation
 
-		// Verify content (no auto-indent, then manual tab)
-		expected := "func main() {\n\t fmt.Println(\"Hello\") }"
+		// Verify content matches auto-indent plus manual tab
+		expected := "func main() {\n\t    fmt.Println(\"Hello\") }"
 		AssertBufferEquals(t, te, expected)
 
 		// Force render - should not crash
