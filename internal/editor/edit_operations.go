@@ -1395,15 +1395,12 @@ func (e *Editor) reindentExpression(args []string) error {
 		}
 		cont := continuationPerLine[line]
 		effectiveLevel := level + cont
-		desiredColumns := effectiveLevel * buf.Indentation.Width
-		if buf.Indentation.Type == config.IndentTabs {
-			desiredColumns = effectiveLevel * 8
+		baseColumns := targetColumnsForLevel(buf, effectiveLevel)
+		extraColumns := 0
+		if contCol, hasContCol := contColumns[line]; hasContCol && contCol > baseColumns {
+			extraColumns = contCol - baseColumns
 		}
-		contCol, hasContCol := contColumns[line]
-		if hasContCol && contCol > desiredColumns {
-			desiredColumns = contCol
-		}
-		desired := indentStringForColumns(buf, desiredColumns)
+		desired := indentStringForLevel(buf, effectiveLevel, extraColumns)
 		info := buf.GetLineIndentInfo(lineText)
 		trimmed := strings.TrimLeft(lineText, " \t")
 		if effectiveLevel == 0 && strings.HasPrefix(trimmed, "//") {
@@ -1576,14 +1573,12 @@ func (e *Editor) computeIndentAdjustments(lines []int) (map[int]string, map[int]
 		}
 		cont := continuationPerLine[line]
 		effectiveLevel := level + cont
-		desiredColumns := effectiveLevel * buf.Indentation.Width
-		if buf.Indentation.Type == config.IndentTabs {
-			desiredColumns = effectiveLevel * 8
+		baseColumns := targetColumnsForLevel(buf, effectiveLevel)
+		extraColumns := 0
+		if col, ok := contColumns[line]; ok && col > baseColumns {
+			extraColumns = col - baseColumns
 		}
-		if col, ok := contColumns[line]; ok && col > desiredColumns {
-			desiredColumns = col
-		}
-		desiredStr := indentStringForColumns(buf, desiredColumns)
+		desiredStr := indentStringForLevel(buf, effectiveLevel, extraColumns)
 		info := buf.GetLineIndentInfo(lineText)
 		trimmed := strings.TrimLeft(lineText, " \t")
 		if effectiveLevel == 0 && strings.HasPrefix(trimmed, "//") {
@@ -1828,16 +1823,45 @@ func positionEqual(line1, col1 int, loc indent.Location) bool {
 	return line1 == loc.Line && col1 == loc.Column
 }
 
-func indentStringForColumns(buf *buffer.Buffer, cols int) string {
-	if cols <= 0 {
-		return ""
+func targetColumnsForLevel(buf *buffer.Buffer, level int) int {
+	if level <= 0 {
+		return 0
 	}
 	if buf.Indentation.Type == config.IndentTabs {
-		tabs := cols / 8
-		spaces := cols % 8
+		return level * 8
+	}
+	width := buf.Indentation.Width
+	if width <= 0 {
+		width = 4
+	}
+	return level * width
+}
+
+func indentStringForLevel(buf *buffer.Buffer, level int, extraColumns int) string {
+	if level < 0 {
+		level = 0
+	}
+	if extraColumns < 0 {
+		extraColumns = 0
+	}
+	if buf.Indentation.Type == config.IndentTabs {
+		totalColumns := level*8 + extraColumns
+		if totalColumns <= 0 {
+			return ""
+		}
+		tabs := totalColumns / 8
+		spaces := totalColumns % 8
 		return strings.Repeat("\t", tabs) + strings.Repeat(" ", spaces)
 	}
-	return strings.Repeat(" ", cols)
+	width := buf.Indentation.Width
+	if width <= 0 {
+		width = 4
+	}
+	totalColumns := level*width + extraColumns
+	if totalColumns <= 0 {
+		return ""
+	}
+	return strings.Repeat(" ", totalColumns)
 }
 
 func detectIndentLanguage(path string) indent.Language {
