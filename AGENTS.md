@@ -1,6 +1,8 @@
 # Veda, terminal based editor
 
 ## Rules for AI agents
+- Make your code as simple as possible. Oversimplifying is better than
+  overcomplicating.
 - Keep your explanations simple. Speak in plain language. Give examples.
 - Keep your answers short and to the point.
 - Do not commit the code to git without explicit request.
