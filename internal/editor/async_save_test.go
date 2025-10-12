@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -10,10 +12,15 @@ func TestAsyncFileSaveTracking(t *testing.T) {
 		// Create test editor with content
 		te := NewTestEditorWithContent(80, 24, "Hello, World!\nThis is a test file.")
 
-		// Set a file path for the buffer within project artifacts to avoid using /tmp
-		fixture := testFixturePath("test_file.txt")
-		te.CurrentBuffer().FilePath = fixture
-		te.buffers[fixture] = te.CurrentBuffer()
+		// Use a temp-backed file path so the test does not touch repository artifacts.
+		tempDir := t.TempDir()
+		fixture := filepath.Join(tempDir, "async-save-test.txt")
+		t.Cleanup(func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("failed to clean temp directory %s: %v", tempDir, err)
+			}
+		})
+		setBufferPath(te, fixture)
 
 		// Check that no async operations are running initially
 		if te.hasAsyncOperations() {
