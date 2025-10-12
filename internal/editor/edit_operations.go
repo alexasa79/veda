@@ -533,10 +533,15 @@ func (e *Editor) insertNewline(args []string) error {
 				buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, lineNum+1)
 			}
 			lineText := buf.CursorIterator.Line()
-			indentInfo := buf.GetLineIndentInfo(lineText)
-			buf.CursorX = len(indentInfo.ActualPrefix)
-			finalCursorX = buf.CursorX
-			finalIndentStr = indentInfo.ActualPrefix
+			if finalCursorX > len(lineText) {
+				finalCursorX = len(lineText)
+			}
+			buf.CursorX = finalCursorX
+			if finalCursorX > 0 {
+				finalIndentStr = lineText[:finalCursorX]
+			} else {
+				finalIndentStr = ""
+			}
 		}
 	}
 
