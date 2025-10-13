@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"veda/internal/buffer"
@@ -545,9 +546,7 @@ func (e *Editor) enterTemporaryNormalMode(args []string) error {
 // exitInsertMode switches the editor back to normal mode
 func (e *Editor) exitInsertMode(args []string) error {
 	// Remove trailing spaces from all lines that were changed in this session
-	if e.CurrentBuffer() != nil {
-		e.CurrentBuffer().RemoveTrailingSpacesFromChangedLines()
-	}
+	e.removeTrailingSpacesFromChangedLines()
 
 	// Clear temporary normal flag if set
 	e.temporaryNormal = false
@@ -587,6 +586,86 @@ func (e *Editor) exitInsertMode(args []string) error {
 	// The setLastChange will be handled by the history system
 
 	return nil
+}
+
+func (e *Editor) removeTrailingSpacesFromChangedLines() {
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return
+	}
+	if len(buf.ChangedLines) == 0 {
+		return
+	}
+
+	// Preserve cursor/view state so trimming does not shift the user.
+	var (
+		savedCursorLine = -1
+		savedCursorX    = 0
+		savedViewLine   = -1
+	)
+	if buf.CursorIterator != nil && buf.CursorIterator.Generation == buf.Generation {
+		savedCursorLine = buf.CursorIterator.LineNumber()
+		savedCursorX = buf.CursorX
+	}
+	if buf.ViewIterator != nil && buf.ViewIterator.Generation == buf.Generation {
+		savedViewLine = buf.ViewIterator.LineNumber()
+	}
+
+	lines := make([]int, 0, len(buf.ChangedLines))
+	for line := range buf.ChangedLines {
+		lines = append(lines, line)
+	}
+	sort.Ints(lines)
+
+	for i := len(lines) - 1; i >= 0; i-- {
+		lineNum := lines[i]
+		iter := buffer.NewBufferIteratorAtLine(buf, lineNum)
+		if iter.IsEOF() {
+			continue
+		}
+		lineText := iter.Line()
+		trimIdx := len(lineText)
+		for trimIdx > 0 && (lineText[trimIdx-1] == ' ' || lineText[trimIdx-1] == '\t') {
+			trimIdx--
+		}
+		if trimIdx == len(lineText) {
+			continue
+		}
+		trimText := lineText[trimIdx:]
+		entry := buffer.NewDeleteTextEntry(lineNum, trimIdx, trimText)
+		if buf.History != nil {
+			if _, err := buf.History.Execute(buf, entry); err != nil {
+				// Fallback: execute directly if history execution fails
+				_ = entry.Execute(buf)
+			}
+		} else {
+			_ = entry.Execute(buf)
+		}
+	}
+
+	// Restore cursor/view after trimming.
+	if savedCursorLine >= 0 {
+		if savedCursorLine >= buf.LineCount {
+			savedCursorLine = buf.LineCount - 1
+		}
+		if savedCursorLine < 0 {
+			savedCursorLine = 0
+		}
+		buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, savedCursorLine)
+		if savedCursorX > len(buf.CursorIterator.Line()) {
+			savedCursorX = len(buf.CursorIterator.Line())
+		}
+		buf.CursorX = savedCursorX
+	}
+	if savedViewLine >= 0 {
+		if savedViewLine >= buf.LineCount {
+			savedViewLine = buf.LineCount - 1
+		}
+		if savedViewLine < 0 {
+			savedViewLine = 0
+		}
+		buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, savedViewLine)
+	}
 }
 
 // enterVisualMode switches the editor to visual mode

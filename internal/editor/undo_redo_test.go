@@ -59,11 +59,7 @@ func TestEditorUndoRedo(t *testing.T) {
 
 		AssertBufferEquals(t, te, "First\nSecond")
 
-		// Undo second session (the insert of "Second")
-		te.ExecuteCommand("undo")
-		AssertBufferEquals(t, te, "First\n")
-
-		// Undo the open-line
+		// Undo removes the opened line and its content together
 		te.ExecuteCommand("undo")
 		AssertBufferEquals(t, te, "First")
 
@@ -71,14 +67,11 @@ func TestEditorUndoRedo(t *testing.T) {
 		te.ExecuteCommand("undo")
 		AssertBufferEquals(t, te, "")
 
-		// Redo all three
+		// Redo both sessions
 		te.ExecuteCommand("redo") // First session
 		AssertBufferEquals(t, te, "First")
 
-		te.ExecuteCommand("redo") // Open line
-		AssertBufferEquals(t, te, "First\n")
-
-		te.ExecuteCommand("redo") // Second session
+		te.ExecuteCommand("redo") // Second session (line + content)
 		AssertBufferEquals(t, te, "First\nSecond")
 	})
 
@@ -100,11 +93,11 @@ func TestEditorUndoRedo(t *testing.T) {
 
 		AssertBufferEquals(t, te, "Hello\nWorld")
 
-		// Undo insert session
+		// Undo removes newline and content together
 		te.ExecuteCommand("undo")
-		AssertBufferEquals(t, te, "Hello\n")
+		AssertBufferEquals(t, te, "Hello")
 
-		// Undo open-line
+		// Additional undo should leave buffer unchanged (nothing else to undo)
 		te.ExecuteCommand("undo")
 		AssertBufferEquals(t, te, "Hello")
 	})
@@ -124,19 +117,11 @@ func TestEditorUndoRedo(t *testing.T) {
 
 		AssertBufferEquals(t, te, "First line\nSecond")
 
-		// Undo insert session
-		te.ExecuteCommand("undo")
-		AssertBufferEquals(t, te, "First line\n")
-
-		// Undo open-line
+		// Undo removes newline and content together
 		te.ExecuteCommand("undo")
 		AssertBufferEquals(t, te, "First line")
 
-		// Redo open-line
-		te.ExecuteCommand("redo")
-		AssertBufferEquals(t, te, "First line\n")
-
-		// Redo insert session
+		// Redo restores the inserted block
 		te.ExecuteCommand("redo")
 		AssertBufferEquals(t, te, "First line\nSecond")
 	})
@@ -219,11 +204,7 @@ func TestEditorUndoRedo(t *testing.T) {
 		// Since open-line-below creates the newline with the Enter key,
 		// and we typed "New", we need to check what actually gets created
 
-		// Undo insert session (removes "New")
-		te.ExecuteCommand("undo")
-		AssertBufferEquals(t, te, "Line1\n\nLine2")
-
-		// Undo open line (removes the empty line)
+		// Undo removes inserted line and content
 		te.ExecuteCommand("undo")
 		AssertBufferEquals(t, te, "Line1\nLine2")
 	})
@@ -242,6 +223,30 @@ func TestEditorUndoRedo(t *testing.T) {
 		// Undo should undo the delete, not do nothing
 		te.ExecuteCommand("undo")
 		AssertBufferEquals(t, te, "Test")
+	})
+
+	t.Run("undo open line preserves surrounding blank lines", func(t *testing.T) {
+		content := `std::shared_ptr<Variable> Scope::lookup(const std::string& name) const
+{
+    auto it = variables.find(name);
+    if (it != variables.end()) {
+        return it->second;
+    }
+
+    return nullptr;
+}`
+		te := NewTestEditorWithContent(120, 40, content)
+
+		// Position cursor on the closing brace before the blank line
+		te.SetCursorPosition(0, 5)
+
+		// Simulate normal-mode 'o' then immediately leaving insert mode
+		te.ExecuteCommand("open-line-below")
+		te.ExecuteCommand("exit-insert-mode")
+
+		// Undo should restore the original formatting
+		te.ExecuteCommand("undo")
+		AssertBufferEquals(t, te, content)
 	})
 }
 
