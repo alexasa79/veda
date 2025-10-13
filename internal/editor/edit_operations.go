@@ -30,15 +30,21 @@ func (e *Editor) openLineBelow(args []string) error {
 	autoIndent := e.CurrentBuffer().CalculateAutoIndent(currentLine, e.CurrentBuffer().CursorX)
 
 	// Create history entry for the newline and indentation
+	var startedSession bool
+	if e.CurrentBuffer().History != nil {
+		e.CurrentBuffer().History.StartInsertSession("o")
+		startedSession = true
+	}
 	textToInsert := "\n" + autoIndent.IndentStr
 	entry := buffer.NewInsertTextEntry(lineNum, e.CurrentBuffer().CursorX, textToInsert)
 
 	// Execute through history
 	if e.CurrentBuffer().History != nil {
-		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
+			if startedSession {
+				e.CurrentBuffer().History.EndInsertSession()
+			}
 			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -55,10 +61,6 @@ func (e *Editor) openLineBelow(args []string) error {
 
 	// Enter insert mode
 	e.switchToInsertMode()
-	// Start tracking insert mode changes
-	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
-		e.CurrentBuffer().History.StartInsertSession("o")
-	}
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
@@ -97,15 +99,22 @@ func (e *Editor) openLineAbove(args []string) error {
 	// Move to beginning of current line
 	e.CurrentBuffer().CursorX = 0
 
+	var startedSession bool
+	if e.CurrentBuffer().History != nil {
+		e.CurrentBuffer().History.StartInsertSession("O")
+		startedSession = true
+	}
+
 	// Create history entry for the newline
 	entry := buffer.NewInsertTextEntry(lineNum, 0, "\n")
 
 	// Execute through history
 	if e.CurrentBuffer().History != nil {
-		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), entry); err != nil {
+			if startedSession {
+				e.CurrentBuffer().History.EndInsertSession()
+			}
 			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
 		}
 	} else {
 		// Fallback if history is not initialized
@@ -125,10 +134,11 @@ func (e *Editor) openLineAbove(args []string) error {
 
 		// Execute through history
 		if e.CurrentBuffer().History != nil {
-			if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), indentEntry); err != nil {
+			if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), indentEntry); err != nil {
+				if startedSession {
+					e.CurrentBuffer().History.EndInsertSession()
+				}
 				return err
-			} else if executed != nil {
-				e.setLastChange(executed)
 			}
 		} else {
 			// Fallback if history is not initialized
@@ -146,10 +156,6 @@ func (e *Editor) openLineAbove(args []string) error {
 
 	// Enter insert mode
 	e.switchToInsertMode()
-	// Start tracking insert mode changes
-	if e.CurrentBuffer() != nil && e.CurrentBuffer().History != nil {
-		e.CurrentBuffer().History.StartInsertSession("O")
-	}
 
 	// Update syntax highlighting (skip during paste mode)
 	if !e.inPasteMode {
