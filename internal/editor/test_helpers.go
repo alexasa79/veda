@@ -160,8 +160,27 @@ func canonicalTestPath(path string) string {
 	return filepath.Clean(path)
 }
 
+var testFixtureDir string
+
+func init() {
+	// Create a unique temp directory for test fixtures
+	dir, err := os.MkdirTemp("/tmp", "veda-test-fixtures-*")
+	if err != nil {
+		panic(err)
+	}
+	testFixtureDir = dir
+}
+
 func testFixturePath(name string) string {
-	return filepath.Join("artifacts", "editor-fixtures", name)
+	return filepath.Join(testFixtureDir, name)
+}
+
+// CleanupTestFixtures removes the test fixture directory
+// This should be called at the end of test runs
+func CleanupTestFixtures() {
+	if testFixtureDir != "" {
+		os.RemoveAll(testFixtureDir)
+	}
 }
 
 // ExecuteCommand executes a command by name
