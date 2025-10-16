@@ -858,9 +858,14 @@ func (e *Editor) handleEvent(ev events.Event) {
 			// apply it in one shot, distributing across cursors when multi-line.
 			pasted := e.pasteBuffer.String()
 			if pasted != "" {
-				// In search/command mode, pasteBuffer stays unused because we route
-				// runes to the widget directly; here we handle text modes.
-				if e.mode != commands.SearchMode && e.mode != commands.CommandMode {
+				// Terminal mode: send buffered paste to terminal in one write
+				if e.mode == commands.TerminalMode && e.CurrentBuffer() != nil {
+					if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.SessionID != "" {
+						_ = e.proxyManager.WriteTerminal(ts.WorkingDir, ts.SessionID, []byte(pasted))
+					}
+				} else if e.mode != commands.SearchMode && e.mode != commands.CommandMode {
+					// In search/command mode, pasteBuffer stays unused because we route
+					// runes to the widget directly; here we handle text modes.
 					if len(e.virtualCursors) > 0 {
 						// Multi-cursor: distribute paste buffer across cursors
 						_ = e.pasteForAllCursorsWithContent(pasted, func(content string) error { return e.pasteBeforeCursor(content) })
@@ -933,6 +938,19 @@ func (e *Editor) handleEvent(ev events.Event) {
 					}
 				}
 				e.mode = commands.NormalMode
+				return
+			}
+			// In paste mode, buffer the paste data instead of sending char-by-char
+			if e.inPasteMode {
+				if ev.Key == events.KeyRune {
+					e.pasteBuffer.WriteRune(ev.Rune)
+					return
+				}
+				if ev.Key == events.KeyEnter {
+					e.pasteBuffer.WriteRune('\n')
+					return
+				}
+				// Other keys during paste are ignored
 				return
 			}
 			// Forward key to active terminal session
