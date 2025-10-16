@@ -1261,12 +1261,24 @@ func (e *Editor) handleEvent(ev events.Event) {
 									bufRow = b.LineCount - 1
 								}
 								// Ensure iterators are valid after content replacement
-								// Auto-follow: keep cursor visible near bottom
+								// Auto-follow: keep cursor visible
 								visible := e.getVisibleHeight()
 								if visible < 1 {
 									visible = 1
 								}
-								top := bufRow - (visible - 1)
+								// Position view to show the active terminal content
+								// Since scroll offsets are disabled for terminals, we can position directly
+								termGridStart := len(ts.term.scrollback) + bannerOffset
+
+								// Always show from the start of the terminal grid unless cursor would be off-screen
+								// This prevents jumping when cursor crosses arbitrary thresholds
+								top := termGridStart
+
+								// If cursor would be below the visible area, adjust view to keep it on screen
+								if bufRow >= termGridStart + visible {
+									// Cursor would be off bottom - keep it at bottom of screen
+									top = bufRow - (visible - 1)
+								}
 								if top < 0 {
 									top = 0
 								}

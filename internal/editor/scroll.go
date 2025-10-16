@@ -42,6 +42,16 @@ func (e *Editor) scroll() {
 	if topScrollOffset < 0 {
 		topScrollOffset = 0
 	}
+	bottomScrollOffset := e.config.ScrollOffset
+
+	// For terminal buffers, disable scroll offsets entirely
+	// The terminal manages its own cursor positioning and scrollback
+	if e.CurrentBuffer() != nil {
+		if _, ok := e.terminalSessions[e.CurrentBuffer().FilePath]; ok {
+			topScrollOffset = 0
+			bottomScrollOffset = 0
+		}
+	}
 
 	// Fast-path logical alignment for the case where PageUp/PageDown jumped
 	// the cursor outside the current view: if the cursor's logical line is
@@ -84,10 +94,10 @@ func (e *Editor) scroll() {
 	}
 
 	// Scroll down to satisfy bottom margin in visual rows
-	if visCursorY >= visibleHeight-e.config.ScrollOffset {
+	if visCursorY >= visibleHeight-bottomScrollOffset {
 		moveBatch := e.perfTracker.Start()
 		for steps := 0; steps < 4096; steps++ { // safety bound
-			if visCursorY < visibleHeight-e.config.ScrollOffset {
+			if visCursorY < visibleHeight-bottomScrollOffset {
 				break
 			}
 			// Stop if advancing view would move beyond EOF
