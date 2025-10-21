@@ -1293,7 +1293,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 								top := termGridStart
 
 								// If cursor would be below the visible area, adjust view to keep it on screen
-								if bufRow >= termGridStart + visible {
+								if bufRow >= termGridStart+visible {
 									// Cursor would be off bottom - keep it at bottom of screen
 									top = bufRow - (visible - 1)
 								}
