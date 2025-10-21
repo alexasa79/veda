@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	tsfish "veda/internal/syntax/treesitter/fish"
 	"veda/internal/theme"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -151,6 +152,9 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".md", ".markdown":
 		h.parser.SetLanguage(markdown_inline.GetLanguage())
 		h.currentLang = "markdown"
+	case ".fish":
+		h.parser.SetLanguage(tsfish.GetLanguage())
+		h.currentLang = "fish"
 	case ".sh", ".bash":
 		h.parser.SetLanguage(bash.GetLanguage())
 		h.currentLang = "bash"
@@ -201,6 +205,9 @@ func (h *Highlighter) SetLanguage(language string) error {
 	case "markdown":
 		h.parser.SetLanguage(markdown_inline.GetLanguage())
 		h.currentLang = "markdown"
+	case "fish":
+		h.parser.SetLanguage(tsfish.GetLanguage())
+		h.currentLang = "fish"
 	case "bash":
 		h.parser.SetLanguage(bash.GetLanguage())
 		h.currentLang = "bash"
@@ -622,6 +629,13 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 		nodeType == "string" || // Python strings
 		nodeType == "decorator" // Python decorators
 
+	if !shouldTokenize && h.currentLang == "fish" {
+		switch nodeType {
+		case "double_quote_string", "single_quote_string", "variable_expansion", "list_element_access", "command_substitution":
+			shouldTokenize = true
+		}
+	}
+
 	if shouldTokenize {
 		// Map node type to token type
 		tokenType := h.mapNodeToTokenType(node, source)
@@ -712,6 +726,8 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapCppNodeToTokenType(node, nodeType, source)
 	case "markdown":
 		return h.mapMarkdownNodeToTokenType(node, nodeType, source)
+	case "fish":
+		return h.mapFishNodeToTokenType(node, nodeType, source)
 	case "bash":
 		return h.mapBashNodeToTokenType(node, nodeType, source)
 	case "python":
@@ -1354,6 +1370,49 @@ func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineE
 	}
 
 	return processed
+}
+
+// mapFishNodeToTokenType maps fish shell node types to token types.
+func (h *Highlighter) mapFishNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
+	switch nodeType {
+	case "comment":
+		return TokenTypeComment
+	case "double_quote_string", "single_quote_string":
+		return TokenTypeString
+	case "integer", "float":
+		return TokenTypeNumber
+	case "variable_name", "variable_expansion", "list_element_access":
+		return TokenTypeVariable
+	case "command_substitution", "brace_expansion", "home_dir_expansion", "range", "glob":
+		return TokenTypeConstant
+	case "stream_redirect", "file_redirect", "direction", "pipe", "conditional_execution":
+		return TokenTypeOperator
+	case "!", "&&", "&", "&|", "|", "||", "..", "2>|":
+		return TokenTypeOperator
+	case "(", ")", "{", "}", "[", "]", ",", ";", "\"", "'":
+		return TokenTypePunctuation
+	case "begin", "end", "if", "else", "switch", "case", "while", "for", "in", "and", "or", "return", "break", "continue", "function", "command":
+		return TokenTypeKeyword
+	case "escape_sequence":
+		return TokenTypeConstant
+	case "word":
+		parent := node.Parent()
+		if parent != nil {
+			switch parent.Type() {
+			case "command":
+				if name := parent.ChildByFieldName("name"); name != nil && name.Equal(node) {
+					return TokenTypeFunction
+				}
+			case "function_definition":
+				if name := parent.ChildByFieldName("name"); name != nil && name.Equal(node) {
+					return TokenTypeFunction
+				}
+			}
+		}
+		return TokenTypeText
+	default:
+		return TokenTypeText
+	}
 }
 
 // mapBashNodeToTokenType maps Bash-specific node types to token types
