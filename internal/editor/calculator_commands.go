@@ -7,65 +7,155 @@ import (
 	"veda/internal/commands"
 )
 
-// calculateAppend evaluates the mathematical expression before the cursor and appends the result
+type cursorTarget struct {
+	line         int
+	originalX    int
+	isPrimary    bool
+	virtualIndex int
+}
+
+func (e *Editor) collectCursorTargets() []cursorTarget {
+	targets := make([]cursorTarget, 0, len(e.virtualCursors)+1)
+	targets = append(targets, cursorTarget{
+		line:      e.CurrentBuffer().CursorIterator.LineNumber(),
+		originalX: e.CurrentBuffer().CursorX,
+		isPrimary: true,
+	})
+	for idx, vc := range e.virtualCursors {
+		targets = append(targets, cursorTarget{
+			line:         vc.Y,
+			originalX:    vc.X,
+			virtualIndex: idx,
+		})
+	}
+
+	sort.Slice(targets, func(i, j int) bool {
+		if targets[i].line != targets[j].line {
+			return targets[i].line < targets[j].line
+		}
+		return targets[i].originalX < targets[j].originalX
+	})
+
+	return targets
+}
+
+func snapshotVirtualCursors(vcs []VirtualCursor) []buffer.CursorPos {
+	if len(vcs) == 0 {
+		return nil
+	}
+	out := make([]buffer.CursorPos, len(vcs))
+	for i, vc := range vcs {
+		out[i] = buffer.CursorPos{Line: vc.Y, Char: vc.X}
+	}
+	return out
+}
+
+// calculateAppend evaluates the mathematical expression before each cursor and appends the result
 func (e *Editor) calculateAppend(args []string) error {
-	// Get current line and cursor position
-	lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
-	line := e.CurrentBuffer().CursorIterator.Line()
-	cursorX := e.CurrentBuffer().CursorX
-	// Save view position before any buffer modifications
-	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
-
-	// If cursor is past the end of the line, adjust to the end
-	if cursorX > len(line) {
-		cursorX = len(line)
-	}
-
-	// In Normal mode, the cursor sits ON the character; include it in expression end.
-	// In Insert mode, the cursor is AFTER the last typed character; use position as-is.
-	endPos := cursorX
-	if e.mode != commands.InsertMode && endPos < len(line) {
-		endPos++
-	}
-
-	// Process the line to find and evaluate the expression
-	newLine, err := calculator.ProcessLineAppend(line, endPos)
-	if err != nil {
-		// No valid expression found
-		e.ShowError("No valid expression found")
+	buf := e.CurrentBuffer()
+	if buf == nil {
 		return nil
 	}
 
-	// Replace the current line with the new line containing the result
-	// First, delete the current line content
-	if len(line) > 0 {
-		deleteEntry := buffer.NewDeleteTextEntry(lineNum, 0, line)
-		if e.CurrentBuffer().History != nil {
-			if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), deleteEntry); err != nil {
+	viewLineNum := buf.ViewIterator.LineNumber()
+	targets := e.collectCursorTargets()
+	history := buf.History
+
+	primaryBefore := buffer.CursorPos{Line: buf.CursorIterator.LineNumber(), Char: buf.CursorX}
+	virtualBefore := snapshotVirtualCursors(e.virtualCursors)
+
+	compositeActive := false
+	snapshotSet := false
+	if history != nil && len(targets) > 1 {
+		history.StartComposite("Calculate append (multi-cursor)")
+		compositeActive = true
+	}
+
+	defer func() {
+		if compositeActive && history != nil {
+			if snapshotSet {
+				postPrimary := buffer.CursorPos{Line: buf.CursorIterator.LineNumber(), Char: buf.CursorX}
+				postVirtual := snapshotVirtualCursors(e.virtualCursors)
+				history.SetActiveCompositePostCursors(postPrimary, postVirtual)
+			}
+			history.EndComposite()
+		}
+	}()
+
+	anySuccess := false
+	primaryError := false
+
+	for _, tgt := range targets {
+		it := buffer.NewBufferIteratorAtLine(buf, tgt.line)
+		line := it.Line()
+
+		cursorX := tgt.originalX
+		if cursorX > len(line) {
+			cursorX = len(line)
+		}
+		endPos := cursorX
+		if e.mode != commands.InsertMode && endPos < len(line) {
+			endPos++
+		}
+
+		newLine, err := calculator.ProcessLineAppend(line, endPos)
+		if err != nil {
+			if tgt.isPrimary && !primaryError {
+				primaryError = true
+				e.ShowError("No valid expression found")
+			}
+			continue
+		}
+
+		anySuccess = true
+
+		if history != nil {
+			if compositeActive && !snapshotSet {
+				history.SetActiveCompositeCursors(primaryBefore, virtualBefore)
+				snapshotSet = true
+			}
+			if len(line) > 0 {
+				del := buffer.NewDeleteTextEntry(tgt.line, 0, line)
+				if _, err := history.Execute(buf, del); err != nil {
+					return err
+				}
+			}
+			ins := buffer.NewInsertTextEntry(tgt.line, 0, newLine)
+			if executed, err := history.Execute(buf, ins); err != nil {
+				return err
+			} else if executed != nil {
+				e.setLastChange(executed)
+			}
+		} else {
+			if len(line) > 0 {
+				del := buffer.NewDeleteTextEntry(tgt.line, 0, line)
+				if err := del.Execute(buf); err != nil {
+					return err
+				}
+			}
+			ins := buffer.NewInsertTextEntry(tgt.line, 0, newLine)
+			if err := ins.Execute(buf); err != nil {
 				return err
 			}
 		}
-	}
 
-	// Then insert the new line content
-	insertEntry := buffer.NewInsertTextEntry(lineNum, 0, newLine)
-	if e.CurrentBuffer().History != nil {
-		if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), insertEntry); err != nil {
-			return err
-		} else if executed != nil {
-			e.setLastChange(executed)
+		if tgt.isPrimary {
+			buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, tgt.line)
+			buf.CursorX = len(newLine)
+		} else if tgt.virtualIndex >= 0 && tgt.virtualIndex < len(e.virtualCursors) {
+			e.virtualCursors[tgt.virtualIndex].X = len(newLine)
+			e.virtualCursors[tgt.virtualIndex].Y = tgt.line
 		}
 	}
 
-	// Move cursor to the end of the new line
-	e.CurrentBuffer().CursorX = len(newLine)
+	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, buf.CursorIterator.LineNumber())
+	buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, viewLineNum)
 
-	// Recreate iterators after buffer modifications
-	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
-	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	if len(e.virtualCursors) > 0 {
+		e.syncCurrentVirtualCursors()
+	}
 
-	// Update syntax highlighting (skip during paste mode)
-	if !e.inPasteMode {
+	if anySuccess && !e.inPasteMode {
 		e.updateSyntaxHighlighting()
 	}
 
@@ -74,110 +164,118 @@ func (e *Editor) calculateAppend(args []string) error {
 
 // calculateReplace evaluates the mathematical expression before the cursor and replaces it with the result
 func (e *Editor) calculateReplace(args []string) error {
-	// Helper to apply calculate-replace at a given (lineNum, endPos). Returns new cursor X for that line.
-	applyAt := func(lineNum, endPos int) (int, error) {
-		it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return nil
+	}
+
+	// Save view position before modifications
+	viewLineNum := buf.ViewIterator.LineNumber()
+
+	targets := e.collectCursorTargets()
+	history := buf.History
+
+	primaryBefore := buffer.CursorPos{Line: buf.CursorIterator.LineNumber(), Char: buf.CursorX}
+	virtualBefore := snapshotVirtualCursors(e.virtualCursors)
+
+	compositeActive := false
+	snapshotSet := false
+	if history != nil && len(targets) > 1 {
+		history.StartComposite("Calculate replace (multi-cursor)")
+		compositeActive = true
+	}
+
+	var applyAt func(lineNum, endPos int) (int, error)
+	applyAt = func(lineNum, endPos int) (int, error) {
+		it := buffer.NewBufferIteratorAtLine(buf, lineNum)
 		line := it.Line()
 		if endPos > len(line) {
 			endPos = len(line)
 		}
-		// Compute replacement
 		newLine, newCursorX, err := calculator.ProcessLineReplace(line, endPos)
 		if err != nil {
 			return 0, err
 		}
-		// Replace line content
+		if history != nil && compositeActive && !snapshotSet {
+			history.SetActiveCompositeCursors(primaryBefore, virtualBefore)
+			snapshotSet = true
+		}
 		if len(line) > 0 {
 			del := buffer.NewDeleteTextEntry(lineNum, 0, line)
-			if e.CurrentBuffer().History != nil {
-				if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), del); err != nil {
+			if history != nil {
+				if _, err := history.Execute(buf, del); err != nil {
+					return 0, err
+				}
+			} else {
+				if err := del.Execute(buf); err != nil {
 					return 0, err
 				}
 			}
 		}
 		ins := buffer.NewInsertTextEntry(lineNum, 0, newLine)
-		if e.CurrentBuffer().History != nil {
-			if executed, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), ins); err != nil {
+		if history != nil {
+			if executed, err := history.Execute(buf, ins); err != nil {
 				return 0, err
 			} else if executed != nil {
 				e.setLastChange(executed)
 			}
+		} else {
+			if err := ins.Execute(buf); err != nil {
+				return 0, err
+			}
 		}
-		// Compute cursor X based on mode: Normal -> on last char; Insert -> after last char
 		adjX := newCursorX
 		if e.mode != commands.InsertMode && adjX > 0 {
 			adjX--
 		}
-		// Update primary cursor when operating on its line
-		if e.CurrentBuffer().CursorIterator.LineNumber() == lineNum {
-			e.CurrentBuffer().CursorX = adjX
+		if buf.CursorIterator.LineNumber() == lineNum {
+			buf.CursorX = adjX
 		}
 		return adjX, nil
 	}
 
-	// Save view position before modifications
-	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
+	defer func() {
+		if compositeActive && history != nil {
+			if snapshotSet {
+				postPrimary := buffer.CursorPos{Line: buf.CursorIterator.LineNumber(), Char: buf.CursorX}
+				postVirtual := snapshotVirtualCursors(e.virtualCursors)
+				history.SetActiveCompositePostCursors(postPrimary, postVirtual)
+			}
+			history.EndComposite()
+		}
+	}()
 
-	// If there are virtual cursors, apply sequentially top-to-bottom
-	if len(e.virtualCursors) > 0 {
-		// Collect all cursor positions including primary
-		all := make([]VirtualCursor, 0, len(e.virtualCursors)+1)
-		all = append(all, VirtualCursor{X: e.CurrentBuffer().CursorX, Y: e.CurrentBuffer().CursorIterator.LineNumber()})
-		all = append(all, e.virtualCursors...)
-		// Sort by Y then X
-		sort.Slice(all, func(i, j int) bool {
-			if all[i].Y != all[j].Y {
-				return all[i].Y < all[j].Y
-			}
-			return all[i].X < all[j].X
-		})
-		// Apply in order; let $? propagate between lines
-		for _, c := range all {
-			it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), c.Y)
-			line := it.Line()
-			endPos := c.X
-			if endPos > len(line) {
-				endPos = len(line)
-			}
-			if e.mode != commands.InsertMode && endPos < len(line) {
-				endPos++
-			}
-			newX, err := applyAt(c.Y, endPos)
-			if err != nil {
-				e.ShowError("No valid expression found")
-				continue
-			}
-			// Update matching virtual cursor (if any) to the new X (already adjusted for mode)
-			for i := range e.virtualCursors {
-				if e.virtualCursors[i].Y == c.Y && e.virtualCursors[i].X == c.X {
-					e.virtualCursors[i].X = newX
-					break
-				}
-			}
+	for _, tgt := range targets {
+		it := buffer.NewBufferIteratorAtLine(buf, tgt.line)
+		line := it.Line()
+		endPos := tgt.originalX
+		if endPos > len(line) {
+			endPos = len(line)
 		}
-	} else {
-		// Single-cursor behavior (original)
-		lineNum := e.CurrentBuffer().CursorIterator.LineNumber()
-		line := e.CurrentBuffer().CursorIterator.Line()
-		cursorX := e.CurrentBuffer().CursorX
-		if cursorX > len(line) {
-			cursorX = len(line)
-		}
-		endPos := cursorX
 		if e.mode != commands.InsertMode && endPos < len(line) {
 			endPos++
 		}
-		if _, err := applyAt(lineNum, endPos); err != nil {
+		newX, err := applyAt(tgt.line, endPos)
+		if err != nil {
 			e.ShowError("No valid expression found")
+			continue
+		}
+		if tgt.isPrimary {
+			buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, tgt.line)
+		} else if tgt.virtualIndex >= 0 && tgt.virtualIndex < len(e.virtualCursors) {
+			e.virtualCursors[tgt.virtualIndex].X = newX
+			e.virtualCursors[tgt.virtualIndex].Y = tgt.line
 		}
 	}
 
 	// Recreate iterators after buffer modifications
-	// Keep view stable
-	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), e.CurrentBuffer().CursorIterator.LineNumber())
-	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, buf.CursorIterator.LineNumber())
+	buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, viewLineNum)
 
-	// Update syntax highlighting (skip during paste mode)
+	if len(e.virtualCursors) > 0 {
+		e.syncCurrentVirtualCursors()
+	}
+
 	if !e.inPasteMode {
 		e.updateSyntaxHighlighting()
 	}
