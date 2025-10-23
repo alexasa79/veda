@@ -12,47 +12,43 @@ func TestCalculatorWithMultipleCursors(t *testing.T) {
 30 - 10`
 	ed := NewTestEditorWithContent(80, 24, content)
 
-	// Add virtual cursors at the end of each line
+	// Add virtual cursors at the end of the remaining lines
 	ed.Editor.virtualCursors = []VirtualCursor{
-		{X: 6, Y: 0}, // End of "10 + 5"
 		{X: 6, Y: 1}, // End of "20 * 2"
 		{X: 7, Y: 2}, // End of "30 - 10"
 	}
+	ed.Editor.syncCurrentVirtualCursors()
 
 	// Move primary cursor to end of first line
 	ed.Editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), 0)
 	ed.Editor.CurrentBuffer().CursorX = 6
 
-	// Test current behavior - calculator commands are NOT multi-cursor
-	// This test documents the current limitation
-	t.Run("calculator commands don't apply to all cursors", func(t *testing.T) {
-		// Execute calculate-append command
-		err := ed.ExecuteCommand("calculate-append")
-		if err != nil {
-			t.Fatalf("Failed to execute calculate-append: %v", err)
-		}
+	// Execute calculate-append command across all cursors
+	if err := ed.ExecuteCommand("calculate-append"); err != nil {
+		t.Fatalf("Failed to execute calculate-append: %v", err)
+	}
 
-		// Check that only the primary cursor line was modified
-		lines := make([]string, ed.Editor.CurrentBuffer().LineCount)
-		for i := 0; i < ed.Editor.CurrentBuffer().LineCount; i++ {
-			iter := buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), i)
-			lines[i] = iter.Line()
+	// Verify every line received the appended result
+	expected := []string{"10 + 5 → 15", "20 * 2 → 40", "30 - 10 → 20"}
+	for i := 0; i < ed.Editor.CurrentBuffer().LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), i)
+		if got := iter.Line(); got != expected[i] {
+			t.Fatalf("Line %d: expected %q, got %q", i, expected[i], got)
 		}
+	}
 
-		// First line should have the result appended
-		if lines[0] != "10 + 5 → 15" {
-			t.Errorf("Line 0: expected '10 + 5 → 15', got '%s'", lines[0])
-		}
+	// Undo once should revert all lines in a single step
+	if err := ed.Editor.CurrentBuffer().History.Undo(ed.Editor.CurrentBuffer()); err != nil {
+		t.Fatalf("undo failed: %v", err)
+	}
 
-		// Other lines should be unchanged (since multi-cursor is not supported)
-		if lines[1] != "20 * 2" {
-			t.Errorf("Line 1: expected '20 * 2', got '%s'", lines[1])
+	original := []string{"10 + 5", "20 * 2", "30 - 10"}
+	for i := 0; i < ed.Editor.CurrentBuffer().LineCount; i++ {
+		iter := buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), i)
+		if got := iter.Line(); got != original[i] {
+			t.Fatalf("Line %d after undo: expected %q, got %q", i, original[i], got)
 		}
-
-		if lines[2] != "30 - 10" {
-			t.Errorf("Line 2: expected '30 - 10', got '%s'", lines[2])
-		}
-	})
+	}
 }
 
 func TestCalculatorMultiCursorSequentialExecution(t *testing.T) {
