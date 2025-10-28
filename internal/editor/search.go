@@ -18,6 +18,26 @@ func (e *Editor) handleSearchMode(ev *events.KeyEvent) {
 		e.executeSearch()
 		e.exitSearchMode()
 	default:
+		prefix := e.searchPrefix
+		if prefix != 0 {
+			cursor := e.searchLine.GetCursor()
+			text := e.searchLine.GetText()
+
+			if cursor == 0 && ev.Key == events.KeyRune {
+				e.searchLine.SetCursor(1)
+				cursor = 1
+			}
+
+			if len(text) > 1 {
+				if cursor == 0 && ev.Key == events.KeyDelete {
+					return
+				}
+				if cursor <= 1 && (ev.Key == events.KeyBackspace || ev.Key == events.KeyBackspace2) {
+					return
+				}
+			}
+		}
+
 		// Pass other keys to the search line widget
 		e.searchLine.HandleKey(ev)
 
@@ -35,6 +55,7 @@ func (e *Editor) enterSearchMode() {
 	e.searchLine.SetText("/")
 	// Position cursor after the slash
 	e.searchLine.SetCursor(1)
+	e.searchPrefix = '/'
 	e.searchDirection = true // Forward search by default
 }
 
@@ -44,6 +65,7 @@ func (e *Editor) enterSearchModeBackward() {
 	e.searchLine.SetText("?")
 	// Position cursor after the question mark
 	e.searchLine.SetCursor(1)
+	e.searchPrefix = '?'
 	e.searchDirection = false // Backward search for initial execution
 }
 
@@ -51,6 +73,7 @@ func (e *Editor) enterSearchModeBackward() {
 func (e *Editor) exitSearchMode() {
 	e.mode = commands.NormalMode
 	e.searchLine.SetText("")
+	e.searchPrefix = 0
 }
 
 // executeSearch performs the search operation

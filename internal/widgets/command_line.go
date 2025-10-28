@@ -57,6 +57,11 @@ func (cl *CommandLineWidget) SetCursor(pos int) {
 	cl.editor.SetCursor(pos)
 }
 
+// GetCursor returns the cursor position within the text.
+func (cl *CommandLineWidget) GetCursor() int {
+	return cl.editor.GetCursor()
+}
+
 // Draw renders the command line on the screen
 func (cl *CommandLineWidget) Draw(screen ScreenWriter) {
 	cl.editor.Draw(screen)
