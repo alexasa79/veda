@@ -128,6 +128,7 @@ type Editor struct {
 	// Search state
 	searchPattern       string         // Current search pattern
 	searchDirection     bool           // true = forward, false = backward
+	searchPrefix        byte           // Leading character for current search input ('/' or '?')
 	searchMatches       []int          // Positions of all search matches
 	currentMatch        int            // Index of current match in searchMatches (-1 if none)
 	searchMatchesBuffer *buffer.Buffer // Buffer the searchMatches correspond to (nil if none)

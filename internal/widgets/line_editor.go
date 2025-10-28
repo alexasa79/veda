@@ -148,8 +148,12 @@ func (le *LineEditor) HandleKey(ev *events.KeyEvent) bool {
 		return true
 	case events.KeyBackspace, events.KeyBackspace2:
 		if le.cursor > 0 {
-			le.text = le.text[:le.cursor-1] + le.text[le.cursor:]
-			le.cursor--
+			if ev.Modifiers&events.ModAlt != 0 {
+				le.deleteWordBeforeCursor()
+			} else {
+				le.text = le.text[:le.cursor-1] + le.text[le.cursor:]
+				le.cursor--
+			}
 		}
 		return true
 	case events.KeyDelete:
@@ -188,6 +192,11 @@ func (le *LineEditor) GetWidth() int {
 	return le.width
 }
 
+// GetCursor returns the current cursor position within the text.
+func (le *LineEditor) GetCursor() int {
+	return le.cursor
+}
+
 // SetCursor sets the cursor position within the text
 func (le *LineEditor) SetCursor(pos int) {
 	if pos < 0 {
@@ -197,4 +206,33 @@ func (le *LineEditor) SetCursor(pos int) {
 		pos = len(le.text)
 	}
 	le.cursor = pos
+}
+
+func (le *LineEditor) deleteWordBeforeCursor() {
+	start := le.cursor
+	for start > 0 && isWhitespace(le.text[start-1]) {
+		start--
+	}
+	for start > 0 && isWordChar(le.text[start-1]) {
+		start--
+	}
+	if start == le.cursor && start > 0 {
+		start--
+	}
+	if start < 0 {
+		start = 0
+	}
+	le.text = le.text[:start] + le.text[le.cursor:]
+	le.cursor = start
+}
+
+func isWhitespace(b byte) bool {
+	return b == ' ' || b == '\t'
+}
+
+func isWordChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
+		(b >= '0' && b <= '9') ||
+		b == '_'
 }
