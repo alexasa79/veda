@@ -155,6 +155,8 @@ type Editor struct {
 	// for CurrentBuffer()). Many code paths mutate this slice for the active
 	// buffer; we sync it back to the map after changes.
 	virtualCursors []VirtualCursor
+	// Screen positions (x,y) that should render the virtual cursor highlight
+	virtualCursorCells map[int]map[int]bool
 
 	// Transient info banner (persists until next key press)
 	transientInfoMessage string

@@ -3,6 +3,7 @@ package editor
 import (
 	"testing"
 	"veda/internal/buffer"
+	"veda/internal/commands"
 )
 
 func TestCalculatorWithMultipleCursors(t *testing.T) {
@@ -47,6 +48,80 @@ func TestCalculatorWithMultipleCursors(t *testing.T) {
 		iter := buffer.NewBufferIteratorAtLine(ed.Editor.CurrentBuffer(), i)
 		if got := iter.Line(); got != original[i] {
 			t.Fatalf("Line %d after undo: expected %q, got %q", i, original[i], got)
+		}
+	}
+}
+
+func TestCalculatorMultiCursorAppendCursorPlacement(t *testing.T) {
+	content := "1+1\n2+1\n3+1"
+	te := NewTestEditorWithContent(80, 24, content)
+	te.mode = commands.NormalMode
+
+	buf := te.Editor.CurrentBuffer()
+
+	// Place primary cursor on the final character of line 0 (Normal-mode semantics)
+	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, 0)
+	buf.CursorX = len("1+1") - 1
+
+	// Add virtual cursors on the other lines, also on the final character
+	te.Editor.virtualCursors = []VirtualCursor{
+		{X: len("2+1") - 1, Y: 1},
+		{X: len("3+1") - 1, Y: 2},
+	}
+	te.Editor.syncCurrentVirtualCursors()
+
+	if err := te.ExecuteCommand("calculate-append"); err != nil {
+		t.Fatalf("calculate-append failed: %v", err)
+	}
+
+	// Verify the text results
+	expected := []string{"1+1 → 2", "2+1 → 3", "3+1 → 4"}
+	for i := 0; i < buf.LineCount; i++ {
+		line := buffer.NewBufferIteratorAtLine(buf, i).Line()
+		if line != expected[i] {
+			t.Fatalf("line %d: expected %q, got %q", i, expected[i], line)
+		}
+	}
+
+	// Render and verify the virtual cursor highlight appears over the final glyph (column 6)
+	te.Editor.render()
+
+	lineNumberWidth := buf.LineNumberWidth
+	virtualStyle := te.config.Theme.GetStyle(te.config.Theme.VirtualCursor)
+	_, expectedBg, _ := virtualStyle.Decompose()
+
+	column := lineNumberWidth + 6 // zero-based column for the 7th glyph
+	screenWidth, _ := te.screen.Size()
+	linesToCheck := make([]int, 0, len(te.Editor.virtualCursors))
+	for _, vc := range te.Editor.virtualCursors {
+		linesToCheck = append(linesToCheck, vc.Y)
+	}
+
+	for _, line := range linesToCheck {
+		_, style := te.mockScreen.GetCell(column, line)
+		_, actualBg, _ := style.Decompose()
+		if actualBg != expectedBg {
+			t.Errorf("line %d: expected virtual cursor background at column %d, got %v (expected %v)", line, column, actualBg, expectedBg)
+		}
+
+		if column+2 < screenWidth {
+			_, neighborStyle := te.mockScreen.GetCell(column+2, line)
+			_, neighborBg, _ := neighborStyle.Decompose()
+			if neighborBg == expectedBg {
+				t.Errorf("line %d: unexpected virtual cursor background at column %d", line, column+2)
+			}
+		}
+
+		if testing.Verbose() {
+			for dx := -2; dx <= 4; dx++ {
+				target := column + dx
+				if target < 0 || target >= screenWidth {
+					continue
+				}
+				_, dbgStyle := te.mockScreen.GetCell(target, line)
+				_, dbgBg, _ := dbgStyle.Decompose()
+				t.Logf("line %d column %d bg=%v", line, target, dbgBg)
+			}
 		}
 	}
 }

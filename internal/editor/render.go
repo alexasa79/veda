@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/config"
@@ -71,6 +72,127 @@ func getWordLevelDiffBg(e *Editor, lineIndex, tokenStart, tokenEnd int) *ui.Colo
 	}
 
 	return nil
+}
+
+// hasVirtualCursorCell reports whether a virtual cursor highlight should be drawn at the given screen position.
+func (e *Editor) hasVirtualCursorCell(x, y int) bool {
+	if e.virtualCursorCells == nil {
+		return false
+	}
+	if row, ok := e.virtualCursorCells[y]; ok {
+		return row[x]
+	}
+	return false
+}
+
+// buildVirtualCursorCells computes the on-screen positions for virtual cursor highlights for the current frame.
+func (e *Editor) buildVirtualCursorCells(wrappedLines []WrappedLine, contentStartY int) {
+	if len(e.virtualCursors) == 0 || e.CurrentBuffer() == nil {
+		e.virtualCursorCells = nil
+		return
+	}
+
+	e.virtualCursorCells = make(map[int]map[int]bool)
+
+	lineCache := make(map[int]string)
+	segmentsByLine := make(map[int][]int)
+	for idx, wl := range wrappedLines {
+		segmentsByLine[wl.LogicalLineNum] = append(segmentsByLine[wl.LogicalLineNum], idx)
+	}
+
+	lineNumberWidth := e.CurrentBuffer().LineNumberWidth
+	width, _ := e.screen.Size()
+
+	for _, vc := range e.virtualCursors {
+		segmentIdxs, ok := segmentsByLine[vc.Y]
+		if !ok || len(segmentIdxs) == 0 {
+			continue
+		}
+
+		lineText, cached := lineCache[vc.Y]
+		if !cached {
+			it := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), vc.Y)
+			if !it.IsEOF() {
+				lineText = it.Line()
+			}
+			lineCache[vc.Y] = lineText
+		}
+
+		pos := vc.X
+		if pos < 0 {
+			pos = 0
+		}
+		if pos > len(lineText) {
+			pos = len(lineText)
+		}
+
+		renderPos := pos
+		highlightAfterEnd := renderPos >= len(lineText)
+		if renderPos == len(lineText) && len(lineText) > 0 && e.mode != commands.InsertMode {
+			_, size := utf8.DecodeLastRuneInString(lineText)
+			renderPos = len(lineText) - size
+			if renderPos < 0 {
+				renderPos = 0
+			}
+			highlightAfterEnd = false
+		}
+
+		targetIdx := -1
+		if highlightAfterEnd {
+			targetIdx = segmentIdxs[len(segmentIdxs)-1]
+		} else {
+			for _, idx := range segmentIdxs {
+				wl := wrappedLines[idx]
+				if renderPos >= wl.StartChar && renderPos < wl.EndChar {
+					targetIdx = idx
+					break
+				}
+			}
+			if targetIdx == -1 {
+				// Cursor sits before the first visible segment – clamp to first segment.
+				firstIdx := segmentIdxs[0]
+				if renderPos <= wrappedLines[firstIdx].StartChar {
+					targetIdx = firstIdx
+				} else {
+					// Cursor lies outside the visible range for this line.
+					continue
+				}
+			}
+		}
+
+		if targetIdx < 0 || targetIdx >= len(wrappedLines) {
+			continue
+		}
+
+		wl := wrappedLines[targetIdx]
+		screenY := contentStartY + targetIdx
+
+		column := lineNumberWidth
+		if highlightAfterEnd {
+			column += e.visualWidth(lineText)
+		} else {
+			segmentStart := wl.StartChar
+			if renderPos < segmentStart {
+				renderPos = segmentStart
+			}
+			if renderPos > len(lineText) {
+				renderPos = len(lineText)
+			}
+			segmentText := lineText[segmentStart:renderPos]
+			column += e.visualWidth(segmentText)
+		}
+
+		if column < 0 || column >= width {
+			continue
+		}
+
+		row := e.virtualCursorCells[screenY]
+		if row == nil {
+			row = make(map[int]bool)
+			e.virtualCursorCells[screenY] = row
+		}
+		row[column] = true
+	}
 }
 
 // drawGutterGitIndicator renders git added/modified/deleted indicator in the gutter for a given wrapped line.
@@ -294,18 +416,8 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			inCurrentWord = e.isInCursorWord(lineNum, charPosInLine)
 		}
 
-		// Check if this position has a virtual cursor
-		hasVirtualCursor := false
-		// Virtual cursors store the logical column position (CursorX)
-		// We need to compare with the actual position in the line
-		if inTextArea {
-			for _, vc := range e.virtualCursors {
-				if vc.Y == lineNum && vc.X == charPosInLine {
-					hasVirtualCursor = true
-					break
-				}
-			}
-		}
+		cellX := screenX
+		hasVirtualCursor := e.hasVirtualCursorCell(cellX, y)
 
 		// Matching pair highlight (only for active window/buffer)
 		useMatchStyle := false
@@ -612,22 +724,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			for i := x; i < width; i++ {
 				fillStyle := baseStyle
 
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					textColumn := i - e.CurrentBuffer().LineNumberWidth
-					charPosInLine := textColumn
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == charPosInLine {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-
-				// Apply virtual cursor style if needed
-				if hasVirtualCursor {
+				if e.hasVirtualCursorCell(i, screenY) {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				}
 
@@ -640,21 +737,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 		for i := x; i < width; i++ {
-			// Check if this position has a virtual cursor beyond the end of line
-			hasVirtualCursor := false
-			if lineIndex >= 0 {
-				// Calculate the character position in the line for this screen position
-				textColumn := i - e.CurrentBuffer().LineNumberWidth
-				for _, vc := range e.virtualCursors {
-					if vc.Y == lineIndex && vc.X == textColumn {
-						hasVirtualCursor = true
-						break
-					}
-				}
-			}
-
-			// Render virtual cursor if needed
-			if hasVirtualCursor {
+			if e.hasVirtualCursorCell(i, screenY) {
 				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 			}
@@ -720,22 +803,8 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		for i := x; i < width; i++ {
 			fillStyle := baseStyle
 
-			// Check if this position has a virtual cursor beyond the end of line
-			hasVirtualCursor := false
-			if lineIndex >= 0 {
-				// Calculate the character position in the line for this screen position
-				textColumn := i - e.CurrentBuffer().LineNumberWidth
-				charPosInLine := textColumn
-				for _, vc := range e.virtualCursors {
-					if vc.Y == lineIndex && vc.X == charPosInLine {
-						hasVirtualCursor = true
-						break
-					}
-				}
-			}
-
 			// Apply virtual cursor style if needed
-			if hasVirtualCursor {
+			if e.hasVirtualCursorCell(i, screenY) {
 				fillStyle = theme.ApplyBackgroundStyle(baseStyle, virtualCursorStyle)
 			}
 
@@ -747,21 +816,8 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 		for i := x; i < width; i++ {
-			// Check if this position has a virtual cursor beyond the end of line
-			hasVirtualCursor := false
-			if lineIndex >= 0 {
-				// Calculate the character position in the line for this screen position
-				textColumn := i - e.CurrentBuffer().LineNumberWidth
-				for _, vc := range e.virtualCursors {
-					if vc.Y == lineIndex && vc.X == textColumn {
-						hasVirtualCursor = true
-						break
-					}
-				}
-			}
-
 			// Render virtual cursor if needed
-			if hasVirtualCursor {
+			if e.hasVirtualCursorCell(i, screenY) {
 				fillStyle := theme.ApplyBackgroundStyle(baseStyle, virtualCursorStyle)
 				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 			}
@@ -923,22 +979,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 			for i := x; i < width; i++ {
 				fillStyle := normalStyle
 
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					textColumn := i - e.CurrentBuffer().LineNumberWidth
-					charPosInLine := textColumn
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == charPosInLine {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-
-				// Apply virtual cursor style if needed
-				if hasVirtualCursor {
+				if e.hasVirtualCursorCell(i, screenY) {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				}
 
@@ -950,21 +991,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 			for i := x; i < width; i++ {
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					textColumn := i - e.CurrentBuffer().LineNumberWidth
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == textColumn {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-
-				// Render virtual cursor if needed
-				if hasVirtualCursor {
+				if e.hasVirtualCursorCell(i, screenY) {
 					fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 					e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 				}
@@ -990,22 +1017,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 			for i := x; i < width; i++ {
 				fillStyle := normalStyle
 
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					textColumn := i - e.CurrentBuffer().LineNumberWidth
-					charPosInLine := textColumn
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == charPosInLine {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-
-				// Apply virtual cursor style if needed
-				if hasVirtualCursor {
+				if e.hasVirtualCursorCell(i, screenY) {
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				}
 
@@ -1017,21 +1029,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 			for i := x; i < width; i++ {
-				// Check if this position has a virtual cursor beyond the end of line
-				hasVirtualCursor := false
-				if lineIndex >= 0 {
-					// Calculate the character position in the line for this screen position
-					textColumn := i - e.CurrentBuffer().LineNumberWidth
-					for _, vc := range e.virtualCursors {
-						if vc.Y == lineIndex && vc.X == textColumn {
-							hasVirtualCursor = true
-							break
-						}
-					}
-				}
-
-				// Render virtual cursor if needed
-				if hasVirtualCursor {
+				if e.hasVirtualCursorCell(i, screenY) {
 					fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 					e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 				}
@@ -1141,19 +1139,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 				}
 			}
 
-			// Check if this position has a virtual cursor beyond the end of line
-			hasVirtualCursor := false
 			if lineIndex >= 0 {
-				// Calculate the character position in the line for this screen position
-				textColumn := i - e.CurrentBuffer().LineNumberWidth
-				charPosInLine := textColumn
-				for _, vc := range e.virtualCursors {
-					if vc.Y == lineIndex && vc.X == charPosInLine {
-						hasVirtualCursor = true
-						break
-					}
-				}
-
 				// Special-case: zero-length diagnostic at end-of-line (e.g., missing semicolon)
 				// When a diagnostic range starts and ends at EOL, there are no characters to paint.
 				// Paint the single cell immediately after the last character of the final wrapped segment.
@@ -1177,6 +1163,8 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 				}
 			}
 
+			hasVirtualCursor := e.hasVirtualCursorCell(i, screenY)
+
 			// Apply virtual cursor style if needed
 			if hasVirtualCursor {
 				fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
@@ -1190,21 +1178,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 		for i := x; i < width; i++ {
-			// Check if this position has a virtual cursor beyond the end of line
-			hasVirtualCursor := false
-			if lineIndex >= 0 {
-				// Calculate the character position in the line for this screen position
-				textColumn := i - e.CurrentBuffer().LineNumberWidth
-				for _, vc := range e.virtualCursors {
-					if vc.Y == lineIndex && vc.X == textColumn {
-						hasVirtualCursor = true
-						break
-					}
-				}
-			}
-
-			// Render virtual cursor if needed
-			if hasVirtualCursor {
+			if e.hasVirtualCursorCell(i, screenY) {
 				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
 			}
@@ -1306,6 +1280,7 @@ func (e *Editor) drawEditor() {
 	_ = e.perfTracker.ReportSince("drawEditor.calculateWrappedLines", tWrap)
 
 	e.prepareCursorWordHighlights(wrappedLines)
+	e.buildVirtualCursorCells(wrappedLines, contentStartY)
 
 	// Prepare iterator and per-frame token cache reuse across the entire visible region
 	var cachedIter *buffer.BufferIterator
