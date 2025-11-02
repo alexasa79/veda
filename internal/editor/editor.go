@@ -1207,6 +1207,9 @@ func (e *Editor) handleEvent(ev events.Event) {
 	case *events.CustomEvent:
 		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
 		switch ev.Type {
+		case "render":
+			e.render()
+			return
 		case "apply":
 			if fn, ok := ev.Data.(func(*Editor)); ok {
 				// Execute mutation on main loop
