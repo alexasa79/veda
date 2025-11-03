@@ -496,6 +496,17 @@ func (e *Editor) switchToInsertMode() {
 				top = e.CurrentBuffer().LineCount - 1
 			}
 			e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), top)
+			// Restore buffer cursor to terminal cursor position
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), bufRow)
+			line := e.CurrentBuffer().CursorIterator.Line()
+			bytePos := e.bytePositionFromVisualColumn(line, ts.SavedCurX)
+			if bytePos < 0 {
+				bytePos = 0
+			}
+			if bytePos > len(line) {
+				bytePos = len(line)
+			}
+			e.CurrentBuffer().CursorX = bytePos
 		}
 		e.mode = commands.TerminalMode
 		return
