@@ -2,6 +2,7 @@ package editor
 
 import (
 	"veda/internal/buffer"
+	"veda/internal/commands"
 )
 
 // scroll ensures the cursor is visible within the viewport with appropriate margins
@@ -44,9 +45,11 @@ func (e *Editor) scroll() {
 	}
 	bottomScrollOffset := e.config.ScrollOffset
 
-	// For terminal buffers, disable scroll offsets entirely
-	// The terminal manages its own cursor positioning and scrollback
-	if e.CurrentBuffer() != nil {
+	// For terminal buffers in terminal mode, disable scroll offsets entirely.
+	// The emulator is actively driving the view (e.g., Ctrl+L clear), so editor
+	// margins would fight the terminal UX. When browsing scrollback in normal
+	// mode we restore the usual offsets so scrolling behaves like other buffers.
+	if e.CurrentBuffer() != nil && e.mode == commands.TerminalMode {
 		if _, ok := e.terminalSessions[e.CurrentBuffer().FilePath]; ok {
 			topScrollOffset = 0
 			bottomScrollOffset = 0
