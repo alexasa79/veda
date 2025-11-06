@@ -1231,6 +1231,7 @@ func (e *Editor) drawContext() {
 
 func (e *Editor) drawEditor() {
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
+	lineNumberCurrentStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLineNumber)
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 
 	// Use cached line number width from buffer
@@ -1412,14 +1413,19 @@ func (e *Editor) drawEditor() {
 				lineNumStr = fmt.Sprintf("%*d", digitsWidth, displayNum)
 			}
 
-			// Fill entire line number area with the standard background
+			lineNumberFillStyle := lineNumberStyle
+			if wl.LogicalLineNum == cursorLine {
+				lineNumberFillStyle = lineNumberCurrentStyle
+			}
+
+			// Fill entire line number area with the appropriate background
 			for x := 0; x < lineNumberWidth; x++ {
-				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
+				e.screen.SetContent(x, screenY, ' ', nil, lineNumberFillStyle)
 			}
 
 			// Draw the line number text starting at column 0 (if we have one)
 			if lineNumStr != "" {
-				e.drawText(0, screenY, lineNumberStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
+				e.drawText(0, screenY, lineNumberFillStyle, lineNumStr, 0, nil, wl.LogicalLineNum, 0, -1)
 			}
 
 			// Draw 1 space padding after digits
@@ -1429,7 +1435,7 @@ func (e *Editor) drawEditor() {
 			}
 			padX := digitsWidth
 			if padX < lineNumberWidth {
-				e.screen.SetContent(padX, screenY, ' ', nil, lineNumberStyle)
+				e.screen.SetContent(padX, screenY, ' ', nil, lineNumberFillStyle)
 			}
 
 			// Choose correct line for indicators: use original line number when in diff view
@@ -1446,15 +1452,19 @@ func (e *Editor) drawEditor() {
 			// Draw git indicators only for buffers backed by a real file (skip @HEAD)
 			if e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
 				// Draw git change indicators in the first gutter column
-				e.drawGutterGitIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+				e.drawGutterGitIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberFillStyle)
 				// Draw diagnostics in the second gutter column
-				e.drawGutterDiagnosticsIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberStyle)
+				e.drawGutterDiagnosticsIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberFillStyle)
 			}
 			_ = e.perfTracker.ReportSince("drawEditor.lineNumber", lnTimer)
 		} else {
 			// Fill line number area with spaces for wrapped lines
+			fillStyle := lineNumberStyle
+			if wl.LogicalLineNum == cursorLine {
+				fillStyle = lineNumberCurrentStyle
+			}
 			for x := 0; x < lineNumberWidth; x++ {
-				e.screen.SetContent(x, screenY, ' ', nil, lineNumberStyle)
+				e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
 			}
 		}
 

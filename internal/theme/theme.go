@@ -25,19 +25,20 @@ type Theme struct {
 	CompletionMenuSelected StyleDef
 
 	// Text editor colors
-	Normal          StyleDef
-	Selection       StyleDef
-	LineNumber      StyleDef
-	CurrentLine     StyleDef
-	CurrentWord     StyleDef // Style for word under primary cursor(s)
-	Context         StyleDef // Style for context lines and signature help
-	SignatureActive StyleDef // Style for active parameter in signature help
-	SearchHighlight StyleDef // Style for search matches
-	FlashHighlight  StyleDef // Style for flashing yanked/changed text
-	MatchHighlight  StyleDef // Style for matching bracket/quote highlight
-	Whitespace      StyleDef // Style for whitespace indicators (tabs, trailing spaces)
-	VerticalRuler   StyleDef // Style for vertical rulers
-	VirtualCursor   StyleDef // Style for virtual cursors in cursor mode
+	Normal            StyleDef
+	Selection         StyleDef
+	LineNumber        StyleDef
+	CurrentLineNumber StyleDef
+	CurrentLine       StyleDef
+	CurrentWord       StyleDef // Style for word under primary cursor(s)
+	Context           StyleDef // Style for context lines and signature help
+	SignatureActive   StyleDef // Style for active parameter in signature help
+	SearchHighlight   StyleDef // Style for search matches
+	FlashHighlight    StyleDef // Style for flashing yanked/changed text
+	MatchHighlight    StyleDef // Style for matching bracket/quote highlight
+	Whitespace        StyleDef // Style for whitespace indicators (tabs, trailing spaces)
+	VerticalRuler     StyleDef // Style for vertical rulers
+	VirtualCursor     StyleDef // Style for virtual cursors in cursor mode
 	// Diff backgrounds
 	DiffAdded              StyleDef // Background for added lines
 	DiffAddedCurrentLine   StyleDef // Background for added lines when current line
@@ -179,6 +180,11 @@ func NewTheme() *Theme {
 		LineNumber: StyleDef{
 			Foreground: "#465457",
 			// Distinct gutter background to stand out from content
+			Background: "#24241e",
+		},
+
+		CurrentLineNumber: StyleDef{
+			Foreground: "#f8f8f2[B]",
 			Background: "#24241e",
 		},
 
