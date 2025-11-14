@@ -1337,19 +1337,26 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 	}
 }
 
-// postProcessMarkdownTokens extends header tokens to cover the entire line
+// postProcessMarkdownTokens extends header and blockquote tokens to cover the entire line
 func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineEnd int, source []byte) []Token {
-	processed := []Token{}
+	processed := make([]Token, 0, len(tokens))
 
 	for _, token := range tokens {
-		// Check if this is a header token at the start of the line
-		if token.Start == 0 && (token.TokenType == TokenTypeMarkdownH1 ||
-			token.TokenType == TokenTypeMarkdownH2 ||
-			token.TokenType == TokenTypeMarkdownH3 ||
-			token.TokenType == TokenTypeMarkdownH4 ||
-			token.TokenType == TokenTypeMarkdownH5 ||
-			token.TokenType == TokenTypeMarkdownH6) {
+		extendLine := false
+		if token.Start == 0 {
+			switch token.TokenType {
+			case TokenTypeMarkdownH1,
+				TokenTypeMarkdownH2,
+				TokenTypeMarkdownH3,
+				TokenTypeMarkdownH4,
+				TokenTypeMarkdownH5,
+				TokenTypeMarkdownH6,
+				TokenTypeMarkdownBlockquote:
+				extendLine = true
+			}
+		}
 
+		if extendLine {
 			// Extend the token to the end of the line
 			extendedEnd := token.End
 			for i := lineStart + token.End; i < lineEnd && i < len(source); i++ {
@@ -1364,12 +1371,13 @@ func (h *Highlighter) postProcessMarkdownTokens(tokens []Token, lineStart, lineE
 				End:       extendedEnd,
 				TokenType: token.TokenType,
 			})
-		} else {
-			processed = append(processed, token)
+			continue
 		}
+
+		processed = append(processed, token)
 	}
 
-	return processed
+	return h.mergeOverlappingTokens(processed)
 }
 
 // mapFishNodeToTokenType maps fish shell node types to token types.
