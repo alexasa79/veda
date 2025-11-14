@@ -428,7 +428,7 @@ func NewTheme() *Theme {
 		},
 
 		MarkdownBlockquote: StyleDef{
-			Foreground: "#7e8e91[I]",
+			Foreground: "#6ab35f[BI]",
 			Background: "#1b1d1e",
 		},
 
