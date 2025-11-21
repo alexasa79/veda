@@ -19,7 +19,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 			"final line",
 		}
 		content := strings.Join(lines, "\n")
-		buffer := NewBuffer(content, "", config.IndentSpaces, 4)
+		buffer := NewBuffer(content, "", "", config.IndentSpaces, 4)
 
 		// Test each line
 		for lineNum := 0; lineNum <= len(lines); lineNum++ {
@@ -53,7 +53,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 
 	t.Run("edge cases", func(t *testing.T) {
 		t.Run("empty buffer", func(t *testing.T) {
-			buffer := NewBuffer("", "", config.IndentSpaces, 4)
+			buffer := NewBuffer("", "", "", config.IndentSpaces, 4)
 
 			iter := NewBufferIteratorAtLine(buffer, 0)
 			if !iter.IsEOF() {
@@ -67,7 +67,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 		})
 
 		t.Run("single line no newline", func(t *testing.T) {
-			buffer := NewBuffer("single line", "", config.IndentSpaces, 4)
+			buffer := NewBuffer("single line", "", "", config.IndentSpaces, 4)
 
 			iter := NewBufferIteratorAtLine(buffer, 0)
 			if iter.IsEOF() {
@@ -84,7 +84,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 		})
 
 		t.Run("single line with newline", func(t *testing.T) {
-			buffer := NewBuffer("single line\n", "", config.IndentSpaces, 4)
+			buffer := NewBuffer("single line\n", "", "", config.IndentSpaces, 4)
 
 			iter := NewBufferIteratorAtLine(buffer, 0)
 			if iter.IsEOF() {
@@ -101,7 +101,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 		})
 
 		t.Run("multiple empty lines", func(t *testing.T) {
-			buffer := NewBuffer("a\n\n\nb", "", config.IndentSpaces, 4)
+			buffer := NewBuffer("a\n\n\nb", "", "", config.IndentSpaces, 4)
 
 			testCases := []struct {
 				lineNum      int
@@ -147,7 +147,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 		}
 
 		// Create a buffer large enough to force tree splits
-		buffer := NewBuffer(contentBuilder.String(), "", config.IndentSpaces, 4)
+		buffer := NewBuffer(contentBuilder.String(), "", "", config.IndentSpaces, 4)
 
 		// Force the rope to have a complex structure by inserting large chunks
 		largeInsert := strings.Repeat("Y", 2000) + "\n"
@@ -173,7 +173,7 @@ func TestNewBufferIteratorAtLineOptimization(t *testing.T) {
 func TestNewBufferIteratorAtLineConsistency(t *testing.T) {
 	// Test that the optimized version produces the same results as iterating from the beginning
 	content := "line0\nline1\nline2\n\nline4\nfinal"
-	buffer := NewBuffer(content, "", config.IndentSpaces, 4)
+	buffer := NewBuffer(content, "", "", config.IndentSpaces, 4)
 
 	// Get iterators using both methods for each line
 	for targetLine := 0; targetLine <= 6; targetLine++ {
@@ -220,7 +220,7 @@ func BenchmarkNewBufferIteratorAtLine(b *testing.B) {
 	}
 	content := strings.Join(lines, "\n")
 
-	buffer := NewBuffer(content, "", config.IndentSpaces, 4)
+	buffer := NewBuffer(content, "", "", config.IndentSpaces, 4)
 
 	b.Run("optimized O(log n)", func(b *testing.B) {
 		b.ResetTimer()
@@ -266,7 +266,7 @@ func TestNewBufferIteratorAtLinePerformance(t *testing.T) {
 		}
 		content := strings.Join(lines, "\n")
 
-		buffer := NewBuffer(content, "", config.IndentSpaces, 4)
+		buffer := NewBuffer(content, "", "", config.IndentSpaces, 4)
 
 		// Measure time to access lines near the end
 		targetLine := size - 100

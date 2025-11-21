@@ -26,9 +26,9 @@ func TestDiffView_PageUpViewSync(t *testing.T) {
 	diffResult := computeDiff(content, content)
 
 	// Create diff buffers
-	head := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "editor.go@HEAD", config.IndentTabs, 4)
+	head := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "editor.go@HEAD", "editor.go@HEAD", config.IndentTabs, 4)
 	head.IsReadOnly = true
-	curr := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "editor.go@current", config.IndentTabs, 4)
+	curr := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "editor.go@current", "editor.go@current", config.IndentTabs, 4)
 
 	te.buffers[head.FilePath] = head
 	te.buffers[curr.FilePath] = curr

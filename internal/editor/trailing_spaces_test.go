@@ -24,7 +24,7 @@ func TestTrailingSpaceRemovalOnExitInsertMode(t *testing.T) {
 	initialContent := "line 1    \nline 2\nline 3   "
 
 	// Set up buffer
-	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.txt", config.IndentSpaces, 4))
+	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.txt", "test.txt", config.IndentSpaces, 4))
 
 	// Enter insert mode
 	editor.switchToInsertMode()
@@ -97,7 +97,7 @@ func TestTrailingSpaceRemovalOnSave(t *testing.T) {
 	initialContent := "line 1\nline 2\nline 3"
 
 	// Set up buffer
-	buf := buffer.NewBuffer(initialContent, tmpFile, config.IndentSpaces, 4)
+	buf := buffer.NewBuffer(initialContent, tmpFile, tmpFile, config.IndentSpaces, 4)
 	editor.SetCurrentBuffer(buf)
 
 	// Enter insert mode and modify some lines with trailing spaces
@@ -164,7 +164,7 @@ func TestNoTrailingSpaceRemovalForUnchangedLines(t *testing.T) {
 	initialContent := "line 1    \nline 2  \nline 3"
 
 	// Set up buffer
-	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.txt", config.IndentSpaces, 4))
+	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.txt", "test.txt", config.IndentSpaces, 4))
 
 	// Enter insert mode
 	editor.switchToInsertMode()

@@ -31,7 +31,7 @@ func TestAutoIndentCleanupIntegration(t *testing.T) {
 }`
 
 	// Set up buffer with C file content
-	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.c", config.IndentSpaces, 4))
+	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.c", "test.c", config.IndentSpaces, 4))
 	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(editor.CurrentBuffer())
 
 	// Position cursor on line 2 (after the opening brace)
@@ -121,7 +121,7 @@ func TestRealisticAutoIndentWorkflow(t *testing.T) {
 }`
 
 	// Set up buffer
-	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.c", config.IndentSpaces, 4))
+	editor.SetCurrentBuffer(buffer.NewBuffer(initialContent, "test.c", "test.c", config.IndentSpaces, 4))
 
 	// Position cursor on line 1 (after the opening brace) like user would
 	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 1)
@@ -184,7 +184,7 @@ func TestAutoIndentCleanupWithExitInsertMode(t *testing.T) {
 	defer editor.Close()
 
 	// Start with a simple buffer
-	editor.SetCurrentBuffer(buffer.NewBuffer("int main()\n{\n}", "test.c", config.IndentSpaces, 4))
+	editor.SetCurrentBuffer(buffer.NewBuffer("int main()\n{\n}", "test.c", "test.c", config.IndentSpaces, 4))
 	editor.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(editor.CurrentBuffer(), 1)
 	editor.CurrentBuffer().CursorX = 1
 

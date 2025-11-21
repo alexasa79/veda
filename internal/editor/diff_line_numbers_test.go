@@ -35,9 +35,9 @@ func TestDiffLineNumbers(t *testing.T) {
 	headBufferName := "test.go@HEAD"
 	currentBufferName := "test.go@current"
 
-	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, config.IndentTabs, 4)
 	headBuffer.IsReadOnly = true
-	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
 
 	// Store buffers and diff line info
 	te.buffers[headBufferName] = headBuffer
@@ -176,7 +176,7 @@ func TestDiffLineNumbers(t *testing.T) {
 
 	t.Run("regular_buffer_unchanged", func(t *testing.T) {
 		// Create a regular buffer to ensure normal line numbering still works
-		regularBuffer := buffer.NewBuffer("line 1\nline 2\nline 3", "regular.go", config.IndentTabs, 4)
+		regularBuffer := buffer.NewBuffer("line 1\nline 2\nline 3", "regular.go", "regular.go", config.IndentTabs, 4)
 		te.buffers["regular.go"] = regularBuffer
 		te.switchToBuffer(regularBuffer)
 		te.render()
@@ -232,8 +232,8 @@ func TestDiffLineNumbersRealExample(t *testing.T) {
 	diffResult := computeDiff(originalContent, modifiedContent)
 
 	// Create diff buffers
-	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "render.go@HEAD", config.IndentTabs, 4)
-	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "render.go@current", config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "render.go@HEAD", "render.go@HEAD", config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "render.go@current", "render.go@current", config.IndentTabs, 4)
 
 	te.buffers["render.go@HEAD"] = headBuffer
 	te.buffers["render.go@current"] = currentBuffer

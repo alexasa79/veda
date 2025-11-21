@@ -35,7 +35,7 @@ func (e *Editor) showDiagnostics(args []string) error {
 		e.switchToBuffer(buf)
 	} else {
 		// Create new buffer
-		newBuffer := buffer.NewBuffer(content, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer := buffer.NewBuffer(content, bufferName, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		newBuffer.IsInternal = true
 		newBuffer.RealPath = ""
 		e.buffers[bufferName] = newBuffer

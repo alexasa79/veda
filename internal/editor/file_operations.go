@@ -504,7 +504,7 @@ func (e *Editor) openFile(filePath string) {
 // finishOpenFile finalizes opening a file into a buffer and switching to it
 func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *proxy.FileChanges, branch string, diagnostics []proxy.Diagnostic) {
 	// Create a new buffer with the file content (empty for new files)
-	newBuffer := buffer.NewBuffer(content, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+	newBuffer := buffer.NewBuffer(content, resolvedPath, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 
 	LL.Debug("Setting buffer changes to %+v", changes)
 
@@ -1312,7 +1312,7 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 	cursorX := buf.CursorX
 
 	// Create new buffer with reloaded content
-	newBuf := buffer.NewBuffer(content, path, buf.Indentation.Type, buf.Indentation.Width)
+	newBuf := buffer.NewBuffer(content, path, path, buf.Indentation.Type, buf.Indentation.Width)
 
 	// Restore cursor position if possible
 	maxLine := newBuf.LineCount - 1

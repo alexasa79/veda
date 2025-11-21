@@ -280,7 +280,7 @@ func (e *Editor) openTerminalCmd(args []string) error {
 		idx++
 		name = bufName + " " + fmt.Sprint(idx)
 	}
-	newBuf := buffer.NewBuffer("", name, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+	newBuf := buffer.NewBuffer("", name, "", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 	newBuf.IsInternal = true
 	newBuf.IsReadOnly = true
 	// Register and switch

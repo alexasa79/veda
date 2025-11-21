@@ -170,7 +170,7 @@ func TestCalculateAutoIndent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create buffer with specific indentation settings
-			buf := NewBuffer(tt.content, "", tt.indentType, tt.indentWidth)
+			buf := NewBuffer(tt.content, "", "", tt.indentType, tt.indentWidth)
 
 			// Calculate auto indent
 			result := buf.CalculateAutoIndent(tt.content, tt.cursorCol)
@@ -390,7 +390,7 @@ func TestCreateIndentStringForColumn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			buf := NewBuffer("", "", tt.indentType, tt.indentWidth)
+			buf := NewBuffer("", "", "", tt.indentType, tt.indentWidth)
 			result := buf.createIndentStringForColumn(tt.targetCol)
 
 			if result != tt.expectedIndent {

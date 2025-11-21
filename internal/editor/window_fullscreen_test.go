@@ -13,9 +13,9 @@ func TestWindowFullscreenToggle(t *testing.T) {
 	te.minActiveWindowWidth = 0 // Disable minimum width for testing
 
 	// Create three windows with buffers
-	firstBuffer := buffer.NewBuffer("First buffer content", "test1.txt", config.IndentTabs, 4)
-	secondBuffer := buffer.NewBuffer("Second buffer content", "test2.txt", config.IndentTabs, 4)
-	thirdBuffer := buffer.NewBuffer("Third buffer content", "test3.txt", config.IndentTabs, 4)
+	firstBuffer := buffer.NewBuffer("First buffer content", "test1.txt", "test1.txt", config.IndentTabs, 4)
+	secondBuffer := buffer.NewBuffer("Second buffer content", "test2.txt", "test2.txt", config.IndentTabs, 4)
+	thirdBuffer := buffer.NewBuffer("Third buffer content", "test3.txt", "test3.txt", config.IndentTabs, 4)
 
 	te.buffers["test1.txt"] = firstBuffer
 	te.buffers["test2.txt"] = secondBuffer
@@ -115,8 +115,8 @@ func TestWindowFullscreenWithTwoWindows(t *testing.T) {
 	te.minActiveWindowWidth = 0 // Disable minimum width for testing
 
 	// Create two windows
-	firstBuffer := buffer.NewBuffer("First", "test1.txt", config.IndentTabs, 4)
-	secondBuffer := buffer.NewBuffer("Second", "test2.txt", config.IndentTabs, 4)
+	firstBuffer := buffer.NewBuffer("First", "test1.txt", "test1.txt", config.IndentTabs, 4)
+	secondBuffer := buffer.NewBuffer("Second", "test2.txt", "test2.txt", config.IndentTabs, 4)
 
 	te.buffers["test1.txt"] = firstBuffer
 	te.buffers["test2.txt"] = secondBuffer
@@ -148,7 +148,7 @@ func TestWindowFullscreenSingleWindow(t *testing.T) {
 	te.minActiveWindowWidth = 0 // Disable minimum width for testing
 
 	// Create single window
-	buf := buffer.NewBuffer("Content", "test.txt", config.IndentTabs, 4)
+	buf := buffer.NewBuffer("Content", "test.txt", "test.txt", config.IndentTabs, 4)
 	te.buffers["test.txt"] = buf
 	te.windows = []*Window{newWindow(buf)}
 	te.activeWindow = 0

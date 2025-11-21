@@ -98,7 +98,7 @@ func TestActiveWindowDoesNotWrapLongLine(t *testing.T) {
 	// Put content into both windows' buffers
 	for _, w := range te.windows {
 		if w.Buffer == nil {
-			w.Buffer = buffer.NewBuffer("", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+			w.Buffer = buffer.NewBuffer("", "", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 		}
 		w.Buffer.Rope = buffer.NewRopeFromString(long)
 		w.Buffer.LineCount = 1

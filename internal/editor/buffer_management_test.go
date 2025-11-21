@@ -63,7 +63,7 @@ func TestSwitchToBuffer(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create a new buffer
-	newBuffer := buffer.NewBuffer("Hello, World!", "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	newBuffer := buffer.NewBuffer("Hello, World!", "test.txt", "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	newBuffer.CursorX = 3
 	// CursorIterator and ViewIterator will be created when switching
 
@@ -91,8 +91,8 @@ func TestMultipleBuffers(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create multiple buffers
-	buffer1 := buffer.NewBuffer("Buffer 1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buffer2 := buffer.NewBuffer("Buffer 2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buffer1 := buffer.NewBuffer("Buffer 1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buffer2 := buffer.NewBuffer("Buffer 2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	te.buffers["file1.txt"] = buffer1
 	te.buffers["file2.txt"] = buffer2

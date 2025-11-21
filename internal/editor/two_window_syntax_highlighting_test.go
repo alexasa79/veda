@@ -74,7 +74,7 @@ func TestFunction() {
 }`
 
 		// Create a new buffer and window to simulate Shift+Enter behavior
-		secondBuffer := buffer.NewBuffer(file2Content, "test2.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+		secondBuffer := buffer.NewBuffer(file2Content, "test2.go", "test2.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 		// Set up the buffer properly
 		secondBuffer.ViewIterator = buffer.NewBufferIterator(secondBuffer)

@@ -179,7 +179,7 @@ func (e *Editor) gitShowCommitInternal(openInNewWindow bool) error {
 		commitBuffer = buf
 	} else {
 		// Create new buffer
-		commitBuffer = buffer.NewBuffer(fullContent, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		commitBuffer = buffer.NewBuffer(fullContent, bufferName, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		commitBuffer.IsReadOnly = true
 		commitBuffer.IsInternal = true
 		e.buffers[bufferName] = commitBuffer

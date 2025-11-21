@@ -21,7 +21,7 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		}
 
 		// Create a mock file to open
-		te.buffers["test.go"] = buffer.NewBuffer("package main\n\nfunc main() {\n\t// Test file\n}", "test.go", config.IndentSpaces, 4)
+		te.buffers["test.go"] = buffer.NewBuffer("package main\n\nfunc main() {\n\t// Test file\n}", "test.go", "test.go", config.IndentSpaces, 4)
 
 		// Press Enter to follow the link
 		te.ExecuteCommand("jump-to-reference")
@@ -48,7 +48,7 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		for i := 1; i <= 20; i++ {
 			content += fmt.Sprintf("Line %d\n", i)
 		}
-		te.buffers["main.go"] = buffer.NewBuffer(content, "main.go", config.IndentSpaces, 4)
+		te.buffers["main.go"] = buffer.NewBuffer(content, "main.go", "main.go", config.IndentSpaces, 4)
 
 		// Move cursor to the link
 		// In normal mode, this renders as "See function for implementation"
@@ -111,7 +111,7 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		}
 
 		// Create a mock file to open
-		te.buffers["test.go"] = buffer.NewBuffer("// Test file", "test.go", config.IndentSpaces, 4)
+		te.buffers["test.go"] = buffer.NewBuffer("// Test file", "test.go", "test.go", config.IndentSpaces, 4)
 
 		// Exit insert mode first
 		te.ExecuteCommand("exit-insert-mode")
@@ -131,7 +131,7 @@ func TestMarkdownLinkNavigation(t *testing.T) {
 		te.CurrentBuffer().FilePath = "source.md"
 
 		// Create target file
-		te.buffers["target.go"] = buffer.NewBuffer("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6", "target.go", config.IndentSpaces, 4)
+		te.buffers["target.go"] = buffer.NewBuffer("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6", "target.go", "target.go", config.IndentSpaces, 4)
 
 		// Move cursor to the link
 		for i := 0; i < 6; i++ { // Move to "target"

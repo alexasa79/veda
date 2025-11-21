@@ -9,9 +9,9 @@ func TestFindWindowContainingBuffer(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create some buffers
-	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	// Add buffers to the global buffer list
 	te.buffers["artifacts/file1.txt"] = buf1
@@ -52,9 +52,9 @@ func TestBufferPickerWithMultipleWindows(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create some buffers
-	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	// Add buffers to the global buffer list
 	te.buffers["artifacts/file1.txt"] = buf1
@@ -86,9 +86,9 @@ func TestWindowSwitchingIntegration(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create some buffers
-	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "artifacts/file1.txt", "artifacts/file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "artifacts/file2.txt", "artifacts/file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "artifacts/file3.txt", "artifacts/file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	// Add buffers to the global buffer list
 	te.buffers["artifacts/file1.txt"] = buf1

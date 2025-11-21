@@ -31,7 +31,7 @@ int main() {
 }`
 
 	// Create buffer with the test code
-	buf := buffer.NewBuffer(testCode, "test.c", config.IndentSpaces, 4)
+	buf := buffer.NewBuffer(testCode, "test.c", "test.c", config.IndentSpaces, 4)
 
 	// Create syntax highlighter for C
 	highlighter := syntax.NewHighlighter()
@@ -145,7 +145,7 @@ get_string_constant(int index)
 }`
 
 	// Create buffer with the test code
-	buf := buffer.NewBuffer(testCode, "test.c", config.IndentSpaces, 4)
+	buf := buffer.NewBuffer(testCode, "test.c", "test.c", config.IndentSpaces, 4)
 
 	// Create syntax highlighter for C
 	highlighter := syntax.NewHighlighter()

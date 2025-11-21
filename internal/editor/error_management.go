@@ -89,7 +89,7 @@ func (e *Editor) createMessagesBuffer() *buffer.Buffer {
 	// Create header content
 	headerContent := "Message Log\n" + strings.Repeat("=", 80) + "\n\n"
 
-	messagesBuffer := buffer.NewBuffer(headerContent, "*Messages*", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+	messagesBuffer := buffer.NewBuffer(headerContent, "*Messages*", "*Messages*", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 	messagesBuffer.IsReadOnly = true
 	messagesBuffer.IsInternal = true
 	messagesBuffer.RealPath = ""
@@ -353,7 +353,7 @@ func (e *Editor) showRegistersCmd(args []string) error {
 		buf.RealPath = ""
 		e.switchToBuffer(buf)
 	} else {
-		newBuffer := buffer.NewBuffer(content, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer := buffer.NewBuffer(content, bufferName, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		newBuffer.IsReadOnly = true
 		newBuffer.IsInternal = true
 		newBuffer.RealPath = ""

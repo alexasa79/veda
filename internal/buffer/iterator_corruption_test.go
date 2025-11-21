@@ -7,7 +7,7 @@ import (
 func TestIteratorCorruption(t *testing.T) {
 	t.Run("negative position in node", func(t *testing.T) {
 		// Create a buffer with some content
-		buf := NewBuffer("Hello\nWorld\nTest", "", 0, 4)
+		buf := NewBuffer("Hello\nWorld\nTest", "", "", 0, 4)
 
 		// Create an iterator at the start
 		iter := NewBufferIterator(buf)
@@ -46,7 +46,7 @@ func TestIteratorCorruption(t *testing.T) {
 
 	t.Run("rope rebalancing corruption", func(t *testing.T) {
 		// Try to reproduce the corruption through actual rope operations
-		buf := NewBuffer("line1\nline2\nline3", "", 0, 4)
+		buf := NewBuffer("line1\nline2\nline3", "", "", 0, 4)
 
 		// Get an iterator at line 2
 		iter := NewBufferIteratorAtLine(buf, 1)

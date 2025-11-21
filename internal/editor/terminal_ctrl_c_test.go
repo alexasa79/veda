@@ -71,7 +71,7 @@ func TestTerminalModeCtrlCHandling(t *testing.T) {
 	}
 
 	// Create a buffer for the terminal
-	buf := buffer.NewBuffer("", terminalPath, te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf := buffer.NewBuffer("", terminalPath, "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	buf.IsInternal = true
 	te.buffers[terminalPath] = buf
 	te.SetCurrentBuffer(buf)

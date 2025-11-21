@@ -171,7 +171,7 @@ func TestInsertMaintainsStructure(t *testing.T) {
 // TestIteratorNodeField verifies that the iterator correctly tracks the node containing the current line
 func TestIteratorNodeField(t *testing.T) {
 	t.Run("iterator at beginning has correct node", func(t *testing.T) {
-		buf := NewBuffer("Hello\nWorld", "test.txt", config.IndentSpaces, 4)
+		buf := NewBuffer("Hello\nWorld", "test.txt", "test.txt", config.IndentSpaces, 4)
 		iter := NewBufferIterator(buf)
 
 		if iter.Node == nil {
@@ -192,7 +192,7 @@ func TestIteratorNodeField(t *testing.T) {
 	t.Run("iterator maintains correct node on Next", func(t *testing.T) {
 		// Create a buffer that will have multiple nodes
 		text := strings.Repeat("Line\n", 1000) // This should create multiple nodes
-		buf := NewBuffer(text, "test.txt", config.IndentSpaces, 4)
+		buf := NewBuffer(text, "test.txt", "test.txt", config.IndentSpaces, 4)
 
 		iter := NewBufferIterator(buf)
 
@@ -206,7 +206,7 @@ func TestIteratorNodeField(t *testing.T) {
 	})
 
 	t.Run("iterator node points to last leaf at EOF", func(t *testing.T) {
-		buf := NewBuffer("Hello", "test.txt", config.IndentSpaces, 4)
+		buf := NewBuffer("Hello", "test.txt", "test.txt", config.IndentSpaces, 4)
 		iter := NewBufferIteratorAtEnd(buf)
 
 		if iter.Node == nil {

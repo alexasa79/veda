@@ -18,14 +18,14 @@ func TestLeftDiffPaneUsesSyntaxTokens(t *testing.T) {
 	te := NewTestEditorWithContent(100, 20, "")
 
 	headName := "test.go@HEAD"
-	headBuf := buffer.NewBuffer(src, headName, config.IndentTabs, 4)
+	headBuf := buffer.NewBuffer(src, headName, headName, config.IndentTabs, 4)
 	headBuf.IsReadOnly = true
 	headBuf.BufferName = headName
 	headBuf.RealPath = "" // virtual
 
 	// Right buffer (not strictly needed for this test but mirrors diff layout)
 	curName := "test.go@current"
-	curBuf := buffer.NewBuffer(src, curName, config.IndentTabs, 4)
+	curBuf := buffer.NewBuffer(src, curName, curName, config.IndentTabs, 4)
 	curBuf.BufferName = curName
 	curBuf.RealPath = "test.go" // pretend real file path
 

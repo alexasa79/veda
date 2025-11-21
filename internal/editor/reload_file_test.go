@@ -28,7 +28,7 @@ func TestReloadFileNoUnsavedChanges(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create a buffer with a file path
-	buf := buffer.NewBuffer("Original content\nLine 2", "test.txt", config.IndentTabs, 4)
+	buf := buffer.NewBuffer("Original content\nLine 2", "test.txt", "test.txt", config.IndentTabs, 4)
 	te.buffers["test.txt"] = buf
 	te.SetCurrentBuffer(buf)
 
@@ -50,7 +50,7 @@ func TestReloadFileWithUnsavedChanges(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create a buffer with unsaved changes
-	buf := buffer.NewBuffer("Modified content", "test.txt", config.IndentTabs, 4)
+	buf := buffer.NewBuffer("Modified content", "test.txt", "test.txt", config.IndentTabs, 4)
 	te.buffers["test.txt"] = buf
 	te.SetCurrentBuffer(buf)
 
@@ -73,7 +73,7 @@ func TestReloadFilePreservesCursorPosition(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create buffer with multiple lines
-	buf := buffer.NewBuffer("Line 1\nLine 2\nLine 3\nLine 4", "test.txt", config.IndentTabs, 4)
+	buf := buffer.NewBuffer("Line 1\nLine 2\nLine 3\nLine 4", "test.txt", "test.txt", config.IndentTabs, 4)
 	te.buffers["test.txt"] = buf
 	te.SetCurrentBuffer(buf)
 
@@ -110,7 +110,7 @@ func TestReloadFileAdjustsCursorForShorterFile(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create buffer with 5 lines
-	buf := buffer.NewBuffer("Line 1\nLine 2\nLine 3\nLine 4\nLine 5", "test.txt", config.IndentTabs, 4)
+	buf := buffer.NewBuffer("Line 1\nLine 2\nLine 3\nLine 4\nLine 5", "test.txt", "test.txt", config.IndentTabs, 4)
 	te.buffers["test.txt"] = buf
 	te.SetCurrentBuffer(buf)
 

@@ -16,7 +16,7 @@ func TestCompletionMenuAppearsInActiveWindow(t *testing.T) {
 	te.createSecondWindow()
 
 	// Create a second buffer with different content
-	secondBuffer := buffer.NewBuffer("Different content\nIn second window", "test2.txt", config.IndentTabs, 4)
+	secondBuffer := buffer.NewBuffer("Different content\nIn second window", "test2.txt", "test2.txt", config.IndentTabs, 4)
 	te.buffers["test2.txt"] = secondBuffer
 
 	// Set up windows side by side (left and right)

@@ -215,7 +215,7 @@ func (e *Editor) showHelp(args []string) error {
 		e.switchToBuffer(buf)
 	} else {
 		// Create new buffer
-		newBuffer := buffer.NewBuffer(helpText.String(), helpBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer := buffer.NewBuffer(helpText.String(), helpBufferName, helpBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		newBuffer.IsInternal = true
 		newBuffer.RealPath = ""
 		e.buffers[helpBufferName] = newBuffer

@@ -120,14 +120,15 @@ func (i *IndentationInfo) String() string {
 	return fmt.Sprintf("Spaces:%d", i.Width)
 }
 
-// NewBuffer creates a new buffer with default settings
-func NewBuffer(content string, filePath string, defaultIndentType config.IndentationType, defaultIndentWidth int) *Buffer {
+// NewBuffer creates a new buffer with default settings.
+// bufferPath is the logical/display identifier (may be virtual), realPath is the filesystem path for I/O (empty for virtual/unnamed buffers).
+func NewBuffer(content string, bufferPath string, realPath string, defaultIndentType config.IndentationType, defaultIndentWidth int) *Buffer {
 	rope := NewRopeFromString(content)
 	b := &Buffer{
 		Rope:           rope,
-		FilePath:       filePath,
-		BufferName:     filePath,
-		RealPath:       filePath, // default; overridden below for non-file buffers
+		FilePath:       bufferPath,
+		BufferName:     bufferPath,
+		RealPath:       realPath,
 		IsModified:     false,
 		CursorX:        0,
 		ViewIterator:   nil, // Will be created when buffer is first used
@@ -143,11 +144,6 @@ func NewBuffer(content string, filePath string, defaultIndentType config.Indenta
 		VisualAnchorX:      -1,
 		VisualAnchorOffset: -1,
 	}
-	// Treat unnamed buffers as non-file: clear RealPath
-	if filePath == "" {
-		b.RealPath = ""
-	}
-
 	// Initialize per-buffer highlighter
 	b.Highlighter = syntax.NewHighlighter()
 	// Initialize context cache fields

@@ -3220,7 +3220,7 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 		e.switchToBuffer(bufferInfo)
 	} else {
 		// Create new buffer
-		newBuffer := buffer.NewBuffer(content.String(), lspBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer := buffer.NewBuffer(content.String(), lspBufferName, lspBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		e.buffers[lspBufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, lspBufferName)
 		e.switchToBuffer(newBuffer)

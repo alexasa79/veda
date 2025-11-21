@@ -65,7 +65,7 @@ func (e *Editor) findReferences(args []string) error {
 		e.switchToBuffer(existingBuffer)
 	} else {
 		// Create new buffer
-		newBuffer := buffer.NewBuffer(content, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuffer := buffer.NewBuffer(content, bufferName, bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		newBuffer.IsReadOnly = true
 		e.buffers[bufferName] = newBuffer
 		e.bufferOrder = append(e.bufferOrder, bufferName)

@@ -10,7 +10,7 @@ import (
 // Builds an internal terminal buffer attached to an emulator and installs it in the editor
 func setupTerminalBufferForTest(te *TestEditor, cols, rows int, content string, term *TerminalEmulator) *buffer.Buffer {
 	// Create internal buffer and attach to editor
-	b := buffer.NewBuffer("", "*terminal*", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	b := buffer.NewBuffer("", "*terminal*", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	b.IsInternal = true
 	b.IsReadOnly = true
 

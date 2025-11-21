@@ -28,7 +28,7 @@ func TestStatusBarCursor_Repro(t *testing.T) {
 	content := long + "\n"
 
 	// Install the content into a regular (non-diff) buffer and attach it to the window.
-	buf := buffer.NewBuffer(content, "repro.txt", config.IndentTabs, 4)
+	buf := buffer.NewBuffer(content, "repro.txt", "repro.txt", config.IndentTabs, 4)
 	te.buffers[buf.FilePath] = buf
 	te.bufferOrder = append(te.bufferOrder, buf.FilePath)
 	te.windows[te.activeWindow].Buffer = buf
