@@ -1,5 +1,7 @@
 package buffer
 
+import "unicode"
+
 // HistoryEntry represents an undoable buffer operation
 type HistoryEntry interface {
 	// Execute performs the operation
@@ -103,6 +105,31 @@ func (h *History) Undo(buf *Buffer) error {
 	entry := h.undoStack[len(h.undoStack)-1]
 	h.undoStack = h.undoStack[:len(h.undoStack)-1]
 
+	// Special handling for insert-mode entries: undo only the last "word" chunk.
+	if ime, ok := entry.(*InsertModeEntry); ok {
+		chunk, err := ime.undoLastWord(buf)
+		if err != nil {
+			// Restore stack on error
+			h.undoStack = append(h.undoStack, entry)
+			return err
+		}
+		// If chunk is empty, nothing to do
+		if chunk == nil {
+			// Put entry back where it was
+			h.undoStack = append(h.undoStack, entry)
+			return nil
+		}
+
+		// Push the undone chunk to redo so it can be replayed.
+		h.redoStack = append(h.redoStack, chunk)
+
+		// If there are still entries remaining, keep the insert session on the undo stack.
+		if len(ime.Entries) > 0 {
+			h.undoStack = append(h.undoStack, ime)
+		}
+		return nil
+	}
+
 	// Undo the entry
 	if err := entry.Undo(buf); err != nil {
 		// On error, restore to undo stack
@@ -133,7 +160,16 @@ func (h *History) Redo(buf *Buffer) error {
 		return err
 	}
 
-	// Push back to undo stack
+	// Push back to undo stack. If both this entry and the current top are
+	// insert-mode entries from the same session type, merge them to keep a
+	// single insert entry.
+	if ime, ok := entry.(*InsertModeEntry); ok && len(h.undoStack) > 0 {
+		if prev, okPrev := h.undoStack[len(h.undoStack)-1].(*InsertModeEntry); okPrev && prev.InitCommand == ime.InitCommand {
+			prev.Entries = append(prev.Entries, ime.Entries...)
+			return nil
+		}
+	}
+
 	h.undoStack = append(h.undoStack, entry)
 
 	return nil
@@ -380,6 +416,74 @@ func (ce *CompositeEntry) Description() string {
 type InsertModeEntry struct {
 	*CompositeEntry
 	InitCommand string // The command that initiated insert mode ("i", "a", "A", "o", "O")
+}
+
+// undoLastWord undoes the most recent word (plus trailing whitespace) within this insert session.
+// It returns a new InsertModeEntry containing the undone chunk for redo.
+func (ime *InsertModeEntry) undoLastWord(buf *Buffer) (*InsertModeEntry, error) {
+	if len(ime.Entries) == 0 {
+		return nil, nil
+	}
+
+	var removed []HistoryEntry
+	cutoff := len(ime.Entries)
+	sawNonWhitespace := false
+
+	for i := len(ime.Entries) - 1; i >= 0; i-- {
+		entry := ime.Entries[i]
+		if err := entry.Undo(buf); err != nil {
+			return nil, err
+		}
+		removed = append(removed, entry)
+
+		hasWS, hasNonWS := entryTextKinds(entry)
+		if hasNonWS {
+			sawNonWhitespace = true
+		}
+		cutoff = i
+
+		if (hasWS && sawNonWhitespace) || i == 0 {
+			break
+		}
+	}
+
+	// Keep the remaining prefix of the session
+	ime.Entries = ime.Entries[:cutoff]
+
+	if len(removed) == 0 {
+		return nil, nil
+	}
+
+	// removed entries were gathered from end to start; reverse to original order for redo
+	for l, r := 0, len(removed)-1; l < r; l, r = l+1, r-1 {
+		removed[l], removed[r] = removed[r], removed[l]
+	}
+
+	chunk := NewInsertModeEntry("Insert mode session", ime.InitCommand)
+	chunk.Entries = append(chunk.Entries, removed...)
+	return chunk, nil
+}
+
+func entryTextKinds(entry HistoryEntry) (hasWhitespace bool, hasNonWhitespace bool) {
+	switch e := entry.(type) {
+	case *InsertTextEntry:
+		return classifyText(e.Text)
+	case *DeleteTextEntry:
+		return classifyText(e.Text)
+	default:
+		return false, false
+	}
+}
+
+func classifyText(text string) (hasWhitespace bool, hasNonWhitespace bool) {
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			hasWhitespace = true
+		} else {
+			hasNonWhitespace = true
+		}
+	}
+	return
 }
 
 // NewInsertModeEntry creates a new insert mode entry
