@@ -532,8 +532,17 @@ func TestRewrapCreatesUndoBoundaryInInsertMode(t *testing.T) {
 		t.Fatalf("first undo should revert rewrap only.\nGot:\n%q\nWant:\n%q", afterFirstUndo, text)
 	}
 
-	// Second undo should undo the insert session (typed text)
+	// Second undo should remove only the last chunk of the insert session (word-level)
 	te.ExecuteCommand("undo")
+	afterSecondUndo := te.GetBufferContent()
+	if len(afterSecondUndo) == 0 || len(afterSecondUndo) >= len(text) {
+		t.Fatalf("second undo should reduce the inserted text, got len=%d", len(afterSecondUndo))
+	}
+
+	// Continue undoing until the buffer is empty
+	for attempts := 0; attempts < 200 && te.GetBufferContent() != ""; attempts++ {
+		te.ExecuteCommand("undo")
+	}
 	AssertBufferEquals(t, te, "")
 }
 
