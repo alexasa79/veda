@@ -58,7 +58,7 @@ func TestEmptyLineIndentation(t *testing.T) {
 				indentType = config.IndentTabs
 			}
 
-			buffer := NewBuffer(tt.content, "test.c", indentType, 4)
+			buffer := NewBuffer(tt.content, "test.c", "test.c", indentType, 4)
 
 			// Set cursor to the specified line for context analysis
 			buffer.CursorIterator = NewBufferIteratorAtLine(buffer, tt.cursorLine)
@@ -120,7 +120,7 @@ func TestEmptyLineIndentationEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			buffer := NewBuffer(tt.content, "test.c", config.IndentSpaces, 4)
+			buffer := NewBuffer(tt.content, "test.c", "test.c", config.IndentSpaces, 4)
 
 			if tt.content != "" {
 				buffer.CursorIterator = NewBufferIteratorAtLine(buffer, tt.cursorLine)

@@ -10,8 +10,8 @@ import (
 func TestCloseBuffer_CloseWindowWhenLastBuffer_MultiWindow(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	buf1 := buffer.NewBuffer("hello world", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("second", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("hello world", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("second", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	te.buffers[buf1.FilePath] = buf1
 	te.buffers[buf2.FilePath] = buf2
 
@@ -44,8 +44,8 @@ func TestCloseBuffer_CloseWindowWhenLastBuffer_MultiWindow(t *testing.T) {
 func TestCloseBuffer_MultipleBuffersInWindow(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	buf1 := buffer.NewBuffer("buf1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("buf2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("buf1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("buf2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	te.buffers[buf1.FilePath] = buf1
 	te.buffers[buf2.FilePath] = buf2
 
@@ -81,8 +81,8 @@ func TestCloseBuffer_MultipleBuffersInWindow(t *testing.T) {
 func TestCloseBuffer_TerminalBufferCleanup(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	term := buffer.NewBuffer("", "*Terminal*", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	other := buffer.NewBuffer("", "file.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	term := buffer.NewBuffer("", "*Terminal*", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	other := buffer.NewBuffer("", "file.txt", "file.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	te.buffers[term.FilePath] = term
 	te.buffers[other.FilePath] = other
 	w0 := newWindow(term)

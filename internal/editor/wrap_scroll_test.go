@@ -28,7 +28,7 @@ func TestWrapAwareScrollingPreservesScrollOffset(t *testing.T) {
 	content := b.String()
 
 	// Attach the buffer and create a second window to make panes narrow.
-	buf := buffer.NewBuffer(content, "wrap.txt", config.IndentTabs, 4)
+	buf := buffer.NewBuffer(content, "wrap.txt", "wrap.txt", config.IndentTabs, 4)
 	te.buffers[buf.FilePath] = buf
 	te.bufferOrder = append(te.bufferOrder, buf.FilePath)
 	te.windows[0].Buffer = buf
@@ -41,7 +41,7 @@ func TestWrapAwareScrollingPreservesScrollOffset(t *testing.T) {
 		t.Fatalf("expected two windows")
 	}
 	// Keep second window with a dummy buffer to keep layout split.
-	other := buffer.NewBuffer("other", "other.txt", config.IndentTabs, 4)
+	other := buffer.NewBuffer("other", "other.txt", "other.txt", config.IndentTabs, 4)
 	te.buffers[other.FilePath] = other
 	te.windows[1].Buffer = other
 

@@ -14,9 +14,9 @@ func TestDiffBufferClosing(t *testing.T) {
 	headBufferName := "test.go@HEAD"
 	currentBufferName := "test.go@current"
 
-	headBuffer := buffer.NewBuffer("head content", headBufferName, config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer("head content", headBufferName, headBufferName, config.IndentTabs, 4)
 	headBuffer.IsReadOnly = true
-	currentBuffer := buffer.NewBuffer("current content", currentBufferName, config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer("current content", currentBufferName, currentBufferName, config.IndentTabs, 4)
 
 	// Create dummy diff line info
 	diffResult := &DiffResult{
@@ -126,9 +126,9 @@ func TestNormalBufferClosing(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "")
 
 	// Create a normal buffer and a diff buffer pair
-	normalBuffer := buffer.NewBuffer("normal content", "normal.go", config.IndentTabs, 4)
-	headBuffer := buffer.NewBuffer("head content", "test.go@HEAD", config.IndentTabs, 4)
-	currentBuffer := buffer.NewBuffer("current content", "test.go@current", config.IndentTabs, 4)
+	normalBuffer := buffer.NewBuffer("normal content", "normal.go", "normal.go", config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer("head content", "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer("current content", "test.go@current", "test.go@current", config.IndentTabs, 4)
 
 	// Add all buffers to editor
 	te.buffers["normal.go"] = normalBuffer
@@ -181,9 +181,9 @@ func TestDiffBufferClosingWithMultipleWindows(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "")
 
 	// Create diff buffers
-	headBuffer := buffer.NewBuffer("head content", "test.go@HEAD", config.IndentTabs, 4)
-	currentBuffer := buffer.NewBuffer("current content", "test.go@current", config.IndentTabs, 4)
-	normalBuffer := buffer.NewBuffer("normal content", "normal.go", config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer("head content", "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer("current content", "test.go@current", "test.go@current", config.IndentTabs, 4)
+	normalBuffer := buffer.NewBuffer("normal content", "normal.go", "normal.go", config.IndentTabs, 4)
 
 	// Add buffers to editor
 	te.buffers["test.go@HEAD"] = headBuffer

@@ -38,9 +38,9 @@ func TestDiffHighlighting(t *testing.T) {
 	alignedCurrentContent := createBufferContent(diffResult.RightLines)
 
 	// Create diff buffers
-	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, config.IndentTabs, 4)
 	headBuffer.IsReadOnly = true
-	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
 
 	// Store buffers and diff line info
 	te.buffers[headBufferName] = headBuffer
@@ -109,7 +109,7 @@ func TestDiffHighlighting(t *testing.T) {
 		}
 
 		// Check that normal buffers are not identified as diff buffers
-		normalBuffer := buffer.NewBuffer("normal content", "normal.go", config.IndentTabs, 4)
+		normalBuffer := buffer.NewBuffer("normal content", "normal.go", "normal.go", config.IndentTabs, 4)
 		if te.isDiffBuffer(normalBuffer) {
 			t.Error("Normal buffer should not be identified as diff buffer")
 		}
@@ -137,7 +137,7 @@ func TestDiffBufferCleanup(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "test content")
 
 	// Create a diff buffer with diff line info
-	diffBuffer := buffer.NewBuffer("diff content", "test.go@HEAD", config.IndentTabs, 4)
+	diffBuffer := buffer.NewBuffer("diff content", "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
 	te.buffers["test.go@HEAD"] = diffBuffer
 	te.diffLineInfo[diffBuffer] = []DiffLine{
 		{Content: "test", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},

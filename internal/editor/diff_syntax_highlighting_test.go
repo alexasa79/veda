@@ -22,7 +22,7 @@ func main() {
 }`
 
 	// Set up the main buffer with Go content
-	mainBuffer := buffer.NewBuffer(goCode, "test.go", config.IndentTabs, 4)
+	mainBuffer := buffer.NewBuffer(goCode, "test.go", "test.go", config.IndentTabs, 4)
 	te.SetCurrentBuffer(mainBuffer)
 
 	// Initialize syntax highlighting for the original buffer
@@ -53,7 +53,7 @@ func main() {
 
 	// Create HEAD buffer
 	headBufferName := "test.go@HEAD"
-	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, config.IndentTabs, 4)
 	headBuffer.IsReadOnly = true
 	te.buffers[headBufferName] = headBuffer
 
@@ -68,7 +68,7 @@ func main() {
 
 	// Create current buffer
 	currentBufferName := "test.go@current"
-	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
 	te.buffers[currentBufferName] = currentBuffer
 
 	// Create and set highlighter for current buffer

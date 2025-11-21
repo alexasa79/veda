@@ -39,9 +39,7 @@ func NewTestEditor(width, height int) *TestEditor {
 	// production does not create one by default.
 	if te.CurrentBuffer() == nil {
 		// Create unnamed buffer and attach to active window
-		buf := buffer.NewBuffer("", "[No Name]", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-		// Unnamed test buffer is not a real file
-		buf.RealPath = ""
+		buf := buffer.NewBuffer("", "[No Name]", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 		te.buffers["[No Name]"] = buf
 		te.bufferOrder = append(te.bufferOrder, "[No Name]")
 		if len(te.windows) == 0 {
@@ -68,10 +66,10 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	tmpDir, err := os.MkdirTemp("", "veda-test-*")
 	if err != nil {
 		// Fallback to in-memory if temp dir creation fails
-		te.SetCurrentBuffer(buffer.NewBuffer(content, "[Test]", te.config.DefaultIndentType, te.config.DefaultIndentWidth))
+		te.SetCurrentBuffer(buffer.NewBuffer(content, "[Test]", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth))
 	} else {
 		testPath := filepath.Join(tmpDir, "[Test]")
-		te.SetCurrentBuffer(buffer.NewBuffer(content, testPath, te.config.DefaultIndentType, te.config.DefaultIndentWidth))
+		te.SetCurrentBuffer(buffer.NewBuffer(content, testPath, testPath, te.config.DefaultIndentType, te.config.DefaultIndentWidth))
 	}
 	// Update iterators to point to the new buffer
 	te.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(te.CurrentBuffer())

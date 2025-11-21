@@ -102,7 +102,7 @@ func TestRightWindowBottomShouldBeEmpty_Repro(t *testing.T) {
 	right := te.windows[1]
 	if right.Buffer == nil {
 		// In the current design, vsplit creates an empty window. Create a small buffer explicitly.
-		right.Buffer = buffer.NewBuffer(buildSmallContent(), "artifacts/small.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+		right.Buffer = buffer.NewBuffer(buildSmallContent(), "artifacts/small.txt", "artifacts/small.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	} else {
 		right.Buffer.Rope = buffer.NewRopeFromString(buildSmallContent())
 		right.Buffer.LineCount = strings.Count(right.Buffer.Rope.String(), "\n") + 1

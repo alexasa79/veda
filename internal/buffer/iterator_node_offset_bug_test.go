@@ -20,7 +20,7 @@ func TestIteratorNodeOffsetBug(t *testing.T) {
 	}
 	content := strings.Join(lines, "\n")
 
-	buffer := NewBuffer(content, "test.c", config.IndentSpaces, 4)
+	buffer := NewBuffer(content, "test.c", "test.c", config.IndentSpaces, 4)
 
 	// Perform insertions at various positions to create a complex tree
 	// Insert at position that will cause rebalancing
@@ -105,7 +105,7 @@ func TestIteratorNodeOffsetBug(t *testing.T) {
 func TestNextMethodLogic(t *testing.T) {
 	// Create a simple buffer where we can control the structure
 	content := "Line1\nLine2\nLine3\n"
-	buffer := NewBuffer(content, "test.txt", config.IndentSpaces, 4)
+	buffer := NewBuffer(content, "test.txt", "test.txt", config.IndentSpaces, 4)
 
 	// Create iterator at line 0
 	iter := NewBufferIteratorAtLine(buffer, 0)

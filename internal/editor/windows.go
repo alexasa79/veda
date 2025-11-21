@@ -454,7 +454,7 @@ func (e *Editor) createUnnamedBuffer() *buffer.Buffer {
 	// Prefer the base name "[No Name]" if not taken
 	base := "[No Name]"
 	if _, exists := e.buffers[base]; !exists {
-		newBuf := buffer.NewBuffer("", base, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		newBuf := buffer.NewBuffer("", base, "", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		e.buffers[base] = newBuf
 		e.bufferOrder = append(e.bufferOrder, base)
 		return newBuf
@@ -464,7 +464,7 @@ func (e *Editor) createUnnamedBuffer() *buffer.Buffer {
 	for {
 		name := fmt.Sprintf("[No Name %d]", counter)
 		if _, exists := e.buffers[name]; !exists {
-			newBuf := buffer.NewBuffer("", name, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+			newBuf := buffer.NewBuffer("", name, "", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 			e.buffers[name] = newBuf
 			e.bufferOrder = append(e.bufferOrder, name)
 			return newBuf

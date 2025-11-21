@@ -29,11 +29,11 @@ Line 4
 Line 5 modified`
 
 	// Create buffers for diff view - these need special names to be recognized as diff buffers
-	leftBuffer := buffer.NewBuffer(leftContent, "test.txt@HEAD", config.IndentTabs, 4)
-	rightBuffer := buffer.NewBuffer(rightContent, "test.txt@current", config.IndentTabs, 4)
+	leftBuffer := buffer.NewBuffer(leftContent, "test.txt@HEAD", "test.txt@HEAD", config.IndentTabs, 4)
+	rightBuffer := buffer.NewBuffer(rightContent, "test.txt@current", "test.txt@current", config.IndentTabs, 4)
 
 	// Add a third buffer to have another window
-	thirdBuffer := buffer.NewBuffer("Third buffer content", "third.txt", config.IndentTabs, 4)
+	thirdBuffer := buffer.NewBuffer("Third buffer content", "third.txt", "third.txt", config.IndentTabs, 4)
 
 	// Setup initial windows - start with three windows
 	te.Editor.windows = []*Window{

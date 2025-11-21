@@ -30,8 +30,8 @@ type DiffSession struct {
 // NewDiffSession creates a new diff session with two buffers
 func NewDiffSession(previousContent, currentContent, filePath string) *DiffSession {
 	// Create buffers for both versions
-	bufferA := buffer.NewBuffer(previousContent, filePath+"@HEAD", config.IndentTabs, 4)
-	bufferB := buffer.NewBuffer(currentContent, filePath+"@current", config.IndentTabs, 4)
+	bufferA := buffer.NewBuffer(previousContent, filePath+"@HEAD", filePath+"@HEAD", config.IndentTabs, 4)
+	bufferB := buffer.NewBuffer(currentContent, filePath+"@current", filePath+"@current", config.IndentTabs, 4)
 
 	// Mark the previous version as read-only
 	bufferA.IsReadOnly = true
@@ -186,7 +186,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		headBuffer.IsReadOnly = true
 	} else {
 		// Create new HEAD buffer
-		headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		headBuffer.IsReadOnly = true
 		headBuffer.IsInternal = false // Can be moved between windows
 		headBuffer.BufferName = headBufferName
@@ -227,7 +227,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
 	} else {
 		// Create new current buffer copy
-		currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+		currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		currentBuffer.IsReadOnly = false
 		currentBuffer.IsInternal = false // Can be moved between windows
 		currentBuffer.CursorX = e.CurrentBuffer().CursorX

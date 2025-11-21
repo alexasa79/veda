@@ -27,9 +27,9 @@ func TestDiffRendering(t *testing.T) {
 	headBufferName := "test.go@HEAD"
 	currentBufferName := "test.go@current"
 
-	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, config.IndentTabs, 4)
 	headBuffer.IsReadOnly = true
-	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
 
 	// Store buffers and diff line info
 	te.buffers[headBufferName] = headBuffer
@@ -284,8 +284,8 @@ func TestDiffRenderingWithComplexChanges(t *testing.T) {
 	diffResult := computeDiff(originalContent, modifiedContent)
 
 	// Create buffers
-	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "test.go@HEAD", config.IndentTabs, 4)
-	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "test.go@current", config.IndentTabs, 4)
+	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "test.go@current", "test.go@current", config.IndentTabs, 4)
 
 	te.diffLineInfo[headBuffer] = diffResult.LeftLines
 	te.diffLineInfo[currentBuffer] = diffResult.RightLines

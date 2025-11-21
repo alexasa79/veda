@@ -101,7 +101,7 @@ func TestCalculateAutoIndentWithBraces(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a buffer with test content
-			buffer := NewBuffer("", "test.go", tt.indentType, tt.indentWidth)
+			buffer := NewBuffer("", "test.go", "test.go", tt.indentType, tt.indentWidth)
 
 			// Calculate auto-indent
 			result := buffer.CalculateAutoIndent(tt.line, tt.cursorCol)

@@ -7,7 +7,7 @@ import (
 
 func TestUndoRedoBasics(t *testing.T) {
 	t.Run("simple insert and undo", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Verify buffer is properly initialized
 		if buf.Rope == nil {
@@ -50,7 +50,7 @@ func TestUndoRedoBasics(t *testing.T) {
 	})
 
 	t.Run("simple delete and undo", func(t *testing.T) {
-		buf := NewBuffer("Hello", "", config.IndentTabs, 4)
+		buf := NewBuffer("Hello", "", "", config.IndentTabs, 4)
 
 		// Delete text
 		entry := NewDeleteTextEntry(0, 1, "ello")
@@ -77,7 +77,7 @@ func TestUndoRedoBasics(t *testing.T) {
 	})
 
 	t.Run("undo then redo", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Insert text
 		entry := NewInsertTextEntry(0, 0, "Test")
@@ -102,7 +102,7 @@ func TestUndoRedoBasics(t *testing.T) {
 	})
 
 	t.Run("multiple undos and redos", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Execute multiple operations
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "One"))
@@ -147,7 +147,7 @@ func TestUndoRedoBasics(t *testing.T) {
 	})
 
 	t.Run("redo stack cleared on new operation", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Add some operations
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "First"))
@@ -171,7 +171,7 @@ func TestUndoRedoBasics(t *testing.T) {
 
 func TestInsertModeSession(t *testing.T) {
 	t.Run("insert mode session groups changes", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Start insert mode session
 		buf.History.StartInsertSession("i")
@@ -206,7 +206,7 @@ func TestInsertModeSession(t *testing.T) {
 	})
 
 	t.Run("empty insert session not added to history", func(t *testing.T) {
-		buf := NewBuffer("Initial", "", config.IndentTabs, 4)
+		buf := NewBuffer("Initial", "", "", config.IndentTabs, 4)
 
 		// Add a normal operation
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 7, " Text"))
@@ -224,7 +224,7 @@ func TestInsertModeSession(t *testing.T) {
 	})
 
 	t.Run("insert mode with mixed operations", func(t *testing.T) {
-		buf := NewBuffer("Hello", "", config.IndentTabs, 4)
+		buf := NewBuffer("Hello", "", "", config.IndentTabs, 4)
 
 		// Start insert mode session
 		buf.History.StartInsertSession("i")
@@ -257,7 +257,7 @@ func TestInsertModeSession(t *testing.T) {
 
 func TestMultilineOperations(t *testing.T) {
 	t.Run("insert newline and undo", func(t *testing.T) {
-		buf := NewBuffer("Line1", "", config.IndentTabs, 4)
+		buf := NewBuffer("Line1", "", "", config.IndentTabs, 4)
 
 		// Insert newline at end of Line1
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 5, "\n"))
@@ -289,7 +289,7 @@ func TestMultilineOperations(t *testing.T) {
 	})
 
 	t.Run("delete across lines", func(t *testing.T) {
-		buf := NewBuffer("Line1\nLine2", "", config.IndentTabs, 4)
+		buf := NewBuffer("Line1\nLine2", "", "", config.IndentTabs, 4)
 
 		// Delete from middle of Line1 to middle of Line2
 		_, _ = buf.History.Execute(buf, NewDeleteTextEntry(0, 3, "e1\nLi"))
@@ -309,7 +309,7 @@ func TestMultilineOperations(t *testing.T) {
 
 func TestCursorPosition(t *testing.T) {
 	t.Run("cursor position after insert and undo", func(t *testing.T) {
-		buf := NewBuffer("Test", "", config.IndentTabs, 4)
+		buf := NewBuffer("Test", "", "", config.IndentTabs, 4)
 
 		// Insert at position 2
 		entry := NewInsertTextEntry(0, 2, "X")
@@ -330,7 +330,7 @@ func TestCursorPosition(t *testing.T) {
 	})
 
 	t.Run("cursor position after delete and undo", func(t *testing.T) {
-		buf := NewBuffer("Test", "", config.IndentTabs, 4)
+		buf := NewBuffer("Test", "", "", config.IndentTabs, 4)
 
 		// Move cursor to position 4
 		buf.CursorIterator = NewBufferIterator(buf)
@@ -357,7 +357,7 @@ func TestCursorPosition(t *testing.T) {
 
 func TestEdgeCases(t *testing.T) {
 	t.Run("undo on empty history", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Should not panic or error
 		err := buf.History.Undo(buf)
@@ -367,7 +367,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("redo on empty redo stack", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Should not panic or error
 		err := buf.History.Redo(buf)
@@ -377,7 +377,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("operations at buffer boundaries", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Insert at beginning
 		_, _ = buf.History.Execute(buf, NewInsertTextEntry(0, 0, "Start"))
@@ -399,7 +399,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("large text operations", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Insert large text
 		largeText := ""
@@ -432,7 +432,7 @@ func TestEdgeCases(t *testing.T) {
 
 func TestCompositeEntry(t *testing.T) {
 	t.Run("composite entry basic operations", func(t *testing.T) {
-		buf := NewBuffer("", "", config.IndentTabs, 4)
+		buf := NewBuffer("", "", "", config.IndentTabs, 4)
 
 		// Create composite entry
 		composite := NewCompositeEntry("Test composite")
@@ -462,7 +462,7 @@ func TestCompositeEntry(t *testing.T) {
 	})
 
 	t.Run("composite with mixed operations", func(t *testing.T) {
-		buf := NewBuffer("Original", "", config.IndentTabs, 4)
+		buf := NewBuffer("Original", "", "", config.IndentTabs, 4)
 
 		// Create composite with inserts and deletes
 		composite := NewCompositeEntry("Mixed operations")

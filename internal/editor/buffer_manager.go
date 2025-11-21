@@ -637,7 +637,7 @@ func (e *Editor) newBuffer(args []string) error {
 	}
 
 	// Create a new empty buffer
-	newBuffer := buffer.NewBuffer("", bufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
+	newBuffer := buffer.NewBuffer("", bufferName, "", e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 
 	// Add to buffers map and order
 	e.buffers[bufferName] = newBuffer

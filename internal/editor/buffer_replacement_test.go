@@ -28,7 +28,7 @@ func TestFileOpening(t *testing.T) {
 
 	// Create a new buffer with content (simulating opening a file)
 	testContent := "Hello World!\nThis is test content."
-	newBuffer := buffer.NewBuffer(testContent, "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	newBuffer := buffer.NewBuffer(testContent, "test.txt", "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	// Simulate the openFile logic by adding the new buffer
 	te.buffers["test.txt"] = newBuffer
@@ -64,7 +64,7 @@ func TestMultipleBuffersManagement(t *testing.T) {
 
 	// Now open a file
 	testContent := "Hello World!\nThis is test content."
-	newBuffer := buffer.NewBuffer(testContent, "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	newBuffer := buffer.NewBuffer(testContent, "test.txt", "test.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	te.buffers["test.txt"] = newBuffer
 	te.bufferOrder = append(te.bufferOrder, "test.txt")
 	te.switchToBuffer(newBuffer)

@@ -8,14 +8,14 @@ import (
 func TestSearchRepeatStaysInBufferWithoutMatches(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	buf1 := buffer.NewBuffer("match here\nand match again\n", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("match here\nand match again\n", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	buf1.ViewIterator = buffer.NewBufferIterator(buf1)
 	buf1.CursorIterator = buffer.NewBufferIterator(buf1)
 	buf1.OnContentChange = func() {
 		te.updateSearchMatchesOnContentChange()
 	}
 
-	buf2 := buffer.NewBuffer("second buffer content\n", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("second buffer content\n", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	buf2.ViewIterator = buffer.NewBufferIterator(buf2)
 	buf2.CursorIterator = buffer.NewBufferIterator(buf2)
 	buf2.OnContentChange = func() {

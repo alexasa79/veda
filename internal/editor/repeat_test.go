@@ -132,7 +132,7 @@ func TestRepeatLastChange(t *testing.T) {
 		AssertBufferEquals(t, te, "Buffer-A1")
 
 		// Create a second buffer manually
-		buf2 := buffer.NewBuffer("Buffer2", "test2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+		buf2 := buffer.NewBuffer("Buffer2", "test2.txt", "test2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 		buf2.ViewIterator = buffer.NewBufferIterator(buf2)
 		buf2.CursorIterator = buffer.NewBufferIterator(buf2)
 

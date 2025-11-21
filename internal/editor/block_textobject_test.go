@@ -16,7 +16,7 @@ func TestBlockTextObjectWithFoldingRanges(t *testing.T) {
 }`
 
 		// Create buffer with content
-		buf := buffer.NewBuffer(content, "test.go", config.IndentSpaces, 4)
+		buf := buffer.NewBuffer(content, "test.go", "test.go", config.IndentSpaces, 4)
 
 		// Add mock folding ranges (simulating what LSP would provide)
 		buf.FoldingRanges = []proxy.FoldingRange{
@@ -52,7 +52,7 @@ func TestBlockTextObjectWithFoldingRanges(t *testing.T) {
 }`
 
 		// Create buffer with content
-		buf := buffer.NewBuffer(content, "test.go", config.IndentSpaces, 4)
+		buf := buffer.NewBuffer(content, "test.go", "test.go", config.IndentSpaces, 4)
 
 		// Add mock folding ranges
 		buf.FoldingRanges = []proxy.FoldingRange{
@@ -97,7 +97,7 @@ func TestBlockTextObjectWithFoldingRanges(t *testing.T) {
 }`
 
 		// Create buffer with content
-		buf := buffer.NewBuffer(content, "test.go", config.IndentSpaces, 4)
+		buf := buffer.NewBuffer(content, "test.go", "test.go", config.IndentSpaces, 4)
 
 		// Add mock folding ranges
 		buf.FoldingRanges = []proxy.FoldingRange{

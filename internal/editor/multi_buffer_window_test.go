@@ -10,8 +10,8 @@ func TestMultiBufferWindowBasics(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create buffers
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	// Add to global registry
 	te.buffers["file1.txt"] = buf1
@@ -39,7 +39,7 @@ func TestMoveBufferToNewWindow(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create buffer and set up initial state
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	te.buffers["file1.txt"] = buf1
 	te.windows = []*Window{newWindow(buf1)}
 	te.activeWindow = 0
@@ -86,8 +86,8 @@ func TestMoveBufferToExistingWindow(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create buffers
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	te.buffers["file1.txt"] = buf1
 	te.buffers["file2.txt"] = buf2
@@ -158,9 +158,9 @@ func TestBufferPersistenceAfterMovement(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create three buffers
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf3 := buffer.NewBuffer("content3", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "file3.txt", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	te.buffers["file1.txt"] = buf1
 	te.buffers["file2.txt"] = buf2
@@ -216,7 +216,7 @@ func TestBufferPersistenceAfterMovement(t *testing.T) {
 func TestRemoveLastBufferFromWindow(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 	te.buffers["file1.txt"] = buf1
 
 	win1 := newWindow(buf1)
@@ -252,9 +252,9 @@ func TestBufferOrderingInWindow(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create three buffers
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf3 := buffer.NewBuffer("content3", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "file3.txt", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	win1 := newWindow(buf1)
 
@@ -287,9 +287,9 @@ func TestBufferOrderingInWindow(t *testing.T) {
 func TestActiveBufferSwitchingOnRemoval(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf3 := buffer.NewBuffer("content3", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "file3.txt", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	win1 := newWindow(buf1)
 	win1.addBufferToWindow(buf2)
@@ -325,8 +325,8 @@ func TestActiveBufferSwitchingOnRemoval(t *testing.T) {
 func TestAddSameBufferTwice(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	win1 := newWindow(buf1)
 	win1.addBufferToWindow(buf2) // buf2 becomes active
@@ -350,9 +350,9 @@ func TestMoveBufferCenter(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create 3 windows with buffers
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf3 := buffer.NewBuffer("content3", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf3 := buffer.NewBuffer("content3", "file3.txt", "file3.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	te.buffers["file1.txt"] = buf1
 	te.buffers["file2.txt"] = buf2
@@ -407,8 +407,8 @@ func TestNoGlobalBuffersAfterMovement(t *testing.T) {
 	te := NewTestEditor(80, 24)
 
 	// Create buffers
-	buf1 := buffer.NewBuffer("content1", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	buf2 := buffer.NewBuffer("content2", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf1 := buffer.NewBuffer("content1", "file1.txt", "file1.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	buf2 := buffer.NewBuffer("content2", "file2.txt", "file2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 	te.buffers["file1.txt"] = buf1
 	te.buffers["file2.txt"] = buf2

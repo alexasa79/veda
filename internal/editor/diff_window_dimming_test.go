@@ -51,12 +51,12 @@ func TestDiffView_WindowDimmingDisabled(t *testing.T) {
 		currentBufferName := "test.go@current"
 
 		// Create head buffer (read-only)
-		headBuffer := buffer.NewBuffer("line1\noriginal line2\nline3", headBufferName, config.IndentTabs, 4)
+		headBuffer := buffer.NewBuffer("line1\noriginal line2\nline3", headBufferName, headBufferName, config.IndentTabs, 4)
 		headBuffer.IsReadOnly = true
 		te.buffers[headBufferName] = headBuffer
 
 		// Create current buffer copy
-		currentBuffer := buffer.NewBuffer("line1\nmodified line2\nline3", currentBufferName, config.IndentTabs, 4)
+		currentBuffer := buffer.NewBuffer("line1\nmodified line2\nline3", currentBufferName, currentBufferName, config.IndentTabs, 4)
 		currentBuffer.IsReadOnly = false
 		te.buffers[currentBufferName] = currentBuffer
 
@@ -148,7 +148,7 @@ func TestIsDiffViewActive(t *testing.T) {
 	}
 
 	// Test with normal buffers
-	normalBuffer := buffer.NewBuffer("normal content", "normal.go", config.IndentTabs, 4)
+	normalBuffer := buffer.NewBuffer("normal content", "normal.go", "normal.go", config.IndentTabs, 4)
 	if len(te.windows) >= 2 {
 		te.windows[0].Buffer = normalBuffer
 		te.windows[1].Buffer = normalBuffer
@@ -158,7 +158,7 @@ func TestIsDiffViewActive(t *testing.T) {
 	}
 
 	// Test with one diff buffer
-	diffBuffer := buffer.NewBuffer("diff content", "test.go@HEAD", config.IndentTabs, 4)
+	diffBuffer := buffer.NewBuffer("diff content", "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
 	if len(te.windows) >= 2 {
 		te.windows[0].Buffer = diffBuffer
 		te.windows[1].Buffer = normalBuffer
@@ -168,7 +168,7 @@ func TestIsDiffViewActive(t *testing.T) {
 	}
 
 	// Test with both diff buffers
-	diffBuffer2 := buffer.NewBuffer("diff content 2", "test.go@current", config.IndentTabs, 4)
+	diffBuffer2 := buffer.NewBuffer("diff content 2", "test.go@current", "test.go@current", config.IndentTabs, 4)
 	if len(te.windows) >= 2 {
 		te.windows[0].Buffer = diffBuffer
 		te.windows[1].Buffer = diffBuffer2

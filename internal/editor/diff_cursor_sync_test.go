@@ -20,9 +20,9 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 	currentBufferName := "test.go@current"
 
 	// Manually set up the diff buffers like StartDiffViewForCurrentBuffer would
-	te.buffers[headBufferName] = buffer.NewBuffer(previousContent, headBufferName, config.IndentTabs, 4)
+	te.buffers[headBufferName] = buffer.NewBuffer(previousContent, headBufferName, headBufferName, config.IndentTabs, 4)
 	te.buffers[headBufferName].IsReadOnly = true
-	te.buffers[currentBufferName] = buffer.NewBuffer(currentContent, currentBufferName, config.IndentTabs, 4)
+	te.buffers[currentBufferName] = buffer.NewBuffer(currentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
 
 	// Set up two windows manually
 	te.createSecondWindow()
@@ -147,9 +147,9 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 		alignedCurrentContent := createBufferContent(diffResult.RightLines)
 
 		// Set up diff buffers with aligned content
-		te.buffers[headBufferName] = buffer.NewBuffer(alignedHeadContent, headBufferName, config.IndentTabs, 4)
+		te.buffers[headBufferName] = buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, config.IndentTabs, 4)
 		te.buffers[headBufferName].IsReadOnly = true
-		te.buffers[currentBufferName] = buffer.NewBuffer(alignedCurrentContent, currentBufferName, config.IndentTabs, 4)
+		te.buffers[currentBufferName] = buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
 
 		// Set up two windows
 		te.createSecondWindow()

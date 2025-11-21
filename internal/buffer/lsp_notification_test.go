@@ -38,7 +38,7 @@ func TestLSPNotificationCallback(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a new buffer
-			b := NewBuffer("", "test.go", config.IndentSpaces, 4)
+			b := NewBuffer("", "test.go", "test.go", config.IndentSpaces, 4)
 			b.HasLSP = true // Enable LSP for this buffer
 
 			// Set up callback to track if it was called
@@ -62,7 +62,7 @@ func TestLSPNotificationCallback(t *testing.T) {
 
 func TestLSPNotificationCallbackNotSetByDefault(t *testing.T) {
 	// Create a buffer without setting the callback
-	b := NewBuffer("", "test.go", config.IndentSpaces, 4)
+	b := NewBuffer("", "test.go", "test.go", config.IndentSpaces, 4)
 
 	// This should not panic even though callback is nil
 	b.Insert(0, "Hello")

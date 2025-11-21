@@ -44,7 +44,7 @@ func TestIteratorCorruptionLargeFile(t *testing.T) {
 	t.Logf("Generated content size: %d bytes", len(largeContent))
 
 	// Create buffer with the large content
-	buffer := NewBuffer(largeContent, "test.c", config.IndentSpaces, 4)
+	buffer := NewBuffer(largeContent, "test.c", "test.c", config.IndentSpaces, 4)
 
 	// Find a position early in the file (around line 50)
 	targetLine := 50
@@ -148,7 +148,7 @@ func TestIteratorCorruptionWithRebalancing(t *testing.T) {
 	// Build the content by inserting segments at different positions
 	// This should create a complex tree structure
 	content := strings.Join(segments[:1000], "")
-	buffer := NewBuffer(content, "test.c", config.IndentSpaces, 4)
+	buffer := NewBuffer(content, "test.c", "test.c", config.IndentSpaces, 4)
 
 	// Insert remaining segments at various positions to force rebalancing
 	for i := 1000; i < numSegments; i++ {
@@ -228,7 +228,7 @@ func TestIteratorCorruptionWithRebalancing(t *testing.T) {
 func TestRopeNodeOffsetConsistency(t *testing.T) {
 	// Create a large rope
 	content := strings.Repeat("This is a line of text.\n", 10000)
-	buffer := NewBuffer(content, "test.txt", config.IndentSpaces, 4)
+	buffer := NewBuffer(content, "test.txt", "test.txt", config.IndentSpaces, 4)
 
 	// Perform many operations
 	for i := 0; i < 100; i++ {

@@ -11,7 +11,7 @@ func TestIteratorLogic(t *testing.T) {
 	t.Run("construction", func(t *testing.T) {
 		t.Run("NewBufferIterator at beginning", func(t *testing.T) {
 			// Test with simple single-line buffer
-			buf := NewBuffer("Hello World", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Hello World", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Verify iterator is at beginning
@@ -43,7 +43,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("NewBufferIterator with multi-line", func(t *testing.T) {
 			// Test with multi-line buffer
-			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Verify iterator is at beginning
@@ -70,7 +70,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("NewBufferIteratorAtEnd", func(t *testing.T) {
 			// Test with multi-line buffer
-			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIteratorAtEnd(buf)
 
 			// Verify iterator is at EOF
@@ -102,7 +102,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("empty buffer", func(t *testing.T) {
 			// Test with empty buffer
-			buf := NewBuffer("", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Verify iterator is at beginning (which is also EOF for empty buffer)
@@ -127,7 +127,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("buffer ending with newline", func(t *testing.T) {
 			// Test buffer that ends with \n
-			buf := NewBuffer("Line 1\nLine 2\nLine 3\n", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3\n", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Test NewBufferIterator
 			iter := NewBufferIterator(buf)
@@ -161,7 +161,7 @@ func TestIteratorLogic(t *testing.T) {
 
 	t.Run("basic navigation", func(t *testing.T) {
 		t.Run("Next moves forward one line", func(t *testing.T) {
-			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Start at line 0
@@ -189,7 +189,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("Previous moves backward one line", func(t *testing.T) {
-			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIteratorAtEnd(buf)
 
 			// Start at EOF
@@ -220,7 +220,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("navigation maintains correct offsets", func(t *testing.T) {
-			buf := NewBuffer("Hello\nWorld\nTest", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Hello\nWorld\nTest", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Line 0: "Hello" should start at offset 0
@@ -244,7 +244,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("navigation maintains correct node pointers", func(t *testing.T) {
-			buf := NewBuffer("Line1\nLine2", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line1\nLine2", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Verify initial node is a leaf
@@ -273,7 +273,7 @@ func TestIteratorLogic(t *testing.T) {
 
 	t.Run("edge case navigation", func(t *testing.T) {
 		t.Run("Next at EOF stays at EOF", func(t *testing.T) {
-			buf := NewBuffer("Line 1\nLine 2", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIteratorAtEnd(buf)
 
 			// Verify we're at EOF
@@ -298,7 +298,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("Previous at beginning stays at beginning", func(t *testing.T) {
-			buf := NewBuffer("Line 1\nLine 2", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Verify we're at beginning
@@ -321,7 +321,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("navigation through empty lines", func(t *testing.T) {
 			// Buffer with empty lines: "Line1\n\n\nLine4"
-			buf := NewBuffer("Line1\n\n\nLine4", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line1\n\n\nLine4", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Line 0: "Line1"
@@ -361,7 +361,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("navigation in single-line buffer", func(t *testing.T) {
 			// Buffer with no newlines
-			buf := NewBuffer("Single line only", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Single line only", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Should be at line 0
@@ -387,7 +387,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("buffer starting with newline", func(t *testing.T) {
 			// Buffer starting with newline: "\nLine2\nLine3"
-			buf := NewBuffer("\nLine2\nLine3", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("\nLine2\nLine3", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Line 0 should be empty
@@ -404,7 +404,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("multiple consecutive newlines", func(t *testing.T) {
 			// Buffer with many consecutive newlines
-			buf := NewBuffer("A\n\n\n\n\nB", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("A\n\n\n\n\nB", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Count lines forward
@@ -445,7 +445,7 @@ func TestIteratorLogic(t *testing.T) {
 		t.Run("iterator moves between leaf nodes correctly", func(t *testing.T) {
 			// Create a buffer that will have multiple nodes
 			// Start with small buffer and insert to trigger splits
-			buf := NewBuffer("initial", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("initial", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Insert large text to force splits
 			largeText := strings.Repeat("X", 5000)
@@ -706,7 +706,7 @@ func TestIteratorLogic(t *testing.T) {
 
 	t.Run("content verification", func(t *testing.T) {
 		t.Run("Line() returns correct content at each position", func(t *testing.T) {
-			buf := NewBuffer("First line\nSecond line\nThird line", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("First line\nSecond line\nThird line", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			testCases := []struct {
 				lineNum      int
@@ -741,7 +741,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("LineNumber() returns correct values", func(t *testing.T) {
-			buf := NewBuffer("A\nB\nC\nD\nE", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("A\nB\nC\nD\nE", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Verify LineNumber() matches LineNum field
@@ -766,7 +766,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("Position() returns correct byte offsets", func(t *testing.T) {
 			// Use specific content where we know exact byte positions
-			buf := NewBuffer("AB\nCDE\nF", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("AB\nCDE\nF", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			testCases := []struct {
 				lineNum  int
@@ -794,7 +794,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("LineEnd() returns correct end positions", func(t *testing.T) {
-			buf := NewBuffer("Hello\nWorld\nTest", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Hello\nWorld\nTest", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			testCases := []struct {
 				lineNum   int
@@ -836,7 +836,7 @@ func TestIteratorLogic(t *testing.T) {
 		t.Run("content consistency after navigation", func(t *testing.T) {
 			// Create buffer with known content
 			content := "Line 1: Hello\nLine 2: World\nLine 3: Test\nLine 4: End"
-			buf := NewBuffer(content, "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer(content, "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Navigate forward and collect all lines
 			forwardLines := []string{}
@@ -887,7 +887,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("LineBytes() returns correct byte slices", func(t *testing.T) {
-			buf := NewBuffer("Hello\nWorld", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Hello\nWorld", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// First line
@@ -918,7 +918,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("content with unicode characters", func(t *testing.T) {
 			// Test with multi-byte unicode characters
-			buf := NewBuffer("Hello 世界\nΓεια σου\n👋 Emoji", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Hello 世界\nΓεια σου\n👋 Emoji", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			expectedLines := []string{
@@ -944,7 +944,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("empty line content", func(t *testing.T) {
-			buf := NewBuffer("\n\n\n", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("\n\n\n", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// All lines should be empty
@@ -963,7 +963,7 @@ func TestIteratorLogic(t *testing.T) {
 	t.Run("complex buffer tests", func(t *testing.T) {
 		t.Run("navigation through buffer with multiple insertions", func(t *testing.T) {
 			// Start with a simple buffer
-			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Perform multiple insertions at different positions
 			buf.Insert(7, "INSERTED-") // After "Line 1\n"
@@ -1004,7 +1004,7 @@ func TestIteratorLogic(t *testing.T) {
 				lines = append(lines, strings.Repeat("X", 50)+" Line "+strconv.Itoa(i))
 			}
 			content := strings.Join(lines, "\n")
-			buf := NewBuffer(content, "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer(content, "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Verify buffer has split
 			if buf.Rope.root.IsLeaf() {
@@ -1046,7 +1046,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("navigation through complex tree structure", func(t *testing.T) {
 			// Build a complex tree by strategic insertions
-			buf := NewBuffer("Initial", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Initial", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Insert at various positions to create a complex tree
 			insertions := []struct {
@@ -1105,7 +1105,7 @@ func TestIteratorLogic(t *testing.T) {
 
 		t.Run("iterator invalidation after buffer modifications", func(t *testing.T) {
 			// Create initial buffer
-			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Create iterators at different positions
 			iter1 := NewBufferIterator(buf)        // At line 0
@@ -1160,7 +1160,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("mixed navigation patterns", func(t *testing.T) {
-			buf := NewBuffer("A\nB\nC\nD\nE\nF\nG", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("A\nB\nC\nD\nE\nF\nG", "test.txt", "test.txt", config.IndentSpaces, 4)
 			iter := NewBufferIterator(buf)
 
 			// Complex navigation pattern: forward, forward, back, forward, back, back
@@ -1201,7 +1201,7 @@ func TestIteratorLogic(t *testing.T) {
 			longLine3 := strings.Repeat("C", 2800)
 
 			content := longLine1 + "\n" + longLine2 + "\n" + longLine3
-			buf := NewBuffer(content, "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer(content, "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			// Navigate forward
 			iter := NewBufferIterator(buf)
@@ -1249,7 +1249,7 @@ func TestIteratorLogic(t *testing.T) {
 
 			// Case 1: "11\n22" - buffer doesn't end with newline
 			t.Run("buffer without trailing newline", func(t *testing.T) {
-				buf := NewBuffer("11\n22", "test.txt", config.IndentSpaces, 4)
+				buf := NewBuffer("11\n22", "test.txt", "test.txt", config.IndentSpaces, 4)
 				iter := NewBufferIteratorAtEnd(buf)
 
 				// Should be at EOF (position 5)
@@ -1269,7 +1269,7 @@ func TestIteratorLogic(t *testing.T) {
 
 			// Case 2: "11\n22\n" - buffer ends with single newline
 			t.Run("buffer with trailing newline", func(t *testing.T) {
-				buf := NewBuffer("11\n22\n", "test.txt", config.IndentSpaces, 4)
+				buf := NewBuffer("11\n22\n", "test.txt", "test.txt", config.IndentSpaces, 4)
 				iter := NewBufferIteratorAtEnd(buf)
 
 				if iter.Offset != 6 {
@@ -1288,7 +1288,7 @@ func TestIteratorLogic(t *testing.T) {
 
 			// Case 3: "11\n22\n\n" - buffer ends with multiple newlines
 			t.Run("buffer with multiple trailing newlines", func(t *testing.T) {
-				buf := NewBuffer("11\n22\n\n", "test.txt", config.IndentSpaces, 4)
+				buf := NewBuffer("11\n22\n\n", "test.txt", "test.txt", config.IndentSpaces, 4)
 				iter := NewBufferIteratorAtEnd(buf)
 
 				// Should be at EOF (position 7)
@@ -1318,7 +1318,7 @@ func TestIteratorLogic(t *testing.T) {
 		})
 
 		t.Run("NewBufferIteratorAtLine", func(t *testing.T) {
-			buf := NewBuffer("Line 1\nLine 2\nLine 3\n", "test.txt", config.IndentSpaces, 4)
+			buf := NewBuffer("Line 1\nLine 2\nLine 3\n", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 			testCases := []struct {
 				name      string
@@ -1360,7 +1360,7 @@ func TestIteratorLogic(t *testing.T) {
 
 			// Test with buffer without trailing newline
 			t.Run("buffer without trailing newline", func(t *testing.T) {
-				buf2 := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", config.IndentSpaces, 4)
+				buf2 := NewBuffer("Line 1\nLine 2\nLine 3", "test.txt", "test.txt", config.IndentSpaces, 4)
 
 				iter := NewBufferIteratorAtLine(buf2, 2)
 				if iter.Line() != "Line 3" {

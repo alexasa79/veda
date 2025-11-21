@@ -156,7 +156,7 @@ func (e *Editor) showProjectChanges(args []string) error {
 				buf.RealPath = ""
 				ed.switchToBuffer(buf)
 			} else {
-				newBuffer := buffer.NewBuffer(final, bufferName, ed.config.DefaultIndentType, ed.config.DefaultIndentWidth)
+				newBuffer := buffer.NewBuffer(final, bufferName, bufferName, ed.config.DefaultIndentType, ed.config.DefaultIndentWidth)
 				newBuffer.IsReadOnly = true
 				newBuffer.IsInternal = true
 				newBuffer.RealPath = ""
