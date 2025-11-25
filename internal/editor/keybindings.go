@@ -77,6 +77,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "delete", "delete-character-insert")
 	e.registerKeyBinding(commands.InsertMode, "alt+delete", "delete-word-forward")
 	e.registerKeyBinding(commands.InsertMode, "alt+backspace", "delete-word-backward")
+	e.registerKeyBinding(commands.InsertMode, "ctrl+k", "delete-to-end-of-line")
 	e.registerKeyBinding(commands.InsertMode, "tab", "insert-tab")
 
 	// Cursor movement in insert mode

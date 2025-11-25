@@ -1141,9 +1141,18 @@ func (e *Editor) deleteToEndOfLine(args []string) error {
 
 	// Adjust cursor position if needed
 	line = e.CurrentBuffer().CursorIterator.Line()
-	if e.CurrentBuffer().CursorX > 0 && e.CurrentBuffer().CursorX >= len(line) && len(line) > 0 {
-		// In normal mode, cursor should be on last character if line is not empty
-		e.CurrentBuffer().CursorX = len(line) - 1
+	if e.mode == commands.NormalMode {
+		if e.CurrentBuffer().CursorX > 0 && e.CurrentBuffer().CursorX >= len(line) && len(line) > 0 {
+			// In normal mode, cursor should be on last character if line is not empty
+			e.CurrentBuffer().CursorX = len(line) - 1
+		}
+	} else {
+		// In insert mode, keep cursor at original column if possible
+		if startX <= len(line) {
+			e.CurrentBuffer().CursorX = startX
+		} else {
+			e.CurrentBuffer().CursorX = len(line)
+		}
 	}
 
 	// Update syntax highlighting
