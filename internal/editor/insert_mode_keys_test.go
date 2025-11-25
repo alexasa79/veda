@@ -59,6 +59,18 @@ func TestDeleteKeyInInsert(t *testing.T) {
 	})
 }
 
+func TestCtrlKDeleteToEndOfLineInInsertMode(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "hello world")
+
+	te.ExecuteCommand("enter-insert-mode")
+	te.SetCursorPosition(6, 0) // on 'w'
+
+	te.ExecuteCommand("delete-to-end-of-line")
+
+	AssertBufferEquals(t, te, "hello ")
+	AssertCursorAt(t, te, 6, 0)
+}
+
 // TestAltArrowKeysInInsert tests Alt+Left/Right word navigation in insert mode
 func TestAltArrowKeysInInsert(t *testing.T) {
 	t.Run("alt+right moves forward by word", func(t *testing.T) {
