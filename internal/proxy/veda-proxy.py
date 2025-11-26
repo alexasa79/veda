@@ -29,7 +29,7 @@ import struct
 import time
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.35"
+PROXY_VERSION = "1.0.37"
 
 # Set up logging directory
 from datetime import datetime
@@ -142,8 +142,12 @@ class LSPManager:
     def start_server(self, language: str) -> bool:
         """Start the LSP server for the specified language."""
         if language in self.servers:
-            logger.info(f"LSP server for {language} is already running")
-            return True
+            # If it's just the initializing marker, proceed to start the server
+            if self.servers[language].get('initializing'):
+                pass  # Continue with server startup
+            else:
+                logger.info(f"LSP server for {language} is already running")
+                return True
             
         if language not in self.language_servers:
             logger.error(f"No LSP server configured for language: {language}")
@@ -254,11 +258,7 @@ class LSPManager:
         
         def init_server():
             try:
-                # Remove the temporary marker
-                if language in self.servers and self.servers[language].get('initializing'):
-                    del self.servers[language]
-                
-                # Actually start the server
+                # Actually start the server (will replace the initializing marker)
                 if self.start_server(language):
                     logger.info(f"LSP server for {language} initialized asynchronously")
                     
@@ -339,7 +339,7 @@ class LSPManager:
                         "synchronization": {
                             "dynamicRegistration": False,
                             "willSave": False,
-                            "didSave": False,
+                            "didSave": True,
                             "willSaveWaitUntil": False
                         }
                     }
@@ -895,6 +895,7 @@ class LSPManager:
     def _open_file(self, language: str, file_path: str):
         """Notify LSP server that a file has been opened."""
         if language not in self.servers:
+            logger.warning(f"Cannot open {file_path} - no {language} server running")
             return
             
         # If server is still initializing, defer the file opening
@@ -963,7 +964,8 @@ class LSPManager:
         }
         
         self._send_message(language, notification)
-        
+        logger.info(f"Sent textDocument/didOpen for {norm_path}")
+
         # Track that this file is open (normalized path)
         self.servers[language]['open_files'].add(norm_path)
     
@@ -975,9 +977,13 @@ class LSPManager:
         server = self.servers[language]
         # Normalize path for consistency with _open_file
         norm_path = str(Path(file_path).expanduser().resolve())
-        
+
         # Check if server is initialized and file is open
-        if server.get('initializing') or norm_path not in server.get('open_files', set()):
+        if server.get('initializing'):
+            logger.debug(f"Skipping didChange for {norm_path} - server still initializing")
+            return
+        if norm_path not in server.get('open_files', set()):
+            logger.warning(f"Skipping didChange for {norm_path} - file not in open_files set: {server.get('open_files', set())}")
             return
             
         # Increment version number for this file
@@ -1009,7 +1015,37 @@ class LSPManager:
         
         self._send_message(language, notification)
         logger.debug(f"Sent didChange for {file_path} version {new_version}")
-    
+
+    def _send_did_save(self, language: str, file_path: str, content: str):
+        """Send textDocument/didSave notification to the LSP server."""
+        if language not in self.servers:
+            return
+
+        server = self.servers[language]
+        # Normalize path for consistency with _open_file
+        norm_path = str(Path(file_path).expanduser().resolve())
+
+        # Check if server is initialized and file is open
+        if server.get('initializing') or norm_path not in server.get('open_files', set()):
+            return
+
+        # Build proper file URI
+        file_uri = Path(norm_path).as_uri()
+
+        notification = {
+            "jsonrpc": "2.0",
+            "method": "textDocument/didSave",
+            "params": {
+                "textDocument": {
+                    "uri": file_uri
+                },
+                "text": content  # Include text content for full sync
+            }
+        }
+
+        self._send_message(language, notification)
+        logger.debug(f"Sent didSave for {file_path}")
+
     def _read_lsp_message(self, language: str) -> Optional[Dict[str, Any]]:
         """Read a single LSP message from the server."""
         if language not in self.servers:
@@ -1085,7 +1121,59 @@ class LSPManager:
             diagnostics = params.get('diagnostics', [])
             self.diagnostics[uri] = diagnostics
             logger.debug(f"Received {len(diagnostics)} diagnostics for {uri}")
-    
+
+            # Forward diagnostics to editor as notification
+            self._notify_editor_diagnostics(uri, diagnostics)
+
+    def _notify_editor_diagnostics(self, uri: str, raw_diagnostics: list):
+        """Send diagnostic notification to the editor."""
+        # Convert file:// URI to path
+        if uri.startswith('file://'):
+            file_path = uri[7:]  # Remove 'file://' prefix
+        else:
+            file_path = uri
+
+        # Convert LSP diagnostics to our format
+        diagnostics_list = []
+        for d in raw_diagnostics:
+            rng = d.get('range', {})
+            start = rng.get('start', {})
+            end = rng.get('end', {})
+            # LSP lines are 0-based; convert to 1-based
+            line_1_based = int(start.get('line', 0)) + 1
+            start_char = int(start.get('character', 0) or 0)
+            end_char = int(end.get('character', start_char) or start_char)
+            severity_num = int(d.get('severity', 0) or 0)
+            if severity_num == 1:
+                sev = 'error'
+            elif severity_num == 2:
+                sev = 'warning'
+            elif severity_num == 3:
+                sev = 'info'
+            elif severity_num == 4:
+                sev = 'hint'
+            else:
+                sev = 'info'
+            diagnostics_list.append({
+                'line': line_1_based,
+                'start_char': start_char,
+                'end_char': end_char,
+                'severity': sev,
+                'message': d.get('message', '')
+            })
+
+        # Send notification to editor (JSON-RPC notification has no "id" field)
+        notification = {
+            'jsonrpc': '2.0',
+            'method': 'diagnostics',
+            'params': {
+                'path': file_path,
+                'diagnostics': diagnostics_list
+            }
+        }
+        print(json.dumps(notification), flush=True)
+        logger.debug(f"Sent diagnostic notification to editor for {file_path} with {len(diagnostics_list)} diagnostics")
+
     def _wait_for_response(self, language: str, request_id: int, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
         """Wait for a response with a specific request ID."""
         if language not in self.pending_requests:
@@ -1874,8 +1962,10 @@ class VedaProxy:
             # Notify LSP server about the file change
             language = self.lsp.get_language_for_file(str(file_path))
             if language and language in self.lsp.servers:
-                # TODO: Send didSave notification to LSP server
-                logger.info(f"File saved, should notify LSP server for {language}")
+                # Send didChange first to update the content, then didSave
+                self.lsp._send_did_change(language, str(file_path), content)
+                self.lsp._send_did_save(language, str(file_path), content)
+                logger.debug(f"Sent didChange and didSave notifications to LSP server for {language}")
             
             # Get git changes for the file after save
             changes = self._get_file_git_changes(file_path)

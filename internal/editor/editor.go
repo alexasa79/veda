@@ -412,6 +412,20 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		}
 	})
 
+	// Handle diagnostic updates from LSP servers via proxy
+	proxyManager.SetDiagnosticCallback(func(path string, diagnostics []proxy.Diagnostic) {
+		// Find the buffer for this file path
+		buf, exists := editor.buffers[path]
+		if exists {
+			// Update buffer diagnostics
+			buf.Diagnostics = diagnostics
+			LL.Debug("Updated diagnostics for %s: %d diagnostics", path, len(diagnostics))
+
+			// Wake the main loop to trigger a redraw
+			editor.asyncEvents <- events.NewCustomEvent("render", nil)
+		}
+	})
+
 	// Register commands
 	editor.registerCommands()
 
