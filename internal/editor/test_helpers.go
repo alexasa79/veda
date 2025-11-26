@@ -214,16 +214,27 @@ func (te *TestEditor) TypeKeys(keys string) {
 	// If the input looks like a key sequence (e.g., "space v", "g d"),
 	// parse it using the same parser the keybindings use so multi-key
 	// sequences are recognized correctly.
+	// Only try this if it starts with known key names (space, ctrl, shift, etc.)
+	// to avoid misinterpreting normal text like "ccint value = add(1, 2)".
 	if fields := strings.Fields(keys); len(fields) > 1 {
-		if seq, err := commands.ParseKeySequence(keys); err == nil {
-			for _, k := range seq {
-				ev := &events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod}
-				// Delegate to the main event handler logic
-				te.handleEvent(ev)
+		firstWord := strings.ToLower(fields[0])
+		// Check if it looks like an intentional key sequence
+		isKeySequence := firstWord == "space" || firstWord == "ctrl" ||
+			firstWord == "shift" || firstWord == "alt" ||
+			firstWord == "enter" || firstWord == "tab" ||
+			firstWord == "escape" || firstWord == "backspace"
+
+		if isKeySequence {
+			if seq, err := commands.ParseKeySequence(keys); err == nil {
+				for _, k := range seq {
+					ev := &events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod}
+					// Delegate to the main event handler logic
+					te.handleEvent(ev)
+				}
+				return
 			}
-			return
 		}
-		// If parsing fails, fall through to raw typing below
+		// If not a key sequence or parsing fails, fall through to raw typing below
 	}
 
 	// Raw typing: send each rune as a key event, mapping common control chars

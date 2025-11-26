@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.35"
+const ProxyVersion = "1.0.37"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -38,14 +38,18 @@ type StatusCallback func(status string)
 // like "info", "warn", or "error" for display in the editor's *Messages* buffer.
 type MessageCallback func(level string, message string)
 
+// DiagnosticCallback is a function that receives diagnostic updates from LSP
+type DiagnosticCallback func(path string, diagnostics []Diagnostic)
+
 // ProxyManager manages multiple proxy instances for different hosts
 type ProxyManager struct {
 	clients map[string]*Client // key is hostname, empty string for local
 	// mu protects access to the clients map and related state.
 	// Do not hold mu while performing network I/O or long-running operations.
-	mu              sync.Mutex
-	statusCallback  StatusCallback  // callback for status updates
-	messageCallback MessageCallback // callback for log/messages
+	mu                 sync.Mutex
+	statusCallback     StatusCallback     // callback for status updates
+	messageCallback    MessageCallback    // callback for log/messages
+	diagnosticCallback DiagnosticCallback // callback for diagnostic updates
 }
 
 // NewProxyManager creates a new proxy manager
@@ -59,6 +63,7 @@ func NewProxyManager() (*ProxyManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start local proxy: %w", err)
 	}
+	localClient.manager = pm
 	pm.clients[""] = localClient
 
 	return pm, nil
@@ -82,10 +87,22 @@ func (pm *ProxyManager) SetMessageCallback(callback MessageCallback) {
 	pm.messageCallback = callback
 }
 
+// SetDiagnosticCallback sets the callback for diagnostic updates
+func (pm *ProxyManager) SetDiagnosticCallback(callback DiagnosticCallback) {
+	pm.diagnosticCallback = callback
+}
+
 // reportMessage sends a log-style message to the editor if callback set
 func (pm *ProxyManager) reportMessage(level, message string) {
 	if pm.messageCallback != nil {
 		pm.messageCallback(level, message)
+	}
+}
+
+// handleDiagnosticUpdate processes diagnostic updates from the proxy
+func (pm *ProxyManager) handleDiagnosticUpdate(path string, diagnostics []Diagnostic) {
+	if pm.diagnosticCallback != nil {
+		pm.diagnosticCallback(path, diagnostics)
 	}
 }
 
@@ -202,6 +219,7 @@ func (pm *ProxyManager) startRemoteProxy(host string) (*Client, *exec.Cmd, error
 		cmd:       cmd,
 		stdin:     stdin,
 		stdout:    stdout,
+		manager:   pm,
 		requestID: 0,
 		pending:   make(map[int]chan map[string]interface{}),
 		readerErr: make(chan error, 1),
@@ -1025,9 +1043,10 @@ type ProjectSymbol struct {
 
 // Client represents a proxy client
 type Client struct {
-	cmd    *exec.Cmd
-	stdin  *bufio.Writer
-	stdout *bufio.Scanner
+	cmd     *exec.Cmd
+	stdin   *bufio.Writer
+	stdout  *bufio.Scanner
+	manager *ProxyManager // Reference back to manager for notifications
 
 	// Request ID and writer access must be synchronized
 	mu        sync.Mutex // Protects requestID and stdin writes
@@ -1480,7 +1499,8 @@ func (c *Client) readerLoop() {
 
 		idVal, ok := msg["id"]
 		if !ok {
-			LL.Debug("Dropping proxy message without id")
+			// This is a notification (no id field)
+			c.handleNotification(msg)
 			continue
 		}
 
@@ -1515,6 +1535,78 @@ func (c *Client) readerLoop() {
 		default:
 			LL.Debug("Response channel full for id=%d; dropping", id)
 		}
+	}
+}
+
+// handleNotification processes notifications from the proxy (messages without id)
+func (c *Client) handleNotification(msg map[string]interface{}) {
+	method, ok := msg["method"].(string)
+	if !ok {
+		LL.Debug("Notification missing method field")
+		return
+	}
+
+	switch method {
+	case "diagnostics":
+		c.handleDiagnosticNotification(msg)
+	default:
+		LL.Debug("Unknown notification method: %s", method)
+	}
+}
+
+// handleDiagnosticNotification processes diagnostic notifications from the proxy
+func (c *Client) handleDiagnosticNotification(msg map[string]interface{}) {
+	params, ok := msg["params"].(map[string]interface{})
+	if !ok {
+		LL.Debug("Diagnostic notification missing params")
+		return
+	}
+
+	path, ok := params["path"].(string)
+	if !ok {
+		LL.Debug("Diagnostic notification missing path")
+		return
+	}
+
+	diagsRaw, ok := params["diagnostics"].([]interface{})
+	if !ok {
+		LL.Debug("Diagnostic notification missing diagnostics array")
+		return
+	}
+
+	// Convert to Diagnostic slice
+	var diagnostics []Diagnostic
+	for _, item := range diagsRaw {
+		dm, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		d := Diagnostic{}
+		if ln, ok := dm["line"].(float64); ok {
+			d.Line = int(ln)
+		}
+		if sev, ok := dm["severity"].(string); ok {
+			d.Severity = sev
+		}
+		if msg, ok := dm["message"].(string); ok {
+			d.Message = msg
+		}
+		if sc, ok := dm["start_char"].(float64); ok {
+			d.StartChar = int(sc)
+		}
+		if ec, ok := dm["end_char"].(float64); ok {
+			d.EndChar = int(ec)
+		}
+		if d.Line > 0 && d.Severity != "" {
+			diagnostics = append(diagnostics, d)
+		}
+	}
+
+	LL.Debug("Received diagnostic notification for %s with %d diagnostics", path, len(diagnostics))
+
+	// Forward to ProxyManager to update the editor
+	if c.manager != nil {
+		c.manager.handleDiagnosticUpdate(path, diagnostics)
 	}
 }
 
