@@ -429,6 +429,7 @@ func (e *Editor) openFile(filePath string) {
 	var changes *proxy.FileChanges
 	var branch string
 	var diagnostics []proxy.Diagnostic
+	var lspError string
 
 	if err != nil {
 		// Surface the error to the user, but still fall back to creating a new buffer
@@ -439,12 +440,14 @@ func (e *Editor) openFile(filePath string) {
 		content = ""
 		changes = &proxy.FileChanges{Added: []int{}, Deleted: []int{}, Modified: []int{}}
 		branch = "main"
+		lspError = ""
 		LL.Info("Creating new file (fallback due to open error %v): %s", err, resolvedPath)
 	} else {
 		content = fileContent.Content
 		changes = &fileContent.Changes
 		branch = fileContent.Branch
 		diagnostics = fileContent.Diagnostics
+		lspError = fileContent.LSPError
 
 		// Check for auto-save recovery if we have a file that actually exists
 		// If the file doesn't exist (proxy returned empty content), skip auto-save recovery
@@ -498,11 +501,11 @@ func (e *Editor) openFile(filePath string) {
 	}
 
 	// Finish opening immediately (no recovery dialog shown)
-	e.finishOpenFile(resolvedPath, content, changes, branch, diagnostics)
+	e.finishOpenFile(resolvedPath, content, changes, branch, diagnostics, lspError)
 }
 
 // finishOpenFile finalizes opening a file into a buffer and switching to it
-func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *proxy.FileChanges, branch string, diagnostics []proxy.Diagnostic) {
+func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *proxy.FileChanges, branch string, diagnostics []proxy.Diagnostic, lspError string) {
 	// Create a new buffer with the file content (empty for new files)
 	newBuffer := buffer.NewBuffer(content, resolvedPath, resolvedPath, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 
@@ -556,7 +559,14 @@ func (e *Editor) finishOpenFile(resolvedPath string, content string, changes *pr
 	// Enable LSP support and request a non-blocking diagnostics refresh
 	if newBuffer.HasFile() {
 		newBuffer.HasLSP = true
-		e.requestDiagnosticsRefresh(resolvedPath)
+
+		// Check if LSP startup failed
+		if lspError != "" {
+			newBuffer.LSPFailed = true
+			e.ShowError("LSP server failed to start: %s", lspError)
+		} else {
+			e.requestDiagnosticsRefresh(resolvedPath)
+		}
 	}
 }
 

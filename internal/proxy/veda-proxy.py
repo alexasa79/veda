@@ -27,6 +27,7 @@ import base64
 import uuid
 import struct
 import time
+import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
 PROXY_VERSION = "1.0.37"
@@ -54,8 +55,8 @@ logger = logging.getLogger(__name__)
 
 class LSPManager:
     """Manages Language Server Protocol servers for different languages."""
-    
-    def __init__(self):
+
+    def __init__(self, test_lsp_overrides=None):
         self.servers = {}  # language -> {'process': process, 'request_id': int}
         self.message_buffers = {}  # language -> list of all LSP messages
         self.pending_requests = {}  # language -> {request_id: threading.Event}
@@ -64,6 +65,7 @@ class LSPManager:
         self.diagnostics = {}  # uri -> list of diagnostics
         self.pending_file_opens = {}  # language -> set of file paths to open after init
         self.file_versions = {}  # file_path -> version number for LSP synchronization
+        self.lsp_errors = {}  # language -> error message when LSP server fails to start
         self.language_servers = {
             'go': {
                 'command': ['gopls', '-logfile=/tmp/gopls.log', '-rpc.trace'],
@@ -96,6 +98,13 @@ class LSPManager:
                 'install_hint': 'Install with: npm i -g typescript typescript-language-server'
             }
         }
+
+        # Apply test overrides if provided
+        if test_lsp_overrides:
+            for lang, cmd in test_lsp_overrides.items():
+                if lang in self.language_servers:
+                    self.language_servers[lang]['command'] = [cmd]
+                    logger.info(f"Test override: Using '{cmd}' for {lang} LSP server")
         
     def _find_project_root(self, start_path: Path) -> Path:
         """Find the project root by looking for various markers."""
@@ -261,7 +270,10 @@ class LSPManager:
                 # Actually start the server (will replace the initializing marker)
                 if self.start_server(language):
                     logger.info(f"LSP server for {language} initialized asynchronously")
-                    
+                    # Clear any previous error for this language
+                    if language in self.lsp_errors:
+                        del self.lsp_errors[language]
+
                     # Process any pending file opens
                     if hasattr(self, 'pending_file_opens') and language in self.pending_file_opens:
                         pending_files = self.pending_file_opens[language]
@@ -269,8 +281,15 @@ class LSPManager:
                             logger.info(f"Opening deferred file: {file_path}")
                             self._open_file(language, file_path)
                         del self.pending_file_opens[language]
+                else:
+                    # start_server returned False - server failed to start
+                    error_msg = f"LSP server for {language} failed to start"
+                    self.lsp_errors[language] = error_msg
+                    logger.error(error_msg)
             except Exception as e:
                 logger.error(f"Failed to start LSP server for {language} asynchronously: {e}")
+                # Store the error message
+                self.lsp_errors[language] = str(e)
                 # Clean up on failure
                 if language in self.servers and self.servers[language].get('initializing'):
                     del self.servers[language]
@@ -1326,8 +1345,8 @@ def log_proxy_method(func):
 class VedaProxy:
     """Main proxy class handling JSON RPC requests for various operations."""
 
-    def __init__(self):
-        self.lsp = LSPManager()
+    def __init__(self, test_lsp_overrides=None):
+        self.lsp = LSPManager(test_lsp_overrides=test_lsp_overrides)
         self.term = VedaProxy.TerminalManager()
         self.methods = {
             'get_file_attributes': self.get_file_attributes,
@@ -1809,6 +1828,7 @@ class VedaProxy:
                 'changes': {'added': [], 'deleted': [], 'modified': []},
                 'branch': 'main',
                 'diagnostics': [],
+                'lsp_error': '',
             }
             
         if not file_path.is_file():
@@ -1826,6 +1846,18 @@ class VedaProxy:
                 if language not in self.lsp.servers:
                     logger.info(f"Starting LSP server for {language} asynchronously when opening {path}")
                     self.lsp.start_server_async(language)
+
+                    # Wait briefly for LSP to either start or fail (to catch immediate errors)
+                    max_wait = 3.0  # seconds
+                    start_wait = time.time()
+                    while time.time() - start_wait < max_wait:
+                        if language in self.lsp.servers and not self.lsp.servers[language].get('initializing'):
+                            # Server has finished initializing (either success or removed on failure)
+                            break
+                        if language in self.lsp.lsp_errors:
+                            # Error detected
+                            break
+                        time.sleep(0.1)
 
                 # Notify LSP about the opened file (will be deferred if server is still initializing)
                 self.lsp._open_file(language, str(file_path))
@@ -1890,11 +1922,18 @@ class VedaProxy:
             except Exception as e:
                 logger.warning(f"Failed to translate diagnostics for {path}: {e}")
 
+            # Check if there's an LSP error for this file's language
+            lsp_error = ""
+            language = self.lsp.get_language_for_file(str(file_path))
+            if language and language in self.lsp.lsp_errors:
+                lsp_error = self.lsp.lsp_errors[language]
+
             return {
                 'content': content,
                 'changes': changes,
                 'branch': branch,
                 'diagnostics': diagnostics_list,
+                'lsp_error': lsp_error,
             }
         except UnicodeDecodeError:
             # Try reading as binary and return error
@@ -3133,6 +3172,16 @@ class JSONRPCHandler:
 
 def main():
     """Main entry point."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Veda Proxy - JSON RPC service')
+    parser.add_argument('--test-lsp-python', help='Override Python LSP server command for testing')
+    args = parser.parse_args()
+
+    # Build test overrides dictionary from parsed arguments
+    test_lsp_overrides = {}
+    if args.test_lsp_python:
+        test_lsp_overrides['python'] = args.test_lsp_python
+
     # Emit version handshake as the very first line on stdout
     try:
         print(json.dumps({"version": PROXY_VERSION}), flush=True)
@@ -3140,9 +3189,9 @@ def main():
         # If this fails, continue; client will time out and handle copying
         pass
 
-    proxy = VedaProxy()
+    proxy = VedaProxy(test_lsp_overrides=test_lsp_overrides if test_lsp_overrides else None)
     handler = JSONRPCHandler(proxy)
-    
+
     try:
         handler.run()
     except KeyboardInterrupt:
