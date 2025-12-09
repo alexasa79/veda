@@ -54,12 +54,18 @@ type ProxyManager struct {
 
 // NewProxyManager creates a new proxy manager
 func NewProxyManager() (*ProxyManager, error) {
+	return NewProxyManagerWithArgs(nil)
+}
+
+// NewProxyManagerWithArgs creates a new proxy manager with custom proxy arguments.
+// This is primarily used for testing to override LSP server commands.
+func NewProxyManagerWithArgs(proxyArgs []string) (*ProxyManager, error) {
 	pm := &ProxyManager{
 		clients: make(map[string]*Client),
 	}
 
-	// Start local proxy
-	localClient, err := NewClient()
+	// Start local proxy with custom arguments
+	localClient, err := NewClientWithArgs(proxyArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start local proxy: %w", err)
 	}
@@ -950,6 +956,7 @@ type FileContent struct {
 	Changes     FileChanges  `json:"changes"`
 	Branch      string       `json:"branch"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
+	LSPError    string       `json:"lsp_error"` // Error message if LSP startup failed
 }
 
 // FileChanges represents git changes in a file
@@ -1612,7 +1619,16 @@ func (c *Client) handleDiagnosticNotification(msg map[string]interface{}) {
 
 // NewClient creates a new proxy client and starts the proxy process
 func NewClient() (*Client, error) {
-	cmd := exec.Command("python3", proxyScriptPath)
+	return NewClientWithArgs(nil)
+}
+
+// NewClientWithArgs creates a new proxy client with custom arguments and starts the proxy process
+func NewClientWithArgs(proxyArgs []string) (*Client, error) {
+	args := []string{proxyScriptPath}
+	if proxyArgs != nil {
+		args = append(args, proxyArgs...)
+	}
+	cmd := exec.Command("python3", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdinPipe, err := cmd.StdinPipe()
