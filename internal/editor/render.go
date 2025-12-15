@@ -2001,10 +2001,16 @@ func (e *Editor) drawStatusBar() {
 			}
 		}
 
-		// Right side: indentation and line:col (only if buffer exists)
+		// Right side: position info (if buffer exists) and current time
+
+		currentTime := time.Now().Format("15:04")
+		timeInfo := fmt.Sprintf(" %s ", currentTime)
+
+		rightInfoLen := len(timeInfo)
+		hasBuffer := e.CurrentBuffer() != nil
 
 		var rightSideInfo string
-		if e.CurrentBuffer() != nil {
+		if hasBuffer {
 			// Use visual column position for display (accounting for tabs)
 			visualCol := 1
 			if !e.CurrentBuffer().CursorIterator.IsEOF() {
@@ -2047,7 +2053,7 @@ func (e *Editor) drawStatusBar() {
 			totalLines := e.CurrentBuffer().LineCount
 
 			// Calculate the full right info for positioning
-			rightSideInfo = fmt.Sprintf("%s  %s  %d/%d:%d/%d [%d]  ",
+			rightSideInfo = fmt.Sprintf("%s  %s  %d/%d:%d/%d [%d] ",
 				indentInfo, lineIndentDisplay,
 				currentLineNum, totalLines,
 				visualCol, lineLength,
@@ -2057,17 +2063,18 @@ func (e *Editor) drawStatusBar() {
 			rightSideInfo = ""
 		}
 
+		rightInfoLen += len(rightSideInfo)
+
 		// Get subdued style for total counts (without bold)
 		subduedStyle := e.config.Theme.GetStyle(e.config.Theme.StatusBarSubdued)
 
 		// Calculate position for right-aligned text
-		rightX := width - len(rightSideInfo)
+		rightX := width - rightInfoLen
 
-		if rightX > x && rightSideInfo != "" { // Only draw if there's space and info to show
-			// For empty windows, we already set rightSideInfo to "", so this won't draw
-			if e.CurrentBuffer() != nil {
-				// Draw each part separately with appropriate styles
-				x = rightX
+		if rightX > x { // Only draw if there's space to the right
+			// Draw each part separately with appropriate styles
+			x = rightX
+			if hasBuffer && rightSideInfo != "" {
 				indentInfo := ""
 				if e.CurrentBuffer().Indentation.Type == config.IndentTabs {
 					indentInfo = "Tabs"
@@ -2111,6 +2118,7 @@ func (e *Editor) drawStatusBar() {
 				x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", lineLength), 0, nil, -1, 0, -1)
 				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil, -1, 0, -1)
 			}
+			x += e.drawText(x, statusBarY, statusBarStyle, timeInfo, 0, nil, -1, 0, -1)
 		}
 	}
 }
