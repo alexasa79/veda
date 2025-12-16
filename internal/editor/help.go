@@ -190,6 +190,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":regcopy <src> <dst> - Copy between registers (use '0 for system clipboard)\n\n")
 
 	helpText.WriteString("== Configuration ==\n")
+	helpText.WriteString(":indent=spaces:<n>        - Set indentation to N spaces (e.g. indent=spaces:4)\n")
+	helpText.WriteString(":indent=tabs:<n>          - Set indentation to tabs with display width N\n")
 	helpText.WriteString(":expandtab=true/false     - Use spaces instead of tabs\n")
 	helpText.WriteString(":tabstop=<n> or :ts=<n>  - Set tab width\n")
 	helpText.WriteString(":log=<level>              - Set log level (info, debug, trace)\n")
