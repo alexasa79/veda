@@ -44,6 +44,17 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 					}
 				}
 				return completions
+			case "indent":
+				// Suggest indent formats
+				values := []string{"spaces:2", "spaces:4", "spaces:8", "tabs:2", "tabs:4", "tabs:8"}
+				var completions []string
+				for _, v := range values {
+					completion := varName + "=" + v
+					if strings.HasPrefix(completion, prefix) {
+						completions = append(completions, completion)
+					}
+				}
+				return completions
 			}
 		}
 	}
@@ -52,7 +63,7 @@ func (e *Editor) getCommandCompletions(prefix string) []string {
 	variables := []string{
 		"expandtab", "tabstop", "ts", "shiftwidth", "sw",
 		"number", "relativenumber", "autoindent", "smartindent",
-		"log",
+		"log", "indent",
 	}
 
 	// Get all registered command names

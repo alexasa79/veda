@@ -450,6 +450,30 @@ func (e *Editor) handleVariableAssignment(assignment string) {
 		}
 		e.config.VerticalRulers = rulers
 		LL.Info("Vertical rulers set to: %v", rulers)
+	case "indent":
+		// Set indentation: "spaces:N" or "tabs:N"
+		// N is the width (number of spaces per indent, or tab display width)
+		if strings.HasPrefix(value, "spaces:") {
+			widthStr := strings.TrimPrefix(value, "spaces:")
+			if width, err := strconv.Atoi(widthStr); err == nil && width > 0 && width <= 8 {
+				e.CurrentBuffer().Indentation.Type = config.IndentSpaces
+				e.CurrentBuffer().Indentation.Width = width
+				LL.Info("Indentation set to spaces:%d", width)
+			} else {
+				e.ShowError("Invalid indent width: %s (use 1-8)", widthStr)
+			}
+		} else if strings.HasPrefix(value, "tabs:") {
+			widthStr := strings.TrimPrefix(value, "tabs:")
+			if width, err := strconv.Atoi(widthStr); err == nil && width > 0 && width <= 8 {
+				e.CurrentBuffer().Indentation.Type = config.IndentTabs
+				e.CurrentBuffer().Indentation.Width = width
+				LL.Info("Indentation set to tabs:%d", width)
+			} else {
+				e.ShowError("Invalid indent width: %s (use 1-8)", widthStr)
+			}
+		} else {
+			e.ShowError("Invalid indent format: use 'spaces:N' or 'tabs:N'")
+		}
 	}
 }
 

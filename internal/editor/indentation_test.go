@@ -467,4 +467,92 @@ func TestIndentationCommands(t *testing.T) {
 			t.Errorf("Expected IndentSpaces after expandtab, got %v", te.CurrentBuffer().Indentation.Type)
 		}
 	})
+
+	t.Run("set indent=spaces:2", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "test content")
+
+		te.enterCommandMode()
+		te.commandLine.SetText(":indent=spaces:2")
+		te.executeCommand()
+
+		if te.CurrentBuffer().Indentation.Type != config.IndentSpaces {
+			t.Errorf("Expected IndentSpaces, got %v", te.CurrentBuffer().Indentation.Type)
+		}
+		if te.CurrentBuffer().Indentation.Width != 2 {
+			t.Errorf("Expected width 2, got %d", te.CurrentBuffer().Indentation.Width)
+		}
+	})
+
+	t.Run("set indent=spaces:4", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "test content")
+
+		te.enterCommandMode()
+		te.commandLine.SetText(":indent=spaces:4")
+		te.executeCommand()
+
+		if te.CurrentBuffer().Indentation.Type != config.IndentSpaces {
+			t.Errorf("Expected IndentSpaces, got %v", te.CurrentBuffer().Indentation.Type)
+		}
+		if te.CurrentBuffer().Indentation.Width != 4 {
+			t.Errorf("Expected width 4, got %d", te.CurrentBuffer().Indentation.Width)
+		}
+	})
+
+	t.Run("set indent=tabs:4", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "test content")
+
+		te.enterCommandMode()
+		te.commandLine.SetText(":indent=tabs:4")
+		te.executeCommand()
+
+		if te.CurrentBuffer().Indentation.Type != config.IndentTabs {
+			t.Errorf("Expected IndentTabs, got %v", te.CurrentBuffer().Indentation.Type)
+		}
+		if te.CurrentBuffer().Indentation.Width != 4 {
+			t.Errorf("Expected width 4, got %d", te.CurrentBuffer().Indentation.Width)
+		}
+	})
+
+	t.Run("set indent=tabs:8", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "test content")
+
+		te.enterCommandMode()
+		te.commandLine.SetText(":indent=tabs:8")
+		te.executeCommand()
+
+		if te.CurrentBuffer().Indentation.Type != config.IndentTabs {
+			t.Errorf("Expected IndentTabs, got %v", te.CurrentBuffer().Indentation.Type)
+		}
+		if te.CurrentBuffer().Indentation.Width != 8 {
+			t.Errorf("Expected width 8, got %d", te.CurrentBuffer().Indentation.Width)
+		}
+	})
+
+	t.Run("indent command completion", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "test content")
+
+		// Test completion for indent=
+		completions := te.getCommandCompletions("indent=")
+		if len(completions) == 0 {
+			t.Errorf("Expected completions for indent=, got none")
+		}
+
+		// Should include spaces:2, spaces:4, tabs:4 etc.
+		hasSpaces4 := false
+		hasTabs4 := false
+		for _, c := range completions {
+			if c == "indent=spaces:4" {
+				hasSpaces4 = true
+			}
+			if c == "indent=tabs:4" {
+				hasTabs4 = true
+			}
+		}
+		if !hasSpaces4 {
+			t.Errorf("Expected indent=spaces:4 in completions")
+		}
+		if !hasTabs4 {
+			t.Errorf("Expected indent=tabs:4 in completions")
+		}
+	})
 }
