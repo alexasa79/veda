@@ -24,8 +24,8 @@ func TestLSPServerNotFound(t *testing.T) {
 	}
 	defer pm.Close()
 
-	cwd, _ := os.Getwd()
-	filePath := filepath.Join(cwd, "../../artifacts/c-diagnostics-project/test_python.py")
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test_python.py")
 
 	pythonContent := `def add(a, b):
     return a + b
@@ -37,7 +37,6 @@ print(result)
 	if err := os.WriteFile(filePath, []byte(pythonContent), 0644); err != nil {
 		t.Fatalf("Failed to write Python file: %v", err)
 	}
-	defer os.Remove(filePath)
 
 	// Open the file - LSP error should be returned (GetFile will wait for LSP to start/fail)
 	fc, err := pm.GetFile(filePath)
@@ -129,7 +128,8 @@ func TestLSPServerExitsImmediately(t *testing.T) {
 	}
 	defer pm.Close()
 
-	filePath := filepath.Join(cwd, "../../artifacts/c-diagnostics-project/test_python.py")
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test_python.py")
 
 	pythonContent := `def add(a, b):
     return a + b
@@ -141,7 +141,6 @@ print(result)
 	if err := os.WriteFile(filePath, []byte(pythonContent), 0644); err != nil {
 		t.Fatalf("Failed to write Python file: %v", err)
 	}
-	defer os.Remove(filePath)
 
 	// Try to open the file - LSP error should be returned (GetFile will wait for LSP to start/fail)
 	fc, err := pm.GetFile(filePath)
