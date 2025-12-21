@@ -289,3 +289,10 @@ func (e *Editor) handleResize() {
 	e.render()
 	e.screen.Show()
 }
+
+// redrawScreen forces a complete screen redraw, clearing and re-rendering everything
+func (e *Editor) redrawScreen(args []string) error {
+	e.screen.Clear()
+	e.render()
+	return nil
+}
