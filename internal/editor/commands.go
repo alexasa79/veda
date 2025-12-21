@@ -262,6 +262,9 @@ func (e *Editor) registerCommands() {
 
 	// Cursor mode utilities
 	e.commandRegistry.Register("remove-last-virtual-cursor", e.removeLastVirtualCursorCmd, false, true)
+
+	// Screen commands
+	e.commandRegistry.Register("redraw-screen", e.redrawScreen, false, false)
 }
 
 // openTerminalCmd opens a terminal buffer and switches to terminal mode.
