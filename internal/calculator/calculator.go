@@ -47,8 +47,9 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 			if afterArrowStart < endPos {
 				afterArrow := strings.TrimSpace(line[afterArrowStart:endPos])
 				if afterArrow != "" {
-					// Tokenize and extract preprocessor directives
-					tokens, _, _ := TokenizeAndExtractPreprocessors(afterArrow, afterArrowStart)
+					// Preprocess units, then tokenize and extract preprocessor directives
+					preprocessedAfterArrow := PreprocessUnits(afterArrow)
+					tokens, _, _ := TokenizeAndExtractPreprocessors(preprocessedAfterArrow, afterArrowStart)
 					parser := NewParserFromTokens(tokens)
 					bigValue, err := parser.Parse()
 					if err == nil && (bestResult == nil || len(afterArrow) > len(bestResult.Expression)) {
@@ -82,8 +83,9 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 		}
 
 		// Try to parse and evaluate this expression with preprocessing
-		// First tokenize and extract preprocessor directives
-		tokens, _, _ := TokenizeAndExtractPreprocessors(testExpr, startPos)
+		// First preprocess units, then tokenize and extract preprocessor directives
+		preprocessedExpr := PreprocessUnits(testExpr)
+		tokens, _, _ := TokenizeAndExtractPreprocessors(preprocessedExpr, startPos)
 
 		// Parse using the tokens (which have directives removed)
 		parser := NewParserFromTokens(tokens)
@@ -112,8 +114,9 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 	if endPos > 0 {
 		testExpr := strings.TrimSpace(line[0:endPos])
 		if testExpr != "" {
-			// Tokenize and extract preprocessor directives
-			tokens, _, _ := TokenizeAndExtractPreprocessors(testExpr, 0)
+			// Preprocess units, then tokenize and extract preprocessor directives
+			preprocessedExpr := PreprocessUnits(testExpr)
+			tokens, _, _ := TokenizeAndExtractPreprocessors(preprocessedExpr, 0)
 			parser := NewParserFromTokens(tokens)
 			bigValue, err := parser.Parse()
 			if err == nil {
@@ -146,6 +149,9 @@ func FindExpressionFromPosition(line string, endPos int) (*Result, error) {
 
 // EvaluateExpression evaluates a mathematical expression and returns the result
 func EvaluateExpression(expr string) (float64, error) {
+	// Preprocess units (e.g., "1k" -> "(1*1000)")
+	expr = PreprocessUnits(expr)
+
 	// Tokenize and extract preprocessor directives
 	tokens, _, _ := TokenizeAndExtractPreprocessors(expr, 0)
 
@@ -166,6 +172,9 @@ func EvaluateExpression(expr string) (float64, error) {
 
 // EvaluateExpressionWithResult evaluates an expression and returns a CalculationResult with formatting info
 func EvaluateExpressionWithResult(expr string) (*CalculationResult, error) {
+	// Preprocess units (e.g., "1k" -> "(1*1000)")
+	expr = PreprocessUnits(expr)
+
 	// Tokenize and extract preprocessor directives
 	tokens, directive, hasDirective := TokenizeAndExtractPreprocessors(expr, 0)
 

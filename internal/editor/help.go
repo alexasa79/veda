@@ -135,7 +135,9 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Ctrl+O - -   - Use from insert mode to calculate without leaving insert\n")
 	helpText.WriteString("Ctrl+O - =   - Use from insert mode to replace without leaving insert\n")
 	helpText.WriteString("Supports: +, -, *, /, ** (power), parentheses\n")
-	helpText.WriteString("Number formats: decimal, 0xFF (hex), 0o77 (octal), 0b1010 (binary)\n\n")
+	helpText.WriteString("Number formats: decimal, 0xFF (hex), 0o77 (octal), 0b1010 (binary)\n")
+	helpText.WriteString("Unit suffixes: k (10^3), m (10^6), g/b (10^9), t (10^12)\n")
+	helpText.WriteString("Binary units: ki/kib (2^10), mi/mib (2^20), gi/gib (2^30), ti/tib (2^40), pi/pib (2^50), ei/eib (2^60)\n\n")
 
 	helpText.WriteString("= References Buffer =\n")
 	helpText.WriteString("Enter        - Jump to reference under cursor\n")
