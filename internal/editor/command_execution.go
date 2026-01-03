@@ -1,9 +1,24 @@
 package editor
 
-import "strings"
+import (
+	"strings"
+	"veda/internal/theme"
+)
 
 // getCommandCompletions provides tab completion for command mode
 func (e *Editor) getCommandCompletions(prefix string) []string {
+	// Check if this is a theme command with argument
+	if strings.HasPrefix(prefix, "theme ") {
+		themePrefix := strings.TrimPrefix(prefix, "theme ")
+		var completions []string
+		for _, name := range theme.GetThemeNames() {
+			if strings.HasPrefix(name, themePrefix) {
+				completions = append(completions, "theme "+name)
+			}
+		}
+		return completions
+	}
+
 	// Check if this is a variable assignment
 	if strings.Contains(prefix, "=") {
 		// Complete variable values

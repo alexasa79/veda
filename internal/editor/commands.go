@@ -109,6 +109,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("edit", e.editFile, false, false)
 	e.commandRegistry.Register("e", e.editFile, false, false) // Shortcut for edit
 	e.commandRegistry.Register("cd", e.changeDirectory, false, false)
+	e.commandRegistry.Register("theme", e.themeCommand, false, false)
 
 	// LSP commands
 	e.commandRegistry.Register("go-to-definition", e.goToDefinition, false, true)

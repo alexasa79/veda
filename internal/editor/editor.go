@@ -18,6 +18,7 @@ import (
 	"veda/internal/perf"
 	"veda/internal/proxy"
 	"veda/internal/syntax"
+	"veda/internal/theme"
 	"veda/internal/ui"
 	"veda/internal/widgets"
 )
@@ -2446,6 +2447,26 @@ func (e *Editor) changeDirectory(args []string) error {
 			LL.Info("Changed directory to: %s", e.workingDirectory)
 		}
 	}
+	return nil
+}
+
+// themeCommand handles the :theme command
+func (e *Editor) themeCommand(args []string) error {
+	if len(args) == 0 {
+		// Show current theme
+		e.ShowInfo("Current theme: %s", e.config.Theme.Name)
+		return nil
+	}
+
+	themeName := args[0]
+	newTheme := theme.GetThemeByName(themeName)
+	if newTheme == nil {
+		names := theme.GetThemeNames()
+		return fmt.Errorf("unknown theme: %s. Available: %s", themeName, strings.Join(names, ", "))
+	}
+
+	e.config.Theme = newTheme
+	e.ShowInfo("Theme changed to: %s", themeName)
 	return nil
 }
 
