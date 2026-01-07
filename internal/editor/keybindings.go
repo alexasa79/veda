@@ -62,6 +62,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "O", "open-line-above")
 	e.registerKeyBinding(commands.NormalMode, "J", "join-lines")
 	e.registerKeyBinding(commands.NormalMode, "alt+q", "rewrap-paragraph")
+	e.registerKeyBinding(commands.NormalMode, "alt+s", "spellcheck")
 	e.registerKeyBinding(commands.NormalMode, "m", "enter-cursor-mode")
 
 	// Delete commands
@@ -97,6 +98,7 @@ func (e *Editor) setupDefaultBindings() {
 
 	// Paragraph rewrapping in insert mode
 	e.registerKeyBinding(commands.InsertMode, "alt+q", "rewrap-paragraph")
+	e.registerKeyBinding(commands.InsertMode, "alt+s", "spellcheck")
 
 	// File operations
 	e.registerKeyBinding(commands.NormalMode, "s f", "open-file")
@@ -173,6 +175,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "alt+l", "to-lower")
 	e.registerKeyBindingForModes([]commands.Mode{commands.VisualMode, commands.VisualLineMode}, "alt+u", "to-upper")
 	e.registerKeyBindingForModes([]commands.Mode{commands.VisualMode, commands.VisualLineMode}, "alt+l", "to-lower")
+	e.registerKeyBindingForModes([]commands.Mode{commands.VisualMode, commands.VisualLineMode}, "alt+s", "spellcheck")
 
 	// Cursor mode: bind 'u' to remove the last virtual cursor (step-wise removal)
 	e.registerKeyBinding(commands.CursorMode, "u", "remove-last-virtual-cursor")

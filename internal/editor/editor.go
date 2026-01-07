@@ -141,6 +141,12 @@ type Editor struct {
 	flashEndChar   int   // End char of flashed region
 	flashEndTime   int64 // When to stop flashing (unix millis)
 
+	// Spell check highlight state (persistent during async operation)
+	spellCheckActive    bool           // True while spell check is in progress
+	spellCheckStartLine int            // Start line of spell check region
+	spellCheckEndLine   int            // End line of spell check region
+	spellCheckBuffer    *buffer.Buffer // Buffer being spell checked
+
 	// Bracketed paste capture buffer (collects runes during PasteEvent)
 	pasteBuffer strings.Builder
 
@@ -3561,4 +3567,17 @@ func (e *Editor) isInFlashRange(line, charPos int) bool {
 // hasFlashHighlight returns true if there is an active flash highlight
 func (e *Editor) hasFlashHighlight() bool {
 	return e.flashStartLine != -1 && e.flashEndTime > 0 && time.Now().UnixMilli() <= e.flashEndTime
+}
+
+// hasSpellCheckHighlight returns true if there is an active spell check highlight
+func (e *Editor) hasSpellCheckHighlight() bool {
+	return e.spellCheckActive && e.spellCheckBuffer == e.CurrentBuffer()
+}
+
+// isInSpellCheckRange checks if a line is within the spell check highlight range
+func (e *Editor) isInSpellCheckRange(line int) bool {
+	if !e.spellCheckActive || e.spellCheckBuffer != e.CurrentBuffer() {
+		return false
+	}
+	return line >= e.spellCheckStartLine && line <= e.spellCheckEndLine
 }

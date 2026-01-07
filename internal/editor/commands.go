@@ -219,6 +219,9 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("calculate-append", e.calculateAppend, false, true)
 	e.commandRegistry.Register("calculate-replace", e.calculateReplace, false, true)
 
+	// Spell check command
+	e.commandRegistry.Register("spellcheck", e.spellCheck, false, true)
+
 	// Temporary normal mode
 	e.commandRegistry.Register("enter-temporary-normal-mode", e.enterTemporaryNormalMode, false, false)
 
