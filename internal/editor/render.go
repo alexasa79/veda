@@ -384,6 +384,12 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			inFlash = e.isInFlashRange(lineNum, charPosInLine)
 		}
 
+		// Check if this line is part of the spell check highlight
+		var inSpellCheck bool
+		if lineNum >= 0 && x > 0 && e.hasSpellCheckHighlight() {
+			inSpellCheck = e.isInSpellCheckRange(lineNum)
+		}
+
 		currentStyle := style
 
 		// Determine if this position is within a diagnostic range for this line
@@ -434,6 +440,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		if inFlash {
 			// Flash takes highest precedence
 			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
+		} else if inSpellCheck {
+			// Spell check highlight (shows region being checked)
+			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
 		} else if inSelection {
 			// Selection takes precedence over search
 			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)

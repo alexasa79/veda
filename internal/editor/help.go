@@ -58,6 +58,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
 	helpText.WriteString("Alt+Q        - Rewrap paragraph (press again for 100, 120 columns)\n")
+	helpText.WriteString("Alt+S        - Spell check paragraph or selection (uses Ollama)\n")
 	helpText.WriteString("Ctrl+/       - Toggle line comment at indentation (language-aware; prefix count for N lines)\n")
 	helpText.WriteString(">>           - Indent current line (also works in VISUAL to indent selection)\n")
 	helpText.WriteString("<<           - Unindent current line (also works in VISUAL to unindent selection)\n")
@@ -189,7 +190,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":help-keys   - Show all key bindings\n")
 	helpText.WriteString(":diagnostics - Show project diagnostics/errors\n")
 	helpText.WriteString(":show-project-changes - Show all git changes in project\n")
-	helpText.WriteString(":theme [name] - Switch theme (monokai, dracula, nord, onedark)\n\n")
+	helpText.WriteString(":theme [name] - Switch theme (monokai, dracula, nord, onedark)\n")
+	helpText.WriteString(":spellcheck  - Check spelling/punctuation using Ollama (paragraph or selection)\n\n")
 	helpText.WriteString(":reg         - Show register contents (includes '0: system clipboard)\n")
 	helpText.WriteString(":regcopy <src> <dst> - Copy between registers (use '0 for system clipboard)\n\n")
 
