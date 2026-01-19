@@ -289,6 +289,8 @@ type TerminalSessionState struct {
 func NewWithScreen(screen Screen) (*Editor, error) {
 	// Default style will be set from theme
 	config := config.New()
+	// Load saved config settings (theme, scroll offset, etc.)
+	_ = config.Load() // Ignore errors - use defaults if config can't be loaded
 	normalStyle := config.Theme.GetStyle(config.Theme.Normal)
 	screen.SetStyle(normalStyle)
 
@@ -2472,6 +2474,10 @@ func (e *Editor) themeCommand(args []string) error {
 	}
 
 	e.config.Theme = newTheme
+	// Save config to persist the theme change
+	if err := e.config.Save(); err != nil {
+		LL.Debug("Failed to save config: %v", err)
+	}
 	e.ShowInfo("Theme changed to: %s", themeName)
 	return nil
 }
