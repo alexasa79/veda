@@ -109,3 +109,98 @@ func TestProjectChangesListsAndSkipsDeletedFile(t *testing.T) {
 		t.Fatalf("expected to open kept.txt, got %s", te.CurrentBuffer().FilePath)
 	}
 }
+
+// TestProjectChangesEnterOnDeletedFileShowsNotification ensures that pressing Enter
+// on a deleted file link in the Project Changes buffer shows a notification instead
+// of trying to open the file.
+func TestProjectChangesEnterOnDeletedFileShowsNotification(t *testing.T) {
+	repo := NewGitTestRepo(t)
+
+	run := func(name string, args ...string) {
+		cmd := exec.Command(name, args...)
+		cmd.Dir = repo
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %s %v\n%s", name, args, string(out))
+		}
+	}
+
+	// Initialize repo
+	run("git", "init", ".")
+	run("git", "config", "user.name", "Test User")
+	run("git", "config", "user.email", "test@example.com")
+
+	// Create a file and commit
+	var f1 []byte
+	for i := 1; i <= 50; i++ {
+		f1 = append(f1, []byte(fmt.Sprintf("Line %d\n", i))...)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "deleted.txt"), f1, 0644); err != nil {
+		t.Fatalf("write deleted: %v", err)
+	}
+	run("git", "add", ".")
+	run("git", "commit", "-m", "initial")
+
+	// Delete the file (staged deletion)
+	run("git", "rm", "deleted.txt")
+
+	// Open project changes
+	te := NewTestEditor(120, 30)
+	te.Editor.workingDirectory = repo
+	te.TypeKeys("s C")
+	te.WaitForAsyncOperations()
+
+	pc, ok := te.buffers["*Project Changes*"]
+	if !ok || pc == nil {
+		t.Fatalf("Project Changes buffer not opened")
+	}
+	bufText := pc.Rope.String()
+	deletedPath := canonicalTestPath(filepath.Join(repo, "deleted.txt"))
+
+	if !strings.Contains(bufText, "[D●] [deleted.txt]") {
+		t.Fatalf("expected staged deletion for deleted.txt, got:\n%s", bufText)
+	}
+
+	// Find the line with the deleted file link
+	delLine := -1
+	for i := 0; i < pc.LineCount; i++ {
+		it := buffer.NewBufferIteratorAtLine(pc, i)
+		line := it.Line()
+		if strings.Contains(line, fmt.Sprintf("](%s)", deletedPath)) {
+			delLine = i
+			break
+		}
+	}
+	if delLine < 0 {
+		t.Fatalf("could not locate deleted.txt link line")
+	}
+
+	// Move cursor to the deleted file's link line and position on the link
+	// Line format: "[D●] [deleted.txt](/path/to/deleted.txt) (+0 -50)"
+	// We need to position cursor within the link, not at line start
+	te.TypeKeys(":" + fmt.Sprint(delLine+1) + "\n")
+	// Move to the file link - use 'f[' to find the second '[' which starts the link
+	// Then move a few more characters into the link text
+	te.TypeKeys("f[")  // find first '['
+	te.TypeKeys(";")   // find next '[' (the link start)
+	te.TypeKeys("lll") // move into the link text
+
+	// Clear any existing messages
+	te.Editor.errorManager.ClearError()
+
+	// Press Enter to try to open the deleted file
+	te.TypeKeys("\n")
+	te.WaitForAsyncOperations()
+
+	// The buffer should still be *Project Changes* - we shouldn't have opened the deleted file
+	if te.CurrentBuffer().DisplayName() != "*Project Changes*" {
+		t.Fatalf("expected to stay on *Project Changes*, but switched to %s", te.CurrentBuffer().DisplayName())
+	}
+
+	// There should be a notification about the file being deleted
+	msg, _ := te.Editor.errorManager.GetCurrentBanner()
+	if !strings.Contains(msg, "deleted") && !strings.Contains(msg, "does not exist") {
+		t.Fatalf("expected notification about deleted file, got: %q", msg)
+	}
+}

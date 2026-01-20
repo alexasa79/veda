@@ -211,20 +211,24 @@ func (te *TestEditor) TypeKeys(keys string) {
 		return
 	}
 
-	// If the input looks like a key sequence (e.g., "space v", "g d"),
+	// If the input looks like a key sequence (e.g., "space v", "g d", "s C"),
 	// parse it using the same parser the keybindings use so multi-key
 	// sequences are recognized correctly.
-	// Only try this if it starts with known key names (space, ctrl, shift, etc.)
-	// to avoid misinterpreting normal text like "ccint value = add(1, 2)".
+	// A key sequence is detected when:
+	// 1. There are multiple space-separated tokens
+	// 2. Each token looks like a valid key (short length, no special chars like commas/parens)
 	if fields := strings.Fields(keys); len(fields) > 1 {
-		firstWord := strings.ToLower(fields[0])
-		// Check if it looks like an intentional key sequence
-		isKeySequence := firstWord == "space" || firstWord == "ctrl" ||
-			firstWord == "shift" || firstWord == "alt" ||
-			firstWord == "enter" || firstWord == "tab" ||
-			firstWord == "escape" || firstWord == "backspace"
+		looksLikeKeySequence := true
+		for _, f := range fields {
+			// Key tokens should be short (like "g", "C", "space", "ctrl+w")
+			// and not contain characters that indicate code (commas, parens, etc.)
+			if len(f) > 12 || strings.ContainsAny(f, ",(){}[];:\"'") {
+				looksLikeKeySequence = false
+				break
+			}
+		}
 
-		if isKeySequence {
+		if looksLikeKeySequence {
 			if seq, err := commands.ParseKeySequence(keys); err == nil {
 				for _, k := range seq {
 					ev := &events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod}

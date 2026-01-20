@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.37"
+PROXY_VERSION = "1.0.38"
 
 # Set up logging directory
 from datetime import datetime
@@ -2330,14 +2330,22 @@ class VedaProxy:
         try:
             # Use provided working directory or current directory
             cwd = Path(working_dir).expanduser().resolve() if working_dir else Path.cwd()
-            
+
+            # Get git root directory - git reports paths relative to this
+            git_root_cmd = ['git', 'rev-parse', '--show-toplevel']
+            git_root_result = self._run_shell_command(git_root_cmd, cwd=cwd)
+            if git_root_result.returncode != 0:
+                return {'success': False, 'error': 'Not a git repository'}
+            git_root = Path(git_root_result.stdout.strip())
+
             def to_absolute_path(path_str: str) -> str:
-                """Convert git-reported paths to absolute paths anchored at cwd."""
+                """Convert git-reported paths to absolute paths anchored at git root."""
                 raw_path = Path(path_str).expanduser()
                 if raw_path.is_absolute():
                     candidate = raw_path
                 else:
-                    candidate = cwd / raw_path
+                    # Git reports paths relative to git root, not cwd
+                    candidate = git_root / raw_path
                 try:
                     return str(candidate.resolve(strict=False))
                 except TypeError:
