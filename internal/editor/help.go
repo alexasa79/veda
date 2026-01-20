@@ -190,7 +190,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":help-keys   - Show all key bindings\n")
 	helpText.WriteString(":diagnostics - Show project diagnostics/errors\n")
 	helpText.WriteString(":show-project-changes - Show all git changes in project\n")
-	helpText.WriteString(":theme [name] - Switch theme (monokai, dracula, nord, onedark, tender, koda)\n")
+	helpText.WriteString(":theme [name] - Switch theme (monokai, dracula, nord, onedark, tender, koda, tokyonight, vscode)\n")
 	helpText.WriteString(":spellcheck  - Check spelling/punctuation using Ollama (paragraph or selection)\n\n")
 	helpText.WriteString(":reg         - Show register contents (includes '0: system clipboard)\n")
 	helpText.WriteString(":regcopy <src> <dst> - Copy between registers (use '0 for system clipboard)\n\n")
