@@ -113,7 +113,11 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 	// We optimistically handle directory detection in a goroutine to avoid
 	// blocking the main loop while remote proxy starts/copies.
 	host, _, isRemote := parsePathComponents(target)
-	go func(tgt string, ln int, remote bool, h string) {
+	operationID := "open-link-" + target
+	e.startAsyncOperation(operationID, "opening: "+target)
+	go func(tgt string, ln int, remote bool, h string, opID string) {
+		defer e.endAsyncOperation(opID)
+
 		// Give immediate feedback while we resolve attributes; the proxy
 		// callback will also provide granular status like Starting/Updating.
 		if remote {
@@ -130,7 +134,15 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 		e.connectionStatus = ""
 		e.asyncEvents <- events.NewCustomEvent("render", nil)
 
-		if err == nil && attrs != nil && attrs.IsDirectory {
+		// Check if file doesn't exist - show notification for deleted files
+		if err != nil {
+			e.Post(func(ed *Editor) {
+				ed.ShowInfo("File does not exist (deleted): %s", tgt)
+			})
+			return
+		}
+
+		if attrs != nil && attrs.IsDirectory {
 			// Switch working directory and show the fuzzy list on the main loop
 			e.Post(func(ed *Editor) {
 				ed.workingDirectory = tgt
@@ -139,7 +151,7 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 			return
 		}
 
-		// Not a directory (or failed to stat) – open as a file at optional line
+		// Not a directory – open as a file at optional line
 		targetLine := 0
 		if ln > 0 {
 			targetLine = ln - 1
@@ -155,7 +167,7 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 		e.Post(func(ed *Editor) {
 			_ = ed.jumpToLocation(location)
 		})
-	}(target, lineNum, isRemote, host)
+	}(target, lineNum, isRemote, host, operationID)
 
 	// We return immediately; completion is handled asynchronously.
 	return nil
