@@ -182,7 +182,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		headBuffer.ViewIterator = buffer.NewBufferIterator(headBuffer)
 		headBuffer.CursorIterator = buffer.NewBufferIterator(headBuffer)
 		headBuffer.BufferName = headBufferName
-		headBuffer.RealPath = ""
+		headBuffer.RealPath = filePath
 		headBuffer.IsReadOnly = true
 	} else {
 		// Create new HEAD buffer
@@ -190,7 +190,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		headBuffer.IsReadOnly = true
 		headBuffer.IsInternal = false // Can be moved between windows
 		headBuffer.BufferName = headBufferName
-		headBuffer.RealPath = ""
+		headBuffer.RealPath = filePath
 		e.buffers[headBufferName] = headBuffer
 		e.bufferOrder = append(e.bufferOrder, headBufferName)
 	}
