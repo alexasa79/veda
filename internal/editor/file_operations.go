@@ -1238,7 +1238,7 @@ func (e *Editor) reloadFile(args []string) error {
 		return nil
 	}
 
-	filePath := e.CurrentBuffer().FilePath
+	filePath := e.CurrentBuffer().RealPath
 
 	// Check if there are unsaved changes
 	if e.CurrentBuffer().IsModified {
@@ -1249,7 +1249,7 @@ func (e *Editor) reloadFile(args []string) error {
 		dialogX := (width - dialogWidth) / 2
 		dialogY := (height - dialogHeight) / 2
 
-		message := fmt.Sprintf("File has unsaved changes. Reload and lose changes?")
+		message := "File has unsaved changes. Reload and lose changes?"
 		dialog := widgets.NewYesNoDialog(dialogX, dialogY, dialogWidth, dialogHeight, "Reload File", message, e.config.Theme)
 
 		overlay := NewYesNoDialogOverlay(dialog)
