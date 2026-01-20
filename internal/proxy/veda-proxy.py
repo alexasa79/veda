@@ -309,17 +309,22 @@ class LSPManager:
         if language not in self.servers:
             logger.warning(f"No LSP server running for language: {language}")
             return False
-            
+
         server = self.servers[language]
-        process = server['process']
-        
-        try:
-            process.terminate()
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            logger.warning(f"LSP server for {language} did not terminate, killing it")
-            process.kill()
-            
+        process = server.get('process')
+
+        # If server was never fully initialized, record an error
+        if not server.get('initialized'):
+            self.lsp_errors[language] = f"LSP server for {language} exited unexpectedly"
+
+        if process:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                logger.warning(f"LSP server for {language} did not terminate, killing it")
+                process.kill()
+
         del self.servers[language]
         logger.info(f"LSP server for {language} stopped")
         # Close any stderr log handle we opened
@@ -1861,7 +1866,7 @@ class VedaProxy:
                             # Server has finished initializing (either success or removed on failure)
                             break
                         if language in self.lsp.lsp_errors:
-                            # Error detected
+                            # Error detected (set by stop_server when server exits unexpectedly)
                             break
                         time.sleep(0.1)
 
