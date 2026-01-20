@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"strings"
 
 	"veda/internal/events"
@@ -146,9 +147,8 @@ func ParseKey(s string) (Key, error) {
 			result.Key = events.KeyRune
 			result.Rune = rune(keyName[0])
 		} else {
-			// Unknown key
-			result.Key = events.KeyRune
-			result.Rune = '?'
+			// Unknown multi-character key - return error
+			return result, fmt.Errorf("unknown key: %s", keyName)
 		}
 	}
 

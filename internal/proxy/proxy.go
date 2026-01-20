@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.38"
+const ProxyVersion = "1.0.39"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -1908,6 +1908,11 @@ func (c *Client) GetFile(path string) (*FileContent, error) {
 					}
 				}
 			}
+		}
+
+		// Parse LSP error if present
+		if lspError, ok := result["lsp_error"].(string); ok {
+			fileContent.LSPError = lspError
 		}
 	}
 

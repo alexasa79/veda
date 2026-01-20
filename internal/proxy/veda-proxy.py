@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.38"
+PROXY_VERSION = "1.0.39"
 
 # Set up logging directory
 from datetime import datetime
@@ -242,7 +242,13 @@ class LSPManager:
             if self._send_initialize(language):
                 # Wait for initialization to complete
                 self._wait_for_initialize(language)
-                return True
+                # Check if initialization actually succeeded
+                if language in self.servers and self.servers[language].get('initialized'):
+                    return True
+                else:
+                    # Server didn't initialize properly (possibly exited immediately)
+                    logger.error(f"LSP server for {language} failed to initialize")
+                    return False
             return False
             
         except FileNotFoundError:
