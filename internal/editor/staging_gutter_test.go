@@ -111,6 +111,20 @@ func TestLineStagingGutter(t *testing.T) {
 		r, _ := te.mockScreen.GetCell(x, screenY)
 		return r
 	}
+	// Helper to read gutter change marker (leftmost indicator column)
+	readLeftGutterRune := func(oneBasedLine int) rune {
+		lnw := te.CurrentBuffer().LineNumberWidth
+		digits := lnw - 3
+		if digits < 1 {
+			digits = 1
+		}
+		x := digits
+		contentStartY := len(te.CurrentBuffer().ContextCache)
+		viewTop := te.CurrentBuffer().ViewIterator.LineNumber()
+		screenY := contentStartY + (oneBasedLine - 1 - viewTop)
+		r, _ := te.mockScreen.GetCell(x, screenY)
+		return r
+	}
 	// Right column shows '✓' for staged lines 2 and 4; not for 3
 	if r := readGutterRune(2); r != '✓' {
 		t.Fatalf("expected staged marker '✓' at line 2, got %q", r)
@@ -120,6 +134,12 @@ func TestLineStagingGutter(t *testing.T) {
 	}
 	if r := readGutterRune(3); r == '✓' {
 		t.Fatalf("did not expect staged marker at line 3")
+	}
+	if r := readLeftGutterRune(2); r != '≋' {
+		t.Fatalf("expected modified marker '≋' at line 2, got %q", r)
+	}
+	if r := readLeftGutterRune(8); r != '≋' {
+		t.Fatalf("expected modified marker '≋' at line 8, got %q", r)
 	}
 
 	// Now modify a staged line again (line 2): enter insert, append 'Y', exit
@@ -154,8 +174,110 @@ func TestLineStagingGutter(t *testing.T) {
 	y := contentStartY + (2 - 1 - viewTop)
 	lch, _ := te.mockScreen.GetCell(leftX, y)
 	rch, _ := te.mockScreen.GetCell(rightX, y)
-	if lch == 0 || rch != '✓' {
-		t.Fatalf("expected both changed (left) and staged (right) markers on line 2; got left=%q right=%q", lch, rch)
+	if lch != '≋' || rch != '✓' {
+		t.Fatalf("expected modified '≋' (left) and staged (right) markers on line 2; got left=%q right=%q", lch, rch)
+	}
+}
+
+// TestLineStagingGutter_ModifiedAfterLineShift ensures a replacement stays marked
+// as modified even when earlier insertions shift line numbers.
+func TestLineStagingGutter_ModifiedAfterLineShift(t *testing.T) {
+	repo := NewGitTestRepo(t)
+	run := func(name string, args ...string) {
+		cmd := exec.Command(name, args...)
+		cmd.Dir = repo
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %s %v\n%s", name, args, string(out))
+		}
+	}
+
+	run("git", "init", ".")
+	run("git", "config", "user.name", "Test User")
+	run("git", "config", "user.email", "test@example.com")
+
+	baseLines := []string{
+		"line1",
+		"line2",
+		"line3",
+		"line4",
+		"line5",
+		"line6",
+		"line7",
+		"line8",
+		"line9",
+		"line10",
+	}
+	base := strings.Join(baseLines, "\n") + "\n"
+	path := filepath.Join(repo, "file.txt")
+	if err := os.WriteFile(path, []byte(base), 0644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+	run("git", "add", "file.txt")
+	run("git", "commit", "-m", "initial")
+
+	modLines := []string{
+		"line1",
+		"line2",
+		"insA",
+		"insB",
+		"line3",
+		"line4",
+		"line5",
+		"line6",
+		"line7",
+		"line8X",
+		"line9",
+		"line10",
+	}
+	modified := strings.Join(modLines, "\n") + "\n"
+	if err := os.WriteFile(path, []byte(modified), 0644); err != nil {
+		t.Fatalf("write modified: %v", err)
+	}
+
+	var changedLine int
+	for i, line := range modLines {
+		if line == "line8X" {
+			changedLine = i + 1
+			break
+		}
+	}
+	if changedLine == 0 {
+		t.Fatalf("could not locate changed line in modified content")
+	}
+
+	te := NewTestEditorWithContent(100, 25, modified)
+	oldKey := te.CurrentBuffer().FilePath
+	te.CurrentBuffer().FilePath = path
+	te.CurrentBuffer().RealPath = path
+	te.buffers[path] = te.CurrentBuffer()
+	delete(te.buffers, oldKey)
+
+	fc, err := te.Editor.proxyManager.GetFile(path)
+	if err != nil {
+		t.Fatalf("GetFile: %v", err)
+	}
+	te.CurrentBuffer().GitChanges = &fc.Changes
+
+	te.render()
+
+	readLeftGutterRune := func(oneBasedLine int) rune {
+		lnw := te.CurrentBuffer().LineNumberWidth
+		digits := lnw - 3
+		if digits < 1 {
+			digits = 1
+		}
+		x := digits
+		contentStartY := len(te.CurrentBuffer().ContextCache)
+		viewTop := te.CurrentBuffer().ViewIterator.LineNumber()
+		screenY := contentStartY + (oneBasedLine - 1 - viewTop)
+		r, _ := te.mockScreen.GetCell(x, screenY)
+		return r
+	}
+
+	if r := readLeftGutterRune(changedLine); r != '≋' {
+		t.Fatalf("expected modified marker '≋' at line %d, got %q", changedLine, r)
 	}
 }
 

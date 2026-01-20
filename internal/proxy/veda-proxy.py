@@ -3073,19 +3073,35 @@ class VedaProxy:
         deleted_lines = []
         modified_lines = []
         hunks = []
-        
+
         current_old_line = 0
         current_new_line = 0
-        
+
+        run_added = []
+        run_deleted = []
+
+        def flush_run() -> None:
+            nonlocal run_added, run_deleted
+            if not run_added and not run_deleted:
+                return
+            if run_added and run_deleted:
+                modified_lines.extend(run_added)
+            else:
+                added_lines.extend(run_added)
+                deleted_lines.extend(run_deleted)
+            run_added = []
+            run_deleted = []
+
         for line in diff_output.split('\n'):
             # Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
             hunk_match = re.match(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
             if hunk_match:
+                flush_run()
                 old_start = int(hunk_match.group(1))
                 new_start = int(hunk_match.group(3))
                 current_old_line = old_start
                 current_new_line = new_start
-                
+
                 # Store hunk info
                 hunks.append({
                     'old_start': old_start,
@@ -3093,32 +3109,27 @@ class VedaProxy:
                     'header': line
                 })
                 continue
-            
+
             # Process diff lines
             if line.startswith('+') and not line.startswith('+++'):
                 # Added line
-                added_lines.append(current_new_line)
+                run_added.append(current_new_line)
                 current_new_line += 1
             elif line.startswith('-') and not line.startswith('---'):
                 # Deleted line (mark it at the next line position)
-                deleted_lines.append(current_old_line)
+                run_deleted.append(current_old_line)
                 current_old_line += 1
             elif line.startswith(' '):
                 # Unchanged line
+                flush_run()
                 current_old_line += 1
                 current_new_line += 1
-        
-        # Mark modified lines (lines that have both additions and deletions nearby)
-        # This is a simple heuristic - can be improved
-        deleted_set = set(deleted_lines)
-        for added in added_lines:
-            if added in deleted_set or (added - 1) in deleted_set:
-                modified_lines.append(added)
-        
+        flush_run()
+
         return {
-            'added': sorted(list(set(added_lines) - set(modified_lines))),
+            'added': sorted(list(set(added_lines))),
             'deleted': sorted(deleted_lines),
-            'modified': sorted(modified_lines),
+            'modified': sorted(list(set(modified_lines))),
             'hunks': hunks
         }
 
