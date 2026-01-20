@@ -123,7 +123,7 @@ func (t *Theme) GetStyleWithFg(baseStyle ui.Style, fgColor string) ui.Style {
 }
 
 // Available theme names
-var themeNames = []string{"monokai", "dracula", "nord", "onedark", "tender", "koda"}
+var themeNames = []string{"monokai", "dracula", "nord", "onedark", "tender", "koda", "tokyonight", "vscode"}
 
 // GetThemeNames returns a list of all available theme names
 func GetThemeNames() []string {
@@ -145,6 +145,10 @@ func GetThemeByName(name string) *Theme {
 		return NewTenderTheme()
 	case "koda":
 		return NewKodaTheme()
+	case "tokyonight":
+		return NewTokyoNightTheme()
+	case "vscode":
+		return NewVSCodeTheme()
 	default:
 		return nil
 	}
@@ -2288,6 +2292,722 @@ func NewKodaTheme() *Theme {
 		MarkdownTableBorder: StyleDef{
 			Foreground: "#272727",
 			Background: "#101010",
+		},
+	}
+}
+
+// NewTokyoNightTheme returns the Tokyo Night theme (storm)
+func NewTokyoNightTheme() *Theme {
+	return &Theme{
+		Name: "tokyonight",
+
+		StatusBar: StyleDef{
+			Foreground: "#a9b1d6",
+			Background: "#1f2335",
+		},
+
+		StatusBarSubdued: StyleDef{
+			Foreground: "#3b4261",
+			Background: "#1f2335",
+		},
+
+		CommandLine: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#1f2335",
+		},
+
+		DialogBorder: StyleDef{
+			Foreground: "#29a4bd",
+			Background: "#1f2335",
+		},
+
+		DialogContent: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#1f2335",
+		},
+
+		FuzzyListBorder: StyleDef{
+			Foreground: "#29a4bd",
+			Background: "#1f2335",
+		},
+
+		FuzzyListContent: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#1f2335",
+		},
+
+		FuzzyListSelection: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#363d59",
+		},
+
+		Normal: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#24283b",
+		},
+
+		Selection: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#2e3c64",
+		},
+
+		LineNumber: StyleDef{
+			Foreground: "#3b4261",
+			Background: "#24283b",
+		},
+
+		CurrentLineNumber: StyleDef{
+			Foreground: "#ff9e64[B]",
+			Background: "#292e42",
+		},
+
+		CurrentLine: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#292e42",
+		},
+
+		CurrentWord: StyleDef{
+			Foreground: "",
+			Background: "#3b4261",
+		},
+
+		Context: StyleDef{
+			Foreground: "#a9b1d6",
+			Background: "#1b1e2d",
+		},
+
+		SignatureActive: StyleDef{
+			Foreground: "#24283b",
+			Background: "#e0af68",
+		},
+
+		SearchHighlight: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#3d59a1",
+		},
+
+		FlashHighlight: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#394b70",
+		},
+
+		MatchHighlight: StyleDef{
+			Foreground: "",
+			Background: "#2e3c64",
+		},
+
+		Whitespace: StyleDef{
+			Foreground: "#3b4261",
+			Background: "",
+		},
+
+		VerticalRuler: StyleDef{
+			Foreground: "",
+			Background: "#1b1e2d",
+		},
+
+		VirtualCursor: StyleDef{
+			Foreground: "#24283b",
+			Background: "#7aa2f7",
+		},
+
+		// Diff backgrounds
+		DiffAdded: StyleDef{
+			Background: "#2b485a",
+		},
+		DiffAddedCurrentLine: StyleDef{
+			Background: "#305a6c",
+		},
+		DiffDeleted: StyleDef{
+			Background: "#52313f",
+		},
+		DiffDeletedCurrentLine: StyleDef{
+			Background: "#6d3641",
+		},
+
+		// Git change indicators for line numbers
+		GitAdded: StyleDef{
+			Foreground: "#449dab",
+			Background: "#24283b",
+		},
+
+		GitModified: StyleDef{
+			Foreground: "#6183bb",
+			Background: "#24283b",
+		},
+
+		GitDeleted: StyleDef{
+			Foreground: "#914c54",
+			Background: "#24283b",
+		},
+
+		// Diagnostics
+		DiagnosticError: StyleDef{
+			Foreground: "#db4b4b",
+			Background: "#24283b",
+		},
+		DiagnosticWarning: StyleDef{
+			Foreground: "#e0af68",
+			Background: "#24283b",
+		},
+
+		// Notifications / banners
+		NotificationInfo: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#3d59a1",
+		},
+		NotificationError: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#db4b4b",
+		},
+
+		CompletionMenu: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#1f2335",
+		},
+
+		CompletionMenuSelected: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#363d59",
+		},
+
+		SyntaxText: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#24283b",
+		},
+
+		SyntaxKeyword: StyleDef{
+			Foreground: "#9d7cd8",
+			Background: "#24283b",
+		},
+
+		SyntaxFunction: StyleDef{
+			Foreground: "#7aa2f7",
+			Background: "#24283b",
+		},
+
+		SyntaxVariable: StyleDef{
+			Foreground: "#bb9af7",
+			Background: "#24283b",
+		},
+
+		SyntaxConstant: StyleDef{
+			Foreground: "#ff9e64",
+			Background: "#24283b",
+		},
+
+		SyntaxString: StyleDef{
+			Foreground: "#9ece6a",
+			Background: "#24283b",
+		},
+
+		SyntaxComment: StyleDef{
+			Foreground: "#565f89",
+			Background: "#24283b",
+		},
+
+		SyntaxNumber: StyleDef{
+			Foreground: "#ff9e64",
+			Background: "#24283b",
+		},
+
+		SyntaxOperator: StyleDef{
+			Foreground: "#89ddff",
+			Background: "#24283b",
+		},
+
+		SyntaxPunctuation: StyleDef{
+			Foreground: "#a9b1d6",
+			Background: "#24283b",
+		},
+
+		SyntaxType: StyleDef{
+			Foreground: "#2ac3de",
+			Background: "#24283b",
+		},
+
+		SyntaxNamespace: StyleDef{
+			Foreground: "#2ac3de",
+			Background: "#24283b",
+		},
+
+		SyntaxAttribute: StyleDef{
+			Foreground: "#7dcfff",
+			Background: "#24283b",
+		},
+
+		SyntaxTag: StyleDef{
+			Foreground: "#f7768e",
+			Background: "#24283b",
+		},
+
+		// Markdown styles
+		MarkdownH1: StyleDef{
+			Foreground: "#7aa2f7[B]",
+			Background: "#24283b",
+		},
+
+		MarkdownH2: StyleDef{
+			Foreground: "#e0af68[B]",
+			Background: "#24283b",
+		},
+
+		MarkdownH3: StyleDef{
+			Foreground: "#9ece6a[B]",
+			Background: "#24283b",
+		},
+
+		MarkdownH4: StyleDef{
+			Foreground: "#1abc9c[B]",
+			Background: "#24283b",
+		},
+
+		MarkdownH5: StyleDef{
+			Foreground: "#bb9af7[B]",
+			Background: "#24283b",
+		},
+
+		MarkdownH6: StyleDef{
+			Foreground: "#9d7cd8[B]",
+			Background: "#24283b",
+		},
+
+		MarkdownBold: StyleDef{
+			Foreground: "#c0caf5[B]",
+			Background: "#24283b",
+		},
+
+		MarkdownItalic: StyleDef{
+			Foreground: "#c0caf5[I]",
+			Background: "#24283b",
+		},
+
+		MarkdownBoldItalic: StyleDef{
+			Foreground: "#c0caf5[BI]",
+			Background: "#24283b",
+		},
+
+		MarkdownCode: StyleDef{
+			Foreground: "#7aa2f7",
+			Background: "#414868",
+		},
+
+		MarkdownCodeBlock: StyleDef{
+			Foreground: "#7aa2f7",
+			Background: "#414868",
+		},
+
+		MarkdownBlockquote: StyleDef{
+			Foreground: "#565f89",
+			Background: "#24283b",
+		},
+
+		MarkdownLink: StyleDef{
+			Foreground: "#1abc9c[U]",
+			Background: "#24283b",
+		},
+
+		MarkdownLinkText: StyleDef{
+			Foreground: "#1abc9c[U]",
+			Background: "#24283b",
+		},
+
+		MarkdownLinkUrl: StyleDef{
+			Foreground: "#0db9d7[U]",
+			Background: "#24283b",
+		},
+
+		MarkdownImage: StyleDef{
+			Foreground: "#9ece6a",
+			Background: "#24283b",
+		},
+
+		MarkdownList: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#24283b",
+		},
+
+		MarkdownListMarker: StyleDef{
+			Foreground: "#ff9e64",
+			Background: "#24283b",
+		},
+
+		MarkdownHorizontalRule: StyleDef{
+			Foreground: "#565f89",
+			Background: "#24283b",
+		},
+
+		MarkdownStrikethrough: StyleDef{
+			Foreground: "#565f89",
+			Background: "#24283b",
+		},
+
+		MarkdownTable: StyleDef{
+			Foreground: "#c0caf5",
+			Background: "#24283b",
+		},
+
+		MarkdownTableBorder: StyleDef{
+			Foreground: "#3b4261",
+			Background: "#24283b",
+		},
+	}
+}
+
+// NewVSCodeTheme returns the VS Code Dark theme
+func NewVSCodeTheme() *Theme {
+	return &Theme{
+		Name: "vscode",
+
+		StatusBar: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#373737",
+		},
+
+		StatusBarSubdued: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#252526",
+		},
+
+		CommandLine: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#1f1f1f",
+		},
+
+		DialogBorder: StyleDef{
+			Foreground: "#444444",
+			Background: "#202020",
+		},
+
+		DialogContent: StyleDef{
+			Foreground: "#bbbbbb",
+			Background: "#202020",
+		},
+
+		FuzzyListBorder: StyleDef{
+			Foreground: "#444444",
+			Background: "#202020",
+		},
+
+		FuzzyListContent: StyleDef{
+			Foreground: "#bbbbbb",
+			Background: "#202020",
+		},
+
+		FuzzyListSelection: StyleDef{
+			Foreground: "#bbbbbb",
+			Background: "#04395e",
+		},
+
+		Normal: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#1f1f1f",
+		},
+
+		Selection: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#264f78",
+		},
+
+		LineNumber: StyleDef{
+			Foreground: "#5a5a5a",
+			Background: "#1f1f1f",
+		},
+
+		CurrentLineNumber: StyleDef{
+			Foreground: "#bbbbbb[B]",
+			Background: "#222222",
+		},
+
+		CurrentLine: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#222222",
+		},
+
+		CurrentWord: StyleDef{
+			Foreground: "",
+			Background: "#51504f",
+		},
+
+		Context: StyleDef{
+			Foreground: "#bbbbbb",
+			Background: "#404040",
+		},
+
+		SignatureActive: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#515c6a",
+		},
+
+		SearchHighlight: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#613315",
+		},
+
+		FlashHighlight: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#707070",
+		},
+
+		MatchHighlight: StyleDef{
+			Foreground: "",
+			Background: "#51504f",
+		},
+
+		Whitespace: StyleDef{
+			Foreground: "#5a5a5a",
+			Background: "",
+		},
+
+		VerticalRuler: StyleDef{
+			Foreground: "",
+			Background: "#222222",
+		},
+
+		VirtualCursor: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#04395e",
+		},
+
+		// Diff backgrounds
+		DiffAdded: StyleDef{
+			Background: "#4b5632",
+		},
+		DiffAddedCurrentLine: StyleDef{
+			Background: "#373d29",
+		},
+		DiffDeleted: StyleDef{
+			Background: "#6f1313",
+		},
+		DiffDeletedCurrentLine: StyleDef{
+			Background: "#4b1818",
+		},
+
+		// Git change indicators for line numbers
+		GitAdded: StyleDef{
+			Foreground: "#81b88b",
+			Background: "#1f1f1f",
+		},
+
+		GitModified: StyleDef{
+			Foreground: "#e2c08d",
+			Background: "#1f1f1f",
+		},
+
+		GitDeleted: StyleDef{
+			Foreground: "#c74e39",
+			Background: "#1f1f1f",
+		},
+
+		// Diagnostics
+		DiagnosticError: StyleDef{
+			Foreground: "#f44747",
+			Background: "#1f1f1f",
+		},
+		DiagnosticWarning: StyleDef{
+			Foreground: "#dcdcaa",
+			Background: "#1f1f1f",
+		},
+
+		// Notifications / banners
+		NotificationInfo: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#084671",
+		},
+		NotificationError: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#f44747",
+		},
+
+		CompletionMenu: StyleDef{
+			Foreground: "#bbbbbb",
+			Background: "#202020",
+		},
+
+		CompletionMenuSelected: StyleDef{
+			Foreground: "#bbbbbb",
+			Background: "#04395e",
+		},
+
+		SyntaxText: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxKeyword: StyleDef{
+			Foreground: "#c586c0",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxFunction: StyleDef{
+			Foreground: "#dcdcaa",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxVariable: StyleDef{
+			Foreground: "#9cdcfe",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxConstant: StyleDef{
+			Foreground: "#569cd6",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxString: StyleDef{
+			Foreground: "#ce9178",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxComment: StyleDef{
+			Foreground: "#6a9955",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxNumber: StyleDef{
+			Foreground: "#b5cea8",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxOperator: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxPunctuation: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxType: StyleDef{
+			Foreground: "#569cd6",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxNamespace: StyleDef{
+			Foreground: "#4ec9b0",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxAttribute: StyleDef{
+			Foreground: "#dcdcaa",
+			Background: "#1f1f1f",
+		},
+
+		SyntaxTag: StyleDef{
+			Foreground: "#569cd6",
+			Background: "#1f1f1f",
+		},
+
+		// Markdown styles
+		MarkdownH1: StyleDef{
+			Foreground: "#569cd6[B]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownH2: StyleDef{
+			Foreground: "#ce9178[B]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownH3: StyleDef{
+			Foreground: "#dcdcaa[B]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownH4: StyleDef{
+			Foreground: "#6a9955[B]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownH5: StyleDef{
+			Foreground: "#569cd6[B]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownH6: StyleDef{
+			Foreground: "#c586c0[B]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownBold: StyleDef{
+			Foreground: "#569cd6[B]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownItalic: StyleDef{
+			Foreground: "#d4d4d4[I]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownBoldItalic: StyleDef{
+			Foreground: "#569cd6[BI]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownCode: StyleDef{
+			Foreground: "#ce9178",
+			Background: "#222222",
+		},
+
+		MarkdownCodeBlock: StyleDef{
+			Foreground: "#ce9178",
+			Background: "#222222",
+		},
+
+		MarkdownBlockquote: StyleDef{
+			Foreground: "#6a9955",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownLink: StyleDef{
+			Foreground: "#9cdcfe[U]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownLinkText: StyleDef{
+			Foreground: "#9cdcfe[U]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownLinkUrl: StyleDef{
+			Foreground: "#d4d4d4[U]",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownImage: StyleDef{
+			Foreground: "#4ec9b0",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownList: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownListMarker: StyleDef{
+			Foreground: "#dcdcaa",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownHorizontalRule: StyleDef{
+			Foreground: "#569cd6",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownStrikethrough: StyleDef{
+			Foreground: "#808080",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownTable: StyleDef{
+			Foreground: "#d4d4d4",
+			Background: "#1f1f1f",
+		},
+
+		MarkdownTableBorder: StyleDef{
+			Foreground: "#444444",
+			Background: "#1f1f1f",
 		},
 	}
 }

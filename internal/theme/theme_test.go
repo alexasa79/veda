@@ -6,11 +6,11 @@ import (
 
 func TestGetThemeNames(t *testing.T) {
 	names := GetThemeNames()
-	if len(names) != 6 {
-		t.Errorf("Expected 6 themes, got %d", len(names))
+	if len(names) != 8 {
+		t.Errorf("Expected 8 themes, got %d", len(names))
 	}
 
-	expected := []string{"monokai", "dracula", "nord", "onedark", "tender", "koda"}
+	expected := []string{"monokai", "dracula", "nord", "onedark", "tender", "koda", "tokyonight", "vscode"}
 	for i, name := range expected {
 		if names[i] != name {
 			t.Errorf("Expected theme %s at index %d, got %s", name, i, names[i])
@@ -30,6 +30,8 @@ func TestGetThemeByName(t *testing.T) {
 		{"onedark", "onedark", false},
 		{"tender", "tender", false},
 		{"koda", "koda", false},
+		{"tokyonight", "tokyonight", false},
+		{"vscode", "vscode", false},
 		{"invalid", "", true},
 		{"", "", true},
 	}
