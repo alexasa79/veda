@@ -79,6 +79,10 @@ func TestConfigSaveLoad(t *testing.T) {
 }
 
 func TestConfigLoadNonExistent(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
 	cfg := New()
 	// Load should not error on non-existent file
 	err := cfg.Load()
