@@ -20,8 +20,10 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 
 		// Get theme styles
 		lineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.LineNumber)
+		currentLineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.CurrentLineNumber)
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
 		_, lineNumBg, _ := lineNumberStyle.Decompose()
+		_, currentLineNumBg, _ := currentLineNumberStyle.Decompose()
 		_, selBg, _ := selectionStyle.Decompose()
 
 		// Ensure cursor is at position 0,0 (first character)
@@ -37,6 +39,10 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 
 		// Force render
 		te.drawEditor()
+
+		viewStartLine := te.CurrentBuffer().ViewIterator.LineNumber()
+		cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		currentLineIdx := cursorLine - viewStartLine
 
 		// Check each visible line
 		for lineIdx := 0; lineIdx < 4; lineIdx++ {
@@ -62,14 +68,18 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 			}
 
 			if lineNumEnd > 0 {
+				expectedBg := lineNumBg
+				if lineIdx == currentLineIdx {
+					expectedBg = currentLineNumBg
+				}
 				// Check background color of line number characters
 				for i := 0; i < lineNumEnd; i++ {
 					_, bg, _ := te.mockScreen.GetCellStyle(i, lineIdx)
 					if bg == selBg {
 						t.Errorf("Line %d: Line number character at position %d has selection background. Should have line number background.", lineIdx+1, i)
 					}
-					if bg != lineNumBg {
-						t.Errorf("Line %d: Line number character at position %d has wrong background. Got %v, want %v", lineIdx+1, i, bg, lineNumBg)
+					if bg != expectedBg {
+						t.Errorf("Line %d: Line number character at position %d has wrong background. Got %v, want %v", lineIdx+1, i, bg, expectedBg)
 					}
 				}
 			}
@@ -97,7 +107,9 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 
 		// Get styles
 		lineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.LineNumber)
+		currentLineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.CurrentLineNumber)
 		_, lineNumBg, _ := lineNumberStyle.Decompose()
+		_, currentLineNumBg, _ := currentLineNumberStyle.Decompose()
 
 		// Start visual mode from line 1
 		te.ExecuteCommand("enter-visual-mode")
@@ -109,14 +121,22 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 		// Render
 		te.drawEditor()
 
+		viewStartLine := te.CurrentBuffer().ViewIterator.LineNumber()
+		cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
+		currentLineIdx := cursorLine - viewStartLine
+
 		// Check that line numbers for all lines retain their style
 		for lineIdx := 0; lineIdx < 5; lineIdx++ {
 			line := te.mockScreen.GetLine(lineIdx)
 			// Find line number position (usually first character)
 			if len(line) > 0 && line[0] >= '1' && line[0] <= '5' {
 				_, bg, _ := te.mockScreen.GetCellStyle(0, lineIdx)
-				if bg != lineNumBg {
-					t.Errorf("Line %d: Line number should have line number background, got %v", lineIdx+1, bg)
+				expectedBg := lineNumBg
+				if lineIdx == currentLineIdx {
+					expectedBg = currentLineNumBg
+				}
+				if bg != expectedBg {
+					t.Errorf("Line %d: Line number should have line number background, got %v, want %v", lineIdx+1, bg, expectedBg)
 				}
 			}
 		}
