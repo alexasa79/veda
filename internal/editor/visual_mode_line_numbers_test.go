@@ -245,14 +245,20 @@ func TestLineNumberSelectionBug(t *testing.T) {
 
 		// Get line number style
 		lineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.LineNumber)
+		currentLineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.CurrentLineNumber)
 		_, lineNumBg, _ := lineNumberStyle.Decompose()
+		_, currentLineNumBg, _ := currentLineNumberStyle.Decompose()
 
 		// Check first character (should be '1' for line number)
 		r, bg, _ := te.mockScreen.GetCellStyle(0, 0)
 		t.Logf("First character: '%c' with background %v", r, bg)
 
-		if r == '1' && bg != lineNumBg {
-			t.Errorf("Line number '1' has wrong background. Got %v, want %v", bg, lineNumBg)
+		expectedBg := lineNumBg
+		if te.CurrentBuffer().CursorIterator.LineNumber() == te.CurrentBuffer().ViewIterator.LineNumber() {
+			expectedBg = currentLineNumBg
+		}
+		if r == '1' && bg != expectedBg {
+			t.Errorf("Line number '1' has wrong background. Got %v, want %v", bg, expectedBg)
 		}
 	})
 }
