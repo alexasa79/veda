@@ -181,6 +181,10 @@ func TestCursorMode(t *testing.T) {
 }
 
 func TestCursorRendering(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
 	t.Run("virtual cursor background style", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "ABC\nDEF\nGHI")
 
@@ -393,6 +397,10 @@ func TestCursorRendering(t *testing.T) {
 }
 
 func TestCursorRenderingWithMarkdown(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
 	t.Run("virtual cursors in markdown file", func(t *testing.T) {
 		// Create editor with markdown content
 		markdownContent := `# Heading
