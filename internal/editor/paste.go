@@ -423,6 +423,10 @@ func (p *PasteCommand) Undo(buf *buffer.Buffer) error {
 	// Delete the pasted content
 	buf.Delete(p.position, p.position+len(p.content))
 
+	if buf.Rope == nil || buf.Rope.Length() == 0 {
+		buf.Rope = buffer.NewRopeFromString("")
+	}
+
 	// Restore cursor position
 	buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, p.oldCursorY)
 	buf.CursorX = p.oldCursorX
