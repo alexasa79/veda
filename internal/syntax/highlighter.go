@@ -1270,11 +1270,18 @@ func (h *Highlighter) mapMarkdownNodeToTokenType(node *sitter.Node, nodeType str
 
 	// Lists - note: in markdown-inline, list markers are just "-", "+", "*" characters
 	case "-", "+", "*":
-		// Check if this is at the beginning of a line (list marker)
-		if node.StartByte() == 0 || (node.StartByte() > 0 && source[node.StartByte()-1] == '\n') {
-			return TokenTypeMarkdownListMarker
+		// Treat list markers as list markers if they are the first non-whitespace on the line.
+		start := int(node.StartByte())
+		lineStart := start
+		for lineStart > 0 && source[lineStart-1] != '\n' {
+			lineStart--
 		}
-		return TokenTypeText
+		for i := lineStart; i < start; i++ {
+			if source[i] != ' ' && source[i] != '\t' {
+				return TokenTypeText
+			}
+		}
+		return TokenTypeMarkdownListMarker
 
 	// Block quotes - ">" character at start of line
 	case ">":
