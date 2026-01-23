@@ -1621,8 +1621,8 @@ func NewTenderTheme() *Theme {
 		},
 
 		FuzzyListSelection: StyleDef{
-			Foreground: "#335261",
-			Background: "#c9d05c",
+			Foreground: "#1d1d1d",
+			Background: "#73cef4",
 		},
 
 		Normal: StyleDef{
