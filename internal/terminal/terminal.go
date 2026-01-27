@@ -2,9 +2,11 @@ package terminal
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"sync"
+	"time"
 	"veda/internal/events"
 	"veda/internal/log"
 
@@ -39,6 +41,11 @@ type Terminal struct {
 	// Input handling
 	inputChan chan events.Event
 	stopChan  chan struct{}
+
+	// OSC 52 clipboard support
+	osc52ResponseCh chan string // Channel to receive OSC 52 responses
+	osc52Waiting    bool        // True when we're waiting for an OSC 52 response
+	osc52Mu         sync.Mutex  // Protects osc52Waiting
 }
 
 // CursorStyle represents the cursor appearance
@@ -67,15 +74,16 @@ func New() (*Terminal, error) {
 	}
 
 	t := &Terminal{
-		width:         width,
-		height:        height, // Use actual height
-		frontBuffer:   make([]string, height),
-		backBuffer:    make([]string, height),
-		cursorVisible: true,
-		cursorStyle:   CursorStyleBlock,
-		inputChan:     make(chan events.Event, 100),
-		stopChan:      make(chan struct{}),
-		tty:           tty,
+		width:           width,
+		height:          height, // Use actual height
+		frontBuffer:     make([]string, height),
+		backBuffer:      make([]string, height),
+		cursorVisible:   true,
+		cursorStyle:     CursorStyleBlock,
+		inputChan:       make(chan events.Event, 100),
+		stopChan:        make(chan struct{}),
+		tty:             tty,
+		osc52ResponseCh: make(chan string, 1),
 	}
 
 	// Initialize buffers with empty lines
@@ -348,4 +356,86 @@ func (t *Terminal) handleResize() {
 		// Send resize event
 		t.inputChan <- events.NewResizeEvent(width, height)
 	}
+}
+
+// OSC 52 clipboard support
+
+// CopyToClipboard copies text to the system clipboard using OSC 52
+func (t *Terminal) CopyToClipboard(text string) error {
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	seq := fmt.Sprintf("\033]52;c;%s\007", encoded)
+	_, err := t.tty.Write([]byte(seq))
+	return err
+}
+
+// QueryClipboard queries the system clipboard using OSC 52 and returns the content.
+// This sends the query sequence and waits for the terminal to respond.
+// timeout specifies how long to wait for the response.
+func (t *Terminal) QueryClipboard(timeout time.Duration) (string, error) {
+	LL.Debug("QueryClipboard: starting, timeout=%v", timeout)
+
+	t.osc52Mu.Lock()
+	t.osc52Waiting = true
+	t.osc52Mu.Unlock()
+
+	defer func() {
+		t.osc52Mu.Lock()
+		t.osc52Waiting = false
+		t.osc52Mu.Unlock()
+		LL.Debug("QueryClipboard: cleared waiting flag")
+	}()
+
+	// Clear any pending response
+	select {
+	case <-t.osc52ResponseCh:
+		LL.Debug("QueryClipboard: cleared pending response")
+	default:
+	}
+
+	// Send the OSC 52 query
+	LL.Debug("QueryClipboard: sending query")
+	_, err := t.tty.Write([]byte("\033]52;c;?\007"))
+	if err != nil {
+		return "", fmt.Errorf("failed to send OSC 52 query: %w", err)
+	}
+
+	// Wait for response with timeout
+	select {
+	case response := <-t.osc52ResponseCh:
+		LL.Debug("QueryClipboard: received response, len=%d", len(response))
+		return response, nil
+	case <-time.After(timeout):
+		LL.Debug("QueryClipboard: timeout")
+		return "", fmt.Errorf("timeout waiting for OSC 52 response")
+	}
+}
+
+// handleOSC52Response processes an OSC 52 response and sends it to the response channel.
+// This is called from the input parser when an OSC 52 response is detected.
+func (t *Terminal) handleOSC52Response(payload string) {
+	t.osc52Mu.Lock()
+	waiting := t.osc52Waiting
+	t.osc52Mu.Unlock()
+
+	if waiting {
+		// Decode the base64 payload
+		decoded, err := base64.StdEncoding.DecodeString(payload)
+		if err != nil {
+			LL.Error("Failed to decode OSC 52 response: %v", err)
+			return
+		}
+		select {
+		case t.osc52ResponseCh <- string(decoded):
+		default:
+			// Channel full, discard
+		}
+	}
+}
+
+// IsWaitingForOSC52 returns true if we're waiting for an OSC 52 response.
+// This can be used by the input parser to route OSC 52 responses correctly.
+func (t *Terminal) IsWaitingForOSC52() bool {
+	t.osc52Mu.Lock()
+	defer t.osc52Mu.Unlock()
+	return t.osc52Waiting
 }
