@@ -6,10 +6,53 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
+
+// useOSC52 controls whether OSC 52 fallback is enabled.
+var useOSC52 = true
+
+// nativeCopyFailed remembers if native copy tools have failed.
+// Once set, we skip native tools and go directly to OSC 52.
+var nativeCopyFailed = false
+
+// nativePasteFailed remembers if native paste tools have failed.
+// Once set, we skip native tools and go directly to OSC 52.
+var nativePasteFailed = false
+
+// SetUseOSC52 enables or disables OSC 52 fallback
+func SetUseOSC52(enabled bool) {
+	useOSC52 = enabled
+}
+
+// ResetNativeClipboardState resets the native clipboard failure flags.
+// This can be used if the environment changes (e.g., X11 becomes available).
+func ResetNativeClipboardState() {
+	nativeCopyFailed = false
+	nativePasteFailed = false
+}
 
 // Copy copies text to the system clipboard
 func Copy(text string) error {
+	// If native copy has failed before, go directly to OSC 52
+	if nativeCopyFailed && useOSC52 {
+		return OSC52Copy(text)
+	}
+
+	err := copyNative(text)
+	if err != nil {
+		// Remember that native copy failed
+		nativeCopyFailed = true
+		if useOSC52 {
+			// Fall back to OSC 52
+			return OSC52Copy(text)
+		}
+	}
+	return err
+}
+
+// copyNative attempts to copy using native clipboard tools
+func copyNative(text string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		// macOS: use pbcopy
@@ -46,8 +89,30 @@ func Copy(text string) error {
 	}
 }
 
+// OSC52PasteTimeout is the timeout for OSC 52 paste operations
+const OSC52PasteTimeout = 500 * time.Millisecond
+
 // Paste reads text from the system clipboard
 func Paste() (string, error) {
+	// If native paste has failed before, go directly to OSC 52
+	if nativePasteFailed && useOSC52 {
+		return OSC52Paste(OSC52PasteTimeout)
+	}
+
+	text, err := pasteNative()
+	if err != nil {
+		// Remember that native paste failed
+		nativePasteFailed = true
+		if useOSC52 {
+			// Fall back to OSC 52
+			return OSC52Paste(OSC52PasteTimeout)
+		}
+	}
+	return text, err
+}
+
+// pasteNative attempts to paste using native clipboard tools
+func pasteNative() (string, error) {
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {

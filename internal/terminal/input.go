@@ -230,6 +230,17 @@ func (t *Terminal) parseInput(buf *[]byte) {
 			return
 		}
 
+		// Check for OSC 52 clipboard response if we're waiting for one
+		if t.IsWaitingForOSC52() {
+			osc52Matched, osc52NeedMore := t.matchOSC52Response(buf)
+			if osc52Matched {
+				continue
+			}
+			if osc52NeedMore {
+				return
+			}
+		}
+
 		// Special handling for ESC that might be part of Alt+key
 		if len(*buf) > 0 && (*buf)[0] == '\x1b' && len(*buf) > 1 {
 			// Check if ESC is followed by a letter or common Alt+key character
@@ -334,6 +345,55 @@ func (t *Terminal) matchBracketedPaste(buf *[]byte) (bool, bool) {
 		}
 	}
 	return false, false
+}
+
+// matchOSC52Response handles OSC 52 clipboard responses (\033]52;c;<base64>\007 or \033]52;c;<base64>\033\\)
+func (t *Terminal) matchOSC52Response(buf *[]byte) (bool, bool) {
+	// OSC 52 response format: ESC ] 52 ; c ; <base64> BEL (or ESC \)
+	osc52Prefix := []byte{'\x1b', ']', '5', '2', ';', 'c', ';'}
+
+	LL.Debug("matchOSC52Response: buf len=%d, first bytes=%v", len(*buf), (*buf)[:min(10, len(*buf))])
+
+	// Check for prefix match
+	if len(*buf) < len(osc52Prefix) {
+		if bytesEqual(*buf, osc52Prefix[:len(*buf)]) {
+			// Partial match, need more data
+			LL.Debug("matchOSC52Response: partial prefix match, need more data")
+			return false, true
+		}
+		return false, false
+	}
+
+	if !bytesEqual((*buf)[:len(osc52Prefix)], osc52Prefix) {
+		return false, false
+	}
+
+	LL.Debug("matchOSC52Response: found OSC 52 prefix")
+
+	// Look for terminator (BEL or ESC \)
+	payload := (*buf)[len(osc52Prefix):]
+	for i := 0; i < len(payload); i++ {
+		if payload[i] == '\007' {
+			// Found BEL terminator
+			base64Data := string(payload[:i])
+			LL.Debug("matchOSC52Response: found BEL terminator, payload len=%d", len(base64Data))
+			t.handleOSC52Response(base64Data)
+			*buf = (*buf)[len(osc52Prefix)+i+1:]
+			return true, false
+		}
+		if payload[i] == '\x1b' && i+1 < len(payload) && payload[i+1] == '\\' {
+			// Found ESC \ terminator
+			base64Data := string(payload[:i])
+			LL.Debug("matchOSC52Response: found ESC \\ terminator, payload len=%d", len(base64Data))
+			t.handleOSC52Response(base64Data)
+			*buf = (*buf)[len(osc52Prefix)+i+2:]
+			return true, false
+		}
+	}
+
+	// No terminator found yet, need more data
+	LL.Debug("matchOSC52Response: no terminator yet, need more data")
+	return false, true
 }
 
 // matchKeyCodeWithAlt tries to match the buffer against known key codes and sends Alt version

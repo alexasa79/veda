@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"veda/internal/clipboard"
 	"veda/internal/events"
 	"veda/internal/terminal"
 	"veda/internal/ui"
@@ -9,6 +10,7 @@ import (
 // TerminalScreen implements the Screen interface using our terminal package
 type TerminalScreen struct {
 	adapter *terminal.ScreenAdapter
+	term    *terminal.Terminal
 }
 
 // NewTerminalScreen creates a new terminal-based screen
@@ -18,8 +20,11 @@ func NewTerminalScreen() (*TerminalScreen, error) {
 		return nil, err
 	}
 
+	// Set up OSC 52 clipboard support
+	clipboard.SetTerminalClipboard(term)
+
 	adapter := terminal.NewScreenAdapter(term)
-	return &TerminalScreen{adapter: adapter}, nil
+	return &TerminalScreen{adapter: adapter, term: term}, nil
 }
 
 // Init initializes the screen
