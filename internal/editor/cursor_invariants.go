@@ -40,9 +40,9 @@ func (e *Editor) AssertCursorInvariants(visualLine, visualCol, cursorY int) {
 		fmt.Sprintf("visualCol=%d is negative (logicalLine=%d, cursorX=%d)",
 			visualCol, logicalLine, cursorX))
 
-	// Invariant 5: visualCol must be within screen width
-	utils.Assert(visualCol < width,
-		fmt.Sprintf("visualCol=%d >= screenWidth=%d (logicalLine=%d, cursorX=%d, lineNumberWidth=%d)",
+	// Invariant 5: visualCol must be within screen width (can be at width when cursor is at end of line)
+	utils.Assert(visualCol <= width,
+		fmt.Sprintf("visualCol=%d > screenWidth=%d (logicalLine=%d, cursorX=%d, lineNumberWidth=%d)",
 			visualCol, width, logicalLine, cursorX, lineNumberWidth))
 
 	// Invariant 6: visualLine must be less than visibleHeight
