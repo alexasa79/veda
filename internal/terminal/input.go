@@ -99,6 +99,7 @@ var keyCodes = []keyCode{
 	// Insert/Delete
 	{[]byte{'\x1b', '[', '2', '~'}, events.KeyInsert, events.ModNone},
 	{[]byte{'\x1b', '[', '3', '~'}, events.KeyDelete, events.ModNone},
+	{[]byte{'\x04'}, events.KeyDelete, events.ModNone}, // Some terminals send Ctrl+D for Delete
 
 	// Function keys F1-F12
 	{[]byte{'\x1b', 'O', 'P'}, events.KeyF1, events.ModNone},
