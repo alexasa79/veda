@@ -2017,6 +2017,10 @@ func (e *Editor) updateCursor() {
 		cursorY := visualLine + e.getContentStartY()
 		LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
 			e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
+
+		// Validate cursor invariants
+		e.AssertCursorInvariants(visualLine, visualCol, cursorY)
+
 		e.screen.ShowCursor(visualCol, cursorY)
 	}
 }
