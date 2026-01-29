@@ -154,6 +154,13 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 	}
 
 	width, _ := e.screen.Size()
+	// When the screen is not a windowScreen (i.e., we're not in rendering context),
+	// use the active window's width for proper wrapping in multi-window layouts
+	if _, isWindowScreen := e.screen.(*windowScreen); !isWindowScreen {
+		if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+			width = e.windows[e.activeWindow].Width
+		}
+	}
 	gutterWidth := e.CurrentBuffer().LineNumberWidth
 
 	wc := NewWrapCalculator(width, gutterWidth)

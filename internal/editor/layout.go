@@ -176,6 +176,10 @@ func (e *Editor) updateContext() {
 // getStatusBarY returns the Y position of the status bar
 func (e *Editor) getStatusBarY() int {
 	_, height := e.screen.Size()
+	// For windowScreen, there is no status bar within the window - it's on the main screen
+	if _, ok := e.screen.(*windowScreen); ok {
+		return height // Allow cursor anywhere in the window
+	}
 	return height - 1
 }
 

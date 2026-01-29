@@ -49,6 +49,8 @@ func TestDiffLineNumbers(t *testing.T) {
 	te.createSecondWindow()
 	te.windows[0].Buffer = headBuffer    // HEAD on left
 	te.windows[1].Buffer = currentBuffer // Current on right
+	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
+	te.recomputeWindowsLayout()
 
 	t.Run("head_buffer_line_numbers", func(t *testing.T) {
 		// Switch to head buffer and render

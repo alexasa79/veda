@@ -30,6 +30,7 @@ func main() {
 
 		// Create test editor with first file
 		te := NewTestEditorWithContent(120, 30, file1Content)
+		te.minActiveWindowWidth = 0 // Disable minimum width for equal window distribution
 		te.CurrentBuffer().FilePath = "test1.go"
 
 		// Initialize syntax highlighting for first file (per-buffer)
@@ -99,6 +100,8 @@ func TestFunction() {
 		newWin := newWindow(secondBuffer)
 		te.windows = append(te.windows, newWin)
 		te.activeWindow = len(te.windows) - 1 // Switch to the new window
+		// Recompute layout now that we have multiple windows
+		te.recomputeWindowsLayout()
 
 		// Update the editor's active buffer to match the active window
 		te.SetCurrentBuffer(te.windows[te.activeWindow].Buffer)
