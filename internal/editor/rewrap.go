@@ -374,8 +374,8 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 
 	// Initial naive bounds
 	startLine, endLine := findParagraphBounds(lines, cursorLine)
-	// Detect context near the cursor line (more accurate for comments)
-	context, indentation, prefix := detectWrapContext(lines, cursorLine)
+	// Detect context from the paragraph start line (where list markers, comment prefixes, etc. are)
+	context, indentation, prefix := detectWrapContext(lines, startLine)
 
 	// Recompute bounds strictly by comment context to avoid including adjacent code
 	if context == wrapContextCLineComment || context == wrapContextPythonComment {
