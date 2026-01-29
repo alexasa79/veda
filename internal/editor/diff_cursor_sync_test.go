@@ -35,6 +35,8 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 	te.windows[1].Buffer = te.buffers[currentBufferName]
 	te.activeWindow = 1 // Start on right side (current)
 	te.switchToBuffer(te.buffers[currentBufferName])
+	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
+	te.recomputeWindowsLayout()
 
 	t.Run("pressing down moves cursors in both buffers", func(t *testing.T) {
 		// Get initial cursor positions

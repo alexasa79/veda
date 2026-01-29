@@ -43,6 +43,8 @@ func TestDiffRendering(t *testing.T) {
 	te.windows[1].Buffer = currentBuffer // Current on right
 	te.activeWindow = 1
 	te.switchToBuffer(currentBuffer)
+	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
+	te.recomputeWindowsLayout()
 
 	// Get expected diff colors (using the same brighter colors as in render.go)
 	expectedAddedBg := ui.NewRGBColor(40, 100, 40)    // Even brighter green background
@@ -294,6 +296,8 @@ func TestDiffRenderingWithComplexChanges(t *testing.T) {
 	te.createSecondWindow()
 	te.windows[0].Buffer = headBuffer
 	te.windows[1].Buffer = currentBuffer
+	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
+	te.recomputeWindowsLayout()
 
 	t.Run("complex_diff_structure", func(t *testing.T) {
 		// Verify line count equality

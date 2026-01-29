@@ -92,6 +92,8 @@ func TestDiffHighlighting(t *testing.T) {
 		te.windows[1].Buffer = currentBuffer
 		te.activeWindow = 1
 		te.switchToBuffer(currentBuffer)
+		// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
+		te.recomputeWindowsLayout()
 
 		// Render the screen to trigger diff highlighting
 		te.render()
