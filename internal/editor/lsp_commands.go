@@ -389,3 +389,86 @@ func (e *Editor) jumpToReferenceUnderCursor(args []string) error {
 
 	return fmt.Errorf("no valid reference on this line")
 }
+
+// refreshReferencesInBackground re-queries LSP for references when buffer content changes
+// This keeps reference positions up-to-date after edits
+func (e *Editor) refreshReferencesInBackground() {
+	// Check if we have a references buffer with valid source info
+	refs := e.currentReferencesBuffer
+	if refs == nil || len(refs.References) == 0 {
+		return
+	}
+
+	// Only refresh if the changed buffer contains references we're tracking
+	currentFilePath := ""
+	if e.CurrentBuffer() != nil {
+		currentFilePath = e.CurrentBuffer().FilePath
+	}
+	if currentFilePath == "" {
+		return
+	}
+
+	// Check if any references point to the current buffer
+	hasRefsInCurrentBuffer := false
+	for _, loc := range refs.References {
+		locFilePath := strings.TrimPrefix(loc.URI, "file://")
+		if locFilePath == currentFilePath || strings.HasSuffix(locFilePath, currentFilePath) {
+			hasRefsInCurrentBuffer = true
+			break
+		}
+	}
+
+	// Also check if the source file is the current buffer
+	if refs.SourceFile == currentFilePath {
+		hasRefsInCurrentBuffer = true
+	}
+
+	if !hasRefsInCurrentBuffer {
+		return
+	}
+
+	// Check if proxy manager is available
+	if e.proxyManager == nil {
+		return
+	}
+
+	// Capture values for the goroutine
+	sourceFile := refs.SourceFile
+	sourceLine := refs.SourceLine
+	sourceChar := refs.SourceChar
+	currentIndex := refs.CurrentIndex
+
+	LL.Debug("refreshReferencesInBackground: re-querying LSP for references at %s:%d:%d", sourceFile, sourceLine, sourceChar)
+
+	// Re-query LSP in background
+	go func() {
+		locations, err := e.proxyManager.FindReferences(sourceFile, sourceLine, sourceChar, true)
+		if err != nil {
+			LL.Debug("refreshReferencesInBackground: LSP query failed: %v", err)
+			return
+		}
+
+		LL.Debug("refreshReferencesInBackground: got %d references (was %d)", len(locations), len(refs.References))
+
+		// Update the references buffer on the main thread via Post
+		e.Post(func(e *Editor) {
+			// Verify the references buffer still exists and matches
+			if e.currentReferencesBuffer == nil ||
+				e.currentReferencesBuffer.SourceFile != sourceFile ||
+				e.currentReferencesBuffer.SourceLine != sourceLine {
+				return
+			}
+
+			// Update references
+			e.currentReferencesBuffer.References = locations
+
+			// Clamp current index if needed
+			if currentIndex >= len(locations) {
+				e.currentReferencesBuffer.CurrentIndex = len(locations) - 1
+			}
+
+			// Trigger a render to update any visible references buffer
+			e.asyncEvents <- events.NewCustomEvent("render", nil)
+		})
+	}()
+}
