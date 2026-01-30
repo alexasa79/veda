@@ -2018,6 +2018,13 @@ func (e *Editor) updateCursor() {
 		LL.Trace("updateCursor: logical(line=%d,x=%d) viewTop=%d -> visual(line=%d,col=%d) cursorY=%d",
 			e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX, e.CurrentBuffer().ViewIterator.LineNumber(), visualLine, visualCol, cursorY)
 
+		// Clamp cursor to screen bounds before displaying
+		// This can happen when cursor is at end of a line that exactly fills the width
+		screenWidth, _ := e.screen.Size()
+		if visualCol >= screenWidth {
+			visualCol = screenWidth - 1
+		}
+
 		// Validate cursor invariants
 		e.AssertCursorInvariants(visualLine, visualCol, cursorY)
 
