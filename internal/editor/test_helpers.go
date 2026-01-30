@@ -75,9 +75,10 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 	te.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(te.CurrentBuffer())
 	te.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(te.CurrentBuffer())
 
-	// Set up content change callback for search match updates
+	// Set up content change callback for search match updates and reference refresh
 	te.CurrentBuffer().OnContentChange = func() {
 		te.updateSearchMatchesOnContentChange()
+		te.refreshReferencesInBackground()
 	}
 
 	// Add the buffer to the buffers map so buffer management functions work
@@ -433,5 +434,25 @@ func AssertScreenLineEquals(t *testing.T, te *TestEditor, lineNum int, expected 
 	actual := lines[lineNum]
 	if actual != expected {
 		t.Errorf("Expected line %d to be:\n%q\nBut got:\n%q", lineNum, expected, actual)
+	}
+}
+
+// ProcessAsyncEvents drains and processes async events (like Post lambdas)
+// This is needed in tests because the main event loop isn't running.
+// It processes events for the specified duration.
+func (te *TestEditor) ProcessAsyncEvents(duration time.Duration) {
+	deadline := time.Now().Add(duration)
+	for time.Now().Before(deadline) {
+		select {
+		case ev := <-te.asyncEvents:
+			// Process custom events that contain lambdas (from Post)
+			if customEv, ok := ev.(*events.CustomEvent); ok {
+				if fn, ok := customEv.Data.(func(*Editor)); ok {
+					fn(te.Editor)
+				}
+			}
+		case <-time.After(10 * time.Millisecond):
+			// Check periodically, don't block forever
+		}
 	}
 }

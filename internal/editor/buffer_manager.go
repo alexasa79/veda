@@ -69,6 +69,7 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 	e.CurrentBuffer().OnContentChange = func() {
 		e.notifyLSPFileChange()
 		e.updateSearchMatchesOnContentChange()
+		e.refreshReferencesInBackground()
 	}
 
 	// Set up syntax highlighting (per-buffer)
