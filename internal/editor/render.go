@@ -649,9 +649,9 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		// Determine terminal row corresponding to this buffer line
 		ts := e.terminalSessions[e.CurrentBuffer().FilePath]
 		if ts != nil && ts.term != nil {
+			searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 			selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 			selStart, selEnd, hasSelection := e.getSelectionRange()
-			lineStartOffset := iter.Position()
 			width, _ := e.screen.Size()
 			// Draw characters with per-cell styles; iterate runes to avoid breaking UTF-8
 			col := 0
@@ -692,6 +692,10 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 					// Merge attributes into style
 					fg0, bg0, _ := style.Decompose()
 					style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
+				}
+				charPosInLine := charPos - lineStartOffset
+				if e.isInSearchMatchInLine(charPosInLine, searchMatches) {
+					style = theme.ApplyBackgroundStyle(style, searchStyle)
 				}
 				if hasSelection && charPos >= selStart && charPos < selEnd && startX > 0 {
 					style = theme.ApplyBackgroundStyle(style, selectionStyle)
@@ -924,6 +928,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 	// Terminal/internal buffers: draw using terminal emulator per-cell styles (regardless of mode)
 	if e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal {
 		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
+			searchStyle := e.config.Theme.GetStyle(e.config.Theme.SearchHighlight)
 			selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
 			selStart, selEnd, hasSelection := e.getSelectionRange()
 			// Draw only the wrapped segment using terminal styles; iterate runes to preserve UTF-8
@@ -959,6 +964,10 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 				if attrs != ui.AttrNone {
 					fg0, bg0, _ := style.Decompose()
 					style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
+				}
+				charPosInLine := charPos - lineStartOffset
+				if e.isInSearchMatchInLine(charPosInLine, searchMatches) {
+					style = theme.ApplyBackgroundStyle(style, searchStyle)
 				}
 				if hasSelection && charPos >= selStart && charPos < selEnd && startX > 0 {
 					style = theme.ApplyBackgroundStyle(style, selectionStyle)
