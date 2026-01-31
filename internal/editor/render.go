@@ -649,9 +649,13 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		// Determine terminal row corresponding to this buffer line
 		ts := e.terminalSessions[e.CurrentBuffer().FilePath]
 		if ts != nil && ts.term != nil {
+			selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
+			selStart, selEnd, hasSelection := e.getSelectionRange()
+			lineStartOffset := iter.Position()
 			width, _ := e.screen.Size()
 			// Draw characters with per-cell styles; iterate runes to avoid breaking UTF-8
 			col := 0
+			charPos := lineStartOffset
 			for _, ch := range originalLine {
 				if startX+col >= width {
 					break
@@ -689,8 +693,12 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 					fg0, bg0, _ := style.Decompose()
 					style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
 				}
+				if hasSelection && charPos >= selStart && charPos < selEnd && startX > 0 {
+					style = theme.ApplyBackgroundStyle(style, selectionStyle)
+				}
 				e.screen.SetContent(startX+col, screenY, ch, nil, style)
 				col++
+				charPos++
 			}
 			// Fill remainder of line if needed
 			return
@@ -916,9 +924,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 	// Terminal/internal buffers: draw using terminal emulator per-cell styles (regardless of mode)
 	if e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal {
 		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
+			selectionStyle := e.config.Theme.GetStyle(e.config.Theme.Selection)
+			selStart, selEnd, hasSelection := e.getSelectionRange()
 			// Draw only the wrapped segment using terminal styles; iterate runes to preserve UTF-8
 			x := startX
 			col := 0
+			charPos := lineStartOffset + segStart
 			for _, ch := range wl.Text {
 				emuRow := lineIndex
 				if ts.Banner != "" {
@@ -949,6 +960,9 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 					fg0, bg0, _ := style.Decompose()
 					style = ui.Style{Fg: fg0, Bg: bg0, Attrs: attrs}
 				}
+				if hasSelection && charPos >= selStart && charPos < selEnd && startX > 0 {
+					style = theme.ApplyBackgroundStyle(style, selectionStyle)
+				}
 				// Determine display width to keep emulator columns aligned (e.g., emoji)
 				w := runeDisplayWidth(ch)
 				if w < 1 {
@@ -961,6 +975,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 				}
 				x += w
 				col += w
+				charPos++
 			}
 			return
 		}
