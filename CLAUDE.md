@@ -167,6 +167,7 @@ Some tests require LSP servers to be installed and available on the test machine
 - Always look for implementation that reduces the amount of state we have to keep. For instance if we have a boolean that tells us if the state is present and a pointer to the state's structure, we can remove the boolean and check if the pointer is nil.
 - Use fmt.PrintXXX for debug printouts in unit tests. Debug logging only works in the editor's main program, not in unit tests.
 - The editor supports multiple cursors. When adding new commands, if needed, make sure the new command works with multiple cursors.
+- Terminal buffers render via the terminal emulator (not `drawText`), so visual overlays like selection/search need explicit handling there.
 
 ## Performance Debugging
 - **CPU Profiling**: Run `./vd -cpuprofile=cpu.prof` to generate a CPU profile. Exit normally with `:q` and analyze with `go tool pprof -top cpu.prof` to see which functions consume the most CPU time.
