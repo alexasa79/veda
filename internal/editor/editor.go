@@ -20,6 +20,7 @@ import (
 	"veda/internal/syntax"
 	"veda/internal/theme"
 	"veda/internal/ui"
+	"veda/internal/utils"
 	"veda/internal/widgets"
 )
 
@@ -3314,14 +3315,16 @@ func (e *Editor) goToDefinition(args []string) error {
 		return fmt.Errorf("no file open")
 	}
 
-	// Get cursor position (LSP uses 0-based line numbers)
-	line := e.CurrentBuffer().CursorIterator.LineNumber()
-	character := e.CurrentBuffer().CursorX
+	filePath, line, character, err := e.getLSPTargetForBuffer(e.CurrentBuffer())
+	if err != nil {
+		e.errorManager.ShowError("%v", err)
+		return err
+	}
 
-	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", e.CurrentBuffer().FilePath, line, character)
+	LL.Trace("goToDefinition: file=%s, line=%d, character=%d", filePath, line, character)
 
 	// Get definition location from LSP
-	locations, err := e.proxyManager.GoToDefinition(e.CurrentBuffer().FilePath, line, character)
+	locations, err := e.proxyManager.GoToDefinition(filePath, line, character)
 	if err != nil {
 		e.errorManager.ShowError("LSP error: %v", err)
 		LL.Debug("goToDefinition failed: %v", err)
@@ -3344,7 +3347,7 @@ func (e *Editor) goToDefinition(args []string) error {
 		return fmt.Errorf("unsupported URI scheme: %s", location.URI)
 	}
 
-	filePath := strings.TrimPrefix(location.URI, "file://")
+	targetPath := strings.TrimPrefix(location.URI, "file://")
 
 	// If we're working with a remote file, preserve the host prefix
 	if strings.Contains(e.CurrentBuffer().FilePath, ":") {
@@ -3353,19 +3356,19 @@ func (e *Editor) goToDefinition(args []string) error {
 		if len(parts) == 2 {
 			host := parts[0]
 			// Add host prefix to the file path from LSP
-			filePath = host + ":" + filePath
+			targetPath = host + ":" + targetPath
 		}
 	}
 
-	LL.Debug("goToDefinition: location URI=%s, filePath=%s, current buffer=%s", location.URI, filePath, e.CurrentBuffer().FilePath)
+	LL.Debug("goToDefinition: location URI=%s, filePath=%s, current buffer=%s", location.URI, targetPath, e.CurrentBuffer().FilePath)
 
 	// Push current position to navigation history before jumping
 	e.pushNavigationHistory()
 
 	// If it's a different file, open it
-	if filePath != e.CurrentBuffer().FilePath {
-		LL.Debug("goToDefinition: opening different file: %s", filePath)
-		e.openFile(filePath)
+	if targetPath != e.CurrentBuffer().FilePath {
+		LL.Debug("goToDefinition: opening different file: %s", targetPath)
+		e.openFile(targetPath)
 	} else {
 		LL.Debug("goToDefinition: staying in same file")
 	}
@@ -3412,9 +3415,12 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
 		e.errorManager.ShowError("No file open")
 		return fmt.Errorf("no file open")
 	}
-	line := e.CurrentBuffer().CursorIterator.LineNumber()
-	character := e.CurrentBuffer().CursorX
-	locations, err := e.proxyManager.GoToDefinition(e.CurrentBuffer().FilePath, line, character)
+	filePath, line, character, err := e.getLSPTargetForBuffer(e.CurrentBuffer())
+	if err != nil {
+		e.errorManager.ShowError("%v", err)
+		return err
+	}
+	locations, err := e.proxyManager.GoToDefinition(filePath, line, character)
 	if err != nil || len(locations) == 0 {
 		if err == nil {
 			e.errorManager.ShowError("No definition found")
@@ -3444,6 +3450,44 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
 	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), loc.Range.Start.Line)
 	e.scrollToCenter()
 	return nil
+}
+
+func (e *Editor) getLSPTargetForBuffer(buf *buffer.Buffer) (string, int, int, error) {
+	if buf == nil {
+		return "", 0, 0, fmt.Errorf("no buffer")
+	}
+
+	line := buf.CursorIterator.LineNumber()
+	character := buf.CursorX
+	filePath := buf.RealPath
+
+	if e.isDiffBuffer(buf) {
+		utils.Assert(filePath != "", "diff buffer RealPath missing")
+		if diffLines, ok := e.diffLineInfo[buf]; ok && len(diffLines) > 0 {
+			if line < 0 || line >= len(diffLines) {
+				return "", 0, 0, fmt.Errorf("diff cursor out of range")
+			}
+			sourceInfo := diffLines
+			if strings.HasSuffix(buf.FilePath, "@HEAD") {
+				if pair := e.getDiffPairBuffer(buf); pair != nil {
+					if pi, ok := e.diffLineInfo[pair]; ok && len(pi) == len(diffLines) {
+						sourceInfo = pi
+					}
+				}
+			}
+			mappedLine := sourceInfo[line].RightLine
+			if mappedLine < 0 {
+				return "", 0, 0, fmt.Errorf("no working-file line for diff row %d", line)
+			}
+			line = mappedLine
+		}
+	}
+
+	if filePath == "" {
+		filePath = buf.FilePath
+	}
+
+	return filePath, line, character, nil
 }
 
 // getCommandCompletions returns possible completions for the given command prefix
