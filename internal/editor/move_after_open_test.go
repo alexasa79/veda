@@ -16,7 +16,7 @@ func TestMoveRightAfterFinishOpenFile_ClearsSourceWindowBuffer(t *testing.T) {
 	te.finishOpenFile("/tmp/test-move-right.txt", "hello world", changes, "main", nil, "")
 
 	// Invariants should hold after opening
-	assertWindowBufferInvariants(t, te.Editor)
+	te.runInvariants()
 
 	moved := te.CurrentBuffer()
 	if moved == nil || moved.FilePath != "/tmp/test-move-right.txt" {
@@ -33,7 +33,7 @@ func TestMoveRightAfterFinishOpenFile_ClearsSourceWindowBuffer(t *testing.T) {
 	}
 
 	// Invariants should hold after movement
-	assertWindowBufferInvariants(t, te.Editor)
+	te.runInvariants()
 
 	// Left window should not show the moved buffer
 	if te.windows[0].Buffer == moved {
