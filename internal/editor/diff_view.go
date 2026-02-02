@@ -282,6 +282,8 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 
 	// Recompute window layout to apply diff-specific width rules
 	e.recomputeWindowsLayout()
+	// Ensure diff cursors/view are synced before invariants run again.
+	e.syncDiffCursors()
 
 	LL.Debug("StartDiffViewForCurrentBuffer: Diff view setup complete")
 

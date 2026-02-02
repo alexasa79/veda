@@ -18,6 +18,7 @@ func (e *Editor) moveUpInsert(args []string) error {
 			e.CurrentBuffer().CursorX = len(line)
 		}
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -38,6 +39,7 @@ func (e *Editor) moveDownInsert(args []string) error {
 			e.CurrentBuffer().CursorX = len(line)
 		}
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -49,6 +51,7 @@ func (e *Editor) moveLeftInsert(args []string) error {
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
+	e.updateCursorState()
 	return nil
 }
 
@@ -62,6 +65,7 @@ func (e *Editor) moveRightInsert(args []string) error {
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
+	e.updateCursorState()
 	return nil
 }
 
