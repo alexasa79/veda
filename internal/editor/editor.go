@@ -1734,6 +1734,9 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 		count = 1
 	}
 
+	e.runInvariants()
+	defer e.runInvariants()
+
 	// Store whether we're in temporary normal mode before executing
 	wasTemporaryNormal := e.temporaryNormal
 
@@ -2025,9 +2028,6 @@ func (e *Editor) updateCursor() {
 		if visualCol >= screenWidth {
 			visualCol = screenWidth - 1
 		}
-
-		// Validate cursor invariants
-		e.AssertCursorInvariants(visualLine, visualCol, cursorY)
 
 		e.screen.ShowCursor(visualCol, cursorY)
 	}
@@ -3366,6 +3366,7 @@ func (e *Editor) goToDefinition(args []string) error {
 	e.pushNavigationHistory()
 
 	// If it's a different file, open it
+	utils.Assert(e.CurrentBuffer() != nil, "no current buffer in go-to-definition")
 	if targetPath != e.CurrentBuffer().FilePath {
 		LL.Debug("goToDefinition: opening different file: %s", targetPath)
 		e.openFile(targetPath)
