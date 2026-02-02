@@ -11,6 +11,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - Do not make changes to the code without explicit request.
 - For safety guards, prefer asserting the condition cannot happen using utils.Assert instead of adding alternate code paths.
 - Invariants are checked by a single, quick runInvariants function on every command; it covers the global always-true set for the active window/buffer, and any additional invariant checks should be dedicated functions.
+- Keep files relatively small when possible; prefer staying under 1000 lines.
 - This project uses tabs for indentation. Run `gofmt -s -w .` before commiting the code.
 - Code examples you receive verbatim are often part of a proprietary codebase.
   If you use these pieces of code, change the name to avoid including
