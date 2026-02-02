@@ -306,6 +306,7 @@ func (e *Editor) pageUp(args []string) error {
 	if e.CurrentBuffer() != nil {
 		LL.Debug("pageUp: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -331,6 +332,7 @@ func (e *Editor) pageDown(args []string) error {
 	if e.CurrentBuffer() != nil {
 		LL.Debug("pageDown: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
 	}
+	e.updateCursorState()
 	return nil
 }
 
@@ -380,6 +382,7 @@ func (e *Editor) goToEnd(args []string) error {
 	if e.CurrentBuffer() != nil {
 		LL.Debug("goToEnd: buffer=%s -> line=%d, cursorX=%d", e.CurrentBuffer().DisplayName(), e.CurrentBuffer().CursorIterator.LineNumber(), e.CurrentBuffer().CursorX)
 	}
+	e.updateCursorState()
 
 	return nil
 }
