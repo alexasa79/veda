@@ -113,7 +113,7 @@ func NewTestEditorWithContent(width, height int, content string) *TestEditor {
 		if te.windows[aw] == nil {
 			te.windows[aw] = newWindow(te.CurrentBuffer())
 		} else {
-			te.windows[aw].Buffer = te.CurrentBuffer()
+			te.windows[aw].addBufferToWindow(te.CurrentBuffer())
 		}
 		// Sync per-window cursor/view state from the buffer so status/render are consistent
 		te.windows[aw].ViewLine = te.CurrentBuffer().ViewIterator.LineNumber()
