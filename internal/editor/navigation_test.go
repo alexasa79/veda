@@ -3,6 +3,8 @@ package editor
 import (
 	"fmt"
 	"testing"
+	"veda/internal/buffer"
+	"veda/internal/config"
 )
 
 func TestNavigationHistory(t *testing.T) {
@@ -177,5 +179,144 @@ func TestGoBackEmptyHistory(t *testing.T) {
 	err := te.goBack(nil)
 	if err != nil {
 		t.Errorf("goBack with empty history returned error: %v", err)
+	}
+}
+
+func TestGoBack_DiffHistoryEntryRestoresRealFile(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "line1\nline2\nline3")
+
+	realPath := te.resolvePath("internal/editor/navigation.go")
+	diffPath := realPath + "@current"
+
+	// Simulate being on a diff buffer when navigation history is pushed (e.g. before gd).
+	te.CurrentBuffer().FilePath = diffPath
+	te.CurrentBuffer().RealPath = realPath
+	te.SetCursorPosition(1, 1)
+	te.pushNavigationHistory()
+
+	if len(te.navHistory) != 1 {
+		t.Fatalf("expected 1 navigation history entry, got %d", len(te.navHistory))
+	}
+
+	// Simulate leaving diff view so the synthetic diff buffers are no longer present.
+	te.CurrentBuffer().FilePath = realPath
+	te.CurrentBuffer().RealPath = realPath
+	delete(te.buffers, diffPath)
+	delete(te.buffers, realPath+"@HEAD")
+
+	// Desired behavior: go-back should restore the real file location and not panic.
+	if err := te.ExecuteCommand("go-back"); err != nil {
+		t.Fatalf("go-back returned error: %v", err)
+	}
+	if te.CurrentBuffer() == nil {
+		t.Fatalf("expected active buffer after go-back")
+	}
+	if te.CurrentBuffer().FilePath != realPath {
+		t.Fatalf("expected go-back to restore real file %s, got %s", realPath, te.CurrentBuffer().FilePath)
+	}
+}
+
+func TestGoBack_ReturnsToDiffBufferWhenDiffViewStillOpen(t *testing.T) {
+	te := NewTestEditorWithContent(120, 30, "line1\nline2\nline3")
+
+	realPath := te.CurrentBuffer().FilePath
+	diffResult := computeDiff(te.CurrentBuffer().Rope.String(), te.CurrentBuffer().Rope.String())
+	head := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), realPath+"@HEAD", realPath+"@HEAD", config.IndentTabs, 4)
+	curr := buffer.NewBuffer(createBufferContent(diffResult.RightLines), realPath+"@current", realPath+"@current", config.IndentTabs, 4)
+	head.RealPath = realPath
+	curr.RealPath = realPath
+	head.IsReadOnly = true
+
+	te.buffers[head.FilePath] = head
+	te.buffers[curr.FilePath] = curr
+	te.diffLineInfo[head] = diffResult.LeftLines
+	te.diffLineInfo[curr] = diffResult.RightLines
+
+	te.windows[0].addBufferToWindow(head)
+	te.createSecondWindow()
+	te.windows[1].addBufferToWindow(curr)
+	te.activeWindow = 1
+	te.switchToBuffer(curr)
+
+	if !te.isDiffViewActive() {
+		t.Fatalf("expected diff view to be active")
+	}
+
+	te.pushNavigationHistory()
+
+	forward := buffer.NewBuffer("forward", realPath+".forward", realPath+".forward", config.IndentTabs, 4)
+	te.buffers[forward.FilePath] = forward
+	te.windows[te.activeWindow].addBufferToWindow(forward)
+	te.switchToBuffer(forward)
+
+	if err := te.ExecuteCommand("go-back"); err != nil {
+		t.Fatalf("go-back returned error: %v", err)
+	}
+
+	if te.CurrentBuffer() == nil {
+		t.Fatalf("expected current buffer after go-back")
+	}
+	if te.CurrentBuffer().FilePath != curr.FilePath {
+		t.Fatalf("expected go-back to return to diff buffer %s, got %s", curr.FilePath, te.CurrentBuffer().FilePath)
+	}
+	if !te.isDiffBuffer(te.CurrentBuffer()) {
+		t.Fatalf("expected go-back target to be a diff buffer, got %s", te.CurrentBuffer().FilePath)
+	}
+	if !te.isDiffViewActive() {
+		t.Fatalf("expected diff view to remain active after go-back")
+	}
+}
+
+func TestGoBack_ReturnsToRealFileWhenDiffViewClosed(t *testing.T) {
+	te := NewTestEditorWithContent(120, 30, "line1\nline2\nline3")
+
+	realPath := te.CurrentBuffer().FilePath
+	diffResult := computeDiff(te.CurrentBuffer().Rope.String(), te.CurrentBuffer().Rope.String())
+	head := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), realPath+"@HEAD", realPath+"@HEAD", config.IndentTabs, 4)
+	curr := buffer.NewBuffer(createBufferContent(diffResult.RightLines), realPath+"@current", realPath+"@current", config.IndentTabs, 4)
+	head.RealPath = realPath
+	curr.RealPath = realPath
+	head.IsReadOnly = true
+
+	te.buffers[head.FilePath] = head
+	te.buffers[curr.FilePath] = curr
+	te.diffLineInfo[head] = diffResult.LeftLines
+	te.diffLineInfo[curr] = diffResult.RightLines
+
+	te.windows[0].addBufferToWindow(head)
+	te.createSecondWindow()
+	te.windows[1].addBufferToWindow(curr)
+	te.activeWindow = 1
+	te.switchToBuffer(curr)
+
+	if !te.isDiffViewActive() {
+		t.Fatalf("expected diff view to be active")
+	}
+
+	te.pushNavigationHistory()
+
+	forward := buffer.NewBuffer("forward", realPath+".forward", realPath+".forward", config.IndentTabs, 4)
+	te.buffers[forward.FilePath] = forward
+	te.windows[te.activeWindow].addBufferToWindow(forward)
+	te.switchToBuffer(forward)
+
+	te.exitDiffViewIfActive()
+	if te.isDiffViewActive() {
+		t.Fatalf("expected diff view to be closed before go-back")
+	}
+
+	// Expected behavior: if diff view is no longer available, go-back should restore the real file.
+	if err := te.ExecuteCommand("go-back"); err != nil {
+		t.Fatalf("go-back returned error: %v", err)
+	}
+
+	if te.CurrentBuffer() == nil {
+		t.Fatalf("expected current buffer after go-back")
+	}
+	if te.CurrentBuffer().FilePath != realPath {
+		t.Fatalf("expected go-back to return to real file %s, got %s", realPath, te.CurrentBuffer().FilePath)
+	}
+	if te.isDiffBuffer(te.CurrentBuffer()) {
+		t.Fatalf("expected go-back target to be non-diff buffer when diff view is closed")
 	}
 }

@@ -375,6 +375,37 @@ func (te *TestEditor) SetCursorPosition(x, y int) {
 	}
 }
 
+// SetDiffCursorPosition sets cursor/view on the active buffer and synchronizes
+// the paired diff buffer when in diff view.
+func (te *TestEditor) SetDiffCursorPosition(x, y int) {
+	te.CurrentBuffer().CursorX = x
+	te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), y)
+	te.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), y)
+
+	// Ensure cursor X is within bounds on the target line.
+	if !te.CurrentBuffer().CursorIterator.IsEOF() {
+		line := te.CurrentBuffer().CursorIterator.Line()
+		if te.CurrentBuffer().CursorX > len(line) {
+			te.CurrentBuffer().CursorX = len(line)
+		}
+		if te.mode == commands.NormalMode && te.CurrentBuffer().CursorX == len(line) && len(line) > 0 {
+			te.CurrentBuffer().CursorX--
+		}
+	}
+
+	// Keep paired diff buffer cursors/views aligned to satisfy invariants.
+	te.syncDiffCursors()
+
+	// Keep active window cache in sync with updated buffer position.
+	if te.activeWindow >= 0 && te.activeWindow < len(te.windows) {
+		if win := te.windows[te.activeWindow]; win != nil {
+			win.CursorLine = te.CurrentBuffer().CursorIterator.LineNumber()
+			win.CursorX = te.CurrentBuffer().CursorX
+			win.ViewLine = te.CurrentBuffer().ViewIterator.LineNumber()
+		}
+	}
+}
+
 // GetBufferContent returns the entire buffer content as a string
 func (te *TestEditor) GetBufferContent() string {
 	return te.CurrentBuffer().Rope.String()

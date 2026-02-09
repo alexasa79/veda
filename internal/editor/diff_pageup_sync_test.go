@@ -50,6 +50,7 @@ func TestDiffView_PageUpViewSync(t *testing.T) {
 		t.Fatalf("go-to-end failed: %v", err)
 	}
 	te.scroll()
+	te.syncDiffCursors()
 	te.render()
 
 	// Capture initial top lines
@@ -65,6 +66,7 @@ func TestDiffView_PageUpViewSync(t *testing.T) {
 		// Update cursor-dependent state and perform scrolling like the main loop
 		te.updateCursorState()
 		te.scroll()
+		te.syncDiffCursors()
 		te.render()
 
 		leftTop := te.windows[0].ViewLine

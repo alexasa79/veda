@@ -1413,9 +1413,9 @@ func (e *Editor) handleEvent(ev events.Event) {
 					// Push navigation history before opening
 					e.pushNavigationHistory()
 
-					// Open the file if different
+					// Open or reuse the best available buffer for this file.
 					if e.CurrentBuffer() == nil || filePath != e.CurrentBuffer().FilePath {
-						e.openFile(filePath)
+						e.navigateToBufferTarget(filePath, filePath)
 					}
 
 					// Navigate to the location
@@ -3368,8 +3368,8 @@ func (e *Editor) goToDefinition(args []string) error {
 	// If it's a different file, open it
 	utils.Assert(e.CurrentBuffer() != nil, "no current buffer in go-to-definition")
 	if targetPath != e.CurrentBuffer().FilePath {
-		LL.Debug("goToDefinition: opening different file: %s", targetPath)
-		e.openFile(targetPath)
+		LL.Debug("goToDefinition: switching to target file buffer: %s", targetPath)
+		e.navigateToBufferTarget(targetPath, targetPath)
 	} else {
 		LL.Debug("goToDefinition: staying in same file")
 	}

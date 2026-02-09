@@ -815,6 +815,30 @@ func (e *Editor) isDiffViewActive() bool {
 	return false
 }
 
+// exitDiffViewIfActive closes the diff buffer pair if a diff view is active.
+func (e *Editor) exitDiffViewIfActive() {
+	if !e.isDiffViewActive() {
+		return
+	}
+
+	diffBuf := e.CurrentBuffer()
+	if diffBuf == nil || !e.isDiffBuffer(diffBuf) {
+		diffBuf = nil
+		for _, window := range e.windows {
+			if window != nil && window.Buffer != nil && e.isDiffBuffer(window.Buffer) {
+				diffBuf = window.Buffer
+				break
+			}
+		}
+	}
+
+	if diffBuf == nil {
+		return
+	}
+
+	_ = e.closeDiffBufferPair(diffBuf.FilePath)
+}
+
 // findDiffWindowPair returns the indices of the two windows containing the diff pair buffers
 // Returns (-1, -1) if no diff pair is found
 func (e *Editor) findDiffWindowPair() (int, int) {

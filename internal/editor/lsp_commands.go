@@ -324,10 +324,10 @@ func (e *Editor) jumpToLocation(location proxy.Location) error {
 	// Push current position to navigation history before jumping
 	e.pushNavigationHistory()
 
-	// If it's a different file, open it
+	// If it's a different file, switch to preferred/same-file/opened buffer.
 	if e.CurrentBuffer().FilePath != filePath {
-		LL.Debug("jumpToReference: opening different file: %s", filePath)
-		e.openFile(filePath)
+		LL.Debug("jumpToReference: switching to target file buffer: %s", filePath)
+		e.navigateToBufferTarget(filePath, filePath)
 	}
 
 	// Jump to the location

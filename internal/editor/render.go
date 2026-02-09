@@ -1853,6 +1853,11 @@ func (e *Editor) drawStatusBar() {
 			filename := e.CurrentBuffer().FileName()
 			x += e.drawText(x, statusBarY, statusBarStyle, filename, 0, nil, -1, 0, -1)
 
+			// Show a marker when the active buffer is part of a diff view pair.
+			if e.isDiffBuffer(e.CurrentBuffer()) {
+				x += e.drawText(x, statusBarY, statusBarStyle, " [DIFF]", 0, nil, -1, 0, -1)
+			}
+
 			// Add modified indicator if buffer is modified
 			if e.CurrentBuffer().IsModified {
 				x += e.drawText(x, statusBarY, statusBarStyle, " [unsaved]", 0, nil, -1, 0, -1)
