@@ -413,6 +413,9 @@ func (e *Editor) openFile(filePath string) {
 	resolvedPath := e.resolvePath(filePath)
 	LL.Debug("openFile: resolvedPath=%s", resolvedPath)
 
+	// Diff view is modal: opening a file exits diff view first.
+	e.exitDiffViewIfActive()
+
 	// First save the current buffer state
 	e.saveCurrentBufferState()
 

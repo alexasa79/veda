@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"veda/internal/buffer"
 	"veda/internal/proxy"
 )
 
@@ -112,9 +111,7 @@ func main() {
 	if !ok {
 		t.Fatalf("did not find call site in diff buffer content")
 	}
-	te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), callLine)
-	te.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), callLine)
-	te.CurrentBuffer().CursorX = callCol
+	te.SetDiffCursorPosition(callCol, callLine)
 
 	defLine, _, ok := findLineCol(modified, "func add(")
 	if !ok {
