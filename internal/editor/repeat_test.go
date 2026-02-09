@@ -141,7 +141,12 @@ func TestRepeatLastChange(t *testing.T) {
 		te.bufferOrder = append(te.bufferOrder, "test2.txt")
 
 		// Switch to the new buffer
-		te.SetCurrentBuffer(buf2)
+		aw := te.activeWindow
+		if aw < 0 || aw >= len(te.windows) || te.windows[aw] == nil {
+			t.Fatalf("invalid active window in test setup")
+		}
+		te.windows[aw].addBufferToWindow(buf2)
+		te.switchToBuffer(buf2)
 
 		// Move to position after "Buffer"
 		for i := 0; i < 6; i++ {
