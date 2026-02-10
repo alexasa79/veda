@@ -31,7 +31,8 @@ func TestClangdDiagnosticsClearAfterFix(t *testing.T) {
 	defer pm.Close()
 
 	cwd, _ := os.Getwd()
-	filePath := filepath.Join(cwd, "../../artifacts/c-diagnostics-project/diag_toggle.c")
+	projectDir := copyGoTestProject(t, filepath.Join(cwd, "../../artifacts/c-diagnostics-project"))
+	filePath := filepath.Join(projectDir, "diag_toggle.c")
 
 	goodContent := `#include <stdio.h>
 
