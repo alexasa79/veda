@@ -31,8 +31,8 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 	}
 
 	// Set up windows: HEAD on left (window 0), current on right (window 1)
-	te.windows[0].Buffer = te.buffers[headBufferName]
-	te.windows[1].Buffer = te.buffers[currentBufferName]
+	te.windows[0].setActiveBuffer(te.buffers[headBufferName])
+	te.windows[1].setActiveBuffer(te.buffers[currentBufferName])
 	te.activeWindow = 1 // Start on right side (current)
 	te.switchToBuffer(te.buffers[currentBufferName])
 	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
@@ -155,8 +155,8 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 
 		// Set up two windows
 		te.createSecondWindow()
-		te.windows[0].Buffer = te.buffers[headBufferName]
-		te.windows[1].Buffer = te.buffers[currentBufferName]
+		te.windows[0].setActiveBuffer(te.buffers[headBufferName])
+		te.windows[1].setActiveBuffer(te.buffers[currentBufferName])
 		te.activeWindow = 1 // Start on right side
 		te.switchToBuffer(te.buffers[currentBufferName])
 

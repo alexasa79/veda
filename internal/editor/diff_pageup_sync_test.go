@@ -40,8 +40,8 @@ func TestDiffView_PageUpViewSync(t *testing.T) {
 	if len(te.windows) < 2 {
 		t.Fatalf("expected two windows")
 	}
-	te.windows[0].Buffer = head
-	te.windows[1].Buffer = curr
+	te.windows[0].setActiveBuffer(head)
+	te.windows[1].setActiveBuffer(curr)
 	te.activeWindow = 1
 	te.switchToBuffer(curr)
 

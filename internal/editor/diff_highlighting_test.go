@@ -88,8 +88,8 @@ func TestDiffHighlighting(t *testing.T) {
 	t.Run("diff_highlighting_applied_during_rendering", func(t *testing.T) {
 		// Set up windows with diff buffers
 		te.createSecondWindow()
-		te.windows[0].Buffer = headBuffer
-		te.windows[1].Buffer = currentBuffer
+		te.windows[0].setActiveBuffer(headBuffer)
+		te.windows[1].setActiveBuffer(currentBuffer)
 		te.activeWindow = 1
 		te.switchToBuffer(currentBuffer)
 		// Recompute layout now that diff buffers are assigned - this triggers diff mode detection

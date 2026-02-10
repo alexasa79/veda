@@ -31,7 +31,7 @@ func TestStatusBarCursor_Repro(t *testing.T) {
 	buf := buffer.NewBuffer(content, "repro.txt", "repro.txt", config.IndentTabs, 4)
 	te.buffers[buf.FilePath] = buf
 	te.bufferOrder = append(te.bufferOrder, buf.FilePath)
-	te.windows[te.activeWindow].Buffer = buf
+	te.windows[te.activeWindow].setActiveBuffer(buf)
 	te.SetCurrentBuffer(buf)
 	te.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(te.CurrentBuffer())
 	te.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(te.CurrentBuffer())

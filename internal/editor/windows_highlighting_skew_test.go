@@ -139,7 +139,7 @@ func TestTwoWindowEditing_PreservesRightWindowTokenHighlighting(t *testing.T) {
 
 	te := NewTestEditorWithContent(200, 30, leftContent)
 	te.CurrentBuffer().FilePath = "left.go"
-	te.windows[0].Buffer = te.CurrentBuffer()
+	te.windows[0].setActiveBuffer(te.CurrentBuffer())
 	te.render()
 
 	te.TypeKeys("space v")
@@ -152,7 +152,7 @@ func TestTwoWindowEditing_PreservesRightWindowTokenHighlighting(t *testing.T) {
 	right := te.windows[1]
 	// Replace the right window's buffer with a fresh buffer to ensure a distinct highlighter
 	newRight := buffer.NewBuffer(rightContent, "right.go", "right.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
-	right.Buffer = newRight
+	right.addBufferToWindow(newRight)
 	// Ensure line count/width derived from content
 	right.Buffer.UpdateLineNumberWidth()
 	right.ViewLine = 0
@@ -210,7 +210,7 @@ func TestTwoWindowEditing_PreservesLeftWindowTokenHighlighting(t *testing.T) {
 
 	te := NewTestEditorWithContent(200, 30, leftContent)
 	te.CurrentBuffer().FilePath = "left.go"
-	te.windows[0].Buffer = te.CurrentBuffer()
+	te.windows[0].setActiveBuffer(te.CurrentBuffer())
 	te.render()
 
 	// Split to create two windows
@@ -223,7 +223,7 @@ func TestTwoWindowEditing_PreservesLeftWindowTokenHighlighting(t *testing.T) {
 	// Put content into right window
 	right := te.windows[1]
 	if right.Buffer == nil {
-		right.Buffer = buffer.NewBuffer(rightContent, "right.go", "right.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+		right.addBufferToWindow(buffer.NewBuffer(rightContent, "right.go", "right.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth))
 	} else {
 		right.Buffer.Rope = buffer.NewRopeFromString(rightContent)
 		right.Buffer.LineCount = strings.Count(rightContent, "\n") + 1

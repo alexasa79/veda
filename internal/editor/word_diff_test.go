@@ -38,8 +38,8 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 
 	// Set up windows for side-by-side diff view
 	te.createSecondWindow()
-	te.windows[0].Buffer = headBuffer    // HEAD on left
-	te.windows[1].Buffer = currentBuffer // Current on right
+	te.windows[0].setActiveBuffer(headBuffer)    // HEAD on left
+	te.windows[1].setActiveBuffer(currentBuffer) // Current on right
 	te.activeWindow = 1
 	te.switchToBuffer(currentBuffer)
 

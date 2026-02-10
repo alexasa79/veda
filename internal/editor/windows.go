@@ -728,6 +728,16 @@ func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
 	w.Buffer = buf
 }
 
+// setActiveBuffer sets the active buffer while preserving window buffer-list invariants.
+// Non-nil buffers are ensured to exist in Buffers; nil clears only the active pointer.
+func (w *Window) setActiveBuffer(buf *buffer.Buffer) {
+	if buf == nil {
+		w.Buffer = nil
+		return
+	}
+	w.addBufferToWindow(buf)
+}
+
 // removeBufferFromWindow removes a buffer from a window's buffer list
 func (w *Window) removeBufferFromWindow(buf *buffer.Buffer) {
 	if buf == nil {

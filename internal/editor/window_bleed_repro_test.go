@@ -84,7 +84,7 @@ func TestRightWindowBottomShouldBeEmpty_Repro(t *testing.T) {
 	// configured minimum active width, left will shrink.
 	te := NewTestEditorWithContent(120, 30, buildLargeContent(200))
 	// Ensure the sole window uses the editor buffer we just created.
-	te.windows[0].Buffer = te.CurrentBuffer()
+	te.windows[0].setActiveBuffer(te.CurrentBuffer())
 
 	// Initial render in single-window mode; this paints the entire grid with
 	// non-space content from the left buffer.
@@ -102,7 +102,7 @@ func TestRightWindowBottomShouldBeEmpty_Repro(t *testing.T) {
 	right := te.windows[1]
 	if right.Buffer == nil {
 		// In the current design, vsplit creates an empty window. Create a small buffer explicitly.
-		right.Buffer = buffer.NewBuffer(buildSmallContent(), "artifacts/small.txt", "artifacts/small.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+		right.setActiveBuffer(buffer.NewBuffer(buildSmallContent(), "artifacts/small.txt", "artifacts/small.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth))
 	} else {
 		right.Buffer.Rope = buffer.NewRopeFromString(buildSmallContent())
 		right.Buffer.LineCount = strings.Count(right.Buffer.Rope.String(), "\n") + 1

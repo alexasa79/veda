@@ -99,8 +99,9 @@ func (e *Editor) moveDown(args []string) error {
 
 func (e *Editor) moveLeft(args []string) error {
 	// Auto-indent cleanup not needed for horizontal movement on same line
+	line := e.CurrentBuffer().CursorIterator.Line()
 	if e.CurrentBuffer().CursorX > 0 {
-		e.CurrentBuffer().CursorX--
+		e.CurrentBuffer().CursorX = prevRuneStart(line, e.CurrentBuffer().CursorX)
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
@@ -113,13 +114,13 @@ func (e *Editor) moveLeft(args []string) error {
 
 func (e *Editor) moveRight(args []string) error {
 	line := e.CurrentBuffer().CursorIterator.Line()
-	maxX := len(line)
-	if maxX > 0 {
-		maxX-- // Don't go past the last character
-	}
-	if e.CurrentBuffer().CursorX < maxX {
-		// Simply move to the next character - the visual rendering handles tab width
-		e.CurrentBuffer().CursorX++
+	if len(line) > 0 {
+		cursorX := clampCursorToRuneStart(line, e.CurrentBuffer().CursorX)
+		maxX := lastRuneStart(line) // Don't go past the last character in normal mode
+		if cursorX < maxX {
+			cursorX = nextRuneStart(line, cursorX)
+		}
+		e.CurrentBuffer().CursorX = cursorX
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1

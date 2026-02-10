@@ -16,8 +16,26 @@ func setupTerminalBufferForTest(te *TestEditor, cols, rows int, content string, 
 
 	// Add to editor buffers and select it
 	te.buffers[b.FilePath] = b
-	te.SetCurrentBuffer(b)
 	te.bufferOrder = []string{b.FilePath}
+
+	// Attach to active window and switch through buffer manager path so
+	// window/buffer invariants are preserved.
+	if len(te.windows) == 0 {
+		te.windows = []*Window{newWindow(b)}
+		te.activeWindow = 0
+	} else {
+		aw := te.activeWindow
+		if aw < 0 || aw >= len(te.windows) {
+			aw = 0
+			te.activeWindow = 0
+		}
+		if te.windows[aw] == nil {
+			te.windows[aw] = newWindow(b)
+		} else {
+			te.windows[aw].addBufferToWindow(b)
+		}
+	}
+	te.switchToBuffer(b)
 
 	// Attach terminal session state with emulator
 	if te.terminalSessions == nil {

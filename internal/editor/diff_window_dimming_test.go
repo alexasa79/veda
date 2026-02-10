@@ -61,9 +61,9 @@ func TestDiffView_WindowDimmingDisabled(t *testing.T) {
 		te.buffers[currentBufferName] = currentBuffer
 
 		// Assign diff buffers to windows
-		te.windows[0].Buffer = headBuffer    // HEAD on left
-		te.windows[1].Buffer = currentBuffer // Current on right
-		te.activeWindow = 1                  // Active on right side
+		te.windows[0].setActiveBuffer(headBuffer)    // HEAD on left
+		te.windows[1].setActiveBuffer(currentBuffer) // Current on right
+		te.activeWindow = 1                          // Active on right side
 
 		// Check that isDiffViewActive returns true
 		if !te.isDiffViewActive() {
@@ -101,8 +101,8 @@ func TestDiffView_WindowDimmingDisabled(t *testing.T) {
 	// Test 3: Verify dimming is re-enabled when diff view is closed
 	t.Run("dimming_reenabled_after_diff_view", func(t *testing.T) {
 		// Remove diff buffers from windows (simulating closing diff view)
-		te.windows[0].Buffer = nil
-		te.windows[1].Buffer = te.CurrentBuffer() // Back to normal buffer
+		te.windows[0].setActiveBuffer(nil)
+		te.windows[1].setActiveBuffer(te.CurrentBuffer()) // Back to normal buffer
 		te.activeWindow = 1
 
 		// Check that isDiffViewActive returns false again
@@ -140,8 +140,8 @@ func TestIsDiffViewActive(t *testing.T) {
 	// Test with empty windows
 	te.createSecondWindow()
 	if len(te.windows) >= 2 {
-		te.windows[0].Buffer = nil
-		te.windows[1].Buffer = nil
+		te.windows[0].setActiveBuffer(nil)
+		te.windows[1].setActiveBuffer(nil)
 	}
 	if te.isDiffViewActive() {
 		t.Error("isDiffViewActive should return false with empty windows")
@@ -150,8 +150,8 @@ func TestIsDiffViewActive(t *testing.T) {
 	// Test with normal buffers
 	normalBuffer := buffer.NewBuffer("normal content", "normal.go", "normal.go", config.IndentTabs, 4)
 	if len(te.windows) >= 2 {
-		te.windows[0].Buffer = normalBuffer
-		te.windows[1].Buffer = normalBuffer
+		te.windows[0].setActiveBuffer(normalBuffer)
+		te.windows[1].setActiveBuffer(normalBuffer)
 		if te.isDiffViewActive() {
 			t.Error("isDiffViewActive should return false with normal buffers")
 		}
@@ -160,8 +160,8 @@ func TestIsDiffViewActive(t *testing.T) {
 	// Test with one diff buffer
 	diffBuffer := buffer.NewBuffer("diff content", "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
 	if len(te.windows) >= 2 {
-		te.windows[0].Buffer = diffBuffer
-		te.windows[1].Buffer = normalBuffer
+		te.windows[0].setActiveBuffer(diffBuffer)
+		te.windows[1].setActiveBuffer(normalBuffer)
 		if !te.isDiffViewActive() {
 			t.Error("isDiffViewActive should return true with one diff buffer")
 		}
@@ -170,8 +170,8 @@ func TestIsDiffViewActive(t *testing.T) {
 	// Test with both diff buffers
 	diffBuffer2 := buffer.NewBuffer("diff content 2", "test.go@current", "test.go@current", config.IndentTabs, 4)
 	if len(te.windows) >= 2 {
-		te.windows[0].Buffer = diffBuffer
-		te.windows[1].Buffer = diffBuffer2
+		te.windows[0].setActiveBuffer(diffBuffer)
+		te.windows[1].setActiveBuffer(diffBuffer2)
 		if !te.isDiffViewActive() {
 			t.Error("isDiffViewActive should return true with both diff buffers")
 		}
@@ -180,7 +180,7 @@ func TestIsDiffViewActive(t *testing.T) {
 	// Test with mixed diff and normal buffers in multiple windows
 	te.createSecondWindow() // Add third window
 	if len(te.windows) >= 3 {
-		te.windows[2].Buffer = normalBuffer
+		te.windows[2].setActiveBuffer(normalBuffer)
 		if !te.isDiffViewActive() {
 			t.Error("isDiffViewActive should return true when any window has diff buffer")
 		}
