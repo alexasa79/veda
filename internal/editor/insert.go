@@ -46,8 +46,9 @@ func (e *Editor) moveDownInsert(args []string) error {
 func (e *Editor) moveLeftInsert(args []string) error {
 	// Close any active completion menu when moving with arrows in insert mode
 	e.hideCompletionMenu()
+	line := e.CurrentBuffer().CursorIterator.Line()
 	if e.CurrentBuffer().CursorX > 0 {
-		e.CurrentBuffer().CursorX--
+		e.CurrentBuffer().CursorX = prevRuneStart(line, e.CurrentBuffer().CursorX)
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
@@ -61,7 +62,7 @@ func (e *Editor) moveRightInsert(args []string) error {
 	line := e.CurrentBuffer().CursorIterator.Line()
 	// In insert mode, allow cursor to go past the last character
 	if e.CurrentBuffer().CursorX < len(line) {
-		e.CurrentBuffer().CursorX++
+		e.CurrentBuffer().CursorX = nextRuneStart(line, e.CurrentBuffer().CursorX)
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1

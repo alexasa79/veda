@@ -54,8 +54,8 @@ func TestDiffViewLineWrapSync(t *testing.T) {
 
 	// Set up windows for side-by-side diff view
 	te.createSecondWindow()
-	te.windows[0].Buffer = headBuffer    // HEAD on left
-	te.windows[1].Buffer = currentBuffer // Current on right
+	te.windows[0].setActiveBuffer(headBuffer)    // HEAD on left
+	te.windows[1].setActiveBuffer(currentBuffer) // Current on right
 	te.activeWindow = 1
 	te.switchToBuffer(currentBuffer)
 	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
@@ -153,8 +153,8 @@ func TestDiffViewLongLineNoWrap(t *testing.T) {
 	te.diffLineInfo[currentBuffer] = diffResult.RightLines
 
 	te.createSecondWindow()
-	te.windows[0].Buffer = headBuffer
-	te.windows[1].Buffer = currentBuffer
+	te.windows[0].setActiveBuffer(headBuffer)
+	te.windows[1].setActiveBuffer(currentBuffer)
 	te.activeWindow = 1
 	te.switchToBuffer(currentBuffer)
 	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection

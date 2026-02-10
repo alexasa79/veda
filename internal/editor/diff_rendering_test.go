@@ -39,8 +39,8 @@ func TestDiffRendering(t *testing.T) {
 
 	// Set up windows for side-by-side diff view
 	te.createSecondWindow()
-	te.windows[0].Buffer = headBuffer    // HEAD on left
-	te.windows[1].Buffer = currentBuffer // Current on right
+	te.windows[0].setActiveBuffer(headBuffer)    // HEAD on left
+	te.windows[1].setActiveBuffer(currentBuffer) // Current on right
 	te.activeWindow = 1
 	te.switchToBuffer(currentBuffer)
 	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
@@ -294,8 +294,8 @@ func TestDiffRenderingWithComplexChanges(t *testing.T) {
 
 	// Set up diff view
 	te.createSecondWindow()
-	te.windows[0].Buffer = headBuffer
-	te.windows[1].Buffer = currentBuffer
+	te.windows[0].setActiveBuffer(headBuffer)
+	te.windows[1].setActiveBuffer(currentBuffer)
 	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
 	te.recomputeWindowsLayout()
 

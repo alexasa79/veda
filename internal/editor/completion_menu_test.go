@@ -20,13 +20,13 @@ func TestCompletionMenuAppearsInActiveWindow(t *testing.T) {
 	te.buffers["test2.txt"] = secondBuffer
 
 	// Set up windows side by side (left and right)
-	te.windows[0].Buffer = te.CurrentBuffer()
+	te.windows[0].setActiveBuffer(te.CurrentBuffer())
 	te.windows[0].X = 0
 	te.windows[0].Y = 0
 	te.windows[0].Width = 40
 	te.windows[0].Height = 24
 
-	te.windows[1].Buffer = secondBuffer
+	te.windows[1].setActiveBuffer(secondBuffer)
 	te.windows[1].X = 40
 	te.windows[1].Y = 0
 	te.windows[1].Width = 40

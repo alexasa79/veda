@@ -31,7 +31,7 @@ func TestWrapAwareScrollingPreservesScrollOffset(t *testing.T) {
 	buf := buffer.NewBuffer(content, "wrap.txt", "wrap.txt", config.IndentTabs, 4)
 	te.buffers[buf.FilePath] = buf
 	te.bufferOrder = append(te.bufferOrder, buf.FilePath)
-	te.windows[0].Buffer = buf
+	te.windows[0].setActiveBuffer(buf)
 	te.SetCurrentBuffer(buf)
 	te.CurrentBuffer().ViewIterator = buffer.NewBufferIterator(buf)
 	te.CurrentBuffer().CursorIterator = buffer.NewBufferIterator(buf)
@@ -43,7 +43,7 @@ func TestWrapAwareScrollingPreservesScrollOffset(t *testing.T) {
 	// Keep second window with a dummy buffer to keep layout split.
 	other := buffer.NewBuffer("other", "other.txt", "other.txt", config.IndentTabs, 4)
 	te.buffers[other.FilePath] = other
-	te.windows[1].Buffer = other
+	te.windows[1].setActiveBuffer(other)
 
 	te.activeWindow = 0
 	te.recomputeWindowsLayout()

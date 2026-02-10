@@ -22,6 +22,30 @@ type TestEditor struct {
 	mockScreen *MockScreen
 }
 
+// SetCurrentBuffer overrides Editor.SetCurrentBuffer for tests and keeps
+// active-window buffer membership consistent with invariants.
+func (te *TestEditor) SetCurrentBuffer(buf *buffer.Buffer) {
+	if buf != nil {
+		if len(te.windows) == 0 {
+			te.windows = []*Window{newWindow(buf)}
+			te.activeWindow = 0
+		} else {
+			aw := te.activeWindow
+			if aw < 0 || aw >= len(te.windows) {
+				aw = 0
+				te.activeWindow = 0
+			}
+			if te.windows[aw] == nil {
+				te.windows[aw] = newWindow(buf)
+			} else {
+				te.windows[aw].setActiveBuffer(buf)
+			}
+		}
+	}
+
+	te.Editor.SetCurrentBuffer(buf)
+}
+
 // NewTestEditor creates a new editor configured for testing
 func NewTestEditor(width, height int) *TestEditor {
 	mockScreen := NewMockScreen(width, height)

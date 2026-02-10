@@ -93,7 +93,7 @@ func TestFunction() {
 		// Ensure the first window has the correct buffer reference (the original buffer)
 		originalBuffer := te.CurrentBuffer()
 		if len(te.windows) > 0 {
-			te.windows[0].Buffer = originalBuffer
+			te.windows[0].setActiveBuffer(originalBuffer)
 		}
 
 		// Create a new window for the second file (simulating Shift+Enter)

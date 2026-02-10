@@ -44,8 +44,8 @@ func TestLeftDiffPaneUsesSyntaxTokens(t *testing.T) {
 	te.buffers[headName] = headBuf
 	te.buffers[curName] = curBuf
 	te.createSecondWindow()
-	te.windows[0].Buffer = headBuf
-	te.windows[1].Buffer = curBuf
+	te.windows[0].setActiveBuffer(headBuf)
+	te.windows[1].setActiveBuffer(curBuf)
 	te.activeWindow = 0
 	te.switchToBuffer(headBuf)
 

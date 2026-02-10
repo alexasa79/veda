@@ -87,7 +87,7 @@ Line 5 modified`
 	// the diff view should end and widths should adjust
 
 	// Switch to the third buffer in the left diff window
-	te.Editor.windows[1].Buffer = thirdBuffer
+	te.Editor.windows[1].setActiveBuffer(thirdBuffer)
 	te.Editor.windows[1].Buffers = []*buffer.Buffer{thirdBuffer}
 
 	// Recalculate layout
