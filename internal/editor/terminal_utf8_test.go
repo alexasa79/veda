@@ -74,7 +74,7 @@ func TestTerminalUTF8_NoMojibake(t *testing.T) {
 	te.mode = commands.TerminalMode
 
 	// Render
-	te.drawEditor()
+	te.Editor.render()
 
 	// Verify that content area contains our UTF-8 sequence without mojibake
 	// Note: ⏎ characters are filtered out by the emulator to handle spurious fish shell output
@@ -122,7 +122,7 @@ func TestTerminalColorsPersistInNormalMode(t *testing.T) {
 
 	// Draw in terminal mode first
 	te.mode = commands.TerminalMode
-	te.drawEditor()
+	te.Editor.render()
 
 	// Find the style at column 0, row 0
 	r0, style0 := te.mockScreen.GetCell(te.CurrentBuffer().LineNumberWidth+0, 0)
@@ -136,7 +136,7 @@ func TestTerminalColorsPersistInNormalMode(t *testing.T) {
 
 	// Switch to normal mode and draw again; terminal/internal buffers should still use terminal styling
 	te.mode = commands.NormalMode
-	te.drawEditor()
+	te.Editor.render()
 
 	r1, style1 := te.mockScreen.GetCell(te.CurrentBuffer().LineNumberWidth+0, 0)
 	if r1 != 'X' {

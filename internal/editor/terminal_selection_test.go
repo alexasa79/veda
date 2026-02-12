@@ -34,7 +34,7 @@ func TestTerminalSelectionHighlightInNormalMode(t *testing.T) {
 		}
 	}
 
-	te.drawEditor()
+	te.Editor.render()
 
 	screenLine := te.mockScreen.GetLine(0)
 	helloStart := strings.Index(screenLine, "hello")

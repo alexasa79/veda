@@ -29,7 +29,7 @@ func TestVisualSelectionFinal(t *testing.T) {
 		}
 
 		// Render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Find where the text starts (after line number)
 		line := te.mockScreen.GetLine(0)
@@ -122,7 +122,7 @@ func TestVisualSelectionFinal(t *testing.T) {
 		te.ExecuteCommand("down")
 
 		// Render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Check that lines 2 and 3 are fully highlighted
 		for lineIdx := 1; lineIdx <= 2; lineIdx++ {
@@ -170,7 +170,7 @@ func TestVisualSelectionFinal(t *testing.T) {
 		}
 
 		// Render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Check first line - "line" should be selected
 		line0 := te.mockScreen.GetLine(0)

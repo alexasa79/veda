@@ -11,11 +11,16 @@ type Cell struct {
 	Style ui.Style
 }
 
-// MockScreen implements Screen interface for testing
+// MockScreen implements Screen interface for testing.
+// It models the real Terminal's double-buffering: cells is the back buffer
+// (written by SetContent), displayed is what GetLine reads from, and
+// frontLines tracks what Show() last flushed (for differential rendering).
 type MockScreen struct {
 	width         int
 	height        int
-	cells         map[int]map[int]Cell // [y][x]Cell
+	cells         map[int]map[int]Cell // [y][x]Cell — back buffer
+	displayed     map[int]string       // what's "on screen" — GetLine reads this
+	frontLines    map[int]string       // what Show thinks is on screen — for diffing
 	cursorX       int
 	cursorY       int
 	cursorVisible bool
@@ -32,6 +37,8 @@ func NewMockScreen(width, height int) *MockScreen {
 		width:        width,
 		height:       height,
 		cells:        make(map[int]map[int]Cell),
+		displayed:    make(map[int]string),
+		frontLines:   make(map[int]string),
 		events:       make([]events.Event, 0),
 		defaultStyle: ui.StyleDefault,
 		eventChan:    make(chan events.Event, 100),
@@ -53,9 +60,18 @@ func (s *MockScreen) Clear() {
 	s.cells = make(map[int]map[int]Cell)
 }
 
-// Show is a no-op for mock screen
+// Show performs differential rendering like the real Terminal:
+// only lines whose content changed since the last Show are flushed to
+// the displayed buffer. This models the frontBuffer/backBuffer diffing
+// in internal/terminal/terminal.go so tests can catch stale-buffer bugs.
 func (s *MockScreen) Show() {
-	// No-op for testing
+	for y := 0; y < s.height; y++ {
+		line := s.buildLine(y)
+		if line != s.frontLines[y] {
+			s.displayed[y] = line
+			s.frontLines[y] = line
+		}
+	}
 }
 
 // Size returns the screen dimensions
@@ -140,26 +156,33 @@ func (s *MockScreen) GetCell(x, y int) (rune, ui.Style) {
 	return ' ', s.defaultStyle
 }
 
-// GetLine returns the content of a specific line as a string
-func (s *MockScreen) GetLine(y int) string {
-	if row, ok := s.cells[y]; ok {
-		line := make([]rune, s.width)
-		for x := 0; x < s.width; x++ {
-			if cell, ok := row[x]; ok {
-				line[x] = cell.Rune
-			} else {
-				line[x] = ' '
-			}
-		}
-		// Trim trailing spaces
-		for i := len(line) - 1; i >= 0; i-- {
-			if line[i] != ' ' {
-				return string(line[:i+1])
-			}
-		}
+// buildLine builds the trimmed string for row y from the cells back buffer.
+func (s *MockScreen) buildLine(y int) string {
+	row, ok := s.cells[y]
+	if !ok {
 		return ""
 	}
+	line := make([]rune, s.width)
+	for x := 0; x < s.width; x++ {
+		if cell, ok := row[x]; ok {
+			line[x] = cell.Rune
+		} else {
+			line[x] = ' '
+		}
+	}
+	for i := len(line) - 1; i >= 0; i-- {
+		if line[i] != ' ' {
+			return string(line[:i+1])
+		}
+	}
 	return ""
+}
+
+// GetLine returns what is currently "displayed" on screen for row y.
+// This reads from the displayed buffer, which is only updated by Show()
+// through differential rendering — matching the real Terminal behavior.
+func (s *MockScreen) GetLine(y int) string {
+	return s.displayed[y]
 }
 
 // AddEvent adds an event to the event queue for testing
@@ -182,10 +205,17 @@ func (s *MockScreen) GetContent() map[int]map[int]Cell {
 	return s.cells
 }
 
-// SetSize changes the screen dimensions and sends a resize event
+// SetSize changes the screen dimensions and sends a resize event.
+// It clears the displayed buffer (the real terminal emulator clears its
+// screen on resize) but keeps frontLines as-is (modeling Terminal.handleResize
+// which copies the old frontBuffer without invalidation).
 func (s *MockScreen) SetSize(width, height int) {
 	s.width = width
 	s.height = height
+	// Terminal emulator clears the display on resize
+	s.displayed = make(map[int]string)
+	// Invalidate frontLines so Show() re-flushes every line
+	s.frontLines = make(map[int]string)
 	// Send a resize event through the event channel
 	resizeEvent := events.NewResizeEvent(width, height)
 	select {

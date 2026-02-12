@@ -340,14 +340,13 @@ func (t *Terminal) handleResize() {
 		t.width = width
 		t.height = height
 
-		// Resize buffers
+		// Resize buffers. Invalidate frontBuffer with sentinels to force
+		// a full redraw — the terminal emulator has already cleared/reflowed
+		// its display, so frontBuffer no longer reflects what's on screen.
 		newFront := make([]string, height)
 		newBack := make([]string, height)
-
-		// Copy existing content
-		for i := 0; i < height && i < len(t.frontBuffer); i++ {
-			newFront[i] = t.frontBuffer[i]
-			newBack[i] = t.backBuffer[i]
+		for i := range newFront {
+			newFront[i] = "\x00"
 		}
 
 		t.frontBuffer = newFront

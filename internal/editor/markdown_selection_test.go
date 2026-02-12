@@ -28,7 +28,7 @@ func TestMarkdownSelectionHighlighting(t *testing.T) {
 		}
 
 		// Render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Check the rendered line
 		line := te.mockScreen.GetLine(0)
@@ -70,7 +70,7 @@ func TestMarkdownSelectionHighlighting(t *testing.T) {
 		}
 
 		// Render
-		te.drawEditor()
+		te.Editor.render()
 
 		line := te.mockScreen.GetLine(0)
 		t.Logf("Rendered line: %q", line)
