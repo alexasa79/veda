@@ -18,7 +18,7 @@ func TestTerminalSearchHighlighting(t *testing.T) {
 	searchStyle := te.config.Theme.GetStyle(te.config.Theme.SearchHighlight)
 	_, searchBg, _ := searchStyle.Decompose()
 
-	te.drawEditor()
+	te.Editor.render()
 
 	screenLine := te.mockScreen.GetLine(0)
 	worldStart := strings.Index(screenLine, "world")

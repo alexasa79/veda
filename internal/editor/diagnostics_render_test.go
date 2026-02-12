@@ -19,9 +19,7 @@ func TestDiagnosticsGutterAndBannerRendering(t *testing.T) {
 	}
 
 	// Initial render
-	te.drawEditor()
-	te.drawErrorLine()
-	te.drawStatusBar()
+	te.Editor.render()
 
 	// Indicator is drawn in the middle gutter column: digits + 1
 	digitsWidth := te.CurrentBuffer().LineNumberWidth - 3
@@ -44,9 +42,7 @@ func TestDiagnosticsGutterAndBannerRendering(t *testing.T) {
 
 	// Move cursor to line 2 and expect error banner text
 	te.SetCursorPosition(0, 1)
-	te.drawEditor()
-	te.drawErrorLine()
-	te.drawStatusBar()
+	te.Editor.render()
 	bannerY := te.getStatusBarY() - 1
 	line := te.mockScreen.GetLine(bannerY)
 	if !strings.Contains(line, "Syntax error") {
@@ -55,9 +51,7 @@ func TestDiagnosticsGutterAndBannerRendering(t *testing.T) {
 
 	// Move cursor to line 4 and expect warning banner text
 	te.SetCursorPosition(0, 3)
-	te.drawEditor()
-	te.drawErrorLine()
-	te.drawStatusBar()
+	te.Editor.render()
 	line = te.mockScreen.GetLine(bannerY)
 	if !strings.Contains(line, "Unused variable") {
 		t.Fatalf("expected banner to contain 'Unused variable', got: %q", line)
@@ -65,9 +59,7 @@ func TestDiagnosticsGutterAndBannerRendering(t *testing.T) {
 
 	// Temporary error overrides diagnostic banner
 	te.ShowError("OVERRIDE")
-	te.drawEditor()
-	te.drawErrorLine()
-	te.drawStatusBar()
+	te.Editor.render()
 	line = te.mockScreen.GetLine(bannerY)
 	if !strings.Contains(line, "OVERRIDE") {
 		t.Fatalf("expected temporary error override, got: %q", line)
@@ -86,9 +78,7 @@ func TestMultiLineDiagnosticRendering(t *testing.T) {
 
 	// Position cursor on the diagnostic line
 	te.SetCursorPosition(0, 1) // Line 2 (0-indexed)
-	te.drawEditor()
-	te.drawErrorLine()
-	te.drawStatusBar()
+	te.Editor.render()
 
 	statusBarY := te.getStatusBarY()
 
@@ -167,9 +157,7 @@ func TestDiagnosticRenderingWithEmptyLines(t *testing.T) {
 
 	// Position cursor on the diagnostic line
 	te.SetCursorPosition(0, 1) // Line 2 (0-indexed)
-	te.drawEditor()
-	te.drawErrorLine()
-	te.drawStatusBar()
+	te.Editor.render()
 
 	statusBarY := te.getStatusBarY()
 

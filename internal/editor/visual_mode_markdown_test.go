@@ -41,7 +41,7 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		}
 
 		// Force render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Get the third line (index 2)
 		line := te.mockScreen.GetLine(2)
@@ -92,7 +92,7 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		}
 
 		// Force render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Get the line
 		line := te.mockScreen.GetLine(0)
@@ -127,7 +127,7 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		}
 
 		// First check normal mode rendering
-		te.drawEditor()
+		te.Editor.render()
 		normalModeLine := te.mockScreen.GetLine(0)
 		t.Logf("Normal mode: %q", normalModeLine)
 
@@ -138,7 +138,7 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 
 		// Enter insert mode
 		te.ExecuteCommand("enter-insert-mode")
-		te.drawEditor()
+		te.Editor.render()
 		insertModeLine := te.mockScreen.GetLine(0)
 		t.Logf("Insert mode: %q", insertModeLine)
 
@@ -166,7 +166,7 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		}
 
 		// Render and check
-		te.drawEditor()
+		te.Editor.render()
 		line := te.mockScreen.GetLine(0)
 
 		// Find "test" in the rendered line
@@ -209,7 +209,7 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		}
 
 		// Render
-		te.drawEditor()
+		te.Editor.render()
 		line := te.mockScreen.GetLine(0)
 		t.Logf("Header line: %q", line)
 

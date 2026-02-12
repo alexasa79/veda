@@ -25,7 +25,7 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 
 		// First render to check markdown processing
 		t.Logf("Editor mode: %v", te.mode)
-		te.drawEditor()
+		te.Editor.render()
 		line := te.mockScreen.GetLine(0)
 		t.Logf("Initial render: %q", line)
 
@@ -49,7 +49,7 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 		}
 
 		// Render with selection
-		te.drawEditor()
+		te.Editor.render()
 		line = te.mockScreen.GetLine(0)
 		t.Logf("With selection: %q", line)
 
@@ -83,7 +83,7 @@ func TestMarkdownRenderingWithSelection(t *testing.T) {
 		te.ExecuteCommand("enter-insert-mode")
 
 		// Render
-		te.drawEditor()
+		te.Editor.render()
 		line := te.mockScreen.GetLine(0)
 		t.Logf("Insert mode: %q", line)
 

@@ -1,70 +1,114 @@
 package editor
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 )
 
-func TestEditorResize(t *testing.T) {
-	t.Run("status bar position after resize", func(t *testing.T) {
-		// Create editor with initial size
-		te := NewTestEditorWithContent(80, 24, "Hello World\nThis is a test")
+// simulateResize changes the mock screen size and processes the resize event
+// through the same code path as a real terminal resize (SIGWINCH → event → handleEvent → scroll → render).
+func simulateResize(t *testing.T, te *TestEditor, width, height int) {
+	t.Helper()
+	te.mockScreen.SetSize(width, height)
+	select {
+	case ev := <-te.mockScreen.EventChannel():
+		te.Editor.handleEvent(ev)
+	default:
+		t.Fatal("Expected resize event in channel after SetSize")
+	}
+	te.Editor.scroll()
+	te.Editor.render()
+}
 
-		// Initial render
+func TestEditorResizeContentPreservation(t *testing.T) {
+	t.Run("content preserved after shrink and grow", func(t *testing.T) {
+		// Build 50 lines of content
+		var lines []string
+		for i := 1; i <= 50; i++ {
+			lines = append(lines, fmt.Sprintf("Line %d content here", i))
+		}
+		content := strings.Join(lines, "\n")
+
+		// 51 rows = 50 content rows + 1 status bar, so all 50 lines fit
+		te := NewTestEditorWithContent(80, 51, content)
+
+		// Initial render via the same path the main loop uses
+		te.Editor.scroll()
 		te.Editor.render()
 
-		// Verify initial status bar position (should be at line 23 for 24-line screen)
-		initialStatusBarY := 23
-		statusLine := te.mockScreen.GetLine(initialStatusBarY)
-		if statusLine == "" {
-			t.Errorf("Status bar not found at expected position %d", initialStatusBarY)
+		// Verify line 45 is rendered on screen row 44 (0-indexed)
+		row44 := te.mockScreen.GetLine(44)
+		if !strings.Contains(row44, "Line 45 content here") {
+			t.Fatalf("Before resize: expected row 44 to contain 'Line 45 content here', got %q", row44)
 		}
 
-		// Check that status bar contains expected elements
-		if len(statusLine) == 0 {
-			t.Error("Status bar is empty")
+		// Shrink to 41 rows (40 content + 1 status bar)
+		simulateResize(t, te, 80, 41)
+
+		// Grow back to original size
+		simulateResize(t, te, 80, 51)
+
+		// Line 45 must be visible again at row 44
+		row44Restored := te.mockScreen.GetLine(44)
+		if !strings.Contains(row44Restored, "Line 45 content here") {
+			t.Errorf("After grow back: expected row 44 to contain 'Line 45 content here', got %q", row44Restored)
 		}
 
-		// Resize the screen to a smaller size
-		newHeight := 10
-		te.mockScreen.SetSize(80, newHeight)
-
-		// Process the resize event
-		te.Editor.handleResize()
-
-		// Re-render after resize
-		te.Editor.render()
-
-		// Verify status bar is now at the correct position (line 9 for 10-line screen)
-		newStatusBarY := newHeight - 1
-		statusLine = te.mockScreen.GetLine(newStatusBarY)
-		if statusLine == "" {
-			t.Errorf("Status bar not found at expected position %d after resize", newStatusBarY)
-		}
-
-		// Verify content above status bar is still visible
-		for y := 0; y < newStatusBarY; y++ {
-			line := te.mockScreen.GetLine(y)
-			// At least some lines should have content
-			if y == 0 && line == "" {
-				t.Error("First line should have content after resize")
+		// Spot-check several other lines survived the round-trip
+		for _, tc := range []struct {
+			row      int
+			contains string
+		}{
+			{0, "Line 1 content here"},
+			{9, "Line 10 content here"},
+			{24, "Line 25 content here"},
+			{39, "Line 40 content here"},
+			{49, "Line 50 content here"},
+		} {
+			got := te.mockScreen.GetLine(tc.row)
+			if !strings.Contains(got, tc.contains) {
+				t.Errorf("After grow back: expected row %d to contain %q, got %q", tc.row, tc.contains, got)
 			}
 		}
+	})
+}
 
-		// Resize to a larger size
-		newHeight = 30
-		te.mockScreen.SetSize(80, newHeight)
-		te.Editor.handleResize()
+func TestEditorResize(t *testing.T) {
+	t.Run("status bar position after resize", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "Hello World\nThis is a test")
 		te.Editor.render()
 
-		// Verify status bar moved to new position
-		newStatusBarY = newHeight - 1
-		statusLine = te.mockScreen.GetLine(newStatusBarY)
+		// Verify initial status bar position (line 23 for 24-line screen)
+		statusLine := te.mockScreen.GetLine(23)
 		if statusLine == "" {
-			t.Errorf("Status bar not found at expected position %d after second resize", newStatusBarY)
+			t.Errorf("Status bar not found at expected position 23")
 		}
 
-		// Verify no content appears below status bar
-		for y := newStatusBarY + 1; y < newHeight; y++ {
+		// Shrink to 10 rows
+		simulateResize(t, te, 80, 10)
+
+		statusLine = te.mockScreen.GetLine(9)
+		if statusLine == "" {
+			t.Errorf("Status bar not found at position 9 after shrink")
+		}
+
+		// First line should still have content
+		line0 := te.mockScreen.GetLine(0)
+		if line0 == "" {
+			t.Error("First line should have content after resize")
+		}
+
+		// Grow to 30 rows
+		simulateResize(t, te, 80, 30)
+
+		statusLine = te.mockScreen.GetLine(29)
+		if statusLine == "" {
+			t.Errorf("Status bar not found at position 29 after grow")
+		}
+
+		// No content below status bar
+		for y := 30; y < 35; y++ {
 			line := te.mockScreen.GetLine(y)
 			if line != "" {
 				t.Errorf("Found unexpected content below status bar at line %d: %s", y, line)
@@ -73,196 +117,99 @@ func TestEditorResize(t *testing.T) {
 	})
 
 	t.Run("error line position after resize", func(t *testing.T) {
-		// Create editor and show an error
 		te := NewTestEditorWithContent(80, 24, "Test content")
-
-		// Show an error
 		te.Editor.errorManager.ShowError("Test error message")
-
-		// Initial render
 		te.Editor.render()
 
-		// Verify error line is one line above status bar (line 22 for 24-line screen)
-		initialErrorY := 22
-		errorLine := te.mockScreen.GetLine(initialErrorY)
-		// Check if error line contains the message (don't check exact format)
-		if errorLine == "" || len(errorLine) < len("Test error message") {
-			t.Errorf("Error line not found at expected position %d, got: %q", initialErrorY, errorLine)
+		// Error line is one above status bar (line 22 for 24-line screen)
+		errorLine := te.mockScreen.GetLine(22)
+		if !strings.Contains(errorLine, "Test error message") {
+			t.Errorf("Error line not found at position 22, got: %q", errorLine)
 		}
 
 		// Resize screen
-		newHeight := 15
-		te.mockScreen.SetSize(80, newHeight)
-		te.Editor.handleResize()
-		te.Editor.render()
+		simulateResize(t, te, 80, 15)
 
-		// Verify error line moved to new position (line 13 for 15-line screen)
-		newErrorY := newHeight - 2
-		errorLine = te.mockScreen.GetLine(newErrorY)
-		// Check if error line contains the message (don't check exact format)
-		if errorLine == "" || len(errorLine) < len("Test error message") {
-			t.Errorf("Error line not found at expected position %d after resize, got: %q", newErrorY, errorLine)
+		// Error line should now be at position 13 (15-2)
+		errorLine = te.mockScreen.GetLine(13)
+		if !strings.Contains(errorLine, "Test error message") {
+			t.Errorf("Error line not found at position 13 after resize, got: %q", errorLine)
 		}
 	})
 
 	t.Run("visible lines calculation after resize", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Line 1\nLine 2\nLine 3\nLine 4\nLine 5")
 
-		// Get initial visible lines
 		initialVisibleLines := te.Editor.getVisibleLines()
-		if initialVisibleLines != 23 { // 24 - 1 for status bar
+		if initialVisibleLines != 23 {
 			t.Errorf("Initial visible lines should be 23, got %d", initialVisibleLines)
 		}
 
-		// Resize and verify visible lines changes
-		te.mockScreen.SetSize(80, 10)
-		te.Editor.handleResize()
+		simulateResize(t, te, 80, 10)
 
 		newVisibleLines := te.Editor.getVisibleLines()
-		if newVisibleLines != 9 { // 10 - 1 for status bar
+		if newVisibleLines != 9 {
 			t.Errorf("Visible lines after resize should be 9, got %d", newVisibleLines)
 		}
 
 		// With error showing, visible area should be smaller
 		te.Editor.errorManager.ShowError("Error")
 		te.Editor.render()
-		// The getVisibleLines DOES account for error line
 		visibleLinesWithError := te.Editor.getVisibleLines()
-		if visibleLinesWithError != 8 { // 10 - 1 for status bar - 1 for error
+		if visibleLinesWithError != 8 {
 			t.Errorf("Visible lines with error should be 8, got %d", visibleLinesWithError)
 		}
 	})
 
 	t.Run("event-driven resize behavior", func(t *testing.T) {
-		// Create editor with initial size
 		te := NewTestEditorWithContent(80, 20, "Line 1\nLine 2\nLine 3")
-
-		// Initial render to establish baseline
 		te.Editor.render()
 
-		// Verify initial status bar position (line 19 for 20-line screen)
-		initialStatusBarY := 19
-		statusLine := te.mockScreen.GetLine(initialStatusBarY)
+		statusLine := te.mockScreen.GetLine(19)
 		if statusLine == "" {
-			t.Errorf("Initial status bar not found at position %d", initialStatusBarY)
+			t.Errorf("Initial status bar not found at position 19")
 		}
 
-		// Now simulate increasing window size via event system
-		// This is what happens when user increases terminal size
-		newWidth, newHeight := 100, 30
-		te.mockScreen.SetSize(newWidth, newHeight)
+		simulateResize(t, te, 100, 30)
 
-		// Process the resize event through the event system like the real editor would
-		select {
-		case event := <-te.mockScreen.EventChannel():
-			te.Editor.handleEvent(event)
-		default:
-			t.Fatal("Expected resize event in channel")
-		}
-
-		// Now check that status bar moved to correct position (line 29 for 30-line screen)
-		newStatusBarY := newHeight - 1
-		statusLine = te.mockScreen.GetLine(newStatusBarY)
+		statusLine = te.mockScreen.GetLine(29)
 		if statusLine == "" {
-			t.Errorf("Status bar not found at expected position %d after resize", newStatusBarY)
+			t.Errorf("Status bar not found at position 29 after resize")
 		}
 
-		// Verify status bar isn't rendered beyond screen bounds
-		for y := newHeight; y < newHeight+5; y++ {
+		// No content beyond screen bounds
+		for y := 30; y < 35; y++ {
 			line := te.mockScreen.GetLine(y)
 			if line != "" {
 				t.Errorf("Found content beyond screen bounds at line %d: %s", y, line)
 			}
 		}
-
-		// Verify status bar is visible at new position
-		if statusLine == "" {
-			t.Error("Status bar should be visible at new position")
-		}
 	})
 
 	t.Run("screen buffer bounds checking", func(t *testing.T) {
-		// Start with small screen
 		te := NewTestEditorWithContent(40, 10, "Test content")
 		te.Editor.render()
 
-		// Verify status bar position
 		statusY := te.Editor.getStatusBarY()
 		if statusY != 9 {
 			t.Errorf("Expected status bar at Y=9, got Y=%d", statusY)
 		}
 
-		// Dramatically increase screen size
-		te.mockScreen.SetSize(120, 50)
+		simulateResize(t, te, 120, 50)
 
-		// Trigger resize handling
-		select {
-		case event := <-te.mockScreen.EventChannel():
-			te.Editor.handleEvent(event)
-		default:
-			t.Fatal("Expected resize event")
-		}
-
-		// Verify status bar moved to new bottom
 		newStatusY := te.Editor.getStatusBarY()
 		if newStatusY != 49 {
 			t.Errorf("Expected status bar at Y=49 after resize, got Y=%d", newStatusY)
 		}
 
-		// Verify status bar is actually rendered at the new position
 		statusContent := te.mockScreen.GetLine(newStatusY)
 		if statusContent == "" {
 			t.Error("Status bar should be rendered at new position after resize")
 		}
 
-		// Verify screen size was updated
 		width, height := te.mockScreen.Size()
 		if width != 120 || height != 50 {
 			t.Errorf("Screen size not updated correctly: got (%d,%d), want (120,50)", width, height)
-		}
-	})
-
-	t.Run("resize without render call", func(t *testing.T) {
-		// This test simulates the bug: resizing without proper re-render
-		te := NewTestEditorWithContent(80, 20, "Line 1\nLine 2\nLine 3")
-
-		// Initial render
-		te.Editor.render()
-
-		// Verify initial status bar
-		initialStatusY := 19
-		statusLine := te.mockScreen.GetLine(initialStatusY)
-		if statusLine == "" {
-			t.Error("Initial status bar not rendered")
-		}
-
-		// Change screen size directly (simulating the resize bug scenario)
-		te.mockScreen.SetSize(100, 30)
-
-		// Get the new expected status bar position
-		newStatusBarY := te.Editor.getStatusBarY() // Should be 29 now
-		if newStatusBarY != 29 {
-			t.Errorf("Expected new status bar position to be 29, got %d", newStatusBarY)
-		}
-
-		// Here's the critical part: if we render without proper resize handling,
-		// the status bar might render at position 29 but the screen buffer
-		// might still think it's only 20 lines high
-		te.Editor.render()
-
-		// Check if status bar is visible at the new position
-		statusContent := te.mockScreen.GetLine(newStatusBarY)
-		if statusContent == "" {
-			t.Errorf("Status bar not visible at new position %d after resize", newStatusBarY)
-		}
-
-		// Check that we haven't rendered beyond the screen bounds
-		_, screenHeight := te.mockScreen.Size()
-		for y := screenHeight; y < screenHeight+5; y++ {
-			line := te.mockScreen.GetLine(y)
-			if line != "" {
-				t.Errorf("Found content beyond screen bounds at line %d: %s", y, line)
-			}
 		}
 	})
 }

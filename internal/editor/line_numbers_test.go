@@ -12,8 +12,7 @@ func TestLineNumbersRendering(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Force a render
-		te.drawEditor()
-		te.drawStatusBar()
+		te.Editor.render()
 
 		// Check if line numbers are present
 		// Line numbers should appear at the beginning of each line
@@ -80,7 +79,7 @@ func extractRenderedLineNumber(te *TestEditor, row int) string {
 
 func TestRelativeLineNumbersAroundCursor(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "a\nb\nc\nd")
-	te.drawEditor()
+	te.Editor.render()
 
 	if got := extractRenderedLineNumber(te, 0); got != "1" {
 		t.Fatalf("cursor line should show absolute number 1, got %q", got)
@@ -98,7 +97,7 @@ func TestTerminalBuffersKeepAbsoluteLineNumbers(t *testing.T) {
 	term := NewTerminalEmulator(80, 10)
 	term.Write([]byte("first\nsecond\nthird\n"))
 	setupTerminalBufferForTest(te, 80, 10, term.Render(), term)
-	te.drawEditor()
+	te.Editor.render()
 
 	if got := extractRenderedLineNumber(te, 0); got != "1" {
 		t.Fatalf("terminal cursor line should show absolute number 1, got %q", got)

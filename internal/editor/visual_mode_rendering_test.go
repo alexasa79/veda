@@ -30,7 +30,7 @@ func TestVisualModeRendering(t *testing.T) {
 		}
 
 		// Force a render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Get the rendered content for the first line
 		// The line should have line numbers, so we need to find where "Hello" starts
@@ -75,7 +75,7 @@ func TestVisualModeRendering(t *testing.T) {
 		te.ExecuteCommand("down")
 
 		// Force a render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Check that entire first line has selection background
 		line1 := te.mockScreen.GetLine(0)
@@ -128,7 +128,7 @@ func TestVisualModeRendering(t *testing.T) {
 		te.ExecuteCommand("right")
 
 		// Force a render
-		te.drawEditor()
+		te.Editor.render()
 
 		// Find where text starts
 		screenLine := te.mockScreen.GetLine(0)
