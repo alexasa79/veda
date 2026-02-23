@@ -77,7 +77,7 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 				te.mode = commands.NormalMode
 
 				// Render the editor
-				te.drawEditor()
+				te.renderPane()
 				screen := te.mockScreen.GetContent()
 
 				// Check rendered output
@@ -109,7 +109,7 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 				}
 
 				// Render the editor
-				te.drawEditor()
+				te.renderPane()
 				screen := te.mockScreen.GetContent()
 
 				// Check rendered output
@@ -140,7 +140,7 @@ func TestMarkdownLinkHighlighting(t *testing.T) {
 
 	// Test that link text is highlighted in normal mode
 	te.mode = commands.NormalMode
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// Find the link text "our site" and check it has link styling
@@ -190,7 +190,7 @@ func TestMarkdownLinkCursorPositioning(t *testing.T) {
 	te.CurrentBuffer().CursorX = 12
 
 	// Render and check cursor position
-	te.drawEditor()
+	te.renderPane()
 	screenX, _ := te.mockScreen.GetCursorPosition()
 
 	// In normal mode, the URL is hidden, so cursor should be adjusted
@@ -205,7 +205,7 @@ func TestMarkdownLinkCursorPositioning(t *testing.T) {
 	te.ExecuteCommand("insert")
 
 	// Render again and check cursor position
-	te.drawEditor()
+	te.renderPane()
 	screenX, _ = te.mockScreen.GetCursorPosition()
 
 	// In insert mode, full text is shown, so cursor should be at original position
@@ -250,7 +250,7 @@ func TestMarkdownLinkEditing(t *testing.T) {
 	te.ExecuteCommand("normal_mode")
 
 	// Render and check display
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// In normal mode, should show "Check t!his out."

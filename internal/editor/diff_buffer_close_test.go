@@ -19,56 +19,48 @@ func TestDiffBufferClosing(t *testing.T) {
 	currentBuffer := buffer.NewBuffer("current content", currentBufferName, currentBufferName, config.IndentTabs, 4)
 
 	// Create dummy diff line info
-	diffResult := &DiffResult{
-		LeftLines: []DiffLine{
-			{Content: "head content", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+	diffResult := &buffer.DiffResult{
+		LeftLines: []buffer.DiffLine{
+			{Content: "head content", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
 		},
-		RightLines: []DiffLine{
-			{Content: "current content", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+		RightLines: []buffer.DiffLine{
+			{Content: "current content", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
 		},
 	}
 
 	// Add buffers to editor
 	te.buffers[headBufferName] = headBuffer
 	te.buffers[currentBufferName] = currentBuffer
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
-	// Set up two windows with diff buffers (simulating diff view)
-	te.createSecondWindow()
-	te.windows[0].addBufferToWindow(headBuffer)
-	te.windows[1].addBufferToWindow(currentBuffer)
-
-	// Switch to one of the diff buffers
-	te.activeWindow = 1
-	te.switchToBuffer(currentBuffer)
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
 
 	t.Run("helper_functions", func(t *testing.T) {
-		// Test helper functions
-		if !isDiffBuffer(headBufferName) {
-			t.Error("Should identify HEAD buffer as diff buffer")
+		// Test DiffHints-based detection
+		if headBuffer.DiffHints == nil {
+			t.Error("Should identify HEAD buffer as diff buffer via DiffHints")
 		}
-		if !isDiffBuffer(currentBufferName) {
-			t.Error("Should identify current buffer as diff buffer")
+		if currentBuffer.DiffHints == nil {
+			t.Error("Should identify current buffer as diff buffer via DiffHints")
 		}
-		if isDiffBuffer("normal.go") {
+		normalBuf := buffer.NewBuffer("normal", "normal.go", "normal.go", config.IndentTabs, 4)
+		if normalBuf.DiffHints != nil {
 			t.Error("Should not identify normal buffer as diff buffer")
 		}
 
-		// Test paired buffer lookup
-		pairedHead := getPairedDiffBuffer(headBufferName)
-		if pairedHead != currentBufferName {
-			t.Errorf("Expected paired buffer %q, got %q", currentBufferName, pairedHead)
+		// Test that DiffBufferView references both buffers
+		win := te.windows[te.activeWindow]
+		dv, ok := win.View.(*DiffBufferView)
+		if !ok {
+			t.Fatal("Expected DiffBufferView on active window")
 		}
-
-		pairedCurrent := getPairedDiffBuffer(currentBufferName)
-		if pairedCurrent != headBufferName {
-			t.Errorf("Expected paired buffer %q, got %q", headBufferName, pairedCurrent)
+		if dv.LeftBuffer != headBuffer {
+			t.Error("DiffBufferView.LeftBuffer should reference HEAD buffer")
 		}
-
-		pairedNormal := getPairedDiffBuffer("normal.go")
-		if pairedNormal != "" {
-			t.Errorf("Normal buffer should not have a paired buffer, got %q", pairedNormal)
+		if dv.RightBuffer != currentBuffer {
+			t.Error("DiffBufferView.RightBuffer should reference current buffer")
 		}
 	})
 
@@ -82,10 +74,10 @@ func TestDiffBufferClosing(t *testing.T) {
 		}
 
 		// Verify diff line info exists
-		if _, exists := te.diffLineInfo[headBuffer]; !exists {
+		if len(headBuffer.DiffHints) == 0 {
 			t.Error("HEAD buffer should have diff line info")
 		}
-		if _, exists := te.diffLineInfo[currentBuffer]; !exists {
+		if len(currentBuffer.DiffHints) == 0 {
 			t.Error("Current buffer should have diff line info")
 		}
 
@@ -104,10 +96,10 @@ func TestDiffBufferClosing(t *testing.T) {
 		}
 
 		// Verify diff line info is cleaned up
-		if _, exists := te.diffLineInfo[headBuffer]; exists {
+		if len(headBuffer.DiffHints) > 0 {
 			t.Error("HEAD buffer diff line info should be cleaned up")
 		}
-		if _, exists := te.diffLineInfo[currentBuffer]; exists {
+		if len(currentBuffer.DiffHints) > 0 {
 			t.Error("Current buffer diff line info should be cleaned up")
 		}
 
@@ -136,16 +128,16 @@ func TestNormalBufferClosing(t *testing.T) {
 	te.buffers["test.go@current"] = currentBuffer
 
 	// Add some diff line info to the diff buffers
-	diffResult := &DiffResult{
-		LeftLines: []DiffLine{
-			{Content: "head content", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+	diffResult := &buffer.DiffResult{
+		LeftLines: []buffer.DiffLine{
+			{Content: "head content", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
 		},
-		RightLines: []DiffLine{
-			{Content: "current content", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+		RightLines: []buffer.DiffLine{
+			{Content: "current content", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
 		},
 	}
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
 	// Switch to the normal buffer
 	te.switchToBuffer(normalBuffer)
@@ -168,10 +160,10 @@ func TestNormalBufferClosing(t *testing.T) {
 	}
 
 	// Verify diff line info for diff buffers is preserved
-	if _, exists := te.diffLineInfo[headBuffer]; !exists {
+	if len(headBuffer.DiffHints) == 0 {
 		t.Error("HEAD buffer diff line info should be preserved")
 	}
-	if _, exists := te.diffLineInfo[currentBuffer]; !exists {
+	if len(currentBuffer.DiffHints) == 0 {
 		t.Error("Current buffer diff line info should be preserved")
 	}
 }
@@ -191,30 +183,24 @@ func TestDiffBufferClosingWithMultipleWindows(t *testing.T) {
 	te.buffers["normal.go"] = normalBuffer
 
 	// Create diff line info
-	diffResult := &DiffResult{
-		LeftLines: []DiffLine{
-			{Content: "head content", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+	diffResult := &buffer.DiffResult{
+		LeftLines: []buffer.DiffLine{
+			{Content: "head content", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
 		},
-		RightLines: []DiffLine{
-			{Content: "current content", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+		RightLines: []buffer.DiffLine{
+			{Content: "current content", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
 		},
 	}
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
-	// Set up three windows: two for diff view, one for normal buffer
-	te.createSecondWindow() // Creates window 1
-	// Manually create a third window since createSecondWindow() only creates up to 2 windows
-	thirdWin := newWindow(normalBuffer)
-	te.windows = append(te.windows, thirdWin)
+	// Set up DiffBufferView on window 0, normal buffer on window 1
+	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
 
-	te.windows[0].addBufferToWindow(headBuffer)
-	te.windows[1].addBufferToWindow(currentBuffer)
-	te.windows[2].addBufferToWindow(normalBuffer)
-
-	// Switch to one of the diff buffers
-	te.activeWindow = 1
-	te.switchToBuffer(currentBuffer)
+	// Add a second window with a normal buffer
+	normalWin := newWindow(normalBuffer)
+	te.windows = append(te.windows, normalWin)
+	te.recomputeWindowsLayout()
 
 	// Close the diff buffer
 	err := te.closeBuffer([]string{})
@@ -235,12 +221,12 @@ func TestDiffBufferClosingWithMultipleWindows(t *testing.T) {
 		t.Error("Normal buffer should be preserved")
 	}
 
-	// Verify we still have windows (should have closed the diff windows but kept the normal one)
+	// Verify we still have windows
 	if len(te.windows) == 0 {
 		t.Error("Should still have at least one window")
 	}
 
-	// Verify the editor has a valid buffer (it should be the normal buffer, but could also be a newly created one)
+	// Verify the editor has a valid buffer
 	if te.CurrentBuffer() == nil {
 		t.Error("Editor should have a valid buffer")
 	}

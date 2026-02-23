@@ -103,6 +103,9 @@ type Buffer struct {
 	ContextCache []int // Cached context line numbers for this buffer
 	ContextLine  int   // Line number for which context was cached (for this buffer)
 
+	// Diff view hints (populated when buffer is part of a diff view)
+	DiffHints []DiffLine
+
 	// Session change tracking
 	ChangedLines map[int]bool // Set of 0-based line numbers that were modified in this session
 }

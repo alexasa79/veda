@@ -46,7 +46,7 @@ func TestLineNumbersAtEndOfBuffer(t *testing.T) {
 
 		// Force a render
 		// te.render()
-		te.drawEditor()
+		te.renderPane()
 
 		// Get the mock screen
 		mockScreen := te.screen.(*MockScreen)

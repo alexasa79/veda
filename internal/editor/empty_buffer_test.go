@@ -10,7 +10,7 @@ func TestEmptyBufferRendering(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "")
 
 		// Force a render
-		te.drawEditor()
+		te.renderPane()
 		te.drawStatusBar()
 
 		// Check buffer properties

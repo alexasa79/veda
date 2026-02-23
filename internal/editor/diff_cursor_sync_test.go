@@ -20,23 +20,15 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 	currentBufferName := "test.go@current"
 
 	// Manually set up the diff buffers like StartDiffViewForCurrentBuffer would
-	te.buffers[headBufferName] = buffer.NewBuffer(previousContent, headBufferName, headBufferName, config.IndentTabs, 4)
+	diffResult := computeDiff(previousContent, currentContent)
+	te.buffers[headBufferName] = buffer.NewBuffer(createBufferContent(diffResult.LeftLines), headBufferName, headBufferName, config.IndentTabs, 4)
 	te.buffers[headBufferName].IsReadOnly = true
-	te.buffers[currentBufferName] = buffer.NewBuffer(currentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
+	te.buffers[headBufferName].DiffHints = diffResult.LeftLines
+	te.buffers[currentBufferName] = buffer.NewBuffer(createBufferContent(diffResult.RightLines), currentBufferName, currentBufferName, config.IndentTabs, 4)
+	te.buffers[currentBufferName].DiffHints = diffResult.RightLines
 
-	// Set up two windows manually
-	te.createSecondWindow()
-	if len(te.windows) < 2 {
-		t.Fatalf("Expected at least 2 windows, got %d", len(te.windows))
-	}
-
-	// Set up windows: HEAD on left (window 0), current on right (window 1)
-	te.windows[0].setActiveBuffer(te.buffers[headBufferName])
-	te.windows[1].setActiveBuffer(te.buffers[currentBufferName])
-	te.activeWindow = 1 // Start on right side (current)
-	te.switchToBuffer(te.buffers[currentBufferName])
-	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
-	te.recomputeWindowsLayout()
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(te.buffers[headBufferName], te.buffers[currentBufferName], "test.go")
 
 	t.Run("pressing down moves cursors in both buffers", func(t *testing.T) {
 		// Get initial cursor positions
@@ -151,14 +143,12 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 		// Set up diff buffers with aligned content
 		te.buffers[headBufferName] = buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, config.IndentTabs, 4)
 		te.buffers[headBufferName].IsReadOnly = true
+		te.buffers[headBufferName].DiffHints = diffResult.LeftLines
 		te.buffers[currentBufferName] = buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
+		te.buffers[currentBufferName].DiffHints = diffResult.RightLines
 
-		// Set up two windows
-		te.createSecondWindow()
-		te.windows[0].setActiveBuffer(te.buffers[headBufferName])
-		te.windows[1].setActiveBuffer(te.buffers[currentBufferName])
-		te.activeWindow = 1 // Start on right side
-		te.switchToBuffer(te.buffers[currentBufferName])
+		// Set up DiffBufferView on a single window
+		te.SetupDiffView(te.buffers[headBufferName], te.buffers[currentBufferName], "test.go")
 
 		// Get initial view positions
 		rightBuffer := te.buffers[currentBufferName]
@@ -241,4 +231,38 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 				initialRightViewLine, finalRightViewLine)
 		}
 	})
+}
+
+func TestDiffView_WindowNextSwitchesPane(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "line1\nline2\nline3")
+	origBuf := te.CurrentBuffer()
+	origPath := origBuf.FilePath
+
+	dv := setupDiffViewOnFile(te, origBuf)
+
+	// Initially on right pane (ActivePane=1, @current buffer)
+	if dv.ActivePane != 1 {
+		t.Fatalf("Expected initial pane to be 1 (right), got %d", dv.ActivePane)
+	}
+	if te.CurrentBuffer().FilePath != origPath+"@current" {
+		t.Fatalf("Expected current buffer to be @current, got %s", te.CurrentBuffer().FilePath)
+	}
+
+	// Execute window-next — should switch to left pane
+	te.ExecuteCommand("window-next")
+	if dv.ActivePane != 0 {
+		t.Errorf("Expected pane 0 (left) after first window-next, got %d", dv.ActivePane)
+	}
+	if te.CurrentBuffer().FilePath != origPath+"@HEAD" {
+		t.Errorf("Expected current buffer to be @HEAD, got %s", te.CurrentBuffer().FilePath)
+	}
+
+	// Execute window-next again — should switch back to right pane
+	te.ExecuteCommand("window-next")
+	if dv.ActivePane != 1 {
+		t.Errorf("Expected pane 1 (right) after second window-next, got %d", dv.ActivePane)
+	}
+	if te.CurrentBuffer().FilePath != origPath+"@current" {
+		t.Errorf("Expected current buffer to be @current, got %s", te.CurrentBuffer().FilePath)
+	}
 }

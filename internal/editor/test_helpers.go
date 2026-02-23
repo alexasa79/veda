@@ -206,6 +206,38 @@ func CleanupTestFixtures() {
 	}
 }
 
+// SetupDiffView creates a DiffBufferView on the active window with the given
+// head and current buffers. It replaces the old pattern of creating two windows.
+// Returns the DiffBufferView for further assertions.
+func (te *TestEditor) SetupDiffView(headBuffer, currentBuffer *buffer.Buffer, realPath string) *DiffBufferView {
+	dv := &DiffBufferView{
+		LeftBuffer:  headBuffer,
+		RightBuffer: currentBuffer,
+		ActivePane:  1,
+		RealPath:    realPath,
+	}
+	win := te.windows[te.activeWindow]
+
+	// Remove the SingleBufferView for the original file from Views
+	for i, v := range win.Views {
+		if sv, ok := v.(*SingleBufferView); ok && sv.Buf != nil && sv.Buf.FilePath == realPath {
+			win.Views = append(win.Views[:i], win.Views[i+1:]...)
+			break
+		}
+	}
+
+	// Add the DiffBufferView to Views
+	win.Views = append(win.Views, dv)
+
+	win.View = dv
+	win.addBufferToWindow(headBuffer)
+	win.addBufferToWindow(currentBuffer)
+	win.Buffer = currentBuffer
+	te.switchToBuffer(currentBuffer)
+	te.recomputeWindowsLayout()
+	return dv
+}
+
 // ExecuteCommand executes a command by name
 func (te *TestEditor) ExecuteCommand(command string) error {
 	// Use executeWithRepeatCount to properly handle multiple cursors

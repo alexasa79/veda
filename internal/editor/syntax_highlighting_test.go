@@ -58,7 +58,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 
 		// Force a render to trigger syntax highlighting
 		// This would have crashed before the fix
-		te.drawEditor()
+		te.renderPane()
 		te.drawStatusBar()
 
 		// Verify we can still render without crashing
@@ -93,7 +93,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 		AssertBufferEquals(t, te, expected)
 
 		// Force render - should not crash
-		te.drawEditor()
+		te.renderPane()
 		te.drawStatusBar()
 
 		// Verify rendering worked
@@ -141,7 +141,7 @@ func TestSyntaxHighlightingWithNewline(t *testing.T) {
 
 		// Force multiple renders
 		for i := 0; i < 5; i++ {
-			te.drawEditor()
+			te.renderPane()
 			te.drawStatusBar()
 		}
 
@@ -163,7 +163,7 @@ func TestEmptyBufferWithSyntaxHighlighting(t *testing.T) {
 		te.CurrentBuffer().Highlighter.SetLanguageFromFile("test.go")
 
 		// Should not crash when rendering empty buffer
-		te.drawEditor()
+		te.renderPane()
 		te.drawStatusBar()
 
 		// Enter insert mode and type
@@ -173,7 +173,7 @@ func TestEmptyBufferWithSyntaxHighlighting(t *testing.T) {
 		te.InsertChar('g')
 
 		// Should handle partial keywords
-		te.drawEditor()
+		te.renderPane()
 		AssertBufferEquals(t, te, "pkg")
 	})
 }

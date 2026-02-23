@@ -27,8 +27,8 @@ func (e *Editor) toggleStageHunk(args []string) error {
 
 	var hunkLines []int
 	if isDiff {
-		// Use diffLineInfo to find run and map to working-file lines (RightLine)
-		diffLines := e.diffLineInfo[buf]
+		// Use DiffHints to find run and map to working-file lines (RightLine)
+		diffLines := buf.DiffHints
 		if len(diffLines) == 0 {
 			e.ShowError("git: no diff info; cannot stage hunk")
 			return fmt.Errorf("no diff info")
@@ -40,11 +40,11 @@ func (e *Editor) toggleStageHunk(args []string) error {
 		}
 		// Find run bounds
 		start := row
-		for start > 0 && diffLines[start-1].LineType != DiffLineContext {
+		for start > 0 && diffLines[start-1].LineType != buffer.DiffLineContext {
 			start--
 		}
 		end := row
-		for end+1 < len(diffLines) && diffLines[end+1].LineType != DiffLineContext {
+		for end+1 < len(diffLines) && diffLines[end+1].LineType != buffer.DiffLineContext {
 			end++
 		}
 
@@ -52,7 +52,7 @@ func (e *Editor) toggleStageHunk(args []string) error {
 		sourceInfo := diffLines
 		if strings.HasSuffix(buf.FilePath, "@HEAD") {
 			if pair := e.getDiffPairBuffer(buf); pair != nil {
-				if pi, ok := e.diffLineInfo[pair]; ok && len(pi) == len(diffLines) {
+				if pi := pair.DiffHints; len(pi) > 0 && len(pi) == len(diffLines) {
 					sourceInfo = pi
 				}
 			}
@@ -178,16 +178,16 @@ func (e *Editor) toggleStageLine(args []string) error {
 	var line1 int = -1
 	if isDiff {
 		row := buf.CursorIterator.LineNumber()
-		info := e.diffLineInfo[buf]
+		info := buf.DiffHints
 		if row < 0 || row >= len(info) {
 			e.ShowError("git: invalid cursor in diff (row=%d of %d)", row, len(info))
 			return fmt.Errorf("invalid cursor position")
 		}
-		// For @HEAD buffer, use paired current buffer’s RightLine
+		// For @HEAD buffer, use paired current buffer's RightLine
 		dl := info[row]
 		if strings.HasSuffix(buf.FilePath, "@HEAD") {
 			if pair := e.getDiffPairBuffer(buf); pair != nil {
-				if pi, ok := e.diffLineInfo[pair]; ok && row < len(pi) {
+				if pi := pair.DiffHints; len(pi) > 0 && row < len(pi) {
 					dl = pi[row]
 				}
 			}

@@ -33,15 +33,11 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 	// Store buffers and diff line info
 	te.buffers[headBufferName] = headBuffer
 	te.buffers[currentBufferName] = currentBuffer
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
-	// Set up windows for side-by-side diff view
-	te.createSecondWindow()
-	te.windows[0].setActiveBuffer(headBuffer)    // HEAD on left
-	te.windows[1].setActiveBuffer(currentBuffer) // Current on right
-	te.activeWindow = 1
-	te.switchToBuffer(currentBuffer)
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
 
 	// Expected modified background color
 	expectedModifiedBg := ui.NewRGBColor(100, 80, 30) // Even brighter yellow/orange background
@@ -49,13 +45,12 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 	t.Run("word_level_highlighting_in_current_buffer", func(t *testing.T) {
 		t.Skip("Skipping test - word-level highlighting not working for all characters")
 		// Switch to current buffer and render
-		te.activeWindow = 1
 		te.switchToBuffer(currentBuffer)
 
 		// Move cursor away from current line to avoid interference
 		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 2)
 
-		te.drawEditor()
+		te.renderPane()
 
 		// Find the content area (skip gutter columns)
 		contentStartX := te.CurrentBuffer().LineNumberWidth
@@ -69,7 +64,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 				break
 			}
 
-			if diffLine.LineType == DiffLineModified {
+			if diffLine.LineType == buffer.DiffLineModified {
 				t.Logf("Checking modified line %d: %q with %d word ranges", lineIdx, diffLine.Content, len(diffLine.WordRanges))
 
 				// Log the word ranges for debugging
@@ -116,7 +111,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 						}
 					}
 				}
-			} else if diffLine.LineType == DiffLineContext {
+			} else if diffLine.LineType == buffer.DiffLineContext {
 				t.Logf("Context line %d: %q (should not be highlighted)", lineIdx, diffLine.Content)
 			}
 		}
@@ -126,7 +121,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 		// Verify that word ranges are computed for modified lines
 		modifiedLineFound := false
 		for _, diffLine := range diffResult.RightLines {
-			if diffLine.LineType == DiffLineModified {
+			if diffLine.LineType == buffer.DiffLineModified {
 				modifiedLineFound = true
 				if len(diffLine.WordRanges) == 0 {
 					t.Errorf("Modified line should have word ranges: %q", diffLine.Content)
@@ -151,9 +146,8 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 
 	t.Run("context_lines_not_highlighted", func(t *testing.T) {
 		// Switch to current buffer and render
-		te.activeWindow = 1
 		te.switchToBuffer(currentBuffer)
-		te.drawEditor()
+		te.renderPane()
 
 		contentStartX := te.CurrentBuffer().LineNumberWidth
 		mockScreen := te.screen.(*MockScreen)
@@ -164,7 +158,7 @@ func TestWordLevelDiffHighlighting(t *testing.T) {
 				break
 			}
 
-			if diffLine.LineType == DiffLineContext {
+			if diffLine.LineType == buffer.DiffLineContext {
 				// Sample a few characters in the context line
 				lineLen := len(diffLine.Content)
 				if lineLen > 0 {

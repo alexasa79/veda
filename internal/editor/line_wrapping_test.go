@@ -23,7 +23,7 @@ func TestLineWrapping_Basic(t *testing.T) {
 	te.PressKey(events.KeyEscape, 0)
 
 	// Render and check output
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// Line 1 should show: "1 This is a very"
@@ -69,7 +69,7 @@ func TestLineWrapping_WordBoundary(t *testing.T) {
 	}
 	te.PressKey(events.KeyEscape, 0)
 
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// Should wrap at word boundaries, not in the middle of words
@@ -104,7 +104,7 @@ func TestLineWrapping_LongWord(t *testing.T) {
 	}
 	te.PressKey(events.KeyEscape, 0)
 
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// Long word should be broken at screen width
@@ -153,7 +153,7 @@ func TestLineWrapping_MultipleLines(t *testing.T) {
 	}
 	te.PressKey(events.KeyEscape, 0)
 
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// Expected using dynamic gutter
@@ -177,7 +177,7 @@ func TestLineWrapping_MultipleLines(t *testing.T) {
 			useRelative = false
 		}
 	}
-	if _, ok := te.diffLineInfo[te.CurrentBuffer()]; ok {
+	if len(te.CurrentBuffer().DiffHints) > 0 {
 		useRelative = false
 	}
 	displayNumber := func(logicalLine int) int {
@@ -312,7 +312,7 @@ func TestLineWrapping_InsertMode(t *testing.T) {
 		te.InsertChar(ch)
 	}
 
-	te.drawEditor()
+	te.renderPane()
 	_ = te.mockScreen.GetContent()
 
 	// Should wrap appropriately. Validate via wrapped segments rather than exact render text.
@@ -361,7 +361,7 @@ func TestLineWrapping_DeleteAcrossWrap(t *testing.T) {
 	// Delete forward should delete across wrap
 	te.ExecuteCommand("delete_char")
 
-	te.drawEditor()
+	te.renderPane()
 	// We don't use screen here, just checking content
 
 	// Check that deletion worked properly
@@ -391,7 +391,7 @@ func TestLineWrapping_Scrolling(t *testing.T) {
 
 	// Scroll down and verify wrapped lines scroll correctly
 	te.ExecuteCommand("page_down")
-	te.drawEditor()
+	te.renderPane()
 
 	// Verify that wrapped lines maintain their visual structure during scrolling
 	screen := te.mockScreen.GetContent()
@@ -491,7 +491,7 @@ func TestLineWrapping_SearchHighlight(t *testing.T) {
 	te.ExecuteCommand("search")
 	te.TypeKeys("/search\n")
 
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// The word "search" should be highlighted even though it's on the wrapped portion
@@ -542,7 +542,7 @@ func TestLineWrapping_SyntaxHighlight(t *testing.T) {
 	}
 	te.PressKey(events.KeyEscape, 0)
 
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// Verify that string highlighting continues on wrapped line
@@ -588,7 +588,7 @@ func TestLineWrapping_VisualMode(t *testing.T) {
 		te.ExecuteCommand("right")
 	}
 
-	te.drawEditor()
+	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// Check that selection highlighting spans wrapped lines

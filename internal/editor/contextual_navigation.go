@@ -32,6 +32,12 @@ func (e *Editor) getNavigationContext() string {
 
 // nextContextualItem jumps to the next item based on active context
 func (e *Editor) nextContextualItem(args []string) error {
+	// In a diff view, navigate hunks within the diff rather than dispatching
+	// to project changes (which would call openFile and exit the diff).
+	if e.isDiffViewActive() {
+		return e.nextGitChange()
+	}
+
 	// Check if we have an active special buffer
 	if e.lastActiveSpecialBuffer != "" {
 		// Verify it still exists
@@ -57,6 +63,12 @@ func (e *Editor) nextContextualItem(args []string) error {
 
 // previousContextualItem jumps to the previous item based on active context
 func (e *Editor) previousContextualItem(args []string) error {
+	// In a diff view, navigate hunks within the diff rather than dispatching
+	// to project changes (which would call openFile and exit the diff).
+	if e.isDiffViewActive() {
+		return e.previousGitChange()
+	}
+
 	// Check if we have an active special buffer
 	if e.lastActiveSpecialBuffer != "" {
 		// Verify it still exists
@@ -84,14 +96,14 @@ func (e *Editor) previousContextualItem(args []string) error {
 func (e *Editor) getGitChangeHunks() []int {
 	buf := e.CurrentBuffer()
 	if buf == nil || buf.GitChanges == nil {
-		// If we're in diff view, derive hunks from diffLineInfo instead
+		// If we're in diff view, derive hunks from DiffHints instead
 		if buf != nil {
-			if diffLines, ok := e.diffLineInfo[buf]; ok && len(diffLines) > 0 {
+			if diffLines := buf.DiffHints; len(diffLines) > 0 {
 				hunks := make([]int, 0)
 				inRun := false
 				runStart := 0
 				for i, dl := range diffLines {
-					isChange := dl.LineType != DiffLineContext
+					isChange := dl.LineType != buffer.DiffLineContext
 					if isChange && !inRun {
 						inRun = true
 						runStart = i

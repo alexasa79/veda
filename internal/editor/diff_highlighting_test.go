@@ -18,18 +18,18 @@ func TestDiffHighlighting(t *testing.T) {
 	currentBufferName := "test.go@current"
 
 	// Create test diff result with different line types
-	diffResult := &DiffResult{
-		LeftLines: []DiffLine{
-			{Content: "line1", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
-			{Content: "deleted line", LineType: DiffLineDeleted, LeftLine: 1, RightLine: -1, IsFillerLine: false},
-			{Content: "old line3", LineType: DiffLineModified, LeftLine: 2, RightLine: 2, IsFillerLine: false},
-			{Content: "", LineType: DiffLineAdded, LeftLine: -1, RightLine: -1, IsFillerLine: true},
+	diffResult := &buffer.DiffResult{
+		LeftLines: []buffer.DiffLine{
+			{Content: "line1", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+			{Content: "deleted line", LineType: buffer.DiffLineDeleted, LeftLine: 1, RightLine: -1, IsFillerLine: false},
+			{Content: "old line3", LineType: buffer.DiffLineModified, LeftLine: 2, RightLine: 2, IsFillerLine: false},
+			{Content: "", LineType: buffer.DiffLineAdded, LeftLine: -1, RightLine: -1, IsFillerLine: true},
 		},
-		RightLines: []DiffLine{
-			{Content: "line1", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
-			{Content: "", LineType: DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true},
-			{Content: "new line3", LineType: DiffLineModified, LeftLine: 2, RightLine: 2, IsFillerLine: false},
-			{Content: "added line", LineType: DiffLineAdded, LeftLine: -1, RightLine: 3, IsFillerLine: false},
+		RightLines: []buffer.DiffLine{
+			{Content: "line1", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+			{Content: "", LineType: buffer.DiffLineDeleted, LeftLine: -1, RightLine: -1, IsFillerLine: true},
+			{Content: "new line3", LineType: buffer.DiffLineModified, LeftLine: 2, RightLine: 2, IsFillerLine: false},
+			{Content: "added line", LineType: buffer.DiffLineAdded, LeftLine: -1, RightLine: 3, IsFillerLine: false},
 		},
 	}
 
@@ -45,19 +45,19 @@ func TestDiffHighlighting(t *testing.T) {
 	// Store buffers and diff line info
 	te.buffers[headBufferName] = headBuffer
 	te.buffers[currentBufferName] = currentBuffer
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
 	// Test diff line info storage
 	t.Run("diff_line_info_stored_correctly", func(t *testing.T) {
 		// Check head buffer diff info
-		if diffLines, exists := te.diffLineInfo[headBuffer]; exists {
+		if diffLines := headBuffer.DiffHints; len(diffLines) > 0 {
 			if len(diffLines) != 4 {
 				t.Errorf("Expected 4 diff lines for head buffer, got %d", len(diffLines))
 			}
 
 			// Check specific line types
-			expectedTypes := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineModified, DiffLineAdded}
+			expectedTypes := []buffer.DiffLineType{buffer.DiffLineContext, buffer.DiffLineDeleted, buffer.DiffLineModified, buffer.DiffLineAdded}
 			for i, expectedType := range expectedTypes {
 				if i < len(diffLines) && diffLines[i].LineType != expectedType {
 					t.Errorf("Head buffer line %d: expected type %v, got %v", i, expectedType, diffLines[i].LineType)
@@ -68,13 +68,13 @@ func TestDiffHighlighting(t *testing.T) {
 		}
 
 		// Check current buffer diff info
-		if diffLines, exists := te.diffLineInfo[currentBuffer]; exists {
+		if diffLines := currentBuffer.DiffHints; len(diffLines) > 0 {
 			if len(diffLines) != 4 {
 				t.Errorf("Expected 4 diff lines for current buffer, got %d", len(diffLines))
 			}
 
 			// Check specific line types
-			expectedTypes := []DiffLineType{DiffLineContext, DiffLineDeleted, DiffLineModified, DiffLineAdded}
+			expectedTypes := []buffer.DiffLineType{buffer.DiffLineContext, buffer.DiffLineDeleted, buffer.DiffLineModified, buffer.DiffLineAdded}
 			for i, expectedType := range expectedTypes {
 				if i < len(diffLines) && diffLines[i].LineType != expectedType {
 					t.Errorf("Current buffer line %d: expected type %v, got %v", i, expectedType, diffLines[i].LineType)
@@ -86,14 +86,8 @@ func TestDiffHighlighting(t *testing.T) {
 	})
 
 	t.Run("diff_highlighting_applied_during_rendering", func(t *testing.T) {
-		// Set up windows with diff buffers
-		te.createSecondWindow()
-		te.windows[0].setActiveBuffer(headBuffer)
-		te.windows[1].setActiveBuffer(currentBuffer)
-		te.activeWindow = 1
-		te.switchToBuffer(currentBuffer)
-		// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
-		te.recomputeWindowsLayout()
+		// Set up DiffBufferView on a single window
+		te.SetupDiffView(headBuffer, currentBuffer, "test.go")
 
 		// Render the screen to trigger diff highlighting
 		te.render()
@@ -141,21 +135,21 @@ func TestDiffBufferCleanup(t *testing.T) {
 	// Create a diff buffer with diff line info
 	diffBuffer := buffer.NewBuffer("diff content", "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
 	te.buffers["test.go@HEAD"] = diffBuffer
-	te.diffLineInfo[diffBuffer] = []DiffLine{
-		{Content: "test", LineType: DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
+	diffBuffer.DiffHints = []buffer.DiffLine{
+		{Content: "test", LineType: buffer.DiffLineContext, LeftLine: 0, RightLine: 0, IsFillerLine: false},
 	}
 
 	// Verify diff line info exists
-	if _, exists := te.diffLineInfo[diffBuffer]; !exists {
+	if len(diffBuffer.DiffHints) == 0 {
 		t.Fatal("Diff line info should exist before cleanup")
 	}
 
 	// Manually trigger buffer cleanup (simulate buffer deletion)
-	delete(te.bufferHighlighters, diffBuffer)
-	delete(te.diffLineInfo, diffBuffer)
+	diffBuffer.Highlighter = nil
+	diffBuffer.DiffHints = nil
 
 	// Verify cleanup
-	if _, exists := te.diffLineInfo[diffBuffer]; exists {
+	if len(diffBuffer.DiffHints) > 0 {
 		t.Error("Diff line info should be cleaned up after buffer deletion")
 	}
 }
@@ -173,7 +167,7 @@ func TestNonDiffBufferHighlighting(t *testing.T) {
 	}
 
 	// Verify no diff line info exists for normal buffer
-	if _, exists := te.diffLineInfo[te.CurrentBuffer()]; exists {
+	if len(te.CurrentBuffer().DiffHints) > 0 {
 		t.Error("Normal buffer should not have diff line info")
 	}
 }

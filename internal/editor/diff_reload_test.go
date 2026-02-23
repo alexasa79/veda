@@ -58,9 +58,11 @@ func TestDiffView_ReloadWithCtrlR(t *testing.T) {
 	// Open diff view with "s c" (show-changes for current buffer)
 	te.TypeKeys("s c")
 
-	// Verify diff view is set up - should have 2 windows
-	if len(te.windows) < 2 {
-		t.Fatalf("Expected 2 windows for diff view, got %d", len(te.windows))
+	// Verify diff view is set up with DiffBufferView on a single window
+	win := te.windows[te.activeWindow]
+	dv, ok := win.View.(*DiffBufferView)
+	if !ok {
+		t.Fatalf("Expected DiffBufferView on active window, got %T", win.View)
 	}
 
 	// Verify we have both @HEAD and @current buffers
@@ -95,22 +97,25 @@ func TestDiffView_ReloadWithCtrlR(t *testing.T) {
 		t.Errorf("current buffer RealPath should be %s, got %s", filePath, currentBuffer.RealPath)
 	}
 
-	// Record content and buffer pointers BEFORE reload
+	// Verify DiffBufferView references
+	if dv.LeftBuffer != headBuffer {
+		t.Errorf("DiffBufferView.LeftBuffer should be HEAD buffer")
+	}
+	if dv.RightBuffer != currentBuffer {
+		t.Errorf("DiffBufferView.RightBuffer should be current buffer")
+	}
+
+	// Record content BEFORE reload
 	headContentBefore := headBuffer.Rope.String()
 	currentContentBefore := currentBuffer.Rope.String()
-	headBufferPtrBefore := headBuffer
-	currentBufferPtrBefore := currentBuffer
 	t.Logf("HEAD content before reload (%d chars)", len(headContentBefore))
 	t.Logf("current content before reload (%d chars)", len(currentContentBefore))
-	t.Logf("HEAD buffer pointer before: %p", headBufferPtrBefore)
-	t.Logf("current buffer pointer before: %p", currentBufferPtrBefore)
 
 	// Now press Ctrl+R to reload
 	t.Log("Pressing Ctrl+R to reload...")
 	te.TypeKeys("ctrl+r")
 
 	// Wait for async operations to complete (reload happens in a goroutine)
-	// Use a longer timeout to ensure the proxy request completes
 	te.WaitForAsyncOperationsTimeout(5 * time.Second)
 
 	// Check if an error was shown
@@ -168,7 +173,7 @@ func TestDiffView_ReloadWithCtrlR(t *testing.T) {
 	}
 }
 
-// TestDiffView_ReloadFromHeadBuffer tests reload when cursor is on @HEAD buffer
+// TestDiffView_ReloadFromHeadBuffer tests reload when the left pane (HEAD) is active
 func TestDiffView_ReloadFromHeadBuffer(t *testing.T) {
 	// Create a temporary git repo
 	repoDir := NewGitTestRepo(t)
@@ -211,11 +216,17 @@ func TestDiffView_ReloadFromHeadBuffer(t *testing.T) {
 	// Open diff view
 	te.TypeKeys("s c")
 
-	// Switch to HEAD buffer (left pane) using window navigation
-	te.TypeKeys("space tab")
-	if !strings.HasSuffix(te.CurrentBuffer().FilePath, "@HEAD") {
-		te.TypeKeys("space tab") // Try again if needed
+	// Verify DiffBufferView exists
+	win := te.windows[te.activeWindow]
+	dv, ok := win.View.(*DiffBufferView)
+	if !ok {
+		t.Fatalf("Expected DiffBufferView, got %T", win.View)
 	}
+
+	// Switch to left pane (HEAD) via DiffBufferView
+	dv.ActivePane = 0
+	win.Buffer = dv.LeftBuffer
+	te.switchToBuffer(dv.LeftBuffer)
 
 	// Verify we're on @HEAD buffer
 	if !strings.HasSuffix(te.CurrentBuffer().FilePath, "@HEAD") {

@@ -38,7 +38,7 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 		}
 
 		// Force render
-		te.drawEditor()
+		te.renderPane()
 
 		viewStartLine := te.CurrentBuffer().ViewIterator.LineNumber()
 		cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
@@ -119,7 +119,7 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 		te.ExecuteCommand("down")
 
 		// Render
-		te.drawEditor()
+		te.renderPane()
 
 		viewStartLine := te.CurrentBuffer().ViewIterator.LineNumber()
 		cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
@@ -157,7 +157,7 @@ func TestVisualModeLineNumberRendering(t *testing.T) {
 		te.ExecuteCommand("down")
 
 		// Render
-		te.drawEditor()
+		te.renderPane()
 
 		// Check first 3 lines
 		for lineIdx := 0; lineIdx < 3; lineIdx++ {
@@ -192,7 +192,7 @@ func TestDebugLineNumberArea(t *testing.T) {
 		te.ExecuteCommand("right")
 
 		// Render
-		te.drawEditor()
+		te.renderPane()
 
 		// Debug output
 		t.Logf("Line number width: %d", te.CurrentBuffer().LineNumberWidth)
@@ -241,7 +241,7 @@ func TestLineNumberSelectionBug(t *testing.T) {
 		}
 
 		// Render
-		te.drawEditor()
+		te.renderPane()
 
 		// Get line number style
 		lineNumberStyle := te.config.Theme.GetStyle(te.config.Theme.LineNumber)

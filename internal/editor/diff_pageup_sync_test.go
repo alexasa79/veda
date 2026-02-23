@@ -32,18 +32,11 @@ func TestDiffView_PageUpViewSync(t *testing.T) {
 
 	te.buffers[head.FilePath] = head
 	te.buffers[curr.FilePath] = curr
-	te.diffLineInfo[head] = diffResult.LeftLines
-	te.diffLineInfo[curr] = diffResult.RightLines
+	head.DiffHints = diffResult.LeftLines
+	curr.DiffHints = diffResult.RightLines
 
-	// Set up windows: left HEAD, right current
-	te.createSecondWindow()
-	if len(te.windows) < 2 {
-		t.Fatalf("expected two windows")
-	}
-	te.windows[0].setActiveBuffer(head)
-	te.windows[1].setActiveBuffer(curr)
-	te.activeWindow = 1
-	te.switchToBuffer(curr)
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(head, curr, "editor.go")
 
 	// Go to end and render once
 	if err := te.ExecuteCommand("go-to-end"); err != nil {
@@ -53,9 +46,9 @@ func TestDiffView_PageUpViewSync(t *testing.T) {
 	te.syncDiffCursors()
 	te.render()
 
-	// Capture initial top lines
-	prevLeftTop := te.windows[0].ViewLine
-	prevRightTop := te.windows[1].ViewLine
+	// Capture initial top lines from buffer ViewIterators
+	prevLeftTop := head.ViewIterator.LineNumber()
+	prevRightTop := curr.ViewIterator.LineNumber()
 
 	// Page up several times; after each step ensure view lines do not stay
 	// permanently stuck at the old value.
@@ -69,8 +62,8 @@ func TestDiffView_PageUpViewSync(t *testing.T) {
 		te.syncDiffCursors()
 		te.render()
 
-		leftTop := te.windows[0].ViewLine
-		rightTop := te.windows[1].ViewLine
+		leftTop := head.ViewIterator.LineNumber()
+		rightTop := curr.ViewIterator.LineNumber()
 
 		if leftTop == prevLeftTop && rightTop == prevRightTop {
 			t.Fatalf("view top lines did not change after page-up step %d (left=%d right=%d)", i, leftTop, rightTop)

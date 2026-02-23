@@ -22,12 +22,14 @@ func TestLeftDiffPaneUsesSyntaxTokens(t *testing.T) {
 	headBuf.IsReadOnly = true
 	headBuf.BufferName = headName
 	headBuf.RealPath = "" // virtual
+	headBuf.DiffHints = []buffer.DiffLine{{Content: "package main", LineType: buffer.DiffLineContext}}
 
 	// Right buffer (not strictly needed for this test but mirrors diff layout)
 	curName := "test.go@current"
 	curBuf := buffer.NewBuffer(src, curName, curName, config.IndentTabs, 4)
 	curBuf.BufferName = curName
 	curBuf.RealPath = "test.go" // pretend real file path
+	curBuf.DiffHints = []buffer.DiffLine{{Content: "package main", LineType: buffer.DiffLineContext}}
 
 	// Install highlighters with Go language on both buffers
 	headBuf.Highlighter = syntax.NewHighlighter()
@@ -40,17 +42,16 @@ func TestLeftDiffPaneUsesSyntaxTokens(t *testing.T) {
 	_ = curBuf.Highlighter.SetLanguageFromFile("test.go")
 	_ = curBuf.Highlighter.ParseFull([]byte(src))
 
-	// Register buffers and set up two windows
+	// Register buffers and set up DiffBufferView
 	te.buffers[headName] = headBuf
 	te.buffers[curName] = curBuf
-	te.createSecondWindow()
-	te.windows[0].setActiveBuffer(headBuf)
-	te.windows[1].setActiveBuffer(curBuf)
-	te.activeWindow = 0
+	dv := te.SetupDiffView(headBuf, curBuf, "test.go")
+	dv.ActivePane = 0
+	te.windows[te.activeWindow].Buffer = dv.LeftBuffer
 	te.switchToBuffer(headBuf)
 
 	// Render left pane
-	te.render()
+	te.renderPane()
 
 	// Locate the line containing "func" in the head buffer content
 	lines := strings.Split(src, "\n")

@@ -33,7 +33,7 @@ func isDeletedHunkStart(line int, deleted []int) bool {
 }
 
 // isInWordRange checks if a character position is within any of the word diff ranges
-func isInWordRange(pos int, ranges []DiffRange) bool {
+func isInWordRange(pos int, ranges []buffer.DiffRange) bool {
 	for _, r := range ranges {
 		if pos >= r.Start && pos < r.End {
 			return true
@@ -49,15 +49,15 @@ func getWordLevelDiffBg(e *Editor, lineIndex, tokenStart, tokenEnd int) *ui.Colo
 	}
 
 	// Check if this buffer has diff line info
-	diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]
-	if !isDiffBuffer || lineIndex < 0 || lineIndex >= len(diffLines) {
+	diffLines := e.CurrentBuffer().DiffHints
+	if len(diffLines) == 0 || lineIndex < 0 || lineIndex >= len(diffLines) {
 		return nil
 	}
 
 	diffLine := diffLines[lineIndex]
 
 	// Only apply word-level highlighting for modified lines
-	if diffLine.LineType != DiffLineModified || len(diffLine.WordRanges) == 0 {
+	if diffLine.LineType != buffer.DiffLineModified || len(diffLine.WordRanges) == 0 {
 		return nil
 	}
 
@@ -581,11 +581,11 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 	// visually distinct even on diff backgrounds.
 	var diffBg *ui.Color
 	if bgOverride == nil && e.CurrentBuffer() != nil {
-		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+		if diffLines := e.CurrentBuffer().DiffHints; len(diffLines) > 0 {
 			if lineIndex >= 0 && lineIndex < len(diffLines) {
 				diffLine := diffLines[lineIndex]
 				switch diffLine.LineType {
-				case DiffLineAdded:
+				case buffer.DiffLineAdded:
 					// Base/brightened green from theme
 					if isCurrentLine {
 						s := e.config.Theme.GetStyle(e.config.Theme.DiffAddedCurrentLine)
@@ -596,7 +596,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 						_, bg, _ := s.Decompose()
 						diffBg = &bg
 					}
-				case DiffLineDeleted:
+				case buffer.DiffLineDeleted:
 					// Base/brightened red from theme
 					if isCurrentLine {
 						s := e.config.Theme.GetStyle(e.config.Theme.DiffDeletedCurrentLine)
@@ -607,7 +607,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 						_, bg, _ := s.Decompose()
 						diffBg = &bg
 					}
-				case DiffLineModified:
+				case buffer.DiffLineModified:
 					// For modified lines, apply full-line modified background as base,
 					// with word-level highlighting overlaid at token level.
 					bg := ui.NewRGBColor(100, 80, 30) // brighter yellow/orange used for modified
@@ -865,19 +865,19 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 	// caret row remains visible even on diff backgrounds.
 	var diffBg *ui.Color
 	if e.CurrentBuffer() != nil {
-		if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+		if diffLines := e.CurrentBuffer().DiffHints; len(diffLines) > 0 {
 			if lineIndex >= 0 && lineIndex < len(diffLines) {
 				diffLine := diffLines[lineIndex]
 				switch diffLine.LineType {
-				case DiffLineAdded:
+				case buffer.DiffLineAdded:
 					// Use constant brighter green for added
 					bg := ui.NewRGBColor(40, 100, 40)
 					diffBg = &bg
-				case DiffLineDeleted:
+				case buffer.DiffLineDeleted:
 					// Use constant brighter red for deleted
 					bg := ui.NewRGBColor(100, 40, 40)
 					diffBg = &bg
-				case DiffLineModified:
+				case buffer.DiffLineModified:
 					// Apply modified full-line background as base; word ranges overlay at token level.
 					bg := ui.NewRGBColor(100, 80, 30)
 					diffBg = &bg
@@ -1262,7 +1262,7 @@ func (e *Editor) drawContext() {
 	}
 }
 
-func (e *Editor) drawEditor() {
+func (e *Editor) renderPane() {
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	lineNumberCurrentStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLineNumber)
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
@@ -1284,9 +1284,7 @@ func (e *Editor) drawEditor() {
 
 	currentIsDiffBuffer := false
 	if buf := e.CurrentBuffer(); buf != nil {
-		if _, ok := e.diffLineInfo[buf]; ok {
-			currentIsDiffBuffer = true
-		}
+		currentIsDiffBuffer = len(buf.DiffHints) > 0
 	}
 
 	useRelativeLineNumbers := cursorLine >= 0 && !isTerminalBuffer && !currentIsDiffBuffer
@@ -1333,21 +1331,21 @@ func (e *Editor) drawEditor() {
 		// Determine if this line needs diff highlighting
 		var diffFillStyle *ui.Style
 		if e.CurrentBuffer() != nil {
-			if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+			if diffLines := e.CurrentBuffer().DiffHints; len(diffLines) > 0 {
 				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
 					diffLine := diffLines[wl.LogicalLineNum]
 					switch diffLine.LineType {
-					case DiffLineAdded:
+					case buffer.DiffLineAdded:
 						// Use a brighter green for diff highlighting
 						bg := ui.NewRGBColor(40, 100, 40) // Even brighter green background
 						diffStyle := normalStyle.Background(bg)
 						diffFillStyle = &diffStyle
-					case DiffLineDeleted:
+					case buffer.DiffLineDeleted:
 						// Use a brighter red for diff highlighting
 						bg := ui.NewRGBColor(100, 40, 40) // Even brighter red background
 						diffStyle := normalStyle.Background(bg)
 						diffFillStyle = &diffStyle
-					case DiffLineModified:
+					case buffer.DiffLineModified:
 						// For modified lines, apply a base modified background to the full line;
 						// word-level ranges will still overlay at token level.
 						bg := ui.NewRGBColor(100, 80, 30)
@@ -1387,7 +1385,7 @@ func (e *Editor) drawEditor() {
 			var lineNumStr string
 
 			// Check if this is a diff buffer and get original line number
-			if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+			if diffLines := e.CurrentBuffer().DiffHints; len(diffLines) > 0 {
 				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
 					diffLine := diffLines[wl.LogicalLineNum]
 					if diffLine.IsFillerLine {
@@ -1473,7 +1471,7 @@ func (e *Editor) drawEditor() {
 
 			// Choose correct line for indicators: use original line number when in diff view
 			usedLineNum := lineNum
-			if diffLines, isDiffBuffer := e.diffLineInfo[e.CurrentBuffer()]; isDiffBuffer {
+			if diffLines := e.CurrentBuffer().DiffHints; len(diffLines) > 0 {
 				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
 					dl := diffLines[wl.LogicalLineNum]
 					// For @current side: use RightLine; for @HEAD no indicators will be drawn anyway
@@ -1635,9 +1633,9 @@ func (e *Editor) prepareCursorWordHighlights(wrappedLines []WrappedLine) {
 		if line < 0 || line >= buf.LineCount {
 			return false
 		}
-		if diffLines, ok := e.diffLineInfo[buf]; ok {
+		if diffLines := buf.DiffHints; len(diffLines) > 0 {
 			if line >= 0 && line < len(diffLines) {
-				return diffLines[line].LineType == DiffLineContext
+				return diffLines[line].LineType == buffer.DiffLineContext
 			}
 		}
 		return true
@@ -1779,9 +1777,9 @@ func (e *Editor) isInCursorWord(lineNum, charPos int) bool {
 		return false
 	}
 	if buf := e.CurrentBuffer(); buf != nil {
-		if diffLines, ok := e.diffLineInfo[buf]; ok {
+		if diffLines := buf.DiffHints; len(diffLines) > 0 {
 			if lineNum >= 0 && lineNum < len(diffLines) {
-				if diffLines[lineNum].LineType != DiffLineContext {
+				if diffLines[lineNum].LineType != buffer.DiffLineContext {
 					return false
 				}
 			}

@@ -159,17 +159,47 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 	if _, isWindowScreen := e.screen.(*windowScreen); !isWindowScreen {
 		if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
 			width = e.windows[e.activeWindow].Width
+			// DiffBufferView splits the window in half; use pane width for wrapping
+			if _, isDiff := e.windows[e.activeWindow].View.(*DiffBufferView); isDiff {
+				width = width / 2
+			}
 		}
 	}
 	gutterWidth := e.CurrentBuffer().LineNumberWidth
 
 	wc := NewWrapCalculator(width, gutterWidth)
 
+	// For diff views, set up coordinated wrapping with the paired buffer
+	// so both panes use the same number of visual rows per logical line.
+	var pairedBuf *buffer.Buffer
+	var pairedWC *WrapCalculator
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+		if dv, ok := e.windows[e.activeWindow].View.(*DiffBufferView); ok {
+			if e.CurrentBuffer() == dv.LeftBuffer {
+				pairedBuf = dv.RightBuffer
+			} else if e.CurrentBuffer() == dv.RightBuffer {
+				pairedBuf = dv.LeftBuffer
+			}
+			if pairedBuf != nil {
+				winW := e.windows[e.activeWindow].Width
+				pairedPaneW := winW - width // other half
+				if pairedPaneW < 1 {
+					pairedPaneW = 1
+				}
+				pairedWC = NewWrapCalculator(pairedPaneW, pairedBuf.LineNumberWidth)
+			}
+		}
+	}
+
 	var wrappedLines []WrappedLine
 	visibleHeight := e.getVisibleHeight()
 
 	// Start from the view iterator
 	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), e.CurrentBuffer().ViewIterator.LineNumber())
+	var pairedIter *buffer.BufferIterator
+	if pairedBuf != nil {
+		pairedIter = buffer.NewBufferIteratorAtLine(pairedBuf, e.CurrentBuffer().ViewIterator.LineNumber())
+	}
 	visualLineCount := 0
 
 	startViewLine := e.CurrentBuffer().ViewIterator.LineNumber()
@@ -194,6 +224,21 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		} else {
 			// Wrap this line normally
 			wrapped = wc.WrapLine(line, logicalLineNum)
+		}
+
+		// Coordinated wrapping: pad to match the paired pane's wrap count
+		if pairedIter != nil && !pairedIter.IsEOF() && pairedIter.LineNumber() == logicalLineNum {
+			pairedWrapped := pairedWC.WrapLine(pairedIter.Line(), logicalLineNum)
+			for len(wrapped) < len(pairedWrapped) {
+				wrapped = append(wrapped, WrappedLine{
+					LogicalLineNum: logicalLineNum,
+					StartChar:      len(line),
+					EndChar:        len(line),
+					IsFirstLine:    false,
+					Text:           "",
+				})
+			}
+			pairedIter = pairedIter.Next()
 		}
 
 		// Add wrapped lines up to visible height

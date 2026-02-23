@@ -229,14 +229,11 @@ func TestGoBack_ReturnsToDiffBufferWhenDiffViewStillOpen(t *testing.T) {
 
 	te.buffers[head.FilePath] = head
 	te.buffers[curr.FilePath] = curr
-	te.diffLineInfo[head] = diffResult.LeftLines
-	te.diffLineInfo[curr] = diffResult.RightLines
+	head.DiffHints = diffResult.LeftLines
+	curr.DiffHints = diffResult.RightLines
 
-	te.windows[0].addBufferToWindow(head)
-	te.createSecondWindow()
-	te.windows[1].addBufferToWindow(curr)
-	te.activeWindow = 1
-	te.switchToBuffer(curr)
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(head, curr, realPath)
 
 	if !te.isDiffViewActive() {
 		t.Fatalf("expected diff view to be active")
@@ -280,14 +277,11 @@ func TestGoBack_ReturnsToRealFileWhenDiffViewClosed(t *testing.T) {
 
 	te.buffers[head.FilePath] = head
 	te.buffers[curr.FilePath] = curr
-	te.diffLineInfo[head] = diffResult.LeftLines
-	te.diffLineInfo[curr] = diffResult.RightLines
+	head.DiffHints = diffResult.LeftLines
+	curr.DiffHints = diffResult.RightLines
 
-	te.windows[0].addBufferToWindow(head)
-	te.createSecondWindow()
-	te.windows[1].addBufferToWindow(curr)
-	te.activeWindow = 1
-	te.switchToBuffer(curr)
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(head, curr, realPath)
 
 	if !te.isDiffViewActive() {
 		t.Fatalf("expected diff view to be active")
@@ -318,5 +312,57 @@ func TestGoBack_ReturnsToRealFileWhenDiffViewClosed(t *testing.T) {
 	}
 	if te.isDiffBuffer(te.CurrentBuffer()) {
 		t.Fatalf("expected go-back target to be non-diff buffer when diff view is closed")
+	}
+}
+
+// TestGoBack_RestoresDiffViewAfterOpenFile verifies that navigating to a
+// different file via openFile (e.g. gd) keeps the diff view alive, and
+// go-back restores it.
+func TestGoBack_RestoresDiffViewAfterOpenFile(t *testing.T) {
+	te := NewTestEditorWithContent(120, 30, "line1\nline2\nline3")
+
+	realPath := te.CurrentBuffer().FilePath
+	diffResult := computeDiff(te.CurrentBuffer().Rope.String(), te.CurrentBuffer().Rope.String())
+	head := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), realPath+"@HEAD", realPath+"@HEAD", config.IndentTabs, 4)
+	curr := buffer.NewBuffer(createBufferContent(diffResult.RightLines), realPath+"@current", realPath+"@current", config.IndentTabs, 4)
+	head.RealPath = realPath
+	curr.RealPath = realPath
+	head.IsReadOnly = true
+
+	te.buffers[head.FilePath] = head
+	te.buffers[curr.FilePath] = curr
+	head.DiffHints = diffResult.LeftLines
+	curr.DiffHints = diffResult.RightLines
+
+	te.SetupDiffView(head, curr, realPath)
+
+	if !te.isDiffViewActive() {
+		t.Fatalf("expected diff view to be active")
+	}
+
+	// Save position, then navigate away via openFile (simulates gd)
+	te.pushNavigationHistory()
+
+	target := buffer.NewBuffer("target content", realPath+".target", realPath+".target", config.IndentTabs, 4)
+	te.buffers[target.FilePath] = target
+	te.openFile(target.FilePath)
+
+	if te.CurrentBuffer().FilePath != target.FilePath {
+		t.Fatalf("expected current buffer to be %s, got %s", target.FilePath, te.CurrentBuffer().FilePath)
+	}
+
+	// Navigate back — should restore the diff view
+	if err := te.ExecuteCommand("go-back"); err != nil {
+		t.Fatalf("go-back returned error: %v", err)
+	}
+
+	if te.CurrentBuffer() == nil {
+		t.Fatalf("expected current buffer after go-back")
+	}
+	if te.CurrentBuffer().FilePath != curr.FilePath {
+		t.Fatalf("expected go-back to return to diff buffer %s, got %s", curr.FilePath, te.CurrentBuffer().FilePath)
+	}
+	if !te.isDiffViewActive() {
+		t.Fatalf("expected diff view to be restored after go-back")
 	}
 }

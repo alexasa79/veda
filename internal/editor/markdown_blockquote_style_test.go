@@ -28,7 +28,7 @@ func TestMarkdownBlockquoteQuoteAndTextShareStyle(t *testing.T) {
 		t.Fatalf("failed to parse markdown buffer: %v", err)
 	}
 
-	te.drawEditor()
+	te.renderPane()
 
 	contentY := te.getContentStartY()
 	lineNumberWidth := te.CurrentBuffer().LineNumberWidth

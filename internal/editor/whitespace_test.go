@@ -135,7 +135,7 @@ func TestWhitespaceRenderingIntegration(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "\thello world   ")
 
 	// Draw the editor
-	te.drawEditor()
+	te.renderPane()
 
 	// Get the rendered output
 	mockScreen := te.screen.(*MockScreen)

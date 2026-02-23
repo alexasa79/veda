@@ -64,7 +64,7 @@ func TestTerminalHomeEndKeys(t *testing.T) {
 	te.mode = commands.TerminalMode
 
 	// Draw once to establish positions
-	te.drawEditor()
+	te.renderPane()
 
 	// Verify initial terminal emulator cursor position - should be at start of line 1
 	initCurX, initCurY := term.Cursor()
@@ -76,7 +76,7 @@ func TestTerminalHomeEndKeys(t *testing.T) {
 	te.TypeKeys("End")
 	// Simulate the shell response: move cursor to end of current (empty) line
 	// Since the line is empty, cursor should stay at column 0
-	te.drawEditor()
+	te.renderPane()
 
 	// Verify the emulator cursor position after End
 	endCurX, endCurY := term.Cursor()
@@ -91,7 +91,7 @@ func TestTerminalHomeEndKeys(t *testing.T) {
 	// Press Home -> should send escape sequence to move to beginning of line
 	te.TypeKeys("Home")
 	// Simulate the shell response: move cursor to column 0
-	te.drawEditor()
+	te.renderPane()
 
 	// Verify the emulator cursor is still at column 0
 	homeCurX, homeCurY := term.Cursor()
@@ -103,7 +103,7 @@ func TestTerminalHomeEndKeys(t *testing.T) {
 	}
 
 	// Test that no panics occurred and the editor is still functional
-	te.drawEditor()
+	te.renderPane()
 }
 
 // TestTerminalReopen verifies we can exit and open terminal again

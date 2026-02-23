@@ -251,7 +251,7 @@ func TestInsertMode(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "Hello")
 
 		// Draw the editor to set initial cursor style (should be block in normal mode)
-		te.drawEditor()
+		te.renderPane()
 		te.drawStatusBar()
 		te.screen.SetCursorStyle(ui.CursorStyleSteadyBlock) // Simulate what Run() does
 

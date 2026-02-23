@@ -55,6 +55,7 @@ func main() {
 	headBufferName := "test.go@HEAD"
 	headBuffer := buffer.NewBuffer(alignedHeadContent, headBufferName, headBufferName, config.IndentTabs, 4)
 	headBuffer.IsReadOnly = true
+	headBuffer.DiffHints = diffResult.LeftLines
 	te.buffers[headBufferName] = headBuffer
 
 	// Create and set highlighter for HEAD buffer
@@ -69,6 +70,7 @@ func main() {
 	// Create current buffer
 	currentBufferName := "test.go@current"
 	currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, config.IndentTabs, 4)
+	currentBuffer.DiffHints = diffResult.RightLines
 	te.buffers[currentBufferName] = currentBuffer
 
 	// Create and set highlighter for current buffer

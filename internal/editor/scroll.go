@@ -21,7 +21,12 @@ func (e *Editor) scroll() {
 	realScreen := e.screen
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
 		win := e.windows[e.activeWindow]
-		sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+		view := win.View
+		if view == nil {
+			view = &SingleBufferView{Buf: win.Buffer}
+		}
+		xOff, paneW := view.CursorRegion(win.Width)
+		sub := newWindowScreen(e.screen, win.X+xOff, win.Y, paneW, win.Height, false)
 		e.screen = sub
 	}
 

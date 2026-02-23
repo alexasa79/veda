@@ -132,7 +132,7 @@ func (e *Editor) pushNavigationHistory() {
 	fallbackViewLine := preferredViewLine
 	if e.isDiffBuffer(e.CurrentBuffer()) {
 		fallbackPath = normalizeDiffPath(fallbackPath)
-		if diffLines, ok := e.diffLineInfo[e.CurrentBuffer()]; ok {
+		if diffLines := e.CurrentBuffer().DiffHints; len(diffLines) > 0 {
 			if fallbackCursorLine >= 0 && fallbackCursorLine < len(diffLines) && diffLines[fallbackCursorLine].RightLine >= 0 {
 				fallbackCursorLine = diffLines[fallbackCursorLine].RightLine
 			}

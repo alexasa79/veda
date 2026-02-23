@@ -90,6 +90,12 @@ Veda implements a unique interpretation of word operations that differs from vim
 - **Insert Mode Sessions**: All changes made during a single insert mode session (from entering to exiting insert mode) are grouped as one undo unit
 - **Important**: When implementing new text-modifying commands, they MUST support undo/redo by implementing the Command interface
 
+### BufferView and Diff View
+Every window renders its content through a `BufferView` interface (`buffer_view.go`). A `SingleBufferView` renders one buffer; a `DiffBufferView` renders two panes side-by-side in a single window.
+
+- Avoid adding `if isDiff` branches in editor-level code. Handle differences between normal and diff views through the `BufferView` interface (polymorphism). For example, cursor region, rendering, and pane switching are all methods on `BufferView` rather than special cases in the editor.
+- This is an exception to our usual preference for composition over polymorphism. The polymorphic approach is justified here because diff view and normal view share the same window lifecycle but differ in rendering and cursor placement.
+
 ### Multi-Buffer Window System
 Veda supports multiple windows, each capable of containing multiple buffers:
 
