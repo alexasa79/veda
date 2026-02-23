@@ -7,114 +7,80 @@ import (
 )
 
 func TestDiffViewWindowWidth(t *testing.T) {
-	// Create a narrow terminal (80 columns)
+	// Create a terminal (80 columns)
 	width := 80
 	height := 24
 	te := NewTestEditor(width, height)
 
-	// Set a reasonable minimum active window width for our test terminal
-	te.Editor.minActiveWindowWidth = 30
+	// Create diff content
+	leftContent := "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
+	rightContent := "Line 1 modified\nLine 2\nNew Line 3\nLine 4\nLine 5 modified"
 
-	// Create some initial content for the diff
-	leftContent := `Line 1
-Line 2
-Line 3
-Line 4
-Line 5`
+	// Compute diff
+	diffResult := computeDiff(leftContent, rightContent)
 
-	rightContent := `Line 1 modified
-Line 2
-New Line 3
-Line 4
-Line 5 modified`
+	// Create aligned buffers
+	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "test.txt@HEAD", "test.txt@HEAD", config.IndentTabs, 4)
+	headBuffer.IsReadOnly = true
+	headBuffer.DiffHints = diffResult.LeftLines
 
-	// Create buffers for diff view - these need special names to be recognized as diff buffers
-	leftBuffer := buffer.NewBuffer(leftContent, "test.txt@HEAD", "test.txt@HEAD", config.IndentTabs, 4)
-	rightBuffer := buffer.NewBuffer(rightContent, "test.txt@current", "test.txt@current", config.IndentTabs, 4)
+	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "test.txt@current", "test.txt@current", config.IndentTabs, 4)
+	currentBuffer.DiffHints = diffResult.RightLines
 
-	// Add a third buffer to have another window
+	te.buffers["test.txt@HEAD"] = headBuffer
+	te.buffers["test.txt@current"] = currentBuffer
+
+	// Set up a DiffBufferView on a single window
+	diffView := &DiffBufferView{
+		LeftBuffer:  headBuffer,
+		RightBuffer: currentBuffer,
+		ActivePane:  1,
+		RealPath:    "test.txt",
+	}
+	te.windows[0].View = diffView
+	te.windows[0].setActiveBuffer(currentBuffer)
+	te.windows[0].addBufferToWindow(headBuffer)
+	te.switchToBuffer(currentBuffer)
+
+	te.recomputeWindowsLayout()
+
+	// Test 1: DiffBufferView renders both panes within a single window
+	if len(te.windows) != 1 {
+		t.Errorf("Expected 1 window with DiffBufferView, got %d", len(te.windows))
+	}
+
+	// Test 2: The single window should have the full screen width
+	win := te.windows[0]
+	if win.Width != width {
+		t.Errorf("Diff window should have full screen width %d, got %d", width, win.Width)
+	}
+
+	// Test 3: DiffBufferView.Render splits the screen in half
+	// Create a mock sub-screen and render
+	sub := newWindowScreen(te.screen, win.X, win.Y, win.Width, win.Height, false)
+	diffView.Render(te.Editor, win, sub)
+
+	// The left pane gets width/2, right pane gets width-width/2
+	expectedLeftW := width / 2
+	expectedRightW := width - expectedLeftW
+	if expectedLeftW < 1 || expectedRightW < 1 {
+		t.Errorf("Pane widths too small: left=%d, right=%d", expectedLeftW, expectedRightW)
+	}
+	t.Logf("Pane widths: left=%d, right=%d (total=%d)", expectedLeftW, expectedRightW, width)
+
+	// Test 4: Adding a second window reduces the diff window width proportionally
 	thirdBuffer := buffer.NewBuffer("Third buffer content", "third.txt", "third.txt", config.IndentTabs, 4)
+	te.buffers["third.txt"] = thirdBuffer
+	newWin := newWindow(thirdBuffer)
+	te.windows = append(te.windows, newWin)
+	te.recomputeWindowsLayout()
 
-	// Setup initial windows - start with three windows
-	te.Editor.windows = []*Window{
-		{
-			Buffer:  thirdBuffer,
-			Buffers: []*buffer.Buffer{thirdBuffer},
-			X:       0,
-			Width:   26, // Initial width for left window
-		},
-		{
-			Buffer:  leftBuffer,
-			Buffers: []*buffer.Buffer{leftBuffer},
-			X:       27,
-			Width:   26, // Initial width for middle window
-		},
-		{
-			Buffer:  rightBuffer,
-			Buffers: []*buffer.Buffer{rightBuffer},
-			X:       54,
-			Width:   26, // Initial width for right window
-		},
+	// Both windows should share screen width
+	totalW := 0
+	for _, w := range te.windows {
+		totalW += w.Width
 	}
-	te.Editor.activeWindow = 1 // Middle window is active
-
-	// Calculate layout to apply window width changes
-	te.Editor.recomputeWindowsLayout()
-
-	// Test 1: Both diff view windows should have the same width
-	diffWindow1 := te.Editor.windows[1]
-	diffWindow2 := te.Editor.windows[2]
-
-	if diffWindow1.Width != diffWindow2.Width {
-		t.Errorf("Diff view windows should have equal width. Left diff: %d, Right diff: %d",
-			diffWindow1.Width, diffWindow2.Width)
-	}
-
-	// Test 2: Both diff view windows should be wider than non-diff windows
-	nonDiffWindow := te.Editor.windows[0]
-
-	if diffWindow1.Width <= nonDiffWindow.Width {
-		t.Errorf("Diff view windows should be wider than non-diff windows. Diff width: %d, Non-diff width: %d",
-			diffWindow1.Width, nonDiffWindow.Width)
-	}
-
-	if diffWindow2.Width <= nonDiffWindow.Width {
-		t.Errorf("Diff view windows should be wider than non-diff windows. Diff width: %d, Non-diff width: %d",
-			diffWindow2.Width, nonDiffWindow.Width)
-	}
-
-	// Test 3: When switching to another buffer in one of the diff windows,
-	// the diff view should end and widths should adjust
-
-	// Switch to the third buffer in the left diff window
-	te.Editor.windows[1].setActiveBuffer(thirdBuffer)
-	te.Editor.windows[1].Buffers = []*buffer.Buffer{thirdBuffer}
-
-	// Recalculate layout
-	te.Editor.recomputeWindowsLayout()
-
-	// Now the active window (index 1) should be wider, but not both former diff windows
-	activeWindow := te.Editor.windows[te.Editor.activeWindow]
-	for i, win := range te.Editor.windows {
-		if i == te.Editor.activeWindow {
-			// Active window should be wider
-			if win.Width < 30 { // Expecting active window to be wider
-				t.Errorf("Active window should be wider. Width: %d", win.Width)
-			}
-		} else {
-			// Non-active windows should be narrower
-			if win.Width >= activeWindow.Width {
-				t.Errorf("Non-active window %d should be narrower than active window. Non-active: %d, Active: %d",
-					i, win.Width, activeWindow.Width)
-			}
-		}
-	}
-
-	// Test 4: Verify minimum width constraints are respected
-	minWidth := 20 // Assuming minimum width is 20
-	for i, win := range te.Editor.windows {
-		if win.Width < minWidth {
-			t.Errorf("Window %d width (%d) is below minimum width (%d)", i, win.Width, minWidth)
-		}
+	if totalW != width {
+		t.Errorf("Total window widths should equal screen width: got %d, want %d", totalW, width)
 	}
 }

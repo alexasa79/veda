@@ -43,7 +43,7 @@ func TestVirtualCursorVisibleWhenAppendingAfterEndOfLine(t *testing.T) {
 		}
 
 		// Force a render to update the screen
-		te.drawEditor()
+		te.renderPane()
 
 		// Get the virtual cursor style from theme
 		expectedStyle := te.config.Theme.GetStyle(te.config.Theme.VirtualCursor)
@@ -171,7 +171,7 @@ func TestVirtualCursorVisibleWhenAppendingAfterEndOfLine(t *testing.T) {
 		}
 
 		// Force a render to update the screen
-		te.drawEditor()
+		te.renderPane()
 
 		// Get the virtual cursor style from theme
 		expectedStyle := te.config.Theme.GetStyle(te.config.Theme.VirtualCursor)

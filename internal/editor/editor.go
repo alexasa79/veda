@@ -52,18 +52,16 @@ type wordRange struct {
 type Editor struct {
 	screen Screen
 	// buffer field removed - use CurrentBuffer() accessor instead
-	config             *config.Config
-	mode               commands.Mode
-	temporaryNormal    bool // True when in temporary normal mode (Ctrl+O from insert)
-	commandLine        *widgets.CommandLineWidget
-	searchLine         *widgets.CommandLineWidget // For search mode (/)
-	proxyManager       *proxy.ProxyManager
-	commandRegistry    *commands.CommandRegistry
-	keyMapper          *commands.KeyMapper
-	bufferHighlighters map[*buffer.Buffer]*syntax.Highlighter
-	diffLineInfo       map[*buffer.Buffer][]DiffLine // Stores diff line information for diff buffers
-	perfTracker        *perf.TimeTracker
-	signatureAnchors   map[*buffer.Buffer]*signatureAnchor
+	config           *config.Config
+	mode             commands.Mode
+	temporaryNormal  bool // True when in temporary normal mode (Ctrl+O from insert)
+	commandLine      *widgets.CommandLineWidget
+	searchLine       *widgets.CommandLineWidget // For search mode (/)
+	proxyManager     *proxy.ProxyManager
+	commandRegistry  *commands.CommandRegistry
+	keyMapper        *commands.KeyMapper
+	perfTracker      *perf.TimeTracker
+	signatureAnchors map[*buffer.Buffer]*signatureAnchor
 
 	// Buffer management
 	buffers        map[string]*buffer.Buffer // Map of file path to buffer
@@ -324,9 +322,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		proxyManager:           proxyManager,
 		commandRegistry:        commands.NewCommandRegistry(),
 		keyMapper:              commands.NewKeyMapper(),
-		bufferHighlighters:     make(map[*buffer.Buffer]*syntax.Highlighter),
-		diffLineInfo:           make(map[*buffer.Buffer][]DiffLine), // Added for diff view support
-		perfTracker:            perf.New(true, 30*time.Second),      // Report every 30 seconds
+		perfTracker:            perf.New(true, 30*time.Second), // Report every 30 seconds
 		buffers:                make(map[string]*buffer.Buffer),
 		virtualCursorsByBuffer: make(map[*buffer.Buffer][]VirtualCursor),
 		bufferOrder:            []string{},
@@ -668,8 +664,7 @@ func (e *Editor) render() {
 		}
 	}
 
-	// Draw each window using a windowScreen. Inactive windows are dimmed unless in diff view.
-	diffViewActive := e.isDiffViewActive()
+	// Draw each window using a windowScreen. Inactive windows are dimmed.
 	for i, win := range e.windows {
 		if e.zenMode && i != e.activeWindow {
 			continue
@@ -690,79 +685,28 @@ func (e *Editor) render() {
 
 		// Handle empty windows (Buffer == nil)
 		if win.Buffer == nil {
-			dim := !diffViewActive && (i != e.activeWindow)
+			dim := i != e.activeWindow
 			sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
 			e.drawEmptyWindow(sub, i == e.activeWindow)
 			continue
 		}
 		// Prepare sub-screen
-		dim := !diffViewActive && (i != e.activeWindow)
+		dim := i != e.activeWindow
 		sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, dim)
 		// Measure prepare phase
 		winTimer = e.perfTracker.ReportSince("drawWindows.window.prepare", winTimer)
 
-		// Temporarily swap screen and buffer per window
-		realScreen := e.screen
-		realBuffer := e.CurrentBuffer()
-		e.screen = sub
-		// Temporarily map editor-wide iterators/state from window's own view/cursor
-		// Save buffer iterators/X
-		savedView := win.Buffer.ViewIterator
-		savedCursor := win.Buffer.CursorIterator
-		savedX := win.Buffer.CursorX
-		// Apply window state
-		win.Buffer.ViewIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.ViewLine))
-		win.Buffer.CursorIterator = buffer.NewBufferIteratorAtLine(win.Buffer, max(0, win.CursorLine))
-		// Do not special-case EOF here; EOF is a valid state for empty buffers
-		win.Buffer.CursorX = win.CursorX
-		e.SetCurrentBuffer(win.Buffer)
-		// (debug instrumentation removed)
-		// Ensure per-buffer highlighter is initialized and parsed
-		if e.CurrentBuffer().Highlighter != nil {
-			if e.CurrentBuffer().IsInternal {
-				// For internal buffers we often use markdown; ensure parsed
-				if e.CurrentBuffer().Highlighter.GetTree() == nil {
-					_ = e.CurrentBuffer().Highlighter.SetLanguage("markdown")
-					e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
-				}
-			} else if e.CurrentBuffer().HasFile() {
-				if e.CurrentBuffer().Highlighter.GetTree() == nil {
-					_ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
-					e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
-				}
-			}
+		// Render via BufferView — switchToBuffer keeps win.View in sync
+		view := win.View
+		if view == nil {
+			view = &SingleBufferView{Buf: win.Buffer}
 		}
-		// Draw editor content area then context (to match legacy order)
-		e.drawEditor()
-		// Measure drawEditor phase; split active vs inactive to keep label cardinality bounded
+		view.Render(e, win, sub)
 		if i == e.activeWindow {
 			winTimer = e.perfTracker.ReportSince("drawWindows.window.drawEditor.active", winTimer)
 		} else {
 			winTimer = e.perfTracker.ReportSince("drawWindows.window.drawEditor.inactive", winTimer)
 		}
-
-		e.drawContext()
-		winTimer = e.perfTracker.ReportSince("drawWindows.window.drawContext", winTimer)
-
-		// Restore
-		// Persist any scroll/cursor changes back into the window state
-		win.ViewLine = win.Buffer.ViewIterator.LineNumber()
-		win.CursorLine = win.Buffer.CursorIterator.LineNumber()
-		win.CursorX = win.Buffer.CursorX
-		// Restore buffer iterators/X
-		// Only restore if the saved iterators are still valid for the current buffer generation.
-		// If buffer content changed during rendering (e.g., async updates), keep the fresh iterators
-		// we created above to avoid generation mismatches.
-		if savedView != nil && savedView.Generation == win.Buffer.Generation {
-			win.Buffer.ViewIterator = savedView
-		}
-		if savedCursor != nil && savedCursor.Generation == win.Buffer.Generation {
-			win.Buffer.CursorIterator = savedCursor
-		}
-		win.Buffer.CursorX = savedX
-		e.screen = realScreen
-		e.SetCurrentBuffer(realBuffer)
-		winTimer = e.perfTracker.ReportSince("drawWindows.window.restore", winTimer)
 		// Report total time for this window
 		if i == e.activeWindow {
 			_ = e.perfTracker.ReportSince("drawWindows.window.total.active", winTimer)
@@ -840,7 +784,12 @@ func (e *Editor) render() {
 			// Unified path: compute and show cursor relative to the active window region
 			win := e.windows[e.activeWindow]
 			if win.Buffer != nil {
-				sub := newWindowScreen(e.screen, win.X, win.Y, win.Width, win.Height, false)
+				view := win.View
+				if view == nil {
+					view = &SingleBufferView{Buf: win.Buffer}
+				}
+				xOff, paneW := view.CursorRegion(win.Width)
+				sub := newWindowScreen(e.screen, win.X+xOff, win.Y, paneW, win.Height, false)
 				realScreen := e.screen
 				realBuffer := e.CurrentBuffer()
 				e.screen = sub
@@ -1735,7 +1684,10 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 	}
 
 	e.runInvariants()
-	defer e.runInvariants()
+	defer func() {
+		e.syncDiffCursors()
+		e.runInvariants()
+	}()
 
 	// Store whether we're in temporary normal mode before executing
 	wasTemporaryNormal := e.temporaryNormal
@@ -3464,14 +3416,14 @@ func (e *Editor) getLSPTargetForBuffer(buf *buffer.Buffer) (string, int, int, er
 
 	if e.isDiffBuffer(buf) {
 		utils.Assert(filePath != "", "diff buffer RealPath missing")
-		if diffLines, ok := e.diffLineInfo[buf]; ok && len(diffLines) > 0 {
+		if diffLines := buf.DiffHints; len(diffLines) > 0 {
 			if line < 0 || line >= len(diffLines) {
 				return "", 0, 0, fmt.Errorf("diff cursor out of range")
 			}
 			sourceInfo := diffLines
 			if strings.HasSuffix(buf.FilePath, "@HEAD") {
 				if pair := e.getDiffPairBuffer(buf); pair != nil {
-					if pi, ok := e.diffLineInfo[pair]; ok && len(pi) == len(diffLines) {
+					if pi := pair.DiffHints; len(pi) > 0 && len(pi) == len(diffLines) {
 						sourceInfo = pi
 					}
 				}

@@ -11,6 +11,7 @@ func TestStatusBar_ShowsDiffMarkerForDiffBuffer(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "line1\nline2")
 
 	diffBuf := buffer.NewBuffer("line1\nline2", "dummy.go@HEAD", "dummy.go@HEAD", config.IndentTabs, 4)
+	diffBuf.DiffHints = []buffer.DiffLine{{Content: "line1", LineType: buffer.DiffLineContext}}
 	te.buffers[diffBuf.FilePath] = diffBuf
 	te.windows[te.activeWindow].addBufferToWindow(diffBuf)
 	te.switchToBuffer(diffBuf)

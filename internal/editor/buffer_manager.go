@@ -109,11 +109,16 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 				e.activeWindow = 0
 			}
 			if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
-				if e.windows[e.activeWindow] != nil {
-					e.windows[e.activeWindow].addBufferToWindow(buf)
+				if win := e.windows[e.activeWindow]; win != nil {
+					win.addBufferToWindow(buf)
 
 					// Assert invariant: buffer must belong to the active window
 					e.assertBufferInWindow(buf, e.activeWindow)
+
+					// Sync win.View to the view containing this buffer
+					if idx := win.findViewForBuffer(buf); idx >= 0 {
+						win.View = win.Views[idx]
+					}
 				}
 			}
 		}
@@ -164,11 +169,12 @@ func (e *Editor) showBuffers(args []string) error {
 	fuzzyListWidget.SetTitle("All Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 
-	// Create list of buffer display names from all windows
+	// Create list of buffer display names by iterating Views in all windows.
 	var bufferDisplays []string
 	pathToDisplay := make(map[string]string)
-	pathToWindow := make(map[string]int) // Maps buffer path to window index
-	seenBuffers := make(map[string]bool) // Track already seen buffers to avoid duplicates
+	pathToWindow := make(map[string]int)
+	seenViews := make(map[BufferView]bool)
+	seenPaths := make(map[string]bool)
 
 	// Determine current buffer path based on active window to avoid drift with e.CurrentBuffer()
 	currentPath := editorPath
@@ -176,45 +182,57 @@ func (e *Editor) showBuffers(args []string) error {
 		currentPath = activePath
 	}
 
-	// Collect buffers from all windows: include all buffers in each window's buffer list
+	// Collect one entry per View from all windows.
 	for windowIdx, window := range e.windows {
 		if window == nil {
 			continue
 		}
-		// Include all buffers in this window
-		for _, buf := range window.Buffers {
-			if buf == nil {
+		for _, view := range window.Views {
+			if view == nil || seenViews[view] {
 				continue
 			}
-			path := buf.FilePath
-			if path == "" || seenBuffers[path] {
-				continue
-			}
-			seenBuffers[path] = true
-			pathToWindow[path] = windowIdx
+			seenViews[view] = true
 
-			displayName := buf.DisplayName()
-			windowInfo := fmt.Sprintf("W%d", windowIdx+1) // 1-based window numbering for display
+			displayName := view.DisplayName()
+			viewPath := view.ViewPath()
+			if viewPath == "" {
+				continue
+			}
+			seenPaths[viewPath] = true
+			for _, b := range view.AllBuffers() {
+				if b != nil {
+					seenPaths[b.FilePath] = true
+				}
+			}
+			// Use the active buffer's path for selection so switchToBuffer
+			// finds the correct view (important for DiffBufferView where
+			// ViewPath is the real file but ActiveBuffer is @current).
+			selectPath := viewPath
+			if ab := view.ActiveBuffer(); ab != nil {
+				selectPath = ab.FilePath
+			}
+			pathToWindow[selectPath] = windowIdx
+			windowInfo := fmt.Sprintf("W%d", windowIdx+1)
 
 			var fullDisplayName string
-			if currentPath != "" && path == currentPath {
+			if currentPath != "" && viewPath == currentPath {
 				fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
 			} else {
 				fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
 			}
 
 			bufferDisplays = append(bufferDisplays, fullDisplayName)
-			pathToDisplay[fullDisplayName] = path
+			pathToDisplay[fullDisplayName] = selectPath
 		}
 	}
 
-	// Include global buffers that are not attached to any window yet (e.g., *Messages*)
+	// Include global buffers that are not attached to any window's Views (e.g., *Messages*)
 	for path, buf := range e.buffers {
-		if seenBuffers[path] {
+		if seenPaths[path] {
 			continue
 		}
-		seenBuffers[path] = true
-		pathToWindow[path] = -1 // not in any window
+		seenPaths[path] = true
+		pathToWindow[path] = -1
 
 		displayName := buf.DisplayName()
 		windowInfo := "global"
@@ -256,7 +274,7 @@ func (e *Editor) showBuffers(args []string) error {
 			// Save current buffer state before switching
 			e.saveCurrentBufferState()
 
-			// Resolve buffer pointer; fallback: scan window lists
+			// Resolve buffer pointer; check global buffers and window buffer lists
 			var bufPtr *buffer.Buffer
 			if b, exists := e.buffers[path]; exists {
 				bufPtr = b
@@ -293,7 +311,8 @@ func (e *Editor) showBuffers(args []string) error {
 				return
 			}
 
-			// Recompute current window for this buffer dynamically
+			// Find the window containing this buffer and activate it.
+			// switchToBuffer will set win.View to the correct view from Views.
 			targetWindowIdx := e.findWindowContainingBuffer(path)
 			if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
 				if tw := e.windows[targetWindowIdx]; tw != nil {
@@ -325,7 +344,7 @@ func (e *Editor) closeBuffer(args []string) error {
 	currentPath := cur.FilePath
 
 	// Check if this is a diff buffer - if so, close both buffers in the pair
-	if isDiffBuffer(currentPath) {
+	if cur.DiffHints != nil {
 		return e.closeDiffBufferPair(currentPath)
 	}
 
@@ -394,8 +413,8 @@ func (e *Editor) closeBuffer(args []string) error {
 		}
 		// Clean up associated data for the buffer
 		if buf := e.buffers[currentPath]; buf != nil {
-			delete(e.bufferHighlighters, buf)
-			delete(e.diffLineInfo, buf)
+			buf.Highlighter = nil
+			buf.DiffHints = nil
 		}
 		// Remove from global buffers registry
 		delete(e.buffers, currentPath)
@@ -444,60 +463,93 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 	fuzzyListWidget.SetTitle("All Buffers")
 	fuzzyListWidget.SetDecorationMode(widgets.DecorationFileIcon)
 
-	// Create list of buffer display names from all windows
+	// Create list of buffer display names by iterating Views in all windows.
 	var bufferDisplays []string
 	pathToDisplay := make(map[string]string)
-	pathToWindow := make(map[string]int) // Maps buffer path to window index
-	seenBuffers := make(map[string]bool) // Track already seen buffers to avoid duplicates
+	pathToWindow := make(map[string]int)
+	seenViews := make(map[BufferView]bool)
+	seenPaths := make(map[string]bool)
 	previousBufferIndex := -1
 
-	// Collect buffers from all windows using each window's buffer list
+	// Determine the "current" path from the active window's view.
+	currentPath := ""
+	if e.CurrentBuffer() != nil {
+		currentPath = e.CurrentBuffer().FilePath
+	}
+	// Use the active view's ViewPath so it matches the view entry.
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		if win := e.windows[e.activeWindow]; win != nil && win.View != nil {
+			currentPath = win.View.ViewPath()
+		}
+	}
+
+	// Determine the "previous" path.
+	previousPath := ""
+	if e.previousBuffer != nil {
+		previousPath = e.previousBuffer.FilePath
+		if e.previousBuffer.RealPath != "" {
+			// If previousBuffer has a RealPath, use it (handles diff internal buffers)
+			previousPath = e.previousBuffer.RealPath
+		}
+	}
+
+	// Collect one entry per View from all windows.
 	for windowIdx, window := range e.windows {
 		if window == nil {
 			continue
 		}
-		for _, buf := range window.Buffers {
-			if buf == nil {
+		for _, view := range window.Views {
+			if view == nil || seenViews[view] {
 				continue
 			}
-			path := buf.FilePath
-			if path == "" || seenBuffers[path] {
-				continue
-			}
-			seenBuffers[path] = true
-			pathToWindow[path] = windowIdx
+			seenViews[view] = true
 
-			displayName := buf.DisplayName()
+			displayName := view.DisplayName()
+			viewPath := view.ViewPath()
+			if viewPath == "" {
+				continue
+			}
+			seenPaths[viewPath] = true
+			for _, b := range view.AllBuffers() {
+				if b != nil {
+					seenPaths[b.FilePath] = true
+				}
+			}
+			selectPath := viewPath
+			if ab := view.ActiveBuffer(); ab != nil {
+				selectPath = ab.FilePath
+			}
+			pathToWindow[selectPath] = windowIdx
 			windowInfo := fmt.Sprintf("W%d", windowIdx+1)
 
 			var fullDisplayName string
-			if e.CurrentBuffer() != nil && path == e.CurrentBuffer().FilePath {
+			if currentPath != "" && viewPath == currentPath {
 				fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
 			} else {
 				fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
-				if e.previousBuffer != nil && path == e.previousBuffer.FilePath {
+				if previousPath != "" && (viewPath == previousPath || selectPath == previousPath) {
 					previousBufferIndex = len(bufferDisplays)
 				}
 			}
 
 			bufferDisplays = append(bufferDisplays, fullDisplayName)
-			pathToDisplay[fullDisplayName] = path
+			pathToDisplay[fullDisplayName] = selectPath
 		}
 	}
 
-	// Include global buffers not attached to any window (e.g., *Messages*)
+	// Include global buffers not attached to any window's Views (e.g., *Messages*)
 	for path, buf := range e.buffers {
-		if seenBuffers[path] {
+		if seenPaths[path] {
 			continue
 		}
-		seenBuffers[path] = true
-		pathToWindow[path] = -1 // not in any window
+		seenPaths[path] = true
+		pathToWindow[path] = -1
 
 		displayName := buf.DisplayName()
 		windowInfo := "global"
 
 		var fullDisplayName string
-		if e.CurrentBuffer() != nil && path == e.CurrentBuffer().FilePath {
+		if currentPath != "" && path == currentPath {
 			fullDisplayName = fmt.Sprintf("%s [current] (%s)", displayName, windowInfo)
 		} else {
 			fullDisplayName = fmt.Sprintf("%s (%s)", displayName, windowInfo)
@@ -505,8 +557,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 
 		bufferDisplays = append(bufferDisplays, fullDisplayName)
 		pathToDisplay[fullDisplayName] = path
-		// If this is the previous buffer, track index for selection
-		if e.previousBuffer != nil && path == e.previousBuffer.FilePath {
+		if previousPath != "" && path == previousPath {
 			previousBufferIndex = len(bufferDisplays) - 1
 		}
 	}
@@ -545,6 +596,7 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 		e.Post(func(e *Editor) {
 			// Save current buffer state before switching
 			e.saveCurrentBufferState()
+
 			// Resolve buffer pointer from registry; fallback: scan windows
 			var bufPtr *buffer.Buffer
 			if b, exists := e.buffers[path]; exists {
@@ -578,7 +630,8 @@ func (e *Editor) showBufferListWithPrevious(args []string) error {
 				e.recomputeWindowsLayout()
 				return
 			}
-			// Recompute target window dynamically to avoid stale snapshot
+			// Find the window containing this buffer and activate it.
+			// switchToBuffer will set win.View to the correct view from Views.
 			targetWindowIdx := e.findWindowContainingBuffer(path)
 			if targetWindowIdx >= 0 && targetWindowIdx < len(e.windows) {
 				if tw := e.windows[targetWindowIdx]; tw != nil {
@@ -650,11 +703,6 @@ func (e *Editor) newBuffer(args []string) error {
 	return nil
 }
 
-// isDiffBuffer checks if a buffer path represents a diff buffer
-func isDiffBuffer(bufferPath string) bool {
-	return strings.HasSuffix(bufferPath, "@HEAD") || strings.HasSuffix(bufferPath, "@current")
-}
-
 // getPairedDiffBuffer returns the path of the paired diff buffer, or empty string if not found
 func getPairedDiffBuffer(bufferPath string) string {
 	if strings.HasSuffix(bufferPath, "@HEAD") {
@@ -671,87 +719,128 @@ func getPairedDiffBuffer(bufferPath string) string {
 
 // closeDiffBufferPair closes both diff buffers in a pair and handles window management
 func (e *Editor) closeDiffBufferPair(bufferPath string) error {
+	buf := e.buffers[bufferPath]
+
+	// Check if this buffer is in a DiffBufferView
+	if buf != nil {
+		if dv := e.findDiffViewForBuffer(buf); dv != nil {
+			// Found DiffBufferView — use exitDiffViewIfActive style cleanup
+			for _, w := range e.windows {
+				if w == nil {
+					continue
+				}
+				// Check if this window's Views list contains the DiffBufferView
+				found := false
+				for vi, v := range w.Views {
+					if v == dv {
+						w.Views = append(w.Views[:vi], w.Views[vi+1:]...)
+						found = true
+						break
+					}
+				}
+				if !found {
+					continue
+				}
+				// Remove diff buffers from editor
+				for _, b := range dv.AllBuffers() {
+					if b != nil {
+						b.DiffHints = nil
+						b.Highlighter = nil
+						delete(e.buffers, b.FilePath)
+						e.bufferOrder = removeFromSlice(e.bufferOrder, b.FilePath)
+						w.removeBufferFromWindow(b)
+					}
+				}
+				// Restore SingleBufferView for original file
+				w.View = nil
+				if origBuf := e.buffers[dv.RealPath]; origBuf != nil {
+					if w.findViewForBuffer(origBuf) < 0 {
+						w.Views = append(w.Views, &SingleBufferView{Buf: origBuf})
+					}
+					w.setActiveBuffer(origBuf)
+					e.switchToBuffer(origBuf)
+				} else if w.Buffer != nil {
+					e.switchToBuffer(w.Buffer)
+				} else if len(e.buffers) > 0 {
+					for _, b := range e.buffers {
+						w.setActiveBuffer(b)
+						e.switchToBuffer(b)
+						break
+					}
+				} else {
+					newBuf := e.createUnnamedBuffer()
+					w.setActiveBuffer(newBuf)
+					e.switchToBuffer(newBuf)
+				}
+				e.recomputeWindowsLayout()
+				return nil
+			}
+		}
+	}
+
+	// Legacy fallback: string-suffix matching for two-window diff
 	pairedPath := getPairedDiffBuffer(bufferPath)
 	if pairedPath == "" {
-		// Not a diff buffer, handle normally
 		return nil
 	}
 
-	// Find both buffers
 	currentBuffer := e.buffers[bufferPath]
 	pairedBuffer := e.buffers[pairedPath]
 
-	// Clean up diff line info for both buffers
 	if currentBuffer != nil {
-		delete(e.bufferHighlighters, currentBuffer)
-		delete(e.diffLineInfo, currentBuffer)
+		currentBuffer.Highlighter = nil
+		currentBuffer.DiffHints = nil
 	}
 	if pairedBuffer != nil {
-		delete(e.bufferHighlighters, pairedBuffer)
-		delete(e.diffLineInfo, pairedBuffer)
+		pairedBuffer.Highlighter = nil
+		pairedBuffer.DiffHints = nil
 	}
 
-	// Remove both buffers from all windows
 	windowsToClose := make([]int, 0)
-
 	for i, window := range e.windows {
 		if window == nil {
 			continue
 		}
-
 		shouldCloseWindow := false
-
-		// Remove both diff buffers from this window
-		for _, buf := range window.Buffers {
-			if buf != nil && (buf.FilePath == bufferPath || buf.FilePath == pairedPath) {
-				window.removeBufferFromWindow(buf)
+		for _, b := range window.Buffers {
+			if b != nil && (b.FilePath == bufferPath || b.FilePath == pairedPath) {
+				window.removeBufferFromWindow(b)
 				if len(window.Buffers) == 0 {
 					shouldCloseWindow = true
 				}
 			}
 		}
-
 		if shouldCloseWindow {
 			windowsToClose = append(windowsToClose, i)
 		}
 	}
 
-	// Remove both buffers from global buffers
 	delete(e.buffers, bufferPath)
 	delete(e.buffers, pairedPath)
 	e.bufferOrder = removeFromSlice(e.bufferOrder, bufferPath)
 	e.bufferOrder = removeFromSlice(e.bufferOrder, pairedPath)
 
-	// Close windows that no longer have buffers, starting from the highest index
-	// to avoid index shifting issues
 	for i := len(windowsToClose) - 1; i >= 0; i-- {
 		windowIndex := windowsToClose[i]
 		if windowIndex < len(e.windows) {
-			err := e.closeWindow(windowIndex)
-			if err != nil {
+			if err := e.closeWindow(windowIndex); err != nil {
 				return err
 			}
 		}
 	}
 
-	// If no windows left but we still have other buffers, create a new window
 	if len(e.windows) == 0 && len(e.buffers) > 0 {
-		// Find any remaining buffer and create a window for it
-		for _, buf := range e.buffers {
-			newWin := newWindow(buf)
+		for _, b := range e.buffers {
+			newWin := newWindow(b)
 			e.windows = append(e.windows, newWin)
 			e.activeWindow = 0
-			e.switchToBuffer(buf)
+			e.switchToBuffer(b)
 			break
 		}
 	}
 
-	// If no buffers left at all, create an unnamed buffer
 	if len(e.buffers) == 0 {
 		newBuf := e.createUnnamedBuffer()
-		e.buffers[newBuf.FilePath] = newBuf
-		e.bufferOrder = append(e.bufferOrder, newBuf.FilePath)
-
 		if len(e.windows) == 0 {
 			newWin := newWindow(newBuf)
 			e.windows = append(e.windows, newWin)

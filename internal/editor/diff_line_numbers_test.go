@@ -42,21 +42,16 @@ func TestDiffLineNumbers(t *testing.T) {
 	// Store buffers and diff line info
 	te.buffers[headBufferName] = headBuffer
 	te.buffers[currentBufferName] = currentBuffer
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
-	// Set up windows for side-by-side diff view
-	te.createSecondWindow()
-	te.windows[0].setActiveBuffer(headBuffer)    // HEAD on left
-	te.windows[1].setActiveBuffer(currentBuffer) // Current on right
-	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
-	te.recomputeWindowsLayout()
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
 
 	t.Run("head_buffer_line_numbers", func(t *testing.T) {
 		// Switch to head buffer and render
-		te.activeWindow = 0
 		te.switchToBuffer(headBuffer)
-		te.render()
+		te.renderPane()
 
 		// Verify diff line structure first
 		if len(diffResult.LeftLines) == 0 {
@@ -117,9 +112,8 @@ func TestDiffLineNumbers(t *testing.T) {
 
 	t.Run("current_buffer_line_numbers", func(t *testing.T) {
 		// Switch to current buffer and render
-		te.activeWindow = 1
 		te.switchToBuffer(currentBuffer)
-		te.render()
+		te.renderPane()
 
 		t.Logf("CURRENT buffer diff structure:")
 		for i, line := range diffResult.RightLines {
@@ -156,20 +150,15 @@ func TestDiffLineNumbers(t *testing.T) {
 					t.Logf("✓ Screen line %d: filler line correctly has no line number", screenY)
 				}
 			} else {
-				// Non-filler lines: check based on line type
-				if diffLine.LineType == DiffLineAdded {
-					// Added lines don't show line numbers in diff view
-					if lineNumStr != "" {
-						t.Errorf("Screen line %d: added line should not have line number, got %q", screenY, lineNumStr)
+				// Non-filler lines: all real lines show line numbers based on RightLine
+				if diffLine.RightLine >= 0 {
+					expectedLineNum := fmt.Sprintf("%d", diffLine.RightLine+1)
+					if lineNumStr != expectedLineNum {
+						t.Errorf("Screen line %d: expected line number %q, got %q (type=%v, RightLine=%d)",
+							screenY, expectedLineNum, lineNumStr, diffLine.LineType, diffLine.RightLine)
 					} else {
-						t.Logf("✓ Screen line %d: added line correctly has no line number", screenY)
-					}
-				} else if diffLine.LineType == DiffLineContext || diffLine.LineType == DiffLineModified {
-					// Context and modified lines should show line numbers
-					if lineNumStr == "" {
-						t.Errorf("Screen line %d: context/modified line should have line number (type=%v)", screenY, diffLine.LineType)
-					} else {
-						t.Logf("✓ Screen line %d: context/modified line shows line number %q", screenY, lineNumStr)
+						t.Logf("✓ Screen line %d: correctly shows line number %q (type=%v)",
+							screenY, lineNumStr, diffLine.LineType)
 					}
 				}
 			}
@@ -239,8 +228,8 @@ func TestDiffLineNumbersRealExample(t *testing.T) {
 
 	te.buffers["render.go@HEAD"] = headBuffer
 	te.buffers["render.go@current"] = currentBuffer
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
 	te.switchToBuffer(currentBuffer)
 	te.render()

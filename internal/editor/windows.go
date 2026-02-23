@@ -16,6 +16,8 @@ const (
 
 // Window represents a rectangular area of the screen showing a buffer
 type Window struct {
+	View    BufferView       // How to render this window's content
+	Views   []BufferView     // All views in this window (source of truth for buffer picker)
 	Buffer  *buffer.Buffer   // Current active buffer in the window
 	Buffers []*buffer.Buffer // All buffers in this window
 	X       int
@@ -274,10 +276,6 @@ func (e *Editor) recomputeWindowsLayout() {
 		return
 	}
 
-	// Check if we're in diff view mode
-	diffLeftIdx, diffRightIdx := e.findDiffWindowPair()
-	isDiffMode := diffLeftIdx >= 0 && diffRightIdx >= 0
-
 	// Start with equal distribution across all windows
 	widths := make([]int, n)
 	base := screenW / n
@@ -290,109 +288,60 @@ func (e *Editor) recomputeWindowsLayout() {
 		widths[i] = w
 	}
 
-	if isDiffMode {
-		// In diff mode, make the two diff windows equal and wider than others
-		// Calculate how much extra space we can give to diff windows
-		minOtherWidth := 20   // Minimum width for non-diff windows
-		nonDiffCount := n - 2 // Number of non-diff windows
+	// Apply minimum width for active window if configured
+	activeIdx := e.activeWindow
+	if activeIdx < 0 || activeIdx >= n {
+		activeIdx = 0
+	}
 
-		if nonDiffCount > 0 {
-			// Calculate space available for diff windows after giving minimum to others
-			spaceForOthers := minOtherWidth * nonDiffCount
-			spaceForDiff := screenW - spaceForOthers
-
-			if spaceForDiff >= 40 { // Ensure diff windows get at least 20 cols each
-				// Each diff window gets half of the remaining space
-				diffWidth := spaceForDiff / 2
-				extraDiff := spaceForDiff % 2
-
-				// Set diff window widths
-				widths[diffLeftIdx] = diffWidth
-				widths[diffRightIdx] = diffWidth
-				if extraDiff > 0 {
-					// Give extra column to one of the diff windows
-					widths[diffLeftIdx]++
-				}
-
-				// Distribute remaining space among non-diff windows
-				remainingSpace := screenW - widths[diffLeftIdx] - widths[diffRightIdx]
-				if nonDiffCount > 0 {
-					otherBase := remainingSpace / nonDiffCount
-					otherExtra := remainingSpace % nonDiffCount
-					otherIdx := 0
-					for i := 0; i < n; i++ {
-						if i != diffLeftIdx && i != diffRightIdx {
-							widths[i] = otherBase
-							if otherIdx < otherExtra {
-								widths[i]++
-							}
-							otherIdx++
-						}
-					}
-				}
-			}
-			// If not enough space, fall back to equal distribution (already set above)
+	var minW int
+	if e.minActiveWindowWidth > 0 {
+		// minActiveWindowWidth specifies buffer content columns
+		// Add gutter width (line numbers + indicators) to get total window width
+		gutterWidth := 0
+		if e.CurrentBuffer() != nil {
+			gutterWidth = e.CurrentBuffer().LineNumberWidth
 		} else {
-			// Only two windows and both are diff windows - make them equal
-			widths[diffLeftIdx] = screenW / 2
-			widths[diffRightIdx] = screenW - widths[diffLeftIdx]
+			// Fallback: assume typical gutter width for reasonable line counts
+			gutterWidth = 7 // 4 digits + 1 padding + 2 indicators
 		}
-	} else {
-		// Not in diff mode - apply minimum width for active window if configured
-		activeIdx := e.activeWindow
-		if activeIdx < 0 || activeIdx >= n {
-			activeIdx = 0
-		}
+		minW = e.minActiveWindowWidth + gutterWidth
 
-		var minW int
-		if e.minActiveWindowWidth > 0 {
-			// minActiveWindowWidth specifies buffer content columns
-			// Add gutter width (line numbers + indicators) to get total window width
-			gutterWidth := 0
-			if e.CurrentBuffer() != nil {
-				gutterWidth = e.CurrentBuffer().LineNumberWidth
-			} else {
-				// Fallback: assume typical gutter width for reasonable line counts
-				gutterWidth = 7 // 4 digits + 1 padding + 2 indicators
-			}
-			minW = e.minActiveWindowWidth + gutterWidth
-
-			if minW > screenW-(n-1) {
-				// leave at least 1 column for others total
-				minW = screenW - (n - 1)
-				if minW < 1 {
-					minW = 1
-				}
+		if minW > screenW-(n-1) {
+			// leave at least 1 column for others total
+			minW = screenW - (n - 1)
+			if minW < 1 {
+				minW = 1
 			}
 		}
+	}
 
-		// If minimum width is configured and the active window is narrower than the minimum,
-		// enlarge it by borrowing columns from other windows (preferentially from widest ones).
-		if minW > 0 && widths[activeIdx] < minW {
-			need := minW - widths[activeIdx]
-			widths[activeIdx] = minW
+	// If minimum width is configured and the active window is narrower than the minimum,
+	// enlarge it by borrowing columns from other windows (preferentially from widest ones).
+	if minW > 0 && widths[activeIdx] < minW {
+		need := minW - widths[activeIdx]
+		widths[activeIdx] = minW
 
-			// Borrow one column at a time from other windows in rounds to keep balance
-			for need > 0 {
-				// Find a donor window with the largest current width (excluding active)
-				donor := -1
-				donorWidth := -1
-				for i := 0; i < n; i++ {
-					if i == activeIdx {
-						continue
-					}
-					if widths[i] > donorWidth && widths[i] > 1 { // keep at least 1 col
-						donor = i
-						donorWidth = widths[i]
-					}
+		// Borrow one column at a time from other windows in rounds to keep balance
+		for need > 0 {
+			// Find a donor window with the largest current width (excluding active)
+			donor := -1
+			donorWidth := -1
+			for i := 0; i < n; i++ {
+				if i == activeIdx {
+					continue
 				}
-				if donor == -1 {
-					// No donor available (should not happen due to minW clamp), stop
-					break
+				if widths[i] > donorWidth && widths[i] > 1 { // keep at least 1 col
+					donor = i
+					donorWidth = widths[i]
 				}
-				widths[donor]--
-				need--
 			}
+			if donor == -1 {
+				// No donor available (should not happen due to minW clamp), stop
+				break
+			}
+			widths[donor]--
+			need--
 		}
 	}
 
@@ -530,8 +479,19 @@ func (e *Editor) switchToLastWindow(args []string) error {
 	return nil
 }
 
-// switchToNextWindow cycles focus to the next window (wraps around)
+// switchToNextWindow cycles focus to the next window (wraps around).
+// In a diff view, it switches the active pane instead (left ↔ right).
 func (e *Editor) switchToNextWindow(args []string) error {
+	// If the active view has multiple panes, switch pane instead of window.
+	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) {
+		if win := e.windows[e.activeWindow]; win != nil && win.View != nil {
+			if win.View.SwitchPane() {
+				e.switchToBuffer(win.View.ActiveBuffer())
+				return nil
+			}
+		}
+	}
+
 	n := len(e.windows)
 	if n <= 1 {
 		return nil
@@ -709,6 +669,19 @@ func (e *Editor) toggleZenMode(args []string) error {
 	return nil
 }
 
+// findViewForBuffer returns the index in Views that contains the given buffer, or -1.
+func (w *Window) findViewForBuffer(buf *buffer.Buffer) int {
+	if buf == nil {
+		return -1
+	}
+	for i, v := range w.Views {
+		if v != nil && v.ContainsBuffer(buf) {
+			return i
+		}
+	}
+	return -1
+}
+
 // addBufferToWindow adds a buffer to a window's buffer list and makes it active
 func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
 	if buf == nil {
@@ -716,16 +689,23 @@ func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
 	}
 
 	// Check if buffer is already in the window
+	found := false
 	for _, existing := range w.Buffers {
 		if existing == buf {
-			w.Buffer = buf // Just make it active
-			return
+			found = true
+			break
 		}
 	}
 
-	// Add new buffer to the list and make it active
-	w.Buffers = append(w.Buffers, buf)
+	if !found {
+		w.Buffers = append(w.Buffers, buf)
+	}
 	w.Buffer = buf
+
+	// Ensure a View exists for this buffer
+	if w.findViewForBuffer(buf) < 0 {
+		w.Views = append(w.Views, &SingleBufferView{Buf: buf})
+	}
 }
 
 // setActiveBuffer sets the active buffer while preserving window buffer-list invariants.
@@ -758,7 +738,16 @@ func (w *Window) removeBufferFromWindow(buf *buffer.Buffer) {
 					w.Buffer = nil // No buffers left
 				}
 			}
-			return
+			break
+		}
+	}
+
+	// Also remove the view that contains this buffer (only SingleBufferView;
+	// DiffBufferView removal is handled explicitly by exitDiffViewIfActive).
+	for i, v := range w.Views {
+		if sv, ok := v.(*SingleBufferView); ok && sv.Buf == buf {
+			w.Views = append(w.Views[:i], w.Views[i+1:]...)
+			break
 		}
 	}
 }
@@ -766,13 +755,16 @@ func (w *Window) removeBufferFromWindow(buf *buffer.Buffer) {
 // newWindow creates a new window with initialized buffer management
 func newWindow(buf *buffer.Buffer) *Window {
 	var buffers []*buffer.Buffer
+	var views []BufferView
 	if buf != nil {
 		buffers = []*buffer.Buffer{buf}
+		views = []BufferView{&SingleBufferView{Buf: buf}}
 	}
 
 	window := &Window{
 		Buffer:     buf,
 		Buffers:    buffers,
+		Views:      views,
 		ViewLine:   0,
 		CursorLine: 0,
 		CursorX:    0,

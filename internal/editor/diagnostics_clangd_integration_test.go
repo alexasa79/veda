@@ -117,7 +117,7 @@ func diagnosticsIndicatorX(buf *buffer.Buffer) int {
 }
 
 func renderCell(te *TestEditor, x, y int) (rune, ui.Style) {
-	te.drawEditor()
+	te.renderPane()
 	te.drawErrorLine()
 	te.drawStatusBar()
 	return te.mockScreen.GetCell(x, y)

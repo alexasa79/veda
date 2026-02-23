@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 	"veda/internal/buffer"
 	"veda/internal/config"
@@ -34,17 +35,11 @@ func TestDiffRendering(t *testing.T) {
 	// Store buffers and diff line info
 	te.buffers[headBufferName] = headBuffer
 	te.buffers[currentBufferName] = currentBuffer
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
-	// Set up windows for side-by-side diff view
-	te.createSecondWindow()
-	te.windows[0].setActiveBuffer(headBuffer)    // HEAD on left
-	te.windows[1].setActiveBuffer(currentBuffer) // Current on right
-	te.activeWindow = 1
-	te.switchToBuffer(currentBuffer)
-	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
-	te.recomputeWindowsLayout()
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
 
 	// Get expected diff colors (using the same brighter colors as in render.go)
 	expectedAddedBg := ui.NewRGBColor(40, 100, 40)    // Even brighter green background
@@ -53,11 +48,10 @@ func TestDiffRendering(t *testing.T) {
 
 	t.Run("head_buffer_rendering", func(t *testing.T) {
 		// Switch to head buffer and render
-		te.activeWindow = 0
 		te.switchToBuffer(headBuffer)
 
 		// Verify diff info is set up correctly
-		if diffLines, exists := te.diffLineInfo[headBuffer]; exists {
+		if diffLines := headBuffer.DiffHints; len(diffLines) > 0 {
 			t.Logf("Head buffer has %d diff lines", len(diffLines))
 			for i, line := range diffLines {
 				t.Logf("  Line %d: type=%v, content=%q", i, line.LineType, line.Content)
@@ -75,7 +69,7 @@ func TestDiffRendering(t *testing.T) {
 		// Move cursor to line 3 to test other lines without current line interference
 		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 3)
 
-		te.drawEditor()
+		te.renderPane()
 
 		// Verify that the screen has been rendered
 		width, height := te.screen.Size()
@@ -108,7 +102,7 @@ func TestDiffRendering(t *testing.T) {
 
 			// Verify background color matches expected diff type
 			switch diffLine.LineType {
-			case DiffLineContext:
+			case buffer.DiffLineContext:
 				// Context lines should have normal background or current line highlight
 				// We'll just check it's not a diff color
 				if actualBg == expectedAddedBg || actualBg == expectedDeletedBg || actualBg == expectedModifiedBg {
@@ -116,7 +110,7 @@ func TestDiffRendering(t *testing.T) {
 				}
 				t.Logf("✓ Line %d (context): background %v (content: %q)", lineIdx, actualBg, diffLine.Content)
 
-			case DiffLineDeleted:
+			case buffer.DiffLineDeleted:
 				if actualBg != expectedDeletedBg {
 					t.Errorf("Line %d (deleted): expected background %v, got %v (content: %q)",
 						lineIdx, expectedDeletedBg, actualBg, diffLine.Content)
@@ -124,7 +118,7 @@ func TestDiffRendering(t *testing.T) {
 					t.Logf("✓ Line %d (deleted): correct background %v (content: %q)", lineIdx, actualBg, diffLine.Content)
 				}
 
-			case DiffLineModified:
+			case buffer.DiffLineModified:
 				if actualBg != expectedModifiedBg {
 					t.Errorf("Line %d (modified): expected background %v, got %v (content: %q)",
 						lineIdx, expectedModifiedBg, actualBg, diffLine.Content)
@@ -132,7 +126,7 @@ func TestDiffRendering(t *testing.T) {
 					t.Logf("✓ Line %d (modified): correct background %v (content: %q)", lineIdx, actualBg, diffLine.Content)
 				}
 
-			case DiffLineAdded:
+			case buffer.DiffLineAdded:
 				// This should be a filler line in head buffer
 				if !diffLine.IsFillerLine {
 					t.Errorf("Line %d: expected filler line for added content in head buffer", lineIdx)
@@ -149,11 +143,10 @@ func TestDiffRendering(t *testing.T) {
 
 	t.Run("current_buffer_rendering", func(t *testing.T) {
 		// Switch to current buffer and render
-		te.activeWindow = 1
 		te.switchToBuffer(currentBuffer)
 
 		// Verify diff info is set up correctly
-		if diffLines, exists := te.diffLineInfo[currentBuffer]; exists {
+		if diffLines := currentBuffer.DiffHints; len(diffLines) > 0 {
 			t.Logf("Current buffer has %d diff lines", len(diffLines))
 			for i, line := range diffLines {
 				t.Logf("  Line %d: type=%v, content=%q", i, line.LineType, line.Content)
@@ -165,7 +158,7 @@ func TestDiffRendering(t *testing.T) {
 		// Move cursor away from current line to avoid current line highlighting interference
 		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 3)
 
-		te.drawEditor()
+		te.renderPane()
 
 		// Find the content area (skip gutter columns)
 		contentStartX := te.CurrentBuffer().LineNumberWidth
@@ -184,14 +177,14 @@ func TestDiffRendering(t *testing.T) {
 
 			// Verify background color matches expected diff type
 			switch diffLine.LineType {
-			case DiffLineContext:
+			case buffer.DiffLineContext:
 				// Context lines should have normal background or current line highlight
 				if actualBg == expectedAddedBg || actualBg == expectedDeletedBg || actualBg == expectedModifiedBg {
 					t.Errorf("Line %d (context): unexpected diff background color %v", lineIdx, actualBg)
 				}
 				t.Logf("✓ Line %d (context): background %v (content: %q)", lineIdx, actualBg, diffLine.Content)
 
-			case DiffLineAdded:
+			case buffer.DiffLineAdded:
 				if actualBg != expectedAddedBg {
 					t.Errorf("Line %d (added): expected background %v, got %v (content: %q)",
 						lineIdx, expectedAddedBg, actualBg, diffLine.Content)
@@ -199,7 +192,7 @@ func TestDiffRendering(t *testing.T) {
 					t.Logf("✓ Line %d (added): correct background %v (content: %q)", lineIdx, actualBg, diffLine.Content)
 				}
 
-			case DiffLineModified:
+			case buffer.DiffLineModified:
 				if actualBg != expectedModifiedBg {
 					t.Errorf("Line %d (modified): expected background %v, got %v (content: %q)",
 						lineIdx, expectedModifiedBg, actualBg, diffLine.Content)
@@ -207,7 +200,7 @@ func TestDiffRendering(t *testing.T) {
 					t.Logf("✓ Line %d (modified): correct background %v (content: %q)", lineIdx, actualBg, diffLine.Content)
 				}
 
-			case DiffLineDeleted:
+			case buffer.DiffLineDeleted:
 				// This should be a filler line in current buffer
 				if !diffLine.IsFillerLine {
 					t.Errorf("Line %d: expected filler line for deleted content in current buffer", lineIdx)
@@ -243,13 +236,13 @@ func TestDiffRendering(t *testing.T) {
 		var contextCount, addedCount, deletedCount, modifiedCount int
 		for _, line := range diffResult.LeftLines {
 			switch line.LineType {
-			case DiffLineContext:
+			case buffer.DiffLineContext:
 				contextCount++
-			case DiffLineAdded:
+			case buffer.DiffLineAdded:
 				addedCount++
-			case DiffLineDeleted:
+			case buffer.DiffLineDeleted:
 				deletedCount++
-			case DiffLineModified:
+			case buffer.DiffLineModified:
 				modifiedCount++
 			}
 		}
@@ -289,15 +282,11 @@ func TestDiffRenderingWithComplexChanges(t *testing.T) {
 	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
 	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "test.go@current", "test.go@current", config.IndentTabs, 4)
 
-	te.diffLineInfo[headBuffer] = diffResult.LeftLines
-	te.diffLineInfo[currentBuffer] = diffResult.RightLines
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer.DiffHints = diffResult.RightLines
 
-	// Set up diff view
-	te.createSecondWindow()
-	te.windows[0].setActiveBuffer(headBuffer)
-	te.windows[1].setActiveBuffer(currentBuffer)
-	// Recompute layout now that diff buffers are assigned - this triggers diff mode detection
-	te.recomputeWindowsLayout()
+	// Set up DiffBufferView on a single window
+	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
 
 	t.Run("complex_diff_structure", func(t *testing.T) {
 		// Verify line count equality
@@ -318,15 +307,178 @@ func TestDiffRenderingWithComplexChanges(t *testing.T) {
 
 	t.Run("complex_diff_rendering", func(t *testing.T) {
 		// Test rendering of both buffers
-		te.activeWindow = 0
 		te.switchToBuffer(headBuffer)
-		te.render()
+		te.renderPane()
 
-		te.activeWindow = 1
 		te.switchToBuffer(currentBuffer)
-		te.render()
+		te.renderPane()
 
 		// Basic test: ensure rendering doesn't crash with complex diffs
 		t.Log("✓ Complex diff rendering completed without errors")
 	})
+}
+
+// TestDiffView_LeftAndRightShowDifferentContent verifies that the left pane
+// shows the previous (HEAD) content and the right pane shows the current
+// (modified) content after a full render.
+func TestDiffView_LeftAndRightShowDifferentContent(t *testing.T) {
+	originalContent := "line one\nline two\nline three"
+	modifiedContent := "line one\nchanged line two\nline three\nextra line"
+
+	te := NewTestEditorWithContent(80, 24, modifiedContent)
+	te.CurrentBuffer().FilePath = "test.go"
+
+	diffResult := computeDiff(originalContent, modifiedContent)
+	alignedHead := createBufferContent(diffResult.LeftLines)
+	alignedCurrent := createBufferContent(diffResult.RightLines)
+
+	headBuf := buffer.NewBuffer(alignedHead, "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
+	headBuf.IsReadOnly = true
+	headBuf.DiffHints = diffResult.LeftLines
+
+	currBuf := buffer.NewBuffer(alignedCurrent, "test.go@current", "test.go@current", config.IndentTabs, 4)
+	currBuf.DiffHints = diffResult.RightLines
+
+	te.buffers[headBuf.FilePath] = headBuf
+	te.buffers[currBuf.FilePath] = currBuf
+
+	te.SetupDiffView(headBuf, currBuf, "test.go")
+
+	// Full render so DiffBufferView.Render draws both panes
+	te.render()
+
+	mockScreen := te.screen.(*MockScreen)
+	totalW, _ := mockScreen.Size()
+	leftW := totalW / 2
+
+	// Helper: extract visible text from a row within [xStart, xEnd)
+	extractText := func(y, xStart, xEnd int) string {
+		runes := make([]rune, 0, xEnd-xStart)
+		for x := xStart; x < xEnd; x++ {
+			ch, _ := mockScreen.GetCell(x, y)
+			runes = append(runes, ch)
+		}
+		return strings.TrimRight(string(runes), " ")
+	}
+
+	// The diff has aligned rows. Find rows where left and right content
+	// should differ. Line index 1 should have "line two" on the left and
+	// "changed line two" on the right (both modified).
+	// The gutter (line numbers) takes a few columns; scan past them.
+
+	// Determine gutter width for each pane. Line numbers are right-aligned
+	// digits followed by a space. Scan the first non-space rune after digits.
+	gutterEnd := func(y, xStart, xEnd int) int {
+		for x := xStart; x < xEnd; x++ {
+			ch, _ := mockScreen.GetCell(x, y)
+			if ch != ' ' && (ch < '0' || ch > '9') {
+				return x
+			}
+		}
+		return xStart
+	}
+
+	leftGutter := gutterEnd(0, 0, leftW)
+	rightGutter := gutterEnd(0, leftW, totalW)
+
+	t.Logf("Left gutter ends at x=%d, right gutter ends at x=%d", leftGutter, rightGutter)
+
+	// Log all visible rows for debugging
+	for row := 0; row < 6; row++ {
+		leftText := extractText(row, leftGutter, leftW)
+		rightText := extractText(row, rightGutter, totalW)
+		t.Logf("Row %d: left=%q  right=%q", row, leftText, rightText)
+	}
+
+	// Verify that the left and right buffers contain their respective content.
+	// At least one row must differ between left and right (the modified line).
+	foundDifference := false
+	for row := 0; row < len(diffResult.LeftLines) && row < 20; row++ {
+		leftText := extractText(row, leftGutter, leftW)
+		rightText := extractText(row, rightGutter, totalW)
+		if leftText != rightText {
+			foundDifference = true
+			break
+		}
+	}
+	if !foundDifference {
+		t.Errorf("Left and right panes show identical content — expected them to differ")
+	}
+
+	// Verify specific content: the modified line should show different text
+	// on each side. Check that "line two" appears on the left and
+	// "changed line two" appears on the right.
+	foundOriginal := false
+	foundModified := false
+	for row := 0; row < len(diffResult.LeftLines) && row < 20; row++ {
+		leftText := extractText(row, leftGutter, leftW)
+		rightText := extractText(row, rightGutter, totalW)
+		if strings.Contains(leftText, "line two") && !strings.Contains(leftText, "changed") {
+			foundOriginal = true
+		}
+		if strings.Contains(rightText, "changed line two") {
+			foundModified = true
+		}
+	}
+	if !foundOriginal {
+		t.Errorf("Left pane should contain original 'line two'")
+	}
+	if !foundModified {
+		t.Errorf("Right pane should contain modified 'changed line two'")
+	}
+}
+
+// TestDiffView_CursorPositionFollowsActivePane verifies that the screen cursor
+// appears in the right pane by default (ActivePane=1) and moves to the left
+// pane after switching panes.
+func TestDiffView_CursorPositionFollowsActivePane(t *testing.T) {
+	originalContent := "line one\nline two\nline three"
+	modifiedContent := "line one\nchanged two\nline three"
+
+	te := NewTestEditorWithContent(80, 24, modifiedContent)
+	te.CurrentBuffer().FilePath = "test.go"
+
+	diffResult := computeDiff(originalContent, modifiedContent)
+	alignedHead := createBufferContent(diffResult.LeftLines)
+	alignedCurrent := createBufferContent(diffResult.RightLines)
+
+	headBuf := buffer.NewBuffer(alignedHead, "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
+	headBuf.IsReadOnly = true
+	headBuf.DiffHints = diffResult.LeftLines
+
+	currBuf := buffer.NewBuffer(alignedCurrent, "test.go@current", "test.go@current", config.IndentTabs, 4)
+	currBuf.DiffHints = diffResult.RightLines
+
+	te.buffers[headBuf.FilePath] = headBuf
+	te.buffers[currBuf.FilePath] = currBuf
+
+	dv := te.SetupDiffView(headBuf, currBuf, "test.go")
+
+	totalW, _ := te.screen.Size()
+	leftW := totalW / 2
+
+	// Default: ActivePane == 1 (right pane). Cursor should be in the right half.
+	te.render()
+	curX, _ := te.GetScreenCursorPosition()
+	if curX < leftW {
+		t.Errorf("Default active pane is right; expected cursor X >= %d, got %d", leftW, curX)
+	}
+
+	// Switch pane to the left (ActivePane becomes 0).
+	dv.SwitchPane()
+	te.switchToBuffer(dv.ActiveBuffer())
+	te.render()
+	curX, _ = te.GetScreenCursorPosition()
+	if curX >= leftW {
+		t.Errorf("After switching to left pane; expected cursor X < %d, got %d", leftW, curX)
+	}
+
+	// Switch back to the right pane.
+	dv.SwitchPane()
+	te.switchToBuffer(dv.ActiveBuffer())
+	te.render()
+	curX, _ = te.GetScreenCursorPosition()
+	if curX < leftW {
+		t.Errorf("After switching back to right pane; expected cursor X >= %d, got %d", leftW, curX)
+	}
 }
