@@ -116,6 +116,7 @@ func TestListDirectoryFiltered(t *testing.T) {
 		"test.go",
 		"script.py",
 		"code.c",
+		"view_controller.m",
 		"Makefile",
 		"README.md",
 		"config.json",
@@ -187,7 +188,7 @@ func TestListDirectoryFiltered(t *testing.T) {
 	supportedExts := map[string]bool{
 		".go": true, ".mod": true, ".sum": true,
 		".py": true, ".pyw": true, ".pyi": true,
-		".c": true, ".h": true, ".cpp": true, ".cc": true, ".cxx": true,
+		".c": true, ".h": true, ".m": true, ".cpp": true, ".cc": true, ".cxx": true,
 		".hpp": true, ".hh": true, ".hxx": true,
 		".sh": true, ".bash": true, ".zsh": true,
 		".txt": true, ".md": true, ".json": true, ".yaml": true, ".yml": true,

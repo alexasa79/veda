@@ -24,6 +24,12 @@ func setBufferPath(te *TestEditor, path string) {
 	}
 }
 
+func TestDetectIndentLanguageObjectiveC(t *testing.T) {
+	if lang := detectIndentLanguage("main.m"); lang == nil {
+		t.Fatalf("expected C-style indent language for .m files")
+	}
+}
+
 func TestReindentExpression_FixesMisalignedInnerBlock(t *testing.T) {
 	content := strings.Join([]string{
 		"int main() {",

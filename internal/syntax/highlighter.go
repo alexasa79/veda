@@ -143,7 +143,7 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".go":
 		h.parser.SetLanguage(golang.GetLanguage())
 		h.currentLang = "go"
-	case ".c", ".h":
+	case ".c", ".h", ".m":
 		h.parser.SetLanguage(c.GetLanguage())
 		h.currentLang = "c"
 	case ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx":

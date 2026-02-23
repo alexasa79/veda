@@ -1882,7 +1882,7 @@ func indentStringForLevel(buf *buffer.Buffer, level int, extraColumns int) strin
 func detectIndentLanguage(path string) indent.Language {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
-	case ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh":
+	case ".c", ".h", ".m", ".cc", ".cpp", ".cxx", ".hpp", ".hh":
 		return indent.NewCLanguage()
 	case ".py":
 		return indent.NewPythonLanguage()

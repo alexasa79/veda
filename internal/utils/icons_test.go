@@ -41,6 +41,7 @@ func TestGetFileIconInfo(t *testing.T) {
 		{"types.ts", "file", IconDefault}, // TypeScript now uses default
 		{"lib.rs", "file", IconDefault},   // Rust now uses default
 		{"main.c", "file", IconCpp},       // C uses C++ icon
+		{"main.m", "file", IconCpp},       // Objective-C uses C-family icon
 		{"class.cpp", "file", IconCpp},
 		{"README.md", "file", IconMarkdown},  // README uses markdown icon
 		{"Makefile", "file", IconDefault},    // Makefile now uses default

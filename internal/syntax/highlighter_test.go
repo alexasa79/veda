@@ -382,3 +382,15 @@ func TestMarkdownReparseConsistency(t *testing.T) {
 		})
 	}
 }
+
+func TestSetLanguageFromObjectiveCFile(t *testing.T) {
+	highlighter := NewHighlighter()
+
+	if err := highlighter.SetLanguageFromFile("main.m"); err != nil {
+		t.Fatalf("SetLanguageFromFile failed: %v", err)
+	}
+
+	if got := highlighter.GetCurrentLanguage(); got != "c" {
+		t.Fatalf("expected language c for .m file, got %q", got)
+	}
+}

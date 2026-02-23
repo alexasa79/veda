@@ -69,7 +69,7 @@ func GetFileIconInfo(name string, fileType string) FileIconInfo {
 		return FileIconInfo{Icon: IconGo, Color: "#519aba"}
 	case ".py":
 		return FileIconInfo{Icon: IconPython, Color: "#ffbc03"}
-	case ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp":
+	case ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".m":
 		return FileIconInfo{Icon: IconCpp, Color: "#f34b7d"}
 	case ".md":
 		return FileIconInfo{Icon: IconMarkdown, Color: "#89e051"}
