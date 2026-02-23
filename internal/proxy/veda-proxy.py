@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.39"
+PROXY_VERSION = "1.0.40"
 
 # Set up logging directory
 from datetime import datetime
@@ -74,7 +74,7 @@ class LSPManager:
             },
             'c': {
                 'command': ['clangd', '--log=verbose', '--pretty'],
-                'extensions': ['.c', '.h'],
+                'extensions': ['.c', '.h', '.m'],
                 'install_hint': 'Install clangd from your package manager or https://clangd.llvm.org/'
             },
             'cpp': {
@@ -965,6 +965,7 @@ class LSPManager:
             '.go': 'go',
             '.c': 'c',
             '.h': 'c',
+            '.m': 'objective-c',
             '.cpp': 'cpp',
             '.cc': 'cpp',
             '.cxx': 'cpp',
@@ -1731,8 +1732,8 @@ class VedaProxy:
             '.py', '.pyw', '.pyi',
             # Go
             '.go', '.mod', '.sum',
-            # C/C++
-            '.c', '.h', '.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx', '.C', '.H',
+            # C/C++/Objective-C
+            '.c', '.h', '.m', '.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx', '.C', '.H',
             # Shell scripts
             '.sh', '.bash', '.zsh', '.fish', '.ksh', '.csh', '.tcsh',
             # Makefiles and build files

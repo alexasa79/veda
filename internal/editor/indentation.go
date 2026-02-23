@@ -96,7 +96,7 @@ func isReliableIndentLine(line string) bool {
 func shouldUseReliableIndentHeuristic(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
-	case ".c", ".cc", ".cpp", ".cxx", ".c++", ".h", ".hh", ".hpp", ".hxx", ".go", ".js", ".jsx", ".ts", ".tsx":
+	case ".c", ".cc", ".cpp", ".cxx", ".c++", ".h", ".hh", ".hpp", ".hxx", ".m", ".go", ".js", ".jsx", ".ts", ".tsx":
 		return true
 	default:
 		return false

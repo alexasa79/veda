@@ -31,6 +31,21 @@ func TestToggleCommentSingleLine(t *testing.T) {
 	AssertBufferEquals(t, te, content)
 }
 
+func TestToggleCommentSingleLineObjectiveC(t *testing.T) {
+	content := "int main() {\n    return 0;\n}\n"
+	te := NewTestEditorWithContent(80, 24, content)
+	te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
+	_ = te.CurrentBuffer().Highlighter.SetLanguageFromFile("main.m")
+
+	te.SetCursorPosition(0, 1)
+
+	if err := te.ExecuteCommand("toggle-comment"); err != nil {
+		t.Fatalf("toggle-comment failed: %v", err)
+	}
+	expected := "int main() {\n    // return 0;\n}\n"
+	AssertBufferEquals(t, te, expected)
+}
+
 func TestToggleCommentWithCount(t *testing.T) {
 	content := "line1\nline2\nline3\nline4\nline5\n"
 	te := NewTestEditorWithContent(80, 24, content)
