@@ -3,6 +3,7 @@ package editor
 import (
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 	"veda/internal/buffer"
@@ -342,6 +343,16 @@ func (e *Editor) insertChar(ch rune) error {
 		// Update cursor position after adjustment
 		cursorX = e.CurrentBuffer().CursorX
 		// Recreate iterators after buffer modification
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	}
+
+	// Auto-dedent numbered list items in markdown files
+	if !e.inPasteMode && ch == '.' && e.shouldAutoDedentMarkdownListNumber(lineNum, cursorX) {
+		if err := e.autoDedentMarkdownListNumber(lineNum); err != nil {
+			return err
+		}
+		cursorX = e.CurrentBuffer().CursorX
 		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
 		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 	}
@@ -2350,6 +2361,177 @@ func (e *Editor) autoDedentCurrentLine(lineNum int) error {
 			e.CurrentBuffer().CursorX = 0
 		}
 	}
+
+	return nil
+}
+
+// isMarkdownFile returns true if the current buffer is a markdown file.
+func (e *Editor) isMarkdownFile() bool {
+	ext := strings.ToLower(filepath.Ext(e.CurrentBuffer().FilePath))
+	return ext == ".md" || ext == ".markdown"
+}
+
+// shouldAutoDedentMarkdownListNumber checks if typing '.' would complete a
+// numbered list marker that should be auto-dedented to match the previous item.
+// Called BEFORE '.' is inserted.
+func (e *Editor) shouldAutoDedentMarkdownListNumber(lineNum int, cursorX int) bool {
+	if !e.isMarkdownFile() {
+		return false
+	}
+
+	line := e.CurrentBuffer().CursorIterator.Line()
+	prefix := line[:cursorX]
+
+	// Line up to cursor must be whitespace then digits (e.g. "   3")
+	digitStart := -1
+	for i := 0; i < len(prefix); i++ {
+		if prefix[i] == ' ' || prefix[i] == '\t' {
+			if digitStart >= 0 {
+				return false // whitespace after digits
+			}
+			continue
+		}
+		if prefix[i] >= '0' && prefix[i] <= '9' {
+			if digitStart < 0 {
+				digitStart = i
+			}
+			continue
+		}
+		return false // non-whitespace, non-digit
+	}
+	if digitStart < 0 {
+		return false // no digits found
+	}
+
+	currentIndent := prefix[:digitStart]
+	currentNum, err := strconv.Atoi(prefix[digitStart:])
+	if err != nil {
+		return false
+	}
+
+	// Nothing should follow the cursor on this line (only whitespace allowed)
+	for i := cursorX; i < len(line); i++ {
+		if line[i] != ' ' && line[i] != '\t' {
+			return false
+		}
+	}
+
+	// Scan backward for the previous numbered list item
+	prevNum, prevIndent, found := e.findPrevMarkdownListItem(lineNum)
+	if !found {
+		return false
+	}
+
+	// Current number must be previous + 1
+	if currentNum != prevNum+1 {
+		return false
+	}
+
+	// Current line must have more indent than previous item
+	if len(currentIndent) <= len(prevIndent) {
+		return false
+	}
+
+	return true
+}
+
+// findPrevMarkdownListItem scans backward from lineNum to find the previous
+// numbered list item (a line matching \s*\d+\.\s). It skips blank lines and
+// continuation lines (non-list-item text that belongs to a previous item).
+// Returns the item number, its leading whitespace, and whether one was found.
+func (e *Editor) findPrevMarkdownListItem(lineNum int) (int, string, bool) {
+	for prev := lineNum - 1; prev >= 0; prev-- {
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), prev)
+		if iter.IsEOF() {
+			continue
+		}
+		prevLine := iter.Line()
+		if strings.TrimSpace(prevLine) == "" {
+			continue
+		}
+
+		// Try to parse as a numbered list item: \s*\d+\.\s
+		digitStart := -1
+		digitEnd := -1
+		for i := 0; i < len(prevLine); i++ {
+			if prevLine[i] == ' ' || prevLine[i] == '\t' {
+				if digitStart >= 0 {
+					break
+				}
+				continue
+			}
+			if prevLine[i] >= '0' && prevLine[i] <= '9' {
+				if digitStart < 0 {
+					digitStart = i
+				}
+				digitEnd = i + 1
+				continue
+			}
+			break
+		}
+		if digitStart < 0 || digitEnd >= len(prevLine) || prevLine[digitEnd] != '.' {
+			continue // not a list item, keep scanning
+		}
+		if digitEnd+1 >= len(prevLine) || prevLine[digitEnd+1] != ' ' {
+			continue
+		}
+
+		num, err := strconv.Atoi(prevLine[digitStart:digitEnd])
+		if err != nil {
+			continue
+		}
+
+		return num, prevLine[:digitStart], true
+	}
+
+	return 0, "", false
+}
+
+// autoDedentMarkdownListNumber replaces leading whitespace on the current line
+// with the whitespace from the previous numbered list item.
+func (e *Editor) autoDedentMarkdownListNumber(lineNum int) error {
+	line := e.CurrentBuffer().CursorIterator.Line()
+	cursorX := e.CurrentBuffer().CursorX
+
+	// Find where digits start on current line
+	digitStart := 0
+	for digitStart < len(line) && (line[digitStart] == ' ' || line[digitStart] == '\t') {
+		digitStart++
+	}
+	currentIndent := line[:digitStart]
+
+	// Find the previous numbered list item's indent
+	_, prevIndent, found := e.findPrevMarkdownListItem(lineNum)
+	if !found {
+		return nil
+	}
+
+	if currentIndent == prevIndent {
+		return nil // nothing to do
+	}
+
+	// Build composite entry: delete old indent, insert new indent
+	composite := buffer.NewCompositeEntry("auto-dedent markdown list number")
+	composite.Entries = append(composite.Entries, buffer.NewDeleteTextEntry(lineNum, 0, currentIndent))
+	if len(prevIndent) > 0 {
+		composite.Entries = append(composite.Entries, buffer.NewInsertTextEntry(lineNum, 0, prevIndent))
+	}
+
+	if e.CurrentBuffer().History != nil {
+		if _, err := e.CurrentBuffer().History.Execute(e.CurrentBuffer(), composite); err != nil {
+			return err
+		}
+	} else {
+		for _, entry := range composite.Entries {
+			if err := entry.Execute(e.CurrentBuffer()); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Adjust cursor position: shift by the indent difference
+	indentDiff := len(currentIndent) - len(prevIndent)
+	e.CurrentBuffer().CursorX = cursorX - indentDiff
 
 	return nil
 }
