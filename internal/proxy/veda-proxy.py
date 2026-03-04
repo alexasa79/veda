@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.40"
+PROXY_VERSION = "1.0.41"
 
 # Set up logging directory
 from datetime import datetime
@@ -187,10 +187,14 @@ class LSPManager:
                 bufsize=0  # Unbuffered
             )
             
+            # Preserve 'initializing' flag set by start_server_async so that
+            # _open_file defers didOpen until after the initialized notification.
+            was_initializing = self.servers.get(language, {}).get('initializing', False)
             self.servers[language] = {
                 'process': process,
                 'request_id': 0,
                 'initialized': False,
+                'initializing': was_initializing,
                 'open_files': set(),
                 'file_versions': {},  # file_path -> version number
                 # Keep handle to stderr log (if any) so we can close it on shutdown
@@ -389,6 +393,7 @@ class LSPManager:
             
             # Send the initialized notification
             server['initialized'] = True
+            server['initializing'] = False
             
             notification = {
                 "jsonrpc": "2.0",
