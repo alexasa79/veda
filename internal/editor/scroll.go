@@ -103,16 +103,43 @@ func (e *Editor) scroll() {
 
 	// Scroll down to satisfy bottom margin in visual rows
 	if visCursorY >= visibleHeight-bottomScrollOffset {
+		// Compute wrap-aware maximum view top: walk backwards from the last
+		// line, counting visual rows per line, until we've accumulated enough
+		// to fill the visible height. This replaces the old logical-line-based
+		// maxTop which broke when lines wrapped to multiple visual rows.
+		maxTop := 0
+		{
+			w, _ := e.screen.Size()
+			gw := e.CurrentBuffer().LineNumberWidth
+			wc := NewWrapCalculator(w, gw)
+			isInternal := e.CurrentBuffer().IsInternal
+			accum := 0
+			lastLine := e.CurrentBuffer().LineCount - 1
+			if lastLine < 0 {
+				lastLine = 0
+			}
+			mIter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lastLine)
+			for {
+				nRows := 1
+				if !isInternal {
+					nRows = len(wc.WrapLine(mIter.Line(), mIter.LineNumber()))
+				}
+				accum += nRows
+				if accum >= visibleHeight {
+					maxTop = mIter.LineNumber()
+					break
+				}
+				if mIter.LineNumber() == 0 {
+					break
+				}
+				mIter = mIter.Previous()
+			}
+		}
+
 		moveBatch := e.perfTracker.Start()
 		for steps := 0; steps < 4096; steps++ { // safety bound
 			if visCursorY < visibleHeight-bottomScrollOffset {
 				break
-			}
-			// Stop if advancing view would move beyond EOF
-			// Compute maximum allowed top line in logical units
-			maxTop := e.CurrentBuffer().LineCount - visibleHeight
-			if maxTop < 0 {
-				maxTop = 0
 			}
 			if e.CurrentBuffer().ViewIterator.LineNumber() >= maxTop {
 				break
@@ -154,23 +181,45 @@ func (e *Editor) scrollToShowAtTop() {
 	}
 }
 
-// ScrollToShowAtBottom positions the view so the cursor line appears at the bottom of the screen
-// This method calculates the view position so that the cursor is on the last visible line
+// ScrollToShowAtBottom positions the view so the cursor line appears at the bottom of the screen.
+// It walks backwards from the cursor line, counting visual rows consumed by
+// wrapped lines, to find the view top that places the cursor near the bottom.
 func (e *Editor) ScrollToShowAtBottom() {
 	visibleHeight := e.getVisibleHeight()
 	cursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 
-	// Calculate the desired view start line
-	// If cursor is below screen, we need to move view up by 1
-	// View should start at: cursorLine - visibleHeight + 1 - 1
-	desiredViewLine := cursorLine - visibleHeight + 2
+	// Determine effective width for wrap calculations.
+	width, _ := e.screen.Size()
+	if _, isWindowScreen := e.screen.(*windowScreen); !isWindowScreen {
+		if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+			width = e.windows[e.activeWindow].Width
+			if _, isDiff := e.windows[e.activeWindow].View.(*DiffBufferView); isDiff {
+				width = width / 2
+			}
+		}
+	}
+	gutterWidth := e.CurrentBuffer().LineNumberWidth
+	wc := NewWrapCalculator(width, gutterWidth)
 
-	// Handle edge case where desired view would be negative
-	if desiredViewLine < 0 {
-		desiredViewLine = 0
+	// Walk backwards from the cursor line, accumulating visual rows,
+	// until we've filled the visible height.
+	visualRows := 0
+	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), cursorLine)
+	desiredViewLine := 0
+
+	for {
+		lineText := iter.Line()
+		wrapped := wc.WrapLine(lineText, iter.LineNumber())
+		visualRows += len(wrapped)
+
+		if visualRows >= visibleHeight || iter.LineNumber() == 0 {
+			desiredViewLine = iter.LineNumber()
+			break
+		}
+
+		iter = iter.Previous()
 	}
 
-	// Create iterator at the desired view line
 	e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), desiredViewLine)
 
 	LL.Debug("After going to the end, the view iterator is at %+v, cursor iterator at %+v, visible height is %d",
