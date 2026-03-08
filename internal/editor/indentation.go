@@ -93,6 +93,19 @@ func isReliableIndentLine(line string) bool {
 	return false
 }
 
+// languageDefaultIndentation returns a language-specific indentation override
+// for file types that have a strong community convention differing from the
+// editor-wide default.  Returns (info, true) when an override exists.
+func languageDefaultIndentation(path string) (buffer.IndentationInfo, bool) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".tla":
+		return buffer.IndentationInfo{Type: config.IndentSpaces, Width: 3}, true
+	default:
+		return buffer.IndentationInfo{}, false
+	}
+}
+
 func shouldUseReliableIndentHeuristic(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
@@ -160,6 +173,9 @@ func (e *Editor) detectIndentation() buffer.IndentationInfo {
 
 	// If we saw neither tabs nor spaces on reliable lines, use defaults
 	if tabCount == 0 && len(spaceCounts) == 0 {
+		if info, ok := languageDefaultIndentation(filePath); ok {
+			return info
+		}
 		return buffer.IndentationInfo{Type: e.config.DefaultIndentType, Width: e.config.DefaultIndentWidth}
 	}
 

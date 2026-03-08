@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	tsfish "veda/internal/syntax/treesitter/fish"
+	tstlaplus "veda/internal/syntax/treesitter/tlaplus"
 	"veda/internal/theme"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -164,6 +165,9 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".mk", ".mak":
 		h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
 		h.currentLang = "make"
+	case ".tla":
+		h.parser.SetLanguage(tstlaplus.GetLanguage())
+		h.currentLang = "tlaplus"
 	default:
 		// No language set for unknown extensions
 		h.currentLang = ""
@@ -217,6 +221,9 @@ func (h *Highlighter) SetLanguage(language string) error {
 	case "make":
 		h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
 		h.currentLang = "make"
+	case "tlaplus":
+		h.parser.SetLanguage(tstlaplus.GetLanguage())
+		h.currentLang = "tlaplus"
 	default:
 		// No language set for unknown languages
 		h.currentLang = ""
@@ -734,6 +741,8 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapPythonNodeToTokenType(node, nodeType, source)
 	case "make":
 		return h.mapMakeNodeToTokenType(node, nodeType, source)
+	case "tlaplus":
+		return h.mapTLAPlusNodeToTokenType(node, nodeType, source)
 	default:
 		return TokenTypeText
 	}
@@ -1909,6 +1918,106 @@ func (h *Highlighter) mapPythonNodeToTokenType(node *sitter.Node, nodeType strin
 	// Punctuation
 	case "(", ")", "[", "]", "{", "}", ",", ";", ".", ":", "...":
 		return TokenTypePunctuation
+
+	default:
+		return TokenTypeText
+	}
+}
+
+// mapTLAPlusNodeToTokenType maps TLA+/PlusCal node types to token types.
+func (h *Highlighter) mapTLAPlusNodeToTokenType(node *sitter.Node, nodeType string, source []byte) TokenType {
+	switch nodeType {
+	// Comments
+	case "comment", "block_comment":
+		return TokenTypeComment
+
+	// TLA+ keywords
+	case "MODULE", "EXTENDS", "VARIABLE", "VARIABLES",
+		"CONSTANT", "CONSTANTS", "RECURSIVE",
+		"INSTANCE", "WITH", "LOCAL", "LAMBDA",
+		"CHOOSE", "IF", "THEN", "ELSE",
+		"CASE", "OTHER", "LET", "IN",
+		"ASSUME", "ASSUMPTION", "AXIOM",
+		"THEOREM", "PROPOSITION", "LEMMA", "COROLLARY",
+		"PROVE", "PROOF", "BY", "OBVIOUS", "OMITTED",
+		"DEFINE", "HAVE", "WITNESS", "TAKE",
+		"SUFFICES", "PICK", "QED",
+		"USE", "HIDE", "NEW", "STATE", "ACTION", "TEMPORAL",
+		"EXCEPT", "DEF", "DEFS", "ONLY":
+		return TokenTypeKeyword
+
+	// PlusCal keywords
+	case "algorithm", "fair", "process", "procedure",
+		"macro", "define", "variable", "variables",
+		"begin", "end", "if", "then", "elsif", "else",
+		"while", "do", "either", "or", "with",
+		"await", "when", "print", "assert",
+		"goto", "call", "pcal_return", "pcal_skip":
+		return TokenTypeKeyword
+
+	// Strings
+	case "string":
+		return TokenTypeString
+
+	// Numbers
+	case "nat_number", "real_number", "binary_number", "octal_number", "hex_number":
+		return TokenTypeNumber
+
+	// Built-in constants and sets
+	case "boolean",
+		"nat_number_set", "int_number_set", "real_number_set",
+		"string_set", "boolean_set":
+		return TokenTypeConstant
+
+	// Operators
+	case "def_eq", "set_in", "gets",
+		"forall", "exists", "all_map_to", "maps_to",
+		"implies", "equiv", "iff", "plus_arrow", "leads_to",
+		"land", "lor", "lnot",
+		"eq", "neq", "lt", "gt", "leq", "geq",
+		"approx", "sim", "simeq", "asymp", "cong", "doteq",
+		"gg", "ll", "in", "notin",
+		"prec", "succ", "preceq", "succeq", "propto",
+		"subset", "supset", "subseteq", "supseteq",
+		"sqsubset", "sqsupset", "sqsubseteq", "sqsupseteq",
+		"cap", "cup", "uplus", "sqcap", "sqcup",
+		"union", "powerset", "domain",
+		"plus", "minus", "times", "div",
+		"oplus", "ominus", "odot", "oslash", "otimes",
+		"circ", "bullet", "star", "bigcirc",
+		"vertvert", "cdot", "wr", "qq", "excl",
+		"assign", "bnf_rule",
+		"always", "eventually",
+		"negative", "enabled", "unchanged",
+		"dots_2", "dots_3",
+		"sup_plus",
+		"rs_ttile", "rd_ttile", "ls_ttile", "ld_ttile":
+		return TokenTypeOperator
+
+	// Punctuation
+	case "(", ")", "[", "]", "{", "}", ",", ":", ";",
+		"langle_bracket", "rangle_bracket", "rangle_bracket_sub",
+		"single_line", "double_line",
+		"case_box", "case_arrow",
+		"colon", "address", "label_as",
+		"bullet_conj", "bullet_disj":
+		return TokenTypePunctuation
+
+	// Identifiers with context
+	case "identifier":
+		if node.Parent() != nil {
+			parentType := node.Parent().Type()
+			switch parentType {
+			case "operator_definition", "function_definition",
+				"pcal_macro_decl", "pcal_proc_decl":
+				return TokenTypeFunction
+			case "variable_declaration", "pcal_var_decl", "pcal_proc_var_decl":
+				return TokenTypeVariable
+			case "constant_declaration":
+				return TokenTypeType
+			}
+		}
+		return TokenTypeText
 
 	default:
 		return TokenTypeText

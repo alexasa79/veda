@@ -170,6 +170,8 @@ func lineCommentPrefixFor(lang string) string {
 		return "//"
 	case "python", "bash", "make":
 		return "#"
+	case "tlaplus":
+		return "\\*"
 	default:
 		return ""
 	}
