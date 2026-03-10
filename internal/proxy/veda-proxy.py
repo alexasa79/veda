@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.41"
+PROXY_VERSION = "1.0.42"
 
 # Set up logging directory
 from datetime import datetime
@@ -1748,6 +1748,8 @@ class VedaProxy:
             '.j2',  # Jinja2 templates
             # Web files
             '.html', '.htm', '.css', '.js', '.jsx', '.ts', '.tsx',
+            # LaTeX/TeX
+            '.tex', '.latex', '.sty', '.cls', '.dtx', '.ltx', '.bib', '.bst',
             # Other programming languages (for future LSP support)
             '.rs', '.java', '.rb', '.php', '.swift', '.kt', '.scala', '.clj',
             # Configuration and documentation
