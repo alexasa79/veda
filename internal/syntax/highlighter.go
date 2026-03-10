@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	tsfish "veda/internal/syntax/treesitter/fish"
+	tslatex "veda/internal/syntax/treesitter/latex"
 	tstlaplus "veda/internal/syntax/treesitter/tlaplus"
 	"veda/internal/theme"
 
@@ -168,6 +169,9 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	case ".tla":
 		h.parser.SetLanguage(tstlaplus.GetLanguage())
 		h.currentLang = "tlaplus"
+	case ".tex", ".latex", ".sty", ".cls", ".dtx", ".ltx":
+		h.parser.SetLanguage(tslatex.GetLanguage())
+		h.currentLang = "latex"
 	default:
 		// No language set for unknown extensions
 		h.currentLang = ""
@@ -224,6 +228,9 @@ func (h *Highlighter) SetLanguage(language string) error {
 	case "tlaplus":
 		h.parser.SetLanguage(tstlaplus.GetLanguage())
 		h.currentLang = "tlaplus"
+	case "latex":
+		h.parser.SetLanguage(tslatex.GetLanguage())
+		h.currentLang = "latex"
 	default:
 		// No language set for unknown languages
 		h.currentLang = ""
@@ -743,6 +750,8 @@ func (h *Highlighter) mapNodeToTokenType(node *sitter.Node, source []byte) Token
 		return h.mapMakeNodeToTokenType(node, nodeType, source)
 	case "tlaplus":
 		return h.mapTLAPlusNodeToTokenType(node, nodeType, source)
+	case "latex":
+		return h.mapLatexNodeToTokenType(node, nodeType, source)
 	default:
 		return TokenTypeText
 	}
@@ -2018,6 +2027,86 @@ func (h *Highlighter) mapTLAPlusNodeToTokenType(node *sitter.Node, nodeType stri
 			}
 		}
 		return TokenTypeText
+
+	default:
+		return TokenTypeText
+	}
+}
+
+// mapLatexNodeToTokenType maps LaTeX node types to token types.
+func (h *Highlighter) mapLatexNodeToTokenType(node *sitter.Node, nodeType string, _ []byte) TokenType {
+	switch nodeType {
+	// Comments
+	case "line_comment", "block_comment", "comment":
+		return TokenTypeComment
+
+	// Commands (backslash commands like \textbf, \item)
+	case "command_name":
+		return TokenTypeFunction
+
+	// Section commands
+	case `\section`, `\subsection`, `\subsubsection`, `\paragraph`, `\subparagraph`,
+		`\part`, `\chapter`:
+		return TokenTypeKeyword
+
+	// Environment markers
+	case `\begin`, `\end`:
+		return TokenTypeKeyword
+
+	// Item marker
+	case `\item`:
+		return TokenTypeKeyword
+
+	// Document structure commands
+	case `\documentclass`, `\usepackage`, `\title`, `\author`, `\date`:
+		return TokenTypeKeyword
+
+	// Definition commands
+	case `\newcommand`, `\renewcommand`, `\newenvironment`, `\renewenvironment`,
+		`\providecommand`, `\DeclareOption`, `\ProcessOptions`:
+		return TokenTypeKeyword
+
+	// Label/reference commands
+	case `\label`, `\ref`, `\eqref`, `\pageref`, `\cite`, `\cref`, `\Cref`:
+		return TokenTypeVariable
+
+	// Include commands
+	case `\input`, `\include`, `\bibliography`, `\bibliographystyle`:
+		return TokenTypeNamespace
+
+	// Math delimiters
+	case `\[`, `\]`, "$":
+		return TokenTypeOperator
+
+	// Math operators and symbols
+	case "operator", "superscript", "subscript", "^", "_", "+", "-", "=":
+		return TokenTypeOperator
+
+	// Structural node types (highlight the whole construct)
+	case "inline_formula", "displayed_equation", "math_environment":
+		return TokenTypeConstant
+
+	case "class_include", "package_include":
+		return TokenTypeNamespace
+
+	case "new_command_definition", "environment_definition",
+		"title_declaration", "author_declaration":
+		return TokenTypeKeyword
+
+	case "label_definition", "label_reference", "citation":
+		return TokenTypeVariable
+
+	case "section", "subsection", "subsubsection", "paragraph", "subparagraph",
+		"part", "chapter":
+		return TokenTypeKeyword
+
+	// Punctuation
+	case "{", "}", "[", "]", "(", ")":
+		return TokenTypePunctuation
+
+	// Labels and paths (inside curly groups)
+	case "label", "path":
+		return TokenTypeString
 
 	default:
 		return TokenTypeText
