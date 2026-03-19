@@ -1368,6 +1368,20 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 				win.Buffers[i] = newBuf
 			}
 		}
+		// Update views that reference the old buffer
+		for _, v := range win.Views {
+			if sbv, ok := v.(*SingleBufferView); ok && sbv.Buf == buf {
+				sbv.Buf = newBuf
+			}
+			if dbv, ok := v.(*DiffBufferView); ok {
+				if dbv.LeftBuffer == buf {
+					dbv.LeftBuffer = newBuf
+				}
+				if dbv.RightBuffer == buf {
+					dbv.RightBuffer = newBuf
+				}
+			}
+		}
 	}
 
 	// Re-parse syntax highlighting
