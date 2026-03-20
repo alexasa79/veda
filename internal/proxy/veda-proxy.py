@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.43"
+PROXY_VERSION = "1.0.44"
 
 # Set up logging directory
 from datetime import datetime
@@ -96,6 +96,11 @@ class LSPManager:
                 'command': ['typescript-language-server', '--stdio'],
                 'extensions': ['.ts', '.tsx', '.mts', '.cts'],
                 'install_hint': 'Install with: npm i -g typescript typescript-language-server'
+            },
+            'bash': {
+                'command': ['bash-language-server', 'start'],
+                'extensions': ['.sh', '.bash'],
+                'install_hint': 'Install with: npm i -g bash-language-server'
             }
         }
 
