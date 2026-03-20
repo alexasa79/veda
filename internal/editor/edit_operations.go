@@ -403,7 +403,7 @@ func (e *Editor) insertChar(ch rune) error {
 	}
 
 	// Auto-trigger completion menu for member access operators in insert mode with LSP
-	if !e.inPasteMode && e.mode == commands.InsertMode && e.CurrentBuffer() != nil && e.CurrentBuffer().HasLSP {
+	if !e.inPasteMode && e.mode == commands.InsertMode && e.CurrentBuffer() != nil && e.hasLSP() {
 		shouldTriggerCompletion := false
 
 		if ch == '.' {

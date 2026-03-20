@@ -13,7 +13,7 @@ func TestMoveRightAfterFinishOpenFile_ClearsSourceWindowBuffer(t *testing.T) {
 
 	// Open a file using the same code path as production (finishOpenFile)
 	changes := &proxy.FileChanges{Added: []int{}, Deleted: []int{}, Modified: []int{}}
-	te.finishOpenFile("/tmp/test-move-right.txt", "hello world", changes, "main", nil, "")
+	te.finishOpenFile("/tmp/test-move-right.txt", "hello world", changes, "main", nil)
 
 	// Invariants should hold after opening
 	te.runInvariants()

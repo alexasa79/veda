@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.44"
+PROXY_VERSION = "1.0.46"
 
 # Set up logging directory
 from datetime import datetime
@@ -296,18 +296,24 @@ class LSPManager:
                             logger.info(f"Opening deferred file: {file_path}")
                             self._open_file(language, file_path)
                         del self.pending_file_opens[language]
+
+                    # Notify editor that LSP is ready
+                    self._notify_editor_lsp_status(language, "ready")
                 else:
                     # start_server returned False - server failed to start
                     error_msg = f"LSP server for {language} failed to start"
                     self.lsp_errors[language] = error_msg
                     logger.error(error_msg)
+                    self._notify_editor_lsp_status(language, "error", error_msg)
             except Exception as e:
                 logger.error(f"Failed to start LSP server for {language} asynchronously: {e}")
                 # Store the error message
-                self.lsp_errors[language] = str(e)
+                error_msg = str(e)
+                self.lsp_errors[language] = error_msg
                 # Clean up on failure
                 if language in self.servers and self.servers[language].get('initializing'):
                     del self.servers[language]
+                self._notify_editor_lsp_status(language, "error", error_msg)
         
         # Start initialization in a background thread
         init_thread = threading.Thread(target=init_server, daemon=True)
@@ -322,9 +328,11 @@ class LSPManager:
         server = self.servers[language]
         process = server.get('process')
 
-        # If server was never fully initialized, record an error
+        # If server was never fully initialized, record an error and notify editor
         if not server.get('initialized'):
-            self.lsp_errors[language] = f"LSP server for {language} exited unexpectedly"
+            error_msg = f"LSP server for {language} exited unexpectedly"
+            self.lsp_errors[language] = error_msg
+            self._notify_editor_lsp_status(language, "error", error_msg)
 
         if process:
             try:
@@ -406,7 +414,17 @@ class LSPManager:
                 "params": {}
             }
             self._send_message(language, notification)
-    
+
+            # Send didChangeConfiguration to trigger LSP to load project settings
+            config_notification = {
+                "jsonrpc": "2.0",
+                "method": "workspace/didChangeConfiguration",
+                "params": {
+                    "settings": {}
+                }
+            }
+            self._send_message(language, config_notification)
+
     def _track_request(self, language: str, request_id: int, method: str, file_path: str = None):
         """Track request details for better debugging."""
         if language not in self.request_details:
@@ -1215,6 +1233,24 @@ class LSPManager:
         print(json.dumps(notification), flush=True)
         logger.debug(f"Sent diagnostic notification to editor for {file_path} with {len(diagnostics_list)} diagnostics")
 
+    def _notify_editor_lsp_status(self, language: str, status: str, error: str = ""):
+        """Send an lsp_status notification to the editor via stdout."""
+        extensions = []
+        if language in self.language_servers:
+            extensions = self.language_servers[language]['extensions']
+        notification = {
+            'jsonrpc': '2.0',
+            'method': 'lsp_status',
+            'params': {
+                'language': language,
+                'status': status,
+                'error': error,
+                'extensions': extensions,
+            }
+        }
+        print(json.dumps(notification), flush=True)
+        logger.debug(f"Sent lsp_status notification: language={language} status={status} error={error}")
+
     def _wait_for_response(self, language: str, request_id: int, timeout: float = 5.0) -> Optional[Dict[str, Any]]:
         """Wait for a response with a specific request ID."""
         if language not in self.pending_requests:
@@ -1871,18 +1907,6 @@ class VedaProxy:
                     logger.info(f"Starting LSP server for {language} asynchronously when opening {path}")
                     self.lsp.start_server_async(language)
 
-                    # Wait briefly for LSP to either start or fail (to catch immediate errors)
-                    max_wait = 3.0  # seconds
-                    start_wait = time.time()
-                    while time.time() - start_wait < max_wait:
-                        if language in self.lsp.servers and not self.lsp.servers[language].get('initializing'):
-                            # Server has finished initializing (either success or removed on failure)
-                            break
-                        if language in self.lsp.lsp_errors:
-                            # Error detected (set by stop_server when server exits unexpectedly)
-                            break
-                        time.sleep(0.1)
-
                 # Notify LSP about the opened file (will be deferred if server is still initializing)
                 self.lsp._open_file(language, str(file_path))
                 logger.info(f"Requested LSP notification for opened file: {path}")
@@ -1946,18 +1970,12 @@ class VedaProxy:
             except Exception as e:
                 logger.warning(f"Failed to translate diagnostics for {path}: {e}")
 
-            # Check if there's an LSP error for this file's language
-            lsp_error = ""
-            language = self.lsp.get_language_for_file(str(file_path))
-            if language and language in self.lsp.lsp_errors:
-                lsp_error = self.lsp.lsp_errors[language]
-
             return {
                 'content': content,
                 'changes': changes,
                 'branch': branch,
                 'diagnostics': diagnostics_list,
-                'lsp_error': lsp_error,
+                'lsp_error': '',
             }
         except UnicodeDecodeError:
             # Try reading as binary and return error

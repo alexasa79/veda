@@ -39,8 +39,6 @@ func TestLSPNotificationCallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a new buffer
 			b := NewBuffer("", "test.go", "test.go", config.IndentSpaces, 4)
-			b.HasLSP = true // Enable LSP for this buffer
-
 			// Set up callback to track if it was called
 			callbackCalled := false
 			b.OnContentChange = func() {

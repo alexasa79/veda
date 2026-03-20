@@ -64,7 +64,7 @@ int main(void) {
 	buf := te.CurrentBuffer()
 	buf.FilePath = filePath
 	buf.RealPath = filePath
-	buf.HasLSP = true
+	te.Editor.lspExtensionStatus[filepath.Ext(filePath)] = "ready"
 	buf.Diagnostics = fc.Diagnostics
 
 	// Register buffer in the buffers map so diagnostic notifications can find it

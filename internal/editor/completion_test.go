@@ -12,7 +12,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Enable LSP for this buffer (simulate having LSP available)
-		te.CurrentBuffer().HasLSP = true
+		te.Editor.lspExtensionStatus[""] = "ready"
 
 		// Position cursor at end and enter insert mode
 		te.ExecuteCommand("end-of-line")
@@ -41,7 +41,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Enable LSP for this buffer
-		te.CurrentBuffer().HasLSP = true
+		te.Editor.lspExtensionStatus[""] = "ready"
 
 		// Position cursor at end and enter insert mode
 		te.ExecuteCommand("end-of-line")
@@ -66,7 +66,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Ensure LSP is NOT available for this buffer
-		te.CurrentBuffer().HasLSP = false
+		// lspExtensionStatus not set for ".txt" — no LSP
 
 		// Position cursor at end and enter insert mode
 		te.ExecuteCommand("end-of-line")
@@ -91,7 +91,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, content)
 
 		// Enable LSP for this buffer
-		te.CurrentBuffer().HasLSP = true
+		te.Editor.lspExtensionStatus[""] = "ready"
 
 		// Stay in normal mode (don't enter insert mode)
 		te.ExecuteCommand("end-of-line")
@@ -122,7 +122,7 @@ func TestAutomaticCompletion(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				te := NewTestEditorWithContent(80, 24, tc.content)
-				te.CurrentBuffer().HasLSP = true
+				te.Editor.lspExtensionStatus[""] = "ready"
 
 				// Position cursor at end and enter insert mode
 				if len(tc.content) > 0 {

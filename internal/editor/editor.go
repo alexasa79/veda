@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -257,6 +258,9 @@ type Editor struct {
 	windowFullscreen     bool // Whether active window is in fullscreen mode
 	zenMode              bool // Hide other windows and center the active window
 
+	// LSP extension status: maps file extension (e.g. ".go") to "ready" or "error"
+	lspExtensionStatus map[string]string
+
 	// Terminal sessions per buffer (PTY via proxy)
 	terminalSessions map[string]*TerminalSessionState
 
@@ -363,6 +367,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		activeWindow:             0,
 		lastWindow:               0,
 		minActiveWindowWidth:     110,
+		lspExtensionStatus:       make(map[string]string),
 		terminalSessions:         make(map[string]*TerminalSessionState),
 		signatureAnchors:         make(map[*buffer.Buffer]*signatureAnchor),
 	}
@@ -432,6 +437,44 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		}
 	})
 
+	// Handle LSP server status notifications from proxy
+	proxyManager.SetLSPStatusCallback(func(language, status, errorMsg string, extensions []string) {
+		LL.Debug("LSP status: language=%s status=%s error=%s", language, status, errorMsg)
+
+		// Update extension status map
+		for _, ext := range extensions {
+			if status == "ready" {
+				editor.lspExtensionStatus[ext] = "ready"
+			} else if status == "error" {
+				editor.lspExtensionStatus[ext] = "error"
+			}
+		}
+
+		// For ready status, request folding ranges and diagnostics for matching buffers
+		if status == "ready" {
+			for path := range editor.buffers {
+				ext := filepath.Ext(path)
+				for _, e := range extensions {
+					if ext == e {
+						editor.requestFoldingRanges(path)
+						editor.requestDiagnosticsRefresh(path)
+						break
+					}
+				}
+			}
+		}
+
+		if status == "error" && errorMsg != "" {
+			editor.ShowError("LSP: %s", errorMsg)
+		}
+
+		// Trigger re-render
+		select {
+		case editor.asyncEvents <- events.NewCustomEvent("render", nil):
+		default:
+		}
+	})
+
 	// Register commands
 	editor.registerCommands()
 
@@ -461,6 +504,29 @@ func (e *Editor) CurrentBuffer() *buffer.Buffer {
 		return nil
 	}
 	return e.windows[e.activeWindow].Buffer
+}
+
+// hasLSP returns true if the current buffer's file extension has a ready LSP server.
+func (e *Editor) hasLSP() bool {
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return false
+	}
+	return e.lspExtensionStatus[filepath.Ext(buf.FilePath)] == "ready"
+}
+
+// lspFailed returns true if the current buffer's file extension had an LSP server that failed to start.
+func (e *Editor) lspFailed() bool {
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return false
+	}
+	return e.lspExtensionStatus[filepath.Ext(buf.FilePath)] == "error"
+}
+
+// hasLSPForExt returns true if the given file extension has a ready LSP server.
+func (e *Editor) hasLSPForExt(ext string) bool {
+	return e.lspExtensionStatus[ext] == "ready"
 }
 
 // isSpecialBuffer checks if a buffer name is a special buffer
@@ -2563,11 +2629,9 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 		if b, exists := e.buffers[filePath]; exists && b == buf {
 			if err != nil {
 				LL.Debug("LSP folding ranges error for %s: %v", filePath, err)
-				buf.HasLSP = false
 				buf.FoldingRanges = nil
 			} else {
 				LL.Trace("Updated folding ranges for %s: got %d ranges", filePath, len(ranges))
-				buf.HasLSP = true
 				buf.FoldingRanges = ranges
 			}
 
@@ -3243,7 +3307,7 @@ func (e *Editor) showLSPBufferGo(args []string) error {
 // notifyLSPFileChange sends a didChange notification to the LSP server if applicable
 func (e *Editor) notifyLSPFileChange() {
 	// Only send notification if buffer has LSP enabled and has a file path
-	if e.proxyManager == nil || e.CurrentBuffer() == nil || !e.CurrentBuffer().HasLSP || e.CurrentBuffer().FilePath == "" || e.CurrentBuffer().IsInternal {
+	if e.proxyManager == nil || e.CurrentBuffer() == nil || !e.hasLSP() || e.CurrentBuffer().FilePath == "" || e.CurrentBuffer().IsInternal {
 		return
 	}
 

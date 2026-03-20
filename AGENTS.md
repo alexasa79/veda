@@ -246,6 +246,14 @@ Some tests require LSP servers to be installed and available on the test machine
   - If the version does not match the Go `ProxyVersion`, the editor kills the proxy, copies the embedded Python script to the remote host, and restarts it.
   - If the proxy script is missing on the remote host, the editor copies it and proceeds as above.
 
+### Proxy Notification Mechanism
+- The proxy supports bidirectional communication: request-response AND unsolicited notifications.
+- Notifications are JSON-RPC messages without an `id` field, sent by the proxy via stdout at any time.
+- Go side: `readerLoop()` dispatches notifications to `handleNotification()`, which switches on `method`.
+- Callback pattern: define a callback type, add field + setter on `ProxyManager`, register in `editor.go`.
+- Currently supported notifications: `diagnostics`, `lsp_status`.
+- When adding new async proxy→editor communication, use this mechanism instead of blocking waits or polling.
+
 ## Project Language Notes
 - The project is written in Go. The only file written in other programming language is veda-proxy.py. This is the only non-Go file this project will ever have.
 
