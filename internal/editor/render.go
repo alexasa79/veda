@@ -1923,16 +1923,14 @@ func (e *Editor) drawStatusBar() {
 		}
 
 		// Add LSP indicator (only if buffer exists)
-		if e.CurrentBuffer() != nil {
-			if e.CurrentBuffer().LSPFailed {
-				// Show "No LSP" indicator when LSP should be available but failed
-				x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1, 0, -1)
-				noLSPStyle := statusBarStyle
-				noLSPStyle.Fg = ui.ColorRed
-				x += e.drawText(x, statusBarY, noLSPStyle, "[No LSP]", 0, nil, -1, 0, -1)
-			} else if e.CurrentBuffer().HasLSP {
-				x += e.drawText(x, statusBarY, statusBarStyle, " ", 0, nil, -1, 0, -1)
-			}
+		if e.lspFailed() {
+			// Show "No LSP" indicator when LSP should be available but failed
+			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1, 0, -1)
+			noLSPStyle := statusBarStyle
+			noLSPStyle.Fg = ui.ColorRed
+			x += e.drawText(x, statusBarY, noLSPStyle, "[No LSP]", 0, nil, -1, 0, -1)
+		} else if e.hasLSP() {
+			x += e.drawText(x, statusBarY, statusBarStyle, "  [LSP]", 0, nil, -1, 0, -1)
 		}
 
 		// Add connection status and spinner handling

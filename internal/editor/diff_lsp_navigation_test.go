@@ -95,7 +95,7 @@ func main() {
 	oldPath := buf.FilePath
 	buf.FilePath = filePath
 	buf.RealPath = filePath
-	buf.HasLSP = true
+	te.Editor.lspExtensionStatus[filepath.Ext(filePath)] = "ready"
 	delete(te.Editor.buffers, oldPath)
 	te.Editor.buffers[filePath] = buf
 

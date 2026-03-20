@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.44"
+const ProxyVersion = "1.0.46"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -41,6 +41,9 @@ type MessageCallback func(level string, message string)
 // DiagnosticCallback is a function that receives diagnostic updates from LSP
 type DiagnosticCallback func(path string, diagnostics []Diagnostic)
 
+// LSPStatusCallback is a function that receives LSP server status updates
+type LSPStatusCallback func(language, status, errorMsg string, extensions []string)
+
 // ProxyManager manages multiple proxy instances for different hosts
 type ProxyManager struct {
 	clients map[string]*Client // key is hostname, empty string for local
@@ -50,6 +53,7 @@ type ProxyManager struct {
 	statusCallback     StatusCallback     // callback for status updates
 	messageCallback    MessageCallback    // callback for log/messages
 	diagnosticCallback DiagnosticCallback // callback for diagnostic updates
+	lspStatusCallback  LSPStatusCallback  // callback for LSP server status updates
 }
 
 // NewProxyManager creates a new proxy manager
@@ -109,6 +113,18 @@ func (pm *ProxyManager) reportMessage(level, message string) {
 func (pm *ProxyManager) handleDiagnosticUpdate(path string, diagnostics []Diagnostic) {
 	if pm.diagnosticCallback != nil {
 		pm.diagnosticCallback(path, diagnostics)
+	}
+}
+
+// SetLSPStatusCallback sets the callback for LSP server status updates
+func (pm *ProxyManager) SetLSPStatusCallback(callback LSPStatusCallback) {
+	pm.lspStatusCallback = callback
+}
+
+// handleLSPStatusUpdate processes LSP status updates from the proxy
+func (pm *ProxyManager) handleLSPStatusUpdate(language, status, errorMsg string, extensions []string) {
+	if pm.lspStatusCallback != nil {
+		pm.lspStatusCallback(language, status, errorMsg, extensions)
 	}
 }
 
@@ -1556,6 +1572,8 @@ func (c *Client) handleNotification(msg map[string]interface{}) {
 	switch method {
 	case "diagnostics":
 		c.handleDiagnosticNotification(msg)
+	case "lsp_status":
+		c.handleLSPStatusNotification(msg)
 	default:
 		LL.Debug("Unknown notification method: %s", method)
 	}
@@ -1614,6 +1632,34 @@ func (c *Client) handleDiagnosticNotification(msg map[string]interface{}) {
 	// Forward to ProxyManager to update the editor
 	if c.manager != nil {
 		c.manager.handleDiagnosticUpdate(path, diagnostics)
+	}
+}
+
+// handleLSPStatusNotification processes lsp_status notifications from the proxy
+func (c *Client) handleLSPStatusNotification(msg map[string]interface{}) {
+	params, ok := msg["params"].(map[string]interface{})
+	if !ok {
+		LL.Debug("lsp_status notification missing params")
+		return
+	}
+
+	language, _ := params["language"].(string)
+	status, _ := params["status"].(string)
+	errorMsg, _ := params["error"].(string)
+
+	var extensions []string
+	if extsRaw, ok := params["extensions"].([]interface{}); ok {
+		for _, e := range extsRaw {
+			if s, ok := e.(string); ok {
+				extensions = append(extensions, s)
+			}
+		}
+	}
+
+	LL.Debug("Received lsp_status notification: language=%s status=%s error=%s extensions=%v", language, status, errorMsg, extensions)
+
+	if c.manager != nil {
+		c.manager.handleLSPStatusUpdate(language, status, errorMsg, extensions)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"veda/internal/events"
 	"veda/internal/proxy"
 )
@@ -38,38 +39,62 @@ print(result)
 		t.Fatalf("Failed to write Python file: %v", err)
 	}
 
-	// Open the file - LSP error should be returned (GetFile will wait for LSP to start/fail)
+	// Create an editor
+	te := NewTestEditorWithContent(80, 24, pythonContent)
+	te.Editor.proxyManager = pm
+	buf := te.CurrentBuffer()
+	buf.FilePath = filePath
+	buf.RealPath = filePath
+	te.Editor.buffers[filePath] = buf
+
+	// Register lsp_status callback to update editor-level status
+	statusCh := make(chan struct{}, 1)
+	pm.SetLSPStatusCallback(func(language, status, errorMsg string, extensions []string) {
+		for _, ext := range extensions {
+			if status == "error" {
+				te.Editor.lspExtensionStatus[ext] = "error"
+			} else if status == "ready" {
+				te.Editor.lspExtensionStatus[ext] = "ready"
+			}
+		}
+		select {
+		case statusCh <- struct{}{}:
+		default:
+		}
+	})
+
+	// Set up diagnostic callback
+	pm.SetDiagnosticCallback(func(path string, diagnostics []proxy.Diagnostic) {
+		b, exists := te.Editor.buffers[path]
+		if exists {
+			b.Diagnostics = diagnostics
+			te.Editor.asyncEvents <- events.NewCustomEvent("render", nil)
+		}
+	})
+
+	// Open the file - should return immediately, no LSP error in response
 	fc, err := pm.GetFile(filePath)
 	if err != nil {
 		t.Fatalf("GetFile failed: %v", err)
 	}
 
-	// Create an editor and verify LSP failure is handled
-	te := NewTestEditorWithContent(80, 24, fc.Content)
-	te.Editor.proxyManager = pm
-	buf := te.CurrentBuffer()
-	buf.FilePath = filePath
-	buf.RealPath = filePath
-	buf.HasLSP = true
-	buf.Diagnostics = fc.Diagnostics
-
-	// Simulate LSP failure by setting the flag (as would happen in real openFile)
-	if fc.LSPError != "" {
-		buf.LSPFailed = true
-		te.Editor.ShowError("LSP server failed to start: %s", fc.LSPError)
+	// File content should be returned without delay
+	if fc.Content != pythonContent {
+		t.Errorf("Unexpected content returned from GetFile")
 	}
 
-	// Register buffer
-	te.Editor.buffers[filePath] = buf
+	// Wait for lsp_status notification (with timeout)
+	select {
+	case <-statusCh:
+		// Notification received
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Timed out waiting for lsp_status notification")
+	}
 
-	// Set up diagnostic callback
-	pm.SetDiagnosticCallback(func(path string, diagnostics []proxy.Diagnostic) {
-		buf, exists := te.Editor.buffers[path]
-		if exists {
-			buf.Diagnostics = diagnostics
-			te.Editor.asyncEvents <- events.NewCustomEvent("render", nil)
-		}
-	})
+	// Verify lspFailed reports true for .py extension
+	if !te.Editor.lspFailed() {
+		t.Errorf("Expected lspFailed() to be true after lsp_status error notification")
+	}
 
 	// Render to show the status bar
 	te.Editor.render()
@@ -84,13 +109,6 @@ print(result)
 		}
 	} else {
 		t.Errorf("Invalid status bar Y position: %d", statusBarY)
-	}
-
-	// Verify LSP error is set
-	if fc.LSPError == "" {
-		t.Errorf("Expected LSP error to be set, but it was empty")
-	} else {
-		t.Logf("LSP error correctly set: %s", fc.LSPError)
 	}
 
 	// The editor should continue to work normally even without LSP
@@ -142,36 +160,60 @@ print(result)
 		t.Fatalf("Failed to write Python file: %v", err)
 	}
 
-	// Try to open the file - LSP error should be returned (GetFile will wait for LSP to start/fail)
+	// Create an editor
+	te := NewTestEditorWithContent(80, 24, pythonContent)
+	te.Editor.proxyManager = pm
+	buf := te.CurrentBuffer()
+	buf.FilePath = filePath
+	buf.RealPath = filePath
+	te.Editor.buffers[filePath] = buf
+
+	// Register lsp_status callback
+	statusCh := make(chan struct{}, 1)
+	pm.SetLSPStatusCallback(func(language, status, errorMsg string, extensions []string) {
+		for _, ext := range extensions {
+			if status == "error" {
+				te.Editor.lspExtensionStatus[ext] = "error"
+			} else if status == "ready" {
+				te.Editor.lspExtensionStatus[ext] = "ready"
+			}
+		}
+		select {
+		case statusCh <- struct{}{}:
+		default:
+		}
+	})
+
+	pm.SetDiagnosticCallback(func(path string, diagnostics []proxy.Diagnostic) {
+		b, exists := te.Editor.buffers[path]
+		if exists {
+			b.Diagnostics = diagnostics
+			te.Editor.asyncEvents <- events.NewCustomEvent("render", nil)
+		}
+	})
+
+	// Open the file - should return immediately
 	fc, err := pm.GetFile(filePath)
 	if err != nil {
 		t.Fatalf("GetFile failed: %v", err)
 	}
 
-	// Create an editor and verify LSP failure is handled
-	te := NewTestEditorWithContent(80, 24, fc.Content)
-	te.Editor.proxyManager = pm
-	buf := te.CurrentBuffer()
-	buf.FilePath = filePath
-	buf.RealPath = filePath
-	buf.HasLSP = true
-	buf.Diagnostics = fc.Diagnostics
-
-	// Simulate LSP failure by setting the flag (as would happen in real openFile)
-	if fc.LSPError != "" {
-		buf.LSPFailed = true
-		te.Editor.ShowError("LSP server failed to start: %s", fc.LSPError)
+	if fc.Content != pythonContent {
+		t.Errorf("Unexpected content returned from GetFile")
 	}
 
-	te.Editor.buffers[filePath] = buf
+	// Wait for lsp_status notification
+	select {
+	case <-statusCh:
+		// Notification received
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Timed out waiting for lsp_status notification")
+	}
 
-	pm.SetDiagnosticCallback(func(path string, diagnostics []proxy.Diagnostic) {
-		buf, exists := te.Editor.buffers[path]
-		if exists {
-			buf.Diagnostics = diagnostics
-			te.Editor.asyncEvents <- events.NewCustomEvent("render", nil)
-		}
-	})
+	// Verify lspFailed reports true for .py extension
+	if !te.Editor.lspFailed() {
+		t.Errorf("Expected lspFailed() to be true after lsp_status error notification")
+	}
 
 	// Render to show the status bar
 	te.Editor.render()
@@ -186,13 +228,6 @@ print(result)
 		}
 	} else {
 		t.Errorf("Invalid status bar Y position: %d", statusBarY)
-	}
-
-	// Verify LSP error is set
-	if fc.LSPError == "" {
-		t.Errorf("Expected LSP error to be set, but it was empty")
-	} else {
-		t.Logf("LSP error correctly set: %s", fc.LSPError)
 	}
 
 	// Verify the editor works normally even when LSP server crashes

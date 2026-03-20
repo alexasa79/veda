@@ -78,7 +78,7 @@ func baz() {
 	te := NewTestEditorWithContent(80, 24, initialContent)
 	te.Editor.proxyManager = pm
 	te.CurrentBuffer().FilePath = testFilePath
-	te.CurrentBuffer().HasLSP = true
+	te.Editor.lspExtensionStatus[filepath.Ext(testFilePath)] = "ready"
 	te.buffers[testFilePath] = te.CurrentBuffer()
 
 	// Find references to "bar" - cursor should be on the "bar()" call in foo()

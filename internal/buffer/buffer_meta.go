@@ -63,10 +63,6 @@ type Buffer struct {
 	// Generation number for iterator validation
 	Generation uint64
 
-	// LSP availability
-	HasLSP    bool // Whether LSP is available for this buffer
-	LSPFailed bool // Whether LSP startup failed for this buffer
-
 	// Function signature state
 	CurrentSignature    *SignatureHelp // The current function signature from LSP
 	SignatureGeneration uint64         // Generation number for signature help requests
