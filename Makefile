@@ -39,3 +39,4 @@ testfast:
 clean:
 	$(GOCLEAN)
 	rm -f $(BINARY)
+	rm -rf artifacts/gocache
