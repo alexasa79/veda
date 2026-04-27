@@ -1068,8 +1068,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 				}
 			}
 
-			// Normal mode: let Escape be handled via key bindings (clear-state)
-			if e.mode == commands.NormalMode && e.hasPendingOperation() {
+			// Pending f/t character motions are used in normal and visual modes.
+			if (e.mode == commands.NormalMode || e.mode == commands.VisualMode || e.mode == commands.VisualLineMode) && e.hasPendingOperation() {
 				// Handle pending operations for both regular keys and special keys
 				keyStr := ""
 				if ev.Key == events.KeyRune {

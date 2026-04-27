@@ -257,6 +257,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBindingForModes(visualModes, "b", "word-backward")
 	e.registerKeyBindingForModes(visualModes, "W", "word-forward-no-underscore")
 	e.registerKeyBindingForModes(visualModes, "B", "word-backward-no-underscore")
+	e.registerKeyBindingForModes(visualModes, "f", "start-find-character")
+	e.registerKeyBindingForModes(visualModes, "t", "start-till-character")
 	e.registerKeyBindingForModes(visualModes, "0", "beginning-of-line")
 	e.registerKeyBindingForModes(visualModes, "$", "end-of-line")
 	e.registerKeyBindingForModes(visualModes, "home", "beginning-of-line")
