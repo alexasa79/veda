@@ -1085,13 +1085,43 @@ func (e *Editor) writeFile(args []string) error {
 
 // writeAndQuit implements the :wq command to write the file and close the buffer
 func (e *Editor) writeAndQuit(args []string) error {
+	buf := e.CurrentBuffer()
+	if buf == nil {
+		return nil
+	}
+
+	if buf.IsInternal {
+		if err := e.closeBuffer(args); err != nil {
+			return err
+		}
+		if !e.hasNonInternalBuffers() {
+			return e.actuallyQuit(nil)
+		}
+		return nil
+	}
+
 	// First write the file
 	if err := e.writeFile(args); err != nil {
 		return err
 	}
 
 	// Then close the buffer (which will quit if it's the last buffer)
-	return e.closeBuffer(args)
+	if err := e.closeBuffer(args); err != nil {
+		return err
+	}
+	if !e.hasNonInternalBuffers() {
+		return e.actuallyQuit(nil)
+	}
+	return nil
+}
+
+func (e *Editor) hasNonInternalBuffers() bool {
+	for _, buf := range e.buffers {
+		if buf != nil && !buf.IsInternal {
+			return true
+		}
+	}
+	return false
 }
 
 // editFile implements the :edit/:e command to open a file or directory
