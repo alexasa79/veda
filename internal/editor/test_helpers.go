@@ -290,7 +290,7 @@ func (te *TestEditor) TypeKeys(keys string) {
 				for _, k := range seq {
 					ev := &events.KeyEvent{Key: k.Key, Rune: k.Rune, Modifiers: k.Mod}
 					// Delegate to the main event handler logic
-					te.handleEvent(ev)
+					te.handleTestEvent(ev)
 				}
 				return
 			}
@@ -310,8 +310,20 @@ func (te *TestEditor) TypeKeys(keys string) {
 			ev = &events.KeyEvent{Key: events.KeyRune, Rune: ch}
 		}
 		// Delegate to the main event handler logic
-		te.handleEvent(ev)
+		te.handleTestEvent(ev)
 	}
+}
+
+func (te *TestEditor) handleTestEvent(ev events.Event) {
+	if te.renderingState.IsOverlayActive() && te.renderingState.GetOverlay() != nil {
+		done, result := te.renderingState.GetOverlay().HandleEvent(ev)
+		if done {
+			te.renderingState.CompleteOverlay(result)
+			te.screen.Clear()
+		}
+		return
+	}
+	te.handleEvent(ev)
 }
 
 // drainAsyncEventsOnce processes any pending async events without blocking.
@@ -359,6 +371,10 @@ func (te *TestEditor) PressKey(key events.Key, modifiers events.ModMask) {
 	ev := &events.KeyEvent{
 		Key:       key,
 		Modifiers: modifiers,
+	}
+	if te.renderingState.IsOverlayActive() && te.renderingState.GetOverlay() != nil {
+		te.handleTestEvent(ev)
+		return
 	}
 	// In terminal mode, route events through the main event loop to honor
 	// terminal-specific handling (e.g., ESC exits terminal mode)
