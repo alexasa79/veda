@@ -86,6 +86,8 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.InsertMode, "down", "down-insert")
 	e.registerKeyBinding(commands.InsertMode, "left", "left-insert")
 	e.registerKeyBinding(commands.InsertMode, "right", "right-insert")
+	e.registerKeyBinding(commands.InsertMode, "pageup", "page-up")
+	e.registerKeyBinding(commands.InsertMode, "pagedown", "page-down")
 	e.registerKeyBinding(commands.InsertMode, "home", "beginning-of-line-insert")
 	e.registerKeyBinding(commands.InsertMode, "end", "end-of-line-insert")
 	e.registerKeyBinding(commands.InsertMode, "alt+left", "word-backward-insert")

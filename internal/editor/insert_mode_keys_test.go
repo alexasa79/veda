@@ -1,8 +1,10 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 	"veda/internal/commands"
+	"veda/internal/events"
 )
 
 // TestDeleteKeyInInsert tests the Delete key functionality in insert mode
@@ -69,6 +71,30 @@ func TestCtrlKDeleteToEndOfLineInInsertMode(t *testing.T) {
 
 	AssertBufferEquals(t, te, "hello ")
 	AssertCursorAt(t, te, 6, 0)
+}
+
+func TestPageKeysInInsertMode(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, strings.Repeat("line\n", 80)+"line")
+	te.ExecuteCommand("enter-insert-mode")
+
+	te.handleEvent(events.NewKeyEvent(events.KeyPgDn, 0, events.ModNone))
+
+	lineAfterPageDown := te.CurrentBuffer().CursorIterator.LineNumber()
+	if lineAfterPageDown == 0 {
+		t.Fatalf("expected PageDown to move cursor in insert mode")
+	}
+	if te.mode != commands.InsertMode {
+		t.Fatalf("expected PageDown to keep insert mode, got %v", te.mode)
+	}
+
+	te.handleEvent(events.NewKeyEvent(events.KeyPgUp, 0, events.ModNone))
+
+	if te.CurrentBuffer().CursorIterator.LineNumber() >= lineAfterPageDown {
+		t.Fatalf("expected PageUp to move cursor up in insert mode")
+	}
+	if te.mode != commands.InsertMode {
+		t.Fatalf("expected PageUp to keep insert mode, got %v", te.mode)
+	}
 }
 
 // TestAltArrowKeysInInsert tests Alt+Left/Right word navigation in insert mode
