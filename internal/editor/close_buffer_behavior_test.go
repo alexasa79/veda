@@ -76,6 +76,37 @@ func TestCloseBuffer_MultipleBuffersInWindow(t *testing.T) {
 	}
 }
 
+func TestCloseBuffer_ResyncsWindowViewToPreviousBuffer(t *testing.T) {
+	te := NewTestEditor(80, 24)
+
+	file := buffer.NewBuffer("file content", "file.txt", "file.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	term := buffer.NewBuffer("terminal snapshot", "*Terminal*", "", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+	term.IsInternal = true
+	term.IsReadOnly = true
+	te.buffers[file.FilePath] = file
+	te.buffers[term.FilePath] = term
+
+	win := newWindow(file)
+	win.addBufferToWindow(term)
+	te.windows = []*Window{win}
+	te.activeWindow = 0
+	te.SetCurrentBuffer(term)
+
+	if err := te.ExecuteCommand("q"); err != nil {
+		t.Fatalf("close buffer failed: %v", err)
+	}
+
+	if te.CurrentBuffer() != file {
+		t.Fatalf("expected file buffer to be active after closing terminal")
+	}
+	if te.windows[0].View == nil || te.windows[0].View.ActiveBuffer() != file {
+		t.Fatalf("expected window view to render file buffer after closing terminal")
+	}
+	if te.windows[0].View.ContainsBuffer(term) {
+		t.Fatalf("window view still points at closed terminal buffer")
+	}
+}
+
 // Closing a terminal buffer should remove it from windows and clean up terminal session
 // when the buffer is no longer shown anywhere.
 func TestCloseBuffer_TerminalBufferCleanup(t *testing.T) {
