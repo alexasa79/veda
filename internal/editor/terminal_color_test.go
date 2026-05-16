@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 	"veda/internal/ui"
 )
@@ -67,5 +68,53 @@ func TestTerminalEmulatorSGRColors(t *testing.T) {
 	}
 	if !foundMagenta {
 		t.Fatalf("expected to find SGR magenta (35) in line for branch name")
+	}
+}
+
+func TestTerminalEmulatorColonSGRDoesNotRenderParameters(t *testing.T) {
+	te := NewTerminalEmulator(40, 3)
+	te.Write([]byte("\x1b[4:1munder\x1b[4:0m plain"))
+
+	rendered := te.Render()
+	if strings.Contains(rendered, "4:1m") || strings.Contains(rendered, "4:0m") {
+		t.Fatalf("rendered CSI parameters as text: %q", rendered)
+	}
+	if !strings.Contains(rendered, "under plain") {
+		t.Fatalf("missing expected text: %q", rendered)
+	}
+
+	_, _, attrs := te.StyleAt(0, 0)
+	if attrs&ui.AttrUnderline == 0 {
+		t.Fatalf("expected underline attr on first character, got %v", attrs)
+	}
+}
+
+func TestTerminalEmulatorDeviceAttributeResponses(t *testing.T) {
+	te := NewTerminalEmulator(40, 3)
+
+	response := te.WriteWithResponse([]byte("\x1b[c"))
+	if string(response) != "\x1b[?1;2c" {
+		t.Fatalf("primary DA response = %q, want %q", response, "\x1b[?1;2c")
+	}
+	if strings.TrimSpace(te.Render()) != "" {
+		t.Fatalf("primary DA should not render text: %q", te.Render())
+	}
+
+	response = te.WriteWithResponse([]byte("\x1b[>c"))
+	if string(response) != "\x1b[>0;0;0c" {
+		t.Fatalf("secondary DA response = %q, want %q", response, "\x1b[>0;0;0c")
+	}
+}
+
+func TestTerminalEmulatorDCSDoesNotRender(t *testing.T) {
+	te := NewTerminalEmulator(80, 3)
+	te.Write([]byte("before\x1bP+q696e646e\x1b\\after"))
+
+	rendered := te.Render()
+	if strings.Contains(rendered, "+q696e646e") {
+		t.Fatalf("rendered DCS payload as text: %q", rendered)
+	}
+	if !strings.Contains(rendered, "beforeafter") {
+		t.Fatalf("missing surrounding text: %q", rendered)
 	}
 }
