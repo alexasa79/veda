@@ -682,6 +682,20 @@ func (w *Window) findViewForBuffer(buf *buffer.Buffer) int {
 	return -1
 }
 
+func (w *Window) syncViewToActiveBuffer() {
+	if w.Buffer == nil {
+		w.View = nil
+		return
+	}
+	if idx := w.findViewForBuffer(w.Buffer); idx >= 0 {
+		w.View = w.Views[idx]
+		return
+	}
+	view := &SingleBufferView{Buf: w.Buffer}
+	w.Views = append(w.Views, view)
+	w.View = view
+}
+
 // addBufferToWindow adds a buffer to a window's buffer list and makes it active
 func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
 	if buf == nil {
@@ -706,6 +720,7 @@ func (w *Window) addBufferToWindow(buf *buffer.Buffer) {
 	if w.findViewForBuffer(buf) < 0 {
 		w.Views = append(w.Views, &SingleBufferView{Buf: buf})
 	}
+	w.syncViewToActiveBuffer()
 }
 
 // setActiveBuffer sets the active buffer while preserving window buffer-list invariants.
@@ -750,6 +765,7 @@ func (w *Window) removeBufferFromWindow(buf *buffer.Buffer) {
 			break
 		}
 	}
+	w.syncViewToActiveBuffer()
 }
 
 // newWindow creates a new window with initialized buffer management
