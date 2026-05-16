@@ -336,7 +336,10 @@ func (e *Editor) openTerminalCmd(args []string) error {
 			data, _, _, err := e.proxyManager.ReadTerminal(wd, sid, 65536)
 			if err == nil && len(data) > 0 {
 				if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
-					ts.term.Write(data)
+					response := ts.term.WriteWithResponse(data)
+					if len(response) > 0 {
+						_ = e.proxyManager.WriteTerminal(wd, sid, response)
+					}
 					e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
 						"buffer": bufPath,
 						"data":   ts.term.Render(),
@@ -374,7 +377,10 @@ func (e *Editor) startTerminalPolling(bufferPath string) {
 			if len(data) > 0 {
 				// Feed emulator, then render the grid as text
 				if ts.term != nil {
-					ts.term.Write(data)
+					response := ts.term.WriteWithResponse(data)
+					if len(response) > 0 {
+						_ = e.proxyManager.WriteTerminal(ts.WorkingDir, ts.SessionID, response)
+					}
 					rendered := ts.term.Render()
 					e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
 						"buffer": bufferPath,

@@ -317,6 +317,13 @@ func (te *TerminalEmulator) pushTopLineToScrollback() { te.pushRowToScrollback(0
 
 // Write consumes terminal bytes and updates the grid.
 func (te *TerminalEmulator) Write(data []byte) {
+	_ = te.WriteWithResponse(data)
+}
+
+// WriteWithResponse consumes terminal bytes, updates the grid, and returns any
+// bytes that should be sent back to the PTY for terminal capability queries.
+func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
+	var response []byte
 	i := 0
 	for i < len(data) {
 		b := data[i]
@@ -333,11 +340,13 @@ func (te *TerminalEmulator) Write(data []byte) {
 				cur := 0
 				hasCur := false
 				priv := false
+				privMarker := byte(0)
 				for i < len(data) {
 					c := data[i]
 					i++
-					if c == '?' {
+					if c == '?' || c == '>' {
 						priv = true
+						privMarker = c
 						continue
 					}
 					if c >= '0' && c <= '9' {
@@ -345,7 +354,7 @@ func (te *TerminalEmulator) Write(data []byte) {
 						hasCur = true
 						continue
 					}
-					if c == ';' {
+					if c == ';' || c == ':' {
 						if hasCur {
 							params = append(params, cur)
 						} else {
@@ -355,10 +364,21 @@ func (te *TerminalEmulator) Write(data []byte) {
 						hasCur = false
 						continue
 					}
+					if c >= 0x20 && c <= 0x2f {
+						continue
+					}
 					if hasCur {
 						params = append(params, cur)
 					}
 					switch c {
+					case 'c':
+						// Primary/secondary device attributes. Fish waits for
+						// primary DA during startup; answer minimally.
+						if privMarker == '>' {
+							response = append(response, []byte("\x1b[>0;0;0c")...)
+						} else {
+							response = append(response, []byte("\x1b[?1;2c")...)
+						}
 					case 'm':
 						// SGR: set graphics rendition
 						if len(params) == 0 {
@@ -647,6 +667,21 @@ func (te *TerminalEmulator) Write(data []byte) {
 				}
 				continue
 			}
+			if b2 == 'P' { // DCS: ignore until BEL or ST
+				i++
+				for i < len(data) {
+					if data[i] == 0x07 {
+						i++
+						break
+					}
+					if data[i] == 0x1b && i+1 < len(data) && data[i+1] == '\\' {
+						i += 2
+						break
+					}
+					i++
+				}
+				continue
+			}
 			// Single-ESC sequences (non-CSI/OSC)
 			switch b2 {
 			// Charset designation: ESC ( X, ESC ) X, ESC * X, ESC + X, ESC - X, ESC . X
@@ -766,6 +801,7 @@ func (te *TerminalEmulator) Write(data []byte) {
 		}
 		i += size
 	}
+	return response
 }
 
 // runeDisplayWidth returns column width of a rune (1 or 2) for common wide ranges.
