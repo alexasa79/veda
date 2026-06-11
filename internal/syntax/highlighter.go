@@ -7,6 +7,7 @@ import (
 	"strings"
 	tsfish "veda/internal/syntax/treesitter/fish"
 	tslatex "veda/internal/syntax/treesitter/latex"
+	tsmake "veda/internal/syntax/treesitter/make"
 	tstlaplus "veda/internal/syntax/treesitter/tlaplus"
 	"veda/internal/theme"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/smacker/go-tree-sitter/python"
 	tsx "github.com/smacker/go-tree-sitter/typescript/tsx"
 	typescript "github.com/smacker/go-tree-sitter/typescript/typescript"
-	tree_sitter_make "github.com/tree-sitter-grammars/tree-sitter-make/bindings/go"
 )
 
 // TokenType represents different syntax elements
@@ -126,7 +126,7 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 			h.currentLang = "bash"
 			return nil
 		case "Makefile", "makefile", "GNUmakefile", "gnumakefile":
-			h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
+			h.parser.SetLanguage(tsmake.GetLanguage())
 			h.currentLang = "make"
 			return nil
 		}
@@ -164,7 +164,7 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 		h.parser.SetLanguage(python.GetLanguage())
 		h.currentLang = "python"
 	case ".mk", ".mak":
-		h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
+		h.parser.SetLanguage(tsmake.GetLanguage())
 		h.currentLang = "make"
 	case ".tla":
 		h.parser.SetLanguage(tstlaplus.GetLanguage())
@@ -223,7 +223,7 @@ func (h *Highlighter) SetLanguage(language string) error {
 		h.parser.SetLanguage(python.GetLanguage())
 		h.currentLang = "python"
 	case "make":
-		h.parser.SetLanguage(sitter.NewLanguage(tree_sitter_make.Language()))
+		h.parser.SetLanguage(tsmake.GetLanguage())
 		h.currentLang = "make"
 	case "tlaplus":
 		h.parser.SetLanguage(tstlaplus.GetLanguage())
