@@ -142,6 +142,12 @@ func TestShouldSkipFile(t *testing.T) {
 			reason:   "Should include LICENSE files",
 		},
 		{
+			name:     "extensionless script",
+			fileInfo: proxy.FileInfo{Path: "/home/user/deploy", Type: "file"},
+			expected: false,
+			reason:   "Should include extensionless files unless they are known binary names",
+		},
+		{
 			name:     "case insensitive binary extension",
 			fileInfo: proxy.FileInfo{Path: "/home/user/IMAGE.JPG", Type: "file"},
 			expected: true,

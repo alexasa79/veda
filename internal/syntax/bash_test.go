@@ -198,3 +198,31 @@ func TestBashFileDetection(t *testing.T) {
 		}
 	}
 }
+
+func TestShebangFileDetection(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"env python", "#!/usr/bin/env python3\nprint('hi')\n", "python"},
+		{"python path", "#!/opt/tools/python -u\nprint('hi')\n", "python"},
+		{"env bash", "#!/usr/bin/env bash\nset -e\n", "bash"},
+		{"env sh", "#!/usr/bin/env sh\necho hi\n", "bash"},
+		{"env dash with args", "#!/usr/bin/env -S dash -e\necho hi\n", "bash"},
+		{"unknown", "#!/usr/bin/env node\nconsole.log('hi')\n", ""},
+		{"no shebang", "print('hi')\n", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHighlighter()
+			if err := h.SetLanguageFromFileAndContent("script", []byte(tt.content)); err != nil {
+				t.Fatalf("SetLanguageFromFileAndContent failed: %v", err)
+			}
+			if got := h.GetCurrentLanguage(); got != tt.want {
+				t.Fatalf("language = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

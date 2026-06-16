@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -110,8 +111,14 @@ func NewHighlighter() *Highlighter {
 	}
 }
 
-// SetLanguageFromFile sets the language based on file extension
+// SetLanguageFromFile sets the language based on file extension.
 func (h *Highlighter) SetLanguageFromFile(filename string) error {
+	return h.SetLanguageFromFileAndContent(filename, nil)
+}
+
+// SetLanguageFromFileAndContent sets the language based on file name first,
+// then falls back to shebang detection from content.
+func (h *Highlighter) SetLanguageFromFileAndContent(filename string, content []byte) error {
 	ext := strings.ToLower(filepath.Ext(filename))
 
 	// Check for shell scripts without extension (like "bashrc", "profile", etc)
@@ -173,6 +180,10 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 		h.parser.SetLanguage(tslatex.GetLanguage())
 		h.currentLang = "latex"
 	default:
+		if lang := languageFromShebang(content); lang != "" {
+			return h.SetLanguage(lang)
+		}
+
 		// No language set for unknown extensions
 		h.currentLang = ""
 		h.currentTree = nil
@@ -182,6 +193,34 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	}
 
 	return nil
+}
+
+func languageFromShebang(content []byte) string {
+	lineEnd := bytes.IndexByte(content, '\n')
+	if lineEnd < 0 {
+		lineEnd = len(content)
+	}
+	line := strings.ToLower(string(bytes.TrimSpace(content[:lineEnd])))
+	if !strings.HasPrefix(line, "#!") {
+		return ""
+	}
+
+	switch {
+	case strings.Contains(line, "python"):
+		return "python"
+	case strings.Contains(line, "bash"),
+		strings.Contains(line, "/sh"),
+		strings.Contains(line, " sh"),
+		strings.Contains(line, "/zsh"),
+		strings.Contains(line, " zsh"),
+		strings.Contains(line, "/ksh"),
+		strings.Contains(line, " ksh"),
+		strings.Contains(line, "/dash"),
+		strings.Contains(line, " dash"):
+		return "bash"
+	}
+
+	return ""
 }
 
 // GetCurrentLanguage returns the currently set language

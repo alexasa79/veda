@@ -1511,7 +1511,7 @@ func (e *Editor) debugDumpCommand(args []string) error {
 		if b.Highlighter != nil {
 			lang = b.Highlighter.GetCurrentLanguage()
 			if lang == "" {
-				_ = b.Highlighter.SetLanguageFromFile(b.FilePath)
+				_ = b.Highlighter.SetLanguageFromFileAndContent(b.FilePath, []byte(b.Rope.String()))
 				lang = b.Highlighter.GetCurrentLanguage()
 			}
 			if t := b.Highlighter.GetTree(); t != nil {
