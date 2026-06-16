@@ -90,8 +90,9 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 			if filePath == "" {
 				filePath = buf.FilePath
 			}
-			buf.Highlighter.SetLanguageFromFile(filePath)
-			buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
+			content := []byte(buf.Rope.String())
+			buf.Highlighter.SetLanguageFromFileAndContent(filePath, content)
+			buf.Highlighter.ParseFull(content)
 		} else {
 			// No real file path: preserve existing highlighter (e.g., diff @HEAD buffer)
 			// Re-parse content to keep tokens in sync; do not reset language.

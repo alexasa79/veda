@@ -121,6 +121,7 @@ func TestListDirectoryFiltered(t *testing.T) {
 		"README.md",
 		"config.json",
 		"template.j2",
+		"deploy",
 	}
 
 	// Create some unsupported files
@@ -209,7 +210,12 @@ func TestListDirectoryFiltered(t *testing.T) {
 				}
 			}
 
-			// Some files don't have extensions (like Makefile)
+			// Files without extensions are included by the supported filter.
+			if ext == "" {
+				continue
+			}
+
+			// Some known files have dots in their names but are supported by name.
 			if ext != "" && !supportedExts[ext] {
 				// Check if it's a known filename without extension
 				knownFiles := map[string]bool{

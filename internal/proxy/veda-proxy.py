@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.46"
+PROXY_VERSION = "1.0.47"
 
 # Set up logging directory
 from datetime import datetime
@@ -1834,7 +1834,7 @@ class VedaProxy:
                             # Check if file extension or name is supported
                             ext = entry.suffix.lower()
                             name = entry.name
-                            if ext not in supported_extensions and name not in supported_filenames:
+                            if ext and ext not in supported_extensions and name not in supported_filenames:
                                 continue
                             
                         # Create simplified file info for fuzzy listing

@@ -65,8 +65,9 @@ func renderBufferToScreen(e *Editor, buf *buffer.Buffer, sub Screen, viewLine, c
 			}
 		} else if buf.HasFile() {
 			if buf.Highlighter.GetTree() == nil {
-				_ = buf.Highlighter.SetLanguageFromFile(buf.FilePath)
-				buf.Highlighter.ParseFull([]byte(buf.Rope.String()))
+				content := []byte(buf.Rope.String())
+				_ = buf.Highlighter.SetLanguageFromFileAndContent(buf.FilePath, content)
+				buf.Highlighter.ParseFull(content)
 			}
 		}
 	}
