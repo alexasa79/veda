@@ -114,10 +114,11 @@ func TestCursorExactlyAtEdge(t *testing.T) {
 
 	// Now the cursor should be at position availableWidth (after last char)
 	// This is the edge case - cursor at end of line that fills the width
-	// Render should not panic and should clamp cursor to valid screen position
+	// The insertion point after an exactly full line is at the start of the
+	// next visual row.
 	te.render()
 
-	// Check the actual cursor position on screen (after clamping in updateCursor)
+	// Check the actual cursor position on screen.
 	cursorX, cursorY := te.mockScreen.GetCursorPosition()
 	t.Logf("Screen cursor position: x=%d, y=%d (screen width=%d)", cursorX, cursorY, width)
 
@@ -126,5 +127,8 @@ func TestCursorExactlyAtEdge(t *testing.T) {
 	}
 	if cursorX < 0 {
 		t.Errorf("BUG: Screen cursor X %d is negative", cursorX)
+	}
+	if cursorX != gutter || cursorY != 1 {
+		t.Errorf("cursor at (%d,%d), want (%d,1)", cursorX, cursorY, gutter)
 	}
 }
