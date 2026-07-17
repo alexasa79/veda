@@ -143,6 +143,19 @@ func (wc *WrapCalculator) findWrapPoint(line string, start int) int {
 	return bestPos
 }
 
+func (e *Editor) wrapScreenWidth() int {
+	width, _ := e.screen.Size()
+	if _, isWindowScreen := e.screen.(*windowScreen); !isWindowScreen {
+		if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
+			width = e.windows[e.activeWindow].Width
+			if _, isDiff := e.windows[e.activeWindow].View.(*DiffBufferView); isDiff {
+				width = width / 2
+			}
+		}
+	}
+	return width
+}
+
 // CalculateWrappedLines calculates all wrapped lines for the visible portion of the buffer
 func (e *Editor) CalculateWrappedLines() []WrappedLine {
 	t0 := e.perfTracker.Start()
@@ -153,18 +166,7 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		return []WrappedLine{}
 	}
 
-	width, _ := e.screen.Size()
-	// When the screen is not a windowScreen (i.e., we're not in rendering context),
-	// use the active window's width for proper wrapping in multi-window layouts
-	if _, isWindowScreen := e.screen.(*windowScreen); !isWindowScreen {
-		if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
-			width = e.windows[e.activeWindow].Width
-			// DiffBufferView splits the window in half; use pane width for wrapping
-			if _, isDiff := e.windows[e.activeWindow].View.(*DiffBufferView); isDiff {
-				width = width / 2
-			}
-		}
-	}
+	width := e.wrapScreenWidth()
 	gutterWidth := e.CurrentBuffer().LineNumberWidth
 
 	wc := NewWrapCalculator(width, gutterWidth)
@@ -328,9 +330,13 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 				isLastSegment := i == len(wrappedLines)-1 || wrappedLines[i+1].LogicalLineNum != cursorLogicalLine
 				if isLastSegment {
 					// Cursor at end of line
-					visualLine = i
 					// Calculate visual column accounting for tabs
 					visualCol = e.visualWidth(wl.Text) + e.CurrentBuffer().LineNumberWidth
+					width := e.wrapScreenWidth()
+					if visualCol == width {
+						return i + 1, e.CurrentBuffer().LineNumberWidth
+					}
+					visualLine = i
 					return
 				}
 			}
