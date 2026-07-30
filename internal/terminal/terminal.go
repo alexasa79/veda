@@ -24,8 +24,9 @@ type Terminal struct {
 	height int
 
 	// Double buffering
-	frontBuffer []string // What's currently displayed on screen
-	backBuffer  []string // What we're building for next frame
+	frontBuffer   []string // What's currently displayed on screen
+	backBuffer    []string // What we're building for next frame
+	pendingScroll *scrollOperation
 
 	// Cursor state
 	cursorX       int
@@ -46,6 +47,12 @@ type Terminal struct {
 	osc52ResponseCh chan string // Channel to receive OSC 52 responses
 	osc52Waiting    bool        // True when we're waiting for an OSC 52 response
 	osc52Mu         sync.Mutex  // Protects osc52Waiting
+}
+
+type scrollOperation struct {
+	top    int
+	bottom int
+	lines  int // Positive scrolls up; negative scrolls down.
 }
 
 // CursorStyle represents the cursor appearance
@@ -188,6 +195,27 @@ func (t *Terminal) SetLine(y int, line string) {
 	}
 }
 
+// QueueScrollRegion schedules a terminal-side scroll for the next Show call.
+// top and bottom are zero-based, inclusive rows. Positive lines scroll up;
+// negative lines scroll down.
+func (t *Terminal) QueueScrollRegion(top, bottom, lines int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if lines == 0 || top < 0 || bottom >= t.height || top >= bottom {
+		return
+	}
+	count := lines
+	if count < 0 {
+		count = -count
+	}
+	if count > bottom-top {
+		return
+	}
+
+	t.pendingScroll = &scrollOperation{top: top, bottom: bottom, lines: lines}
+}
+
 // SetCursor positions the cursor
 func (t *Terminal) SetCursor(x, y int) {
 	t.mu.Lock()
@@ -230,6 +258,20 @@ func (t *Terminal) Show() {
 	// Hide cursor during screen update
 	output.WriteString("\033[?25l")
 
+	if t.pendingScroll != nil {
+		op := *t.pendingScroll
+		fmt.Fprintf(&output, "\033[%d;%dr", op.top+1, op.bottom+1)
+		if op.lines > 0 {
+			fmt.Fprintf(&output, "\033[%dS", op.lines)
+		} else {
+			fmt.Fprintf(&output, "\033[%dT", -op.lines)
+		}
+		output.WriteString("\033[r")
+		applyScrollToFrontBuffer(t.frontBuffer, op)
+		t.pendingScroll = nil
+		hasChanges = true
+	}
+
 	// Differential rendering - only update changed lines
 	for y := 0; y < t.height && y < len(t.backBuffer); y++ {
 		if t.backBuffer[y] != t.frontBuffer[y] {
@@ -263,6 +305,33 @@ func (t *Terminal) Show() {
 	if hasChanges || t.cursorVisible {
 		t.tty.Write(output.Bytes())
 		t.tty.Sync() // Force flush
+	}
+}
+
+func applyScrollToFrontBuffer(front []string, op scrollOperation) {
+	if op.lines == 0 || op.top < 0 || op.bottom >= len(front) || op.top >= op.bottom {
+		return
+	}
+
+	count := op.lines
+	if count < 0 {
+		count = -count
+	}
+	if count > op.bottom-op.top {
+		return
+	}
+
+	if op.lines > 0 {
+		copy(front[op.top:op.bottom-count+1], front[op.top+count:op.bottom+1])
+		for row := op.bottom - count + 1; row <= op.bottom; row++ {
+			front[row] = "\x00"
+		}
+		return
+	}
+
+	copy(front[op.top+count:op.bottom+1], front[op.top:op.bottom-count+1])
+	for row := op.top; row < op.top+count; row++ {
+		front[row] = "\x00"
 	}
 }
 
