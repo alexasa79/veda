@@ -21,6 +21,7 @@ type ScreenAdapter struct {
 	// Line rendering cache
 	renderedLines []string // Cache of rendered ANSI strings
 	lineHashes    []uint64 // Hash of cell content for change detection
+	hasShown      bool
 }
 
 // shouldLogANSI returns true if we want to emit TRACE logs for this style
@@ -97,6 +98,7 @@ func (s *ScreenAdapter) Clear() {
 			s.renderedLines[y] = ""
 		}
 	}
+	s.hasShown = false
 }
 
 // Show updates the screen
@@ -110,26 +112,31 @@ func (s *ScreenAdapter) Show() {
 		s.resizeCells(width, height)
 	}
 
-	// Count non-empty lines
-	nonEmptyCount := 0
+	currentHashes := make([]uint64, height)
+	for y := 0; y < height && y < len(s.cells); y++ {
+		currentHashes[y] = s.hashLine(y, width)
+	}
 
-	cacheHits := 0
-	cacheMisses := 0
+	// The editor reserves the last row for its status bar. If the visible
+	// content is the previous frame shifted by one row, let the terminal move
+	// those cells locally instead of retransmitting every row.
+	if s.hasShown && height > 2 {
+		if op, ok := detectScrollOperation(currentHashes, s.lineHashes, height-2); ok {
+			s.term.QueueScrollRegion(op.top, op.bottom, op.lines)
+		}
+	}
 
 	for y := 0; y < height && y < len(s.cells); y++ {
-		// Compute hash of current line
-		currentHash := s.hashLine(y, width)
+		currentHash := currentHashes[y]
 
 		// Check if we need to re-render this line
 		var line string
 		if y < len(s.lineHashes) && currentHash == s.lineHashes[y] && y < len(s.renderedLines) {
 			// Use cached rendered line
 			line = s.renderedLines[y]
-			cacheHits++
 		} else {
 			// Re-render the line
 			line = s.renderLine(y, width)
-			cacheMisses++
 			// Update cache
 			if y < len(s.renderedLines) {
 				s.renderedLines[y] = line
@@ -142,21 +149,85 @@ func (s *ScreenAdapter) Show() {
 		if strings.Contains(line, "\x1b[94m") {
 			LL.Trace("ANSI.Show y=%d line=%q", y, line)
 		}
-
-		// Check if line has any non-space content
-		hasContent := false
-		for x := 0; x < width && x < len(s.cells[y]); x++ {
-			if s.cells[y][x].ch != ' ' && s.cells[y][x].ch != 0 {
-				hasContent = true
-				break
-			}
-		}
-		if hasContent {
-			nonEmptyCount++
-		}
 	}
 
 	s.term.Show()
+	s.hasShown = true
+}
+
+const minimumScrollMatches = 3
+
+// detectScrollOperation finds the longest run that moved by one row between
+// frames. lastRow is inclusive; rows below it, such as the status bar, are not
+// considered scrollable.
+func detectScrollOperation(current, previous []uint64, lastRow int) (scrollOperation, bool) {
+	if len(current) != len(previous) || len(current) == 0 {
+		return scrollOperation{}, false
+	}
+	if lastRow >= len(current) {
+		lastRow = len(current) - 1
+	}
+	if lastRow < minimumScrollMatches {
+		return scrollOperation{}, false
+	}
+
+	type candidate struct {
+		start   int
+		end     int
+		matches int
+		changed int
+		lines   int
+	}
+
+	findLongest := func(lines int) candidate {
+		best := candidate{lines: lines}
+		start := 0
+		end := lastRow - 1
+		if lines < 0 {
+			start = 1
+			end = lastRow
+		}
+
+		var run candidate
+		run.lines = lines
+		for row := start; row <= end; row++ {
+			oldRow := row + lines
+			if current[row] == previous[oldRow] {
+				if run.matches == 0 {
+					run.start = row
+				}
+				run.end = row
+				run.matches++
+				if current[row] != previous[row] {
+					run.changed++
+				}
+				continue
+			}
+			if run.matches > best.matches || (run.matches == best.matches && run.changed > best.changed) {
+				best = run
+			}
+			run = candidate{lines: lines}
+		}
+		if run.matches > best.matches || (run.matches == best.matches && run.changed > best.changed) {
+			best = run
+		}
+		return best
+	}
+
+	up := findLongest(1)
+	down := findLongest(-1)
+	best := up
+	if down.matches > best.matches || (down.matches == best.matches && down.changed > best.changed) {
+		best = down
+	}
+	if best.matches < minimumScrollMatches || best.changed == 0 {
+		return scrollOperation{}, false
+	}
+
+	if best.lines > 0 {
+		return scrollOperation{top: best.start, bottom: best.end + 1, lines: 1}, true
+	}
+	return scrollOperation{top: best.start - 1, bottom: best.end, lines: -1}, true
 }
 
 // Size returns the screen dimensions
@@ -494,6 +565,7 @@ func (s *ScreenAdapter) resizeCells(width, height int) {
 	s.cells = newCells
 	s.renderedLines = newRenderedLines
 	s.lineHashes = newLineHashes
+	s.hasShown = false
 }
 
 // hashLine computes a hash of the cell content for a line
