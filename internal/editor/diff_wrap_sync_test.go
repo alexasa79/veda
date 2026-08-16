@@ -133,3 +133,51 @@ func TestDiffViewLongLineNoWrap(t *testing.T) {
 		}
 	}
 }
+
+func TestDiffViewMovementPastAsymmetricWrap(t *testing.T) {
+	te := NewTestEditorWithContent(164, 24, "")
+
+	leftLine := "\tif state == nil || initialPositions <= 0 || a.Account <= 0 || state.ATR14 <= 0 {"
+	rightLine := "\tif state == nil || openPositions <= 0 || a.Account <= 0 || state.ATR14 <= 0 {"
+	leftContent := leftLine + "\n\treturn 0"
+	rightContent := rightLine + "\n\treturn 0"
+	diffResult := computeDiff(leftContent, rightContent)
+
+	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
+	headBuffer.IsReadOnly = true
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "test.go@current", "test.go@current", config.IndentTabs, 4)
+	currentBuffer.DiffHints = diffResult.RightLines
+
+	te.buffers[headBuffer.FilePath] = headBuffer
+	te.buffers[currentBuffer.FilePath] = currentBuffer
+	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
+
+	paneWidth := te.windows[te.activeWindow].Width / 2
+	leftWraps := NewWrapCalculator(paneWidth, headBuffer.LineNumberWidth).WrapLine(leftLine, 0)
+	rightWraps := NewWrapCalculator(paneWidth, currentBuffer.LineNumberWidth).WrapLine(rightLine, 0)
+	if len(leftWraps) <= len(rightWraps) {
+		t.Fatalf("test requires left line to wrap more than right: left=%d right=%d", len(leftWraps), len(rightWraps))
+	}
+
+	currentBuffer.CursorX = len(rightLine) - 1
+	if err := te.ExecuteCommand("down"); err != nil {
+		t.Fatalf("move down failed: %v", err)
+	}
+
+	if got := currentBuffer.CursorIterator.LineNumber(); got != 1 {
+		t.Fatalf("move down was trapped on asymmetrically wrapped line: got line %d, want 1", got)
+	}
+
+	currentBuffer.CursorX = 0
+	te.desiredColumn = -1
+	if err := te.ExecuteCommand("up"); err != nil {
+		t.Fatalf("move up failed: %v", err)
+	}
+	if got := currentBuffer.CursorIterator.LineNumber(); got != 0 {
+		t.Fatalf("move up did not cross asymmetric wrap padding: got line %d, want 0", got)
+	}
+	if got := currentBuffer.CursorX; got != 0 {
+		t.Fatalf("move up used padding position instead of desired column: got column %d, want 0", got)
+	}
+}

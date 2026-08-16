@@ -5,6 +5,10 @@ import (
 	"veda/internal/commands"
 )
 
+func isWrapPadding(line WrappedLine) bool {
+	return !line.IsFirstLine && line.StartChar == line.EndChar && line.Text == ""
+}
+
 // Movement commands
 func (e *Editor) moveUp(args []string) error {
 	t0 := e.perfTracker.Start()
@@ -19,20 +23,27 @@ func (e *Editor) moveUp(args []string) error {
 		e.desiredColumn = visualCol
 	}
 
+	wrappedLines := e.CalculateWrappedLines()
+
 	if visualLine > 0 {
 		// Map to new position one visual line up, using desired column
 		newVisualLine := visualLine - 1
-		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
+		for newVisualLine >= 0 && isWrapPadding(wrappedLines[newVisualLine]) {
+			newVisualLine--
+		}
+		if newVisualLine >= 0 {
+			newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
 
-		// Update cursor position
-		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLogicalLine)
-		e.CurrentBuffer().CursorX = newCharPos
+			// Update cursor position
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLogicalLine)
+			e.CurrentBuffer().CursorX = newCharPos
 
-		// Ensure cursor is within bounds for normal mode
-		if e.mode == commands.NormalMode && !e.CurrentBuffer().CursorIterator.IsEOF() {
-			line := e.CurrentBuffer().CursorIterator.Line()
-			if len(line) > 0 && e.CurrentBuffer().CursorX >= len(line) {
-				e.CurrentBuffer().CursorX = len(line) - 1 // Place on last character
+			// Ensure cursor is within bounds for normal mode
+			if e.mode == commands.NormalMode && !e.CurrentBuffer().CursorIterator.IsEOF() {
+				line := e.CurrentBuffer().CursorIterator.Line()
+				if len(line) > 0 && e.CurrentBuffer().CursorX >= len(line) {
+					e.CurrentBuffer().CursorX = len(line) - 1 // Place on last character
+				}
 			}
 		}
 	}
@@ -63,17 +74,22 @@ func (e *Editor) moveDown(args []string) error {
 	if visualLine < len(wrappedLines)-1 {
 		// Map to new position one visual line down, using desired column
 		newVisualLine := visualLine + 1
-		newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
+		for newVisualLine < len(wrappedLines) && isWrapPadding(wrappedLines[newVisualLine]) {
+			newVisualLine++
+		}
+		if newVisualLine < len(wrappedLines) {
+			newLogicalLine, newCharPos := e.MapVisualToLogical(newVisualLine, e.desiredColumn)
 
-		// Update cursor position
-		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLogicalLine)
-		e.CurrentBuffer().CursorX = newCharPos
+			// Update cursor position
+			e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), newLogicalLine)
+			e.CurrentBuffer().CursorX = newCharPos
 
-		// Ensure cursor is within bounds for normal mode
-		if e.mode == commands.NormalMode && !e.CurrentBuffer().CursorIterator.IsEOF() {
-			line := e.CurrentBuffer().CursorIterator.Line()
-			if len(line) > 0 && e.CurrentBuffer().CursorX >= len(line) {
-				e.CurrentBuffer().CursorX = len(line) - 1 // Place on last character
+			// Ensure cursor is within bounds for normal mode
+			if e.mode == commands.NormalMode && !e.CurrentBuffer().CursorIterator.IsEOF() {
+				line := e.CurrentBuffer().CursorIterator.Line()
+				if len(line) > 0 && e.CurrentBuffer().CursorX >= len(line) {
+					e.CurrentBuffer().CursorX = len(line) - 1 // Place on last character
+				}
 			}
 		}
 	}
