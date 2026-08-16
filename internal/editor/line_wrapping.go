@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"unicode/utf8"
 	"veda/internal/buffer"
 )
 
@@ -30,6 +31,25 @@ func NewWrapCalculator(screenWidth, gutterWidth int) *WrapCalculator {
 	}
 }
 
+func wrapRuneWidth(r rune) int {
+	if r == '\t' {
+		return 4
+	}
+	width := runeDisplayWidth(r)
+	if width < 1 {
+		return 1
+	}
+	return width
+}
+
+func wrapTextWidth(text string) int {
+	width := 0
+	for _, r := range text {
+		width += wrapRuneWidth(r)
+	}
+	return width
+}
+
 // WrapLine wraps a single logical line into multiple visual lines
 func (wc *WrapCalculator) WrapLine(line string, logicalLineNum int) []WrappedLine {
 	if wc.availableWidth <= 0 {
@@ -45,7 +65,7 @@ func (wc *WrapCalculator) WrapLine(line string, logicalLineNum int) []WrappedLin
 	}
 
 	// If line fits within available width, return as single line
-	if len(line) <= wc.availableWidth {
+	if wrapTextWidth(line) <= wc.availableWidth {
 		return []WrappedLine{{
 			LogicalLineNum: logicalLineNum,
 			VisualLineNum:  0,
@@ -106,41 +126,47 @@ func (wc *WrapCalculator) findWrapPoint(line string, start int) int {
 		return len(line)
 	}
 
-	// Maximum position we can go to
-	maxPos := start + wc.availableWidth
+	// Find the last byte position that fits in the available terminal cells.
+	maxPos := start
+	width := 0
+	for maxPos < len(line) {
+		r, size := utf8.DecodeRuneInString(line[maxPos:])
+		runeWidth := wrapRuneWidth(r)
+		if width+runeWidth > wc.availableWidth {
+			break
+		}
+		width += runeWidth
+		maxPos += size
+	}
+	if maxPos == start {
+		_, size := utf8.DecodeRuneInString(line[start:])
+		return start + size
+	}
 	if maxPos >= len(line) {
 		return len(line)
 	}
 
 	// Look backwards from maxPos to find a word boundary
-	bestPos := maxPos
-	foundSpace := false
-
-	for pos := maxPos; pos > start; pos-- {
-		if pos < len(line) && line[pos] == ' ' {
+	for pos := maxPos; pos > start; pos = prevRuneStart(line, pos) {
+		currentRune, _ := utf8.DecodeRuneInString(line[pos:])
+		if currentRune == ' ' {
 			// Found a space, this is a good wrap point
-			bestPos = pos
-			foundSpace = true
-			break
+			return pos
 		}
 
 		// Check if we're at a word boundary (transition between word and non-word)
-		if pos > start && pos < len(line) {
-			prevIsWord := isWordChar(rune(line[pos-1]))
-			currIsWord := isWordChar(rune(line[pos]))
+		previousPos := prevRuneStart(line, pos)
+		previousRune, _ := utf8.DecodeRuneInString(line[previousPos:pos])
+		if pos < len(line) {
+			prevIsWord := isWordChar(previousRune)
+			currIsWord := isWordChar(currentRune)
 			if prevIsWord != currIsWord {
-				bestPos = pos
-				break
+				return pos
 			}
 		}
 	}
 
-	// If we didn't find any good wrap point, just break at the maximum position
-	if !foundSpace && bestPos == maxPos {
-		return maxPos
-	}
-
-	return bestPos
+	return maxPos
 }
 
 func (e *Editor) wrapScreenWidth() int {

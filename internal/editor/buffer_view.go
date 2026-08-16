@@ -202,7 +202,6 @@ func (v *DiffBufferView) SyncCursors() {
 
 	inactive.CursorIterator = buffer.NewBufferIteratorAtLine(inactive, cursorLine)
 	inactive.ViewIterator = buffer.NewBufferIteratorAtLine(inactive, viewLine)
-	inactive.CursorX = active.CursorX
 }
 
 func (v *DiffBufferView) CursorRegion(windowWidth int) (int, int) {

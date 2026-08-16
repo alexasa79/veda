@@ -8,6 +8,20 @@ import (
 	"veda/internal/config"
 )
 
+func setupWrapTestDiffView(te *TestEditor, leftContent, rightContent string) (*DiffBufferView, *buffer.Buffer, *buffer.Buffer) {
+	diffResult := computeDiff(leftContent, rightContent)
+	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "wrap-test.go@HEAD", "wrap-test.go@HEAD", config.IndentTabs, 4)
+	headBuffer.IsReadOnly = true
+	headBuffer.DiffHints = diffResult.LeftLines
+	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "wrap-test.go@current", "wrap-test.go@current", config.IndentTabs, 4)
+	currentBuffer.DiffHints = diffResult.RightLines
+
+	te.buffers[headBuffer.FilePath] = headBuffer
+	te.buffers[currentBuffer.FilePath] = currentBuffer
+	diffView := te.SetupDiffView(headBuffer, currentBuffer, "wrap-test.go")
+	return diffView, headBuffer, currentBuffer
+}
+
 // TestDiffViewLineWrapSync tests that long lines wrap correctly in diff view
 // and both sides stay in sync. The bug is that lines on the right side don't
 // wrap when they're too wide for the window, causing left and right to go
@@ -137,21 +151,11 @@ func TestDiffViewLongLineNoWrap(t *testing.T) {
 func TestDiffViewMovementPastAsymmetricWrap(t *testing.T) {
 	te := NewTestEditorWithContent(164, 24, "")
 
-	leftLine := "\tif state == nil || initialPositions <= 0 || a.Account <= 0 || state.ATR14 <= 0 {"
-	rightLine := "\tif state == nil || openPositions <= 0 || a.Account <= 0 || state.ATR14 <= 0 {"
+	leftLine := "\tif state == nil || availablePositionCount <= 0 || account <= 0 || volatility <= 0 {"
+	rightLine := "\tif state == nil || count <= 0 || account <= 0 || volatility <= 0 {"
 	leftContent := leftLine + "\n\treturn 0"
 	rightContent := rightLine + "\n\treturn 0"
-	diffResult := computeDiff(leftContent, rightContent)
-
-	headBuffer := buffer.NewBuffer(createBufferContent(diffResult.LeftLines), "test.go@HEAD", "test.go@HEAD", config.IndentTabs, 4)
-	headBuffer.IsReadOnly = true
-	headBuffer.DiffHints = diffResult.LeftLines
-	currentBuffer := buffer.NewBuffer(createBufferContent(diffResult.RightLines), "test.go@current", "test.go@current", config.IndentTabs, 4)
-	currentBuffer.DiffHints = diffResult.RightLines
-
-	te.buffers[headBuffer.FilePath] = headBuffer
-	te.buffers[currentBuffer.FilePath] = currentBuffer
-	te.SetupDiffView(headBuffer, currentBuffer, "test.go")
+	_, headBuffer, currentBuffer := setupWrapTestDiffView(te, leftContent, rightContent)
 
 	paneWidth := te.windows[te.activeWindow].Width / 2
 	leftWraps := NewWrapCalculator(paneWidth, headBuffer.LineNumberWidth).WrapLine(leftLine, 0)
@@ -179,5 +183,40 @@ func TestDiffViewMovementPastAsymmetricWrap(t *testing.T) {
 	}
 	if got := currentBuffer.CursorX; got != 0 {
 		t.Fatalf("move up used padding position instead of desired column: got column %d, want 0", got)
+	}
+}
+
+func TestDiffViewRendersTrailingBraceAfterTabWrap(t *testing.T) {
+	line := "\tif ready && capacity > 0 {"
+	paneWidth := len(line) + 4
+	te := NewTestEditorWithContent(paneWidth*2, 10, "")
+	setupWrapTestDiffView(te, line, line)
+
+	te.render()
+
+	foundBrace := false
+	for y := 0; y < 9; y++ {
+		for x := paneWidth; x < paneWidth*2; x++ {
+			if ch, _ := te.mockScreen.GetCell(x, y); ch == '{' {
+				foundBrace = true
+			}
+		}
+	}
+	if !foundBrace {
+		t.Fatal("right diff pane clipped trailing { from tab-indented line")
+	}
+}
+
+func TestDiffViewEndOfLineDoesNotDesyncWrappedPanes(t *testing.T) {
+	const paneWidth = 44
+	te := NewTestEditorWithContent(paneWidth*2, 10, "")
+	leftLine := strings.Repeat("a", 30)
+	rightLine := strings.Repeat("b", 20) + " " + strings.Repeat("c", 40)
+	diffView, headBuffer, _ := setupWrapTestDiffView(te, leftLine, rightLine)
+
+	diffView.ActivePane = 0
+	te.switchToBuffer(headBuffer)
+	if err := te.ExecuteCommand("end-of-line"); err != nil {
+		t.Fatalf("end-of-line failed: %v", err)
 	}
 }
