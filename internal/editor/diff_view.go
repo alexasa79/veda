@@ -128,8 +128,12 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		return fmt.Errorf("proxy manager not available")
 	}
 
-	filePath := e.CurrentBuffer().FilePath
-	currentContent := e.CurrentBuffer().Rope.String()
+	originalBuffer := e.CurrentBuffer()
+	filePath := originalBuffer.FilePath
+	currentContent := originalBuffer.Rope.String()
+	currentCursorLine := originalBuffer.CursorIterator.LineNumber()
+	currentCursorX := originalBuffer.CursorX
+	cursorVisualLine, _ := e.GetCursorVisualPosition()
 	LL.Debug("StartDiffViewForCurrentBuffer: File=%s, CurrentContentLen=%d", filePath, len(currentContent))
 
 	// Get the previous version from git
@@ -144,6 +148,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	diffResult := e.computeDiffViaProxy(previousContent, currentContent)
 	alignedHeadContent := createBufferContent(diffResult.LeftLines)
 	alignedCurrentContent := createBufferContent(diffResult.RightLines)
+	diffCursorLine := rightDiffRow(diffResult.RightLines, currentCursorLine)
 
 	LL.Debug("StartDiffViewForCurrentBuffer: Aligned content created - Head lines: %d, Current lines: %d",
 		len(diffResult.LeftLines), len(diffResult.RightLines))
@@ -184,32 +189,29 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 
 	headBuffer.DiffHints = diffResult.LeftLines
 
-	// Get current cursor position from the original buffer
-	currentCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
-
 	// Create or update current buffer copy
 	if currentBuffer, exists := e.buffers[currentBufferName]; exists {
 		// Update existing buffer
 		currentBuffer.Rope = buffer.NewRopeFromString(alignedCurrentContent)
-		currentBuffer.CursorX = e.CurrentBuffer().CursorX
-		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+		currentBuffer.CursorX = currentCursorX
+		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, diffCursorLine)
+		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, diffCursorLine)
 		currentBuffer.BufferName = currentBufferName
 		currentBuffer.RealPath = filePath
 		// Share GitChanges with original buffer so gutter reflects staging
-		currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
+		currentBuffer.GitChanges = originalBuffer.GitChanges
 	} else {
 		// Create new current buffer copy
 		currentBuffer := buffer.NewBuffer(alignedCurrentContent, currentBufferName, currentBufferName, e.config.DefaultIndentType, e.config.DefaultIndentWidth)
 		currentBuffer.IsReadOnly = false
 		currentBuffer.IsInternal = false // Can be moved between windows
-		currentBuffer.CursorX = e.CurrentBuffer().CursorX
-		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
-		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, currentCursorLine)
+		currentBuffer.CursorX = currentCursorX
+		currentBuffer.ViewIterator = buffer.NewBufferIteratorAtLine(currentBuffer, diffCursorLine)
+		currentBuffer.CursorIterator = buffer.NewBufferIteratorAtLine(currentBuffer, diffCursorLine)
 		currentBuffer.BufferName = currentBufferName
 		currentBuffer.RealPath = filePath
 		// Share GitChanges with original buffer so gutter reflects staging
-		currentBuffer.GitChanges = e.CurrentBuffer().GitChanges
+		currentBuffer.GitChanges = originalBuffer.GitChanges
 		e.buffers[currentBufferName] = currentBuffer
 		e.bufferOrder = append(e.bufferOrder, currentBufferName)
 	}
@@ -259,9 +261,13 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	win.addBufferToWindow(headBuffer)
 	win.addBufferToWindow(currentBuffer)
 	e.switchToBuffer(currentBuffer)
+	e.preserveDiffCursorVisualLine(cursorVisualLine)
 
 	// Sync cursors between panes
 	diffView.SyncCursors()
+	win.ViewLine = currentBuffer.ViewIterator.LineNumber()
+	win.CursorLine = currentBuffer.CursorIterator.LineNumber()
+	win.CursorX = currentBuffer.CursorX
 
 	LL.Debug("StartDiffViewForCurrentBuffer: Diff view setup complete")
 
