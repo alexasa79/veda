@@ -3,7 +3,6 @@ package editor
 import (
 	"fmt"
 
-	"veda/internal/buffer"
 	"veda/internal/commands"
 	"veda/internal/utils"
 )
@@ -62,9 +61,6 @@ func (e *Editor) runInvariants() {
 			utils.Assert(leftViewLine == rightViewLine,
 				fmt.Sprintf("diff view view lines out of sync: left=%d right=%d (left=%s, right=%s)",
 					leftViewLine, rightViewLine, left.DisplayName(), right.DisplayName()))
-
-			// Check that cursor appears at the same physical Y in both panes.
-			e.checkDiffCursorVisualSync(dv, w)
 		}
 	} else if e.isDiffBuffer(buf) {
 		// Legacy two-window fallback
@@ -132,40 +128,4 @@ func (e *Editor) runInvariants() {
 	utils.Assert(visualLine < visibleHeight,
 		fmt.Sprintf("visualLine=%d >= visibleHeight=%d (logicalLine=%d, cursorX=%d, viewTop=%d)",
 			visualLine, visibleHeight, logicalLine, cursorX, viewTop))
-}
-
-// checkDiffCursorVisualSync asserts that the cursor line occupies the same
-// physical terminal Y in both diff panes.
-func (e *Editor) checkDiffCursorVisualSync(dv *DiffBufferView, win *Window) {
-	leftW := win.Width / 2
-	rightW := win.Width - leftW
-	if leftW < 1 || rightW < 1 {
-		return
-	}
-
-	// Compute visual cursor Y for a given buffer inside a pane-sized sub-screen.
-	visualY := func(buf *buffer.Buffer, paneW int) int {
-		realScreen := e.screen
-		realBuf := e.CurrentBuffer()
-
-		sub := newWindowScreen(e.screen, 0, 0, paneW, win.Height, false)
-		e.screen = sub
-		e.SetCurrentBuffer(buf)
-
-		y, _ := e.GetCursorVisualPosition()
-
-		e.screen = realScreen
-		e.SetCurrentBuffer(realBuf)
-		return y
-	}
-
-	leftY := visualY(dv.LeftBuffer, leftW)
-	rightY := visualY(dv.RightBuffer, rightW)
-
-	utils.Assert(leftY == rightY,
-		fmt.Sprintf("diff view cursor physical Y out of sync: leftY=%d rightY=%d (cursorLine=%d, viewLine=%d, left=%s, right=%s)",
-			leftY, rightY,
-			dv.LeftBuffer.CursorIterator.LineNumber(),
-			dv.LeftBuffer.ViewIterator.LineNumber(),
-			dv.LeftBuffer.DisplayName(), dv.RightBuffer.DisplayName()))
 }

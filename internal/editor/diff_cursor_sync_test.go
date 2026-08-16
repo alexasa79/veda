@@ -116,6 +116,9 @@ func TestDiffView_CursorSynchronization(t *testing.T) {
 
 		// X positions are deliberately NOT synchronized (content may differ)
 		// This is expected behavior as confirmed by user requirements
+		if rightX == leftX {
+			t.Errorf("X cursor positions should remain independent: right=%d, left=%d", rightX, leftX)
+		}
 	})
 
 	t.Run("scrolling past screen height synchronizes both panes", func(t *testing.T) {
