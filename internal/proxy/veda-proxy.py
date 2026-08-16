@@ -30,7 +30,7 @@ import time
 import argparse
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.47"
+PROXY_VERSION = "1.0.48"
 
 # Set up logging directory
 from datetime import datetime
@@ -1515,12 +1515,15 @@ class VedaProxy:
             if right_lines and right_lines[-1] == '':
                 right_lines = right_lines[:-1]
 
-            sm = difflib.SequenceMatcher(a=left_lines, b=right_lines, autojunk=False)
+            left_keys = [' '.join(line.split()) for line in left_lines]
+            right_keys = [' '.join(line.split()) for line in right_lines]
+            sm = difflib.SequenceMatcher(a=left_keys, b=right_keys, autojunk=False)
             aligned: List[Dict[str, str]] = []
             for tag, i1, i2, j1, j2 in sm.get_opcodes():
                 if tag == 'equal':
                     for ai, bi in zip(range(i1, i2), range(j1, j2)):
-                        aligned.append({'tag': 'equal', 'left': left_lines[ai], 'right': right_lines[bi]})
+                        line_tag = 'equal' if left_lines[ai] == right_lines[bi] else 'replace'
+                        aligned.append({'tag': line_tag, 'left': left_lines[ai], 'right': right_lines[bi]})
                 elif tag == 'delete':
                     for ai in range(i1, i2):
                         aligned.append({'tag': 'delete', 'left': left_lines[ai], 'right': ''})
