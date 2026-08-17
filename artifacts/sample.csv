@@ -1,0 +1,6 @@
+name,age,city,note
+Alice Nguyen,31,Boston,Prefers tea
+"Rivera, Mateo",28,"New York, NY","Said ""hello"" on arrival"
+Zoë Martin,42,Montréal,Unicode names and cities
+Sam Patel,,Chicago,Age intentionally left blank
+Jun Ito,35,Tokyo,"Contains a comma, inside the note"

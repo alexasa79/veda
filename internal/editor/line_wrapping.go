@@ -191,6 +191,11 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		e.perfTracker.ReportSince("CalculateWrappedLines", t0)
 		return []WrappedLine{}
 	}
+	if e.csvPresentationActive() {
+		wrapped := e.calculateCSVLines()
+		e.perfTracker.ReportSince("wrapping.CalculateWrappedLines", t0)
+		return wrapped
+	}
 
 	width := e.wrapScreenWidth()
 	gutterWidth := e.CurrentBuffer().LineNumberWidth
@@ -330,6 +335,9 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 		e.perfTracker.ReportSince("GetCursorVisualPosition", t0)
 		return 0, 0
 	}
+	if e.csvPresentationActive() {
+		return e.csvCursorVisualPosition()
+	}
 
 	// Calculate all visible wrapped lines
 	wrappedLines := e.CalculateWrappedLines()
@@ -437,6 +445,10 @@ func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, cha
 
 	wl := wrappedLines[visualLine]
 	logicalLine = wl.LogicalLineNum
+	if e.csvPresentationActive() {
+		textCol := max(0, visualCol-e.CurrentBuffer().LineNumberWidth)
+		return logicalLine, e.csvTable().sourceOffset(logicalLine, textCol)
+	}
 
 	// Convert visual column to character position
 	textCol := visualCol - e.CurrentBuffer().LineNumberWidth

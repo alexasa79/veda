@@ -422,6 +422,7 @@ func (e *Editor) closeBuffer(args []string) error {
 		e.bufferOrder = removeFromSlice(e.bufferOrder, currentPath)
 		// Drop any per-buffer virtual cursors for this buffer
 		delete(e.virtualCursorsByBuffer, cur)
+		delete(e.csvRenderCaches, cur)
 	}
 
 	return nil

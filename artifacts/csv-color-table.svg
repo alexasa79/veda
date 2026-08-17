@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="650" viewBox="0 0 1080 650">
+  <rect width="1080" height="650" fill="#1b1d1e"/>
+  <style>
+    text { fill: #f8f8f2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .title { font-size: 24px; font-weight: bold; }
+    .subtitle { fill: #a8adb0; font-size: 14px; }
+    .header { font-size: 16px; font-weight: bold; }
+    .label { font-size: 15px; }
+    .hex { fill: #d7d9d5; font-size: 13px; }
+    .swatch { stroke: #596064; stroke-width: 1; }
+  </style>
+
+  <text x="36" y="42" class="title">CSV column background candidates</text>
+  <text x="36" y="68" class="subtitle">Rendered over Monokai #1b1d1e. Choose two cells, for example “Azure 15% + Indigo 15%”.</text>
+
+  <text x="36" y="112" class="header">Shade</text>
+  <text x="270" y="112" class="header">10% tint</text>
+  <text x="540" y="112" class="header">15% tint</text>
+  <text x="810" y="112" class="header">20% tint</text>
+
+  <text x="36" y="157" class="label">Sky</text>
+  <text x="36" y="177" class="hex">target #3b82f6</text>
+  <rect x="270" y="128" width="230" height="58" rx="4" fill="#1e2733" class="swatch"/>
+  <text x="286" y="163" class="label">#1e2733</text>
+  <rect x="540" y="128" width="230" height="58" rx="4" fill="#1f2c3e" class="swatch"/>
+  <text x="556" y="163" class="label">#1f2c3e</text>
+  <rect x="810" y="128" width="230" height="58" rx="4" fill="#213149" class="swatch"/>
+  <text x="826" y="163" class="label">#213149</text>
+
+  <text x="36" y="221" class="label">Azure</text>
+  <text x="36" y="241" class="hex">target #0ea5e9</text>
+  <rect x="270" y="192" width="230" height="58" rx="4" fill="#192a32" class="swatch"/>
+  <text x="286" y="227" class="label">#192a32</text>
+  <rect x="540" y="192" width="230" height="58" rx="4" fill="#19313c" class="swatch"/>
+  <text x="556" y="227" class="label">#19313c</text>
+  <rect x="810" y="192" width="230" height="58" rx="4" fill="#183846" class="swatch"/>
+  <text x="826" y="227" class="label">#183846</text>
+
+  <text x="36" y="285" class="label">Indigo</text>
+  <text x="36" y="305" class="hex">target #6366f1</text>
+  <rect x="270" y="256" width="230" height="58" rx="4" fill="#222433" class="swatch"/>
+  <text x="286" y="291" class="label">#222433</text>
+  <rect x="540" y="256" width="230" height="58" rx="4" fill="#25273d" class="swatch"/>
+  <text x="556" y="291" class="label">#25273d</text>
+  <rect x="810" y="256" width="230" height="58" rx="4" fill="#292b48" class="swatch"/>
+  <text x="826" y="291" class="label">#292b48</text>
+
+  <text x="36" y="349" class="label">Cobalt</text>
+  <text x="36" y="369" class="hex">target #2563eb</text>
+  <rect x="270" y="320" width="230" height="58" rx="4" fill="#1c2432" class="swatch"/>
+  <text x="286" y="355" class="label">#1c2432</text>
+  <rect x="540" y="320" width="230" height="58" rx="4" fill="#1c273c" class="swatch"/>
+  <text x="556" y="355" class="label">#1c273c</text>
+  <rect x="810" y="320" width="230" height="58" rx="4" fill="#1d2b47" class="swatch"/>
+  <text x="826" y="355" class="label">#1d2b47</text>
+
+  <text x="36" y="413" class="label">Cyan</text>
+  <text x="36" y="433" class="hex">target #06b6d4</text>
+  <rect x="270" y="384" width="230" height="58" rx="4" fill="#182c30" class="swatch"/>
+  <text x="286" y="419" class="label">#182c30</text>
+  <rect x="540" y="384" width="230" height="58" rx="4" fill="#173339" class="swatch"/>
+  <text x="556" y="419" class="label">#173339</text>
+  <rect x="810" y="384" width="230" height="58" rx="4" fill="#163b42" class="swatch"/>
+  <text x="826" y="419" class="label">#163b42</text>
+
+  <text x="36" y="477" class="label">Navy</text>
+  <text x="36" y="497" class="hex">target #1e40af</text>
+  <rect x="270" y="448" width="230" height="58" rx="4" fill="#1b202c" class="swatch"/>
+  <text x="286" y="483" class="label">#1b202c</text>
+  <rect x="540" y="448" width="230" height="58" rx="4" fill="#1b2233" class="swatch"/>
+  <text x="556" y="483" class="label">#1b2233</text>
+  <rect x="810" y="448" width="230" height="58" rx="4" fill="#1b243b" class="swatch"/>
+  <text x="826" y="483" class="label">#1b243b</text>
+
+  <text x="36" y="541" class="label">Periwinkle</text>
+  <text x="36" y="561" class="hex">target #818cf8</text>
+  <rect x="270" y="512" width="230" height="58" rx="4" fill="#252833" class="swatch"/>
+  <text x="286" y="547" class="label">#252833</text>
+  <rect x="540" y="512" width="230" height="58" rx="4" fill="#2a2d3e" class="swatch"/>
+  <text x="556" y="547" class="label">#2a2d3e</text>
+  <rect x="810" y="512" width="230" height="58" rx="4" fill="#2f3349" class="swatch"/>
+  <text x="826" y="547" class="label">#2f3349</text>
+
+  <text x="36" y="605" class="label">Steel</text>
+  <text x="36" y="625" class="hex">target #4682b4</text>
+  <rect x="270" y="576" width="230" height="58" rx="4" fill="#1f272d" class="swatch"/>
+  <text x="286" y="611" class="label">#1f272d</text>
+  <rect x="540" y="576" width="230" height="58" rx="4" fill="#212c34" class="swatch"/>
+  <text x="556" y="611" class="label">#212c34</text>
+  <rect x="810" y="576" width="230" height="58" rx="4" fill="#23313c" class="swatch"/>
+  <text x="826" y="611" class="label">#23313c</text>
+</svg>
