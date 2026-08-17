@@ -858,6 +858,7 @@ func (e *Editor) closeWindow(windowIndex int) error {
 			// Remove from global buffers registry
 			delete(e.buffers, path)
 			e.bufferOrder = removeFromSlice(e.bufferOrder, path)
+			delete(e.csvRenderCaches, closedBuf)
 		}
 	}
 

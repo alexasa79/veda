@@ -207,6 +207,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("- Press TAB in command mode for completion\n")
 	helpText.WriteString("- Use HOST:PATH format to open remote files (e.g., server:/path/to/file)\n")
 	helpText.WriteString("- The editor automatically detects file types and provides syntax highlighting\n")
+	helpText.WriteString("- CSV files are shown as aligned columns with a bold, tinted header outside Insert mode; Insert mode shows the raw CSV\n")
 	helpText.WriteString("- Auto-pairs are enabled for (), [], {}, \"\", '', ``\n")
 
 	// Save current buffer state

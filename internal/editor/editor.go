@@ -63,6 +63,7 @@ type Editor struct {
 	keyMapper        *commands.KeyMapper
 	perfTracker      *perf.TimeTracker
 	signatureAnchors map[*buffer.Buffer]*signatureAnchor
+	csvRenderCaches  map[*buffer.Buffer]csvRenderCache
 
 	// Buffer management
 	buffers        map[string]*buffer.Buffer // Map of file path to buffer
@@ -370,6 +371,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		lspExtensionStatus:       make(map[string]string),
 		terminalSessions:         make(map[string]*TerminalSessionState),
 		signatureAnchors:         make(map[*buffer.Buffer]*signatureAnchor),
+		csvRenderCaches:          make(map[*buffer.Buffer]csvRenderCache),
 	}
 
 	// Initialize windows with a single empty window (always have a window)

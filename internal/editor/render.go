@@ -1263,6 +1263,11 @@ func (e *Editor) drawContext() {
 }
 
 func (e *Editor) renderPane() {
+	if e.csvPresentationActive() {
+		e.renderCSVPane()
+		return
+	}
+
 	lineNumberStyle := e.config.Theme.GetStyle(e.config.Theme.LineNumber)
 	lineNumberCurrentStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLineNumber)
 	normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
