@@ -1313,7 +1313,15 @@ func (e *Editor) deleteWordBackward(args []string) error {
 
 // wordForwardInsert moves cursor forward by one word in insert mode
 func (e *Editor) wordForwardInsert(args []string) error {
-	// Use the same logic as normal mode
+	buf := e.CurrentBuffer()
+	line := buf.CursorIterator.Line()
+	if shouldStopAtEndOfLine(buf, buf.CursorIterator.LineNumber(), buf.CursorX) {
+		buf.CursorX = len(line)
+		e.desiredColumn = -1
+		e.updateCursorState()
+		return nil
+	}
+
 	return e.wordForward(args)
 }
 

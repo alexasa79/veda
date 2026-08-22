@@ -121,6 +121,16 @@ func TestAltArrowKeysInInsert(t *testing.T) {
 		AssertCursorAt(t, te, 16, 0)
 	})
 
+	t.Run("alt+right moves past final character", func(t *testing.T) {
+		te := NewTestEditorWithContent(80, 24, "hello world")
+		te.ExecuteCommand("enter-insert-mode")
+		te.SetCursorPosition(6, 0)
+
+		te.PressKey(events.KeyRight, events.ModAlt)
+
+		AssertCursorAt(t, te, 11, 0)
+	})
+
 	t.Run("alt+left moves backward by word", func(t *testing.T) {
 		te := NewTestEditorWithContent(80, 24, "hello world foo bar")
 
