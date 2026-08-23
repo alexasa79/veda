@@ -22,6 +22,7 @@ type ScreenAdapter struct {
 	renderedLines []string // Cache of rendered ANSI strings
 	lineHashes    []uint64 // Hash of cell content for change detection
 	hasShown      bool
+	kittyImages   []KittyImagePlacement
 }
 
 // shouldLogANSI returns true if we want to emit TRACE logs for this style
@@ -151,8 +152,26 @@ func (s *ScreenAdapter) Show() {
 		}
 	}
 
+	s.term.SetKittyImagePlacements(s.kittyImages)
 	s.term.Show()
 	s.hasShown = true
+}
+
+func (s *ScreenAdapter) BeginKittyImageFrame() {
+	s.kittyImages = nil
+}
+
+func (s *ScreenAdapter) CellPixelSize() (width, height int) {
+	return s.term.CellPixelSize()
+}
+
+func (s *ScreenAdapter) DrawKittyImage(key, path string, x, y, columns, rows int) {
+	if key == "" || path == "" || columns <= 0 || rows <= 0 {
+		return
+	}
+	s.kittyImages = append(s.kittyImages, KittyImagePlacement{
+		Key: key, Path: path, X: x, Y: y, Columns: columns, Rows: rows,
+	})
 }
 
 const minimumScrollMatches = 3

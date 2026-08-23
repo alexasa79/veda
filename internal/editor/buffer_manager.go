@@ -123,6 +123,7 @@ func (e *Editor) switchToBuffer(buf *buffer.Buffer) {
 				}
 			}
 		}
+		e.normalizeMarkdownCursorToVisible()
 	}
 }
 

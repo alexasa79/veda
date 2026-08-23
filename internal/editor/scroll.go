@@ -122,7 +122,7 @@ func (e *Editor) scroll() {
 			for {
 				nRows := 1
 				if !isInternal {
-					nRows = len(wc.WrapLine(mIter.Line(), mIter.LineNumber()))
+					nRows = len(e.wrapLineForDisplay(wc, e.CurrentBuffer(), mIter.Line(), mIter.Position(), mIter.LineNumber()))
 				}
 				accum += nRows
 				if accum >= visibleHeight {

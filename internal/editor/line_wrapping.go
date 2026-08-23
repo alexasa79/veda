@@ -7,12 +7,18 @@ import (
 
 // WrappedLine represents a single visual line that may be part of a wrapped logical line
 type WrappedLine struct {
-	LogicalLineNum int    // The actual line number in the buffer (0-based)
-	VisualLineNum  int    // The visual line number on screen (0-based)
-	StartChar      int    // Starting character position in the logical line
-	EndChar        int    // Ending character position in the logical line (exclusive)
-	IsFirstLine    bool   // True if this is the first visual line of a logical line
-	Text           string // The text content of this visual line
+	LogicalLineNum  int    // The actual line number in the buffer (0-based)
+	VisualLineNum   int    // The visual line number on screen (0-based)
+	StartChar       int    // Starting source byte position in the logical line
+	EndChar         int    // Ending source byte position in the logical line (exclusive)
+	IsFirstLine     bool   // True if this is the first visual line of a logical line
+	Text            string // The text content of this visual line
+	SourceOffsets   []int  // Display-byte to source-byte mapping; nil for literal text
+	IsKittyImageRow bool   // True for every visual row reserved by a Kitty image
+	KittyImageKey   string // Stable placement identity for a rendered Markdown image
+	KittyImagePath  string // Local PNG path; set only on the first reserved image row
+	KittyImageCols  int
+	KittyImageRows  int
 }
 
 // WrapCalculator handles line wrapping calculations
@@ -250,13 +256,12 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 				Text:           line,
 			}}
 		} else {
-			// Wrap this line normally
-			wrapped = wc.WrapLine(line, logicalLineNum)
+			wrapped = e.wrapLineForDisplay(wc, e.CurrentBuffer(), line, iter.Position(), logicalLineNum)
 		}
 
 		// Coordinated wrapping: pad to match the paired pane's wrap count
 		if pairedIter != nil && !pairedIter.IsEOF() && pairedIter.LineNumber() == logicalLineNum {
-			pairedWrapped := pairedWC.WrapLine(pairedIter.Line(), logicalLineNum)
+			pairedWrapped := e.wrapLineForDisplay(pairedWC, pairedBuf, pairedIter.Line(), pairedIter.Position(), logicalLineNum)
 			for len(wrapped) < len(pairedWrapped) {
 				wrapped = append(wrapped, WrappedLine{
 					LogicalLineNum: logicalLineNum,
@@ -346,7 +351,11 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			if cursorX >= wl.StartChar && cursorX < wl.EndChar {
 				visualLine = i
 				// Calculate visual column accounting for tabs
-				lineSegment := wl.Text[:cursorX-wl.StartChar]
+				displayByte := wl.displayByteForSource(cursorX)
+				if wl.SourceOffsets != nil && displayByte >= len(wl.Text) && len(wl.Text) > 0 {
+					displayByte = lastRuneStart(wl.Text)
+				}
+				lineSegment := wl.Text[:displayByte]
 				visualCol = e.visualWidth(lineSegment) + e.CurrentBuffer().LineNumberWidth
 				return
 			}
@@ -450,8 +459,7 @@ func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, cha
 	// Convert visual column to byte position within the line segment
 	byteOffsetInSegment := e.bytePositionFromVisualColumn(lineText, textCol)
 
-	// Add to the start position to get absolute position
-	charPos = wl.StartChar + byteOffsetInSegment
+	charPos = wl.sourceByteForDisplay(byteOffsetInSegment)
 	if charPos > wl.EndChar {
 		charPos = wl.EndChar
 	}

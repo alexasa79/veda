@@ -115,9 +115,11 @@ func (e *Editor) moveDown(args []string) error {
 
 func (e *Editor) moveLeft(args []string) error {
 	// Auto-indent cleanup not needed for horizontal movement on same line
-	line := e.CurrentBuffer().CursorIterator.Line()
-	if e.CurrentBuffer().CursorX > 0 {
-		e.CurrentBuffer().CursorX = prevRuneStart(line, e.CurrentBuffer().CursorX)
+	if !e.moveMarkdownCursorHorizontally(-1) {
+		line := e.CurrentBuffer().CursorIterator.Line()
+		if e.CurrentBuffer().CursorX > 0 {
+			e.CurrentBuffer().CursorX = prevRuneStart(line, e.CurrentBuffer().CursorX)
+		}
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
@@ -129,14 +131,16 @@ func (e *Editor) moveLeft(args []string) error {
 }
 
 func (e *Editor) moveRight(args []string) error {
-	line := e.CurrentBuffer().CursorIterator.Line()
-	if len(line) > 0 {
-		cursorX := clampCursorToRuneStart(line, e.CurrentBuffer().CursorX)
-		maxX := lastRuneStart(line) // Don't go past the last character in normal mode
-		if cursorX < maxX {
-			cursorX = nextRuneStart(line, cursorX)
+	if !e.moveMarkdownCursorHorizontally(1) {
+		line := e.CurrentBuffer().CursorIterator.Line()
+		if len(line) > 0 {
+			cursorX := clampCursorToRuneStart(line, e.CurrentBuffer().CursorX)
+			maxX := lastRuneStart(line) // Don't go past the last character in normal mode
+			if cursorX < maxX {
+				cursorX = nextRuneStart(line, cursorX)
+			}
+			e.CurrentBuffer().CursorX = cursorX
 		}
-		e.CurrentBuffer().CursorX = cursorX
 	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
@@ -258,7 +262,12 @@ func (e *Editor) wordBackwardNoUnderscore(args []string) error {
 
 // beginningOfLine moves cursor to the beginning of the current line
 func (e *Editor) beginningOfLine(args []string) error {
-	e.CurrentBuffer().CursorX = 0
+	visible := e.markdownVisibleRuneOffsets()
+	if len(visible) > 0 {
+		e.CurrentBuffer().CursorX = visible[0]
+	} else {
+		e.CurrentBuffer().CursorX = 0
+	}
 	// Reset desired column when moving horizontally
 	e.desiredColumn = -1
 	if e.CurrentBuffer() != nil {
@@ -270,6 +279,12 @@ func (e *Editor) beginningOfLine(args []string) error {
 
 // endOfLine moves cursor to the end of the current line
 func (e *Editor) endOfLine(args []string) error {
+	if visible := e.markdownVisibleRuneOffsets(); len(visible) > 0 && len(e.virtualCursors) == 0 {
+		e.CurrentBuffer().CursorX = visible[len(visible)-1]
+		e.desiredColumn = -1
+		e.updateCursorState()
+		return nil
+	}
 	// Check if we have virtual cursors AND we're not in cursor mode
 	// In cursor mode, only move the primary cursor
 	if len(e.virtualCursors) > 0 && e.mode != commands.CursorMode {

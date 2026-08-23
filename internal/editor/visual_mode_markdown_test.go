@@ -79,7 +79,7 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		_, selBg, _ := selectionStyle.Decompose()
 
 		// Move to start of "this"
-		for i := 0; i < 11; i++ {
+		for i := 0; i < 10; i++ {
 			te.ExecuteCommand("right")
 		}
 
@@ -131,9 +131,8 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		normalModeLine := te.mockScreen.GetLine(0)
 		t.Logf("Normal mode: %q", normalModeLine)
 
-		// The link should show full syntax in all modes now (we no longer hide URLs)
-		if !strings.Contains(normalModeLine, "](https://") {
-			t.Errorf("Normal mode should show full markdown link syntax")
+		if !strings.Contains(normalModeLine, "This is a test link here.") || strings.Contains(normalModeLine, "https://") {
+			t.Errorf("Normal mode should render the link without source syntax")
 		}
 
 		// Enter insert mode
@@ -196,11 +195,6 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		// Get selection style
 		selectionStyle := te.config.Theme.GetStyle(te.config.Theme.Selection)
 		_, selBg, _ := selectionStyle.Decompose()
-
-		// Move to "Main"
-		for i := 0; i < 2; i++ {
-			te.ExecuteCommand("right")
-		}
 
 		// Enter visual mode and select "Main"
 		te.ExecuteCommand("enter-visual-mode")

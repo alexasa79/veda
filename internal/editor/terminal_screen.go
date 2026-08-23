@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"os"
+	"strings"
 	"veda/internal/clipboard"
 	"veda/internal/events"
 	"veda/internal/terminal"
@@ -9,8 +11,9 @@ import (
 
 // TerminalScreen implements the Screen interface using our terminal package
 type TerminalScreen struct {
-	adapter *terminal.ScreenAdapter
-	term    *terminal.Terminal
+	adapter             *terminal.ScreenAdapter
+	term                *terminal.Terminal
+	supportsKittyImages bool
 }
 
 // NewTerminalScreen creates a new terminal-based screen
@@ -24,7 +27,8 @@ func NewTerminalScreen() (*TerminalScreen, error) {
 	clipboard.SetTerminalClipboard(term)
 
 	adapter := terminal.NewScreenAdapter(term)
-	return &TerminalScreen{adapter: adapter, term: term}, nil
+	supportsKittyImages := os.Getenv("KITTY_WINDOW_ID") != "" || strings.Contains(os.Getenv("TERM"), "kitty")
+	return &TerminalScreen{adapter: adapter, term: term, supportsKittyImages: supportsKittyImages}, nil
 }
 
 // Init initializes the screen
@@ -80,4 +84,20 @@ func (s *TerminalScreen) PollEvent() events.Event {
 // EventChannel returns the event channel for non-blocking event handling
 func (s *TerminalScreen) EventChannel() <-chan events.Event {
 	return s.adapter.EventChannel()
+}
+
+func (s *TerminalScreen) SupportsKittyImages() bool {
+	return s.supportsKittyImages
+}
+
+func (s *TerminalScreen) CellPixelSize() (width, height int) {
+	return s.adapter.CellPixelSize()
+}
+
+func (s *TerminalScreen) BeginKittyImageFrame() {
+	s.adapter.BeginKittyImageFrame()
+}
+
+func (s *TerminalScreen) DrawKittyImage(key, path string, x, y, columns, rows int) {
+	s.adapter.DrawKittyImage(key, path, x, y, columns, rows)
 }

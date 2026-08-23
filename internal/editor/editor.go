@@ -692,6 +692,9 @@ func (e *Editor) Run() {
 // render performs the complete screen rendering
 func (e *Editor) render() {
 	t0 := e.perfTracker.Start()
+	if images, ok := e.screen.(KittyImageScreen); ok {
+		images.BeginKittyImageFrame()
+	}
 
 	// Clear expired flash highlight
 	e.clearFlashHighlight()
@@ -2672,11 +2675,12 @@ func (e *Editor) requestDiagnosticsRefresh(filePath string) {
 // Insert mode commands
 // appendAfterCursor enters insert mode after the current cursor position
 func (e *Editor) appendAfterCursor(args []string) error {
+	e.normalizeMarkdownCursorToVisible()
 	// Move cursor one position to the right if not at end of line
 	if !e.CurrentBuffer().CursorIterator.IsEOF() {
 		line := e.CurrentBuffer().CursorIterator.Line()
 		if e.CurrentBuffer().CursorX < len(line) {
-			e.CurrentBuffer().CursorX++
+			e.CurrentBuffer().CursorX = nextRuneStart(line, e.CurrentBuffer().CursorX)
 		}
 	}
 

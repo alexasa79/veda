@@ -169,17 +169,13 @@ func (e *Editor) buildVirtualCursorCells(wrappedLines []WrappedLine, contentStar
 
 		column := lineNumberWidth
 		if highlightAfterEnd {
-			column += e.visualWidth(lineText)
+			column += e.visualWidth(wl.Text)
 		} else {
-			segmentStart := wl.StartChar
-			if renderPos < segmentStart {
-				renderPos = segmentStart
+			displayByte := wl.displayByteForSource(renderPos)
+			if wl.SourceOffsets != nil && displayByte >= len(wl.Text) && len(wl.Text) > 0 {
+				displayByte = lastRuneStart(wl.Text)
 			}
-			if renderPos > len(lineText) {
-				renderPos = len(lineText)
-			}
-			segmentText := lineText[segmentStart:renderPos]
-			column += e.visualWidth(segmentText)
+			column += e.visualWidth(wl.Text[:displayByte])
 		}
 
 		if column < 0 || column >= width {
@@ -848,6 +844,23 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 // drawWrappedLine draws a wrapped line segment with proper handling of syntax highlighting
 func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, tokens []syntax.Token, startX int, screenY int) {
+	if wl.IsKittyImageRow {
+		if e.CurrentBuffer() != nil && wl.LogicalLineNum == e.CurrentBuffer().CursorIterator.LineNumber() {
+			normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
+			currentLineStyle := e.config.Theme.GetStyle(e.config.Theme.CurrentLine)
+			_, currentLineBg, _ := currentLineStyle.Decompose()
+			width, _ := e.screen.Size()
+			for x := startX; x < width; x++ {
+				e.screen.SetContent(x, screenY, ' ', nil, normalStyle.Background(currentLineBg))
+			}
+		}
+		if wl.KittyImagePath != "" {
+			images := e.screen.(KittyImageScreen)
+			images.DrawKittyImage(wl.KittyImageKey, wl.KittyImagePath, startX, screenY, wl.KittyImageCols, wl.KittyImageRows)
+		}
+		return
+	}
+
 	// Get the full line for syntax highlighting
 	originalLine := iter.Line()
 	lineIndex := iter.LineNumber()
@@ -988,6 +1001,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 			}
 			return
 		}
+	}
+
+	if wl.SourceOffsets != nil {
+		x := e.drawProjectedMarkdownLine(iter, wl, tokens, startX, screenY, normalStyle, lineBg, diffBg, hasBg, searchMatches, trailingStart)
+		e.fillAfterProjectedMarkdown(x, startX, screenY, wl, normalStyle, lineBg, diffBg, hasBg, len(originalLine), lineIndex)
+		return
 	}
 
 	// If no highlighter, draw without syntax highlighting
