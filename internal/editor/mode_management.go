@@ -547,6 +547,7 @@ func (e *Editor) switchToInsertMode() {
 
 // enterInsertMode switches the editor to insert mode
 func (e *Editor) enterInsertMode(args []string) error {
+	e.normalizeMarkdownCursorToVisible()
 	e.switchToInsertMode()
 	// If we switched to TerminalMode for terminal buffers, do not start an insert session
 	if e.mode == commands.TerminalMode {
@@ -573,6 +574,8 @@ func (e *Editor) enterTemporaryNormalMode(args []string) error {
 	// Switch to normal mode but mark it as temporary
 	e.mode = commands.NormalMode
 	e.temporaryNormal = true
+	e.updateSyntaxHighlighting()
+	e.normalizeMarkdownCursorToVisible()
 
 	// Don't end the insert session yet - we'll resume it
 	return nil
@@ -617,6 +620,7 @@ func (e *Editor) exitInsertMode(args []string) error {
 
 	// Update syntax highlighting after all insert mode changes are complete
 	e.updateSyntaxHighlighting()
+	e.normalizeMarkdownCursorToVisible()
 
 	// The setLastChange will be handled by the history system
 

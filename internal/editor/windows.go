@@ -82,6 +82,43 @@ func (ws *windowScreen) SetCursorStyle(style ui.CursorStyle) { ws.base.SetCursor
 func (ws *windowScreen) PollEvent() events.Event           { return ws.base.PollEvent() }
 func (ws *windowScreen) EventChannel() <-chan events.Event { return ws.base.EventChannel() }
 
+func (ws *windowScreen) SupportsKittyImages() bool {
+	images, ok := ws.base.(KittyImageScreen)
+	return ok && images.SupportsKittyImages()
+}
+
+func (ws *windowScreen) CellPixelSize() (width, height int) {
+	images, ok := ws.base.(KittyImageScreen)
+	if !ok {
+		return 0, 0
+	}
+	return images.CellPixelSize()
+}
+
+func (ws *windowScreen) BeginKittyImageFrame() {
+	if images, ok := ws.base.(KittyImageScreen); ok {
+		images.BeginKittyImageFrame()
+	}
+}
+
+func (ws *windowScreen) DrawKittyImage(key, path string, x, y, columns, rows int) {
+	images, ok := ws.base.(KittyImageScreen)
+	if !ok || !images.SupportsKittyImages() || x < 0 || y < 0 || x >= ws.w || y >= ws.h {
+		return
+	}
+	if columns > ws.w-x {
+		columns = ws.w - x
+	}
+	if rows > ws.h-y {
+		rows = ws.h - y
+	}
+	if columns <= 0 || rows <= 0 {
+		return
+	}
+	windowKey := fmt.Sprintf("%d:%d:%s", ws.x, ws.y, key)
+	images.DrawKittyImage(windowKey, path, ws.x+x, ws.y+y, columns, rows)
+}
+
 // activateWindow centralizes switching focus to a window index, enforcing layout and buffer focus
 func (e *Editor) activateWindow(idx int) {
 	if idx < 0 || idx >= len(e.windows) {

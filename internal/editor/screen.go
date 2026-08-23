@@ -28,3 +28,12 @@ type Screen interface {
 	PollEvent() events.Event
 	EventChannel() <-chan events.Event // Returns the underlying event channel
 }
+
+// KittyImageScreen is implemented by screens that can place PNG images using
+// the Kitty graphics protocol. Image frames are rebuilt on every editor render.
+type KittyImageScreen interface {
+	SupportsKittyImages() bool
+	CellPixelSize() (width, height int)
+	BeginKittyImageFrame()
+	DrawKittyImage(key, path string, x, y, columns, rows int)
+}

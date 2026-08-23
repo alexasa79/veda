@@ -20,13 +20,20 @@ var LL = log.NewLogger("TERMINAL")
 type Terminal struct {
 	mu sync.Mutex
 
-	width  int
-	height int
+	width           int
+	height          int
+	cellPixelWidth  int
+	cellPixelHeight int
 
 	// Double buffering
-	frontBuffer   []string // What's currently displayed on screen
-	backBuffer    []string // What we're building for next frame
-	pendingScroll *scrollOperation
+	frontBuffer        []string // What's currently displayed on screen
+	backBuffer         []string // What we're building for next frame
+	pendingScroll      *scrollOperation
+	pendingKittyImages []KittyImagePlacement
+	visibleKittyImages map[string]KittyImagePlacement
+	kittyImageIDs      map[string]uint32
+	kittyUsedImageIDs  map[uint32]string
+	kittyTransmitted   map[string]bool
 
 	// Cursor state
 	cursorX       int
@@ -71,6 +78,7 @@ func New() (*Terminal, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get terminal size: %w", err)
 	}
+	cellPixelWidth, cellPixelHeight := getTerminalCellSize()
 
 	LL.Debug("Terminal.New: Got terminal size: width=%d, height=%d", width, height)
 
@@ -83,6 +91,8 @@ func New() (*Terminal, error) {
 	t := &Terminal{
 		width:           width,
 		height:          height, // Use actual height
+		cellPixelWidth:  cellPixelWidth,
+		cellPixelHeight: cellPixelHeight,
 		frontBuffer:     make([]string, height),
 		backBuffer:      make([]string, height),
 		cursorVisible:   true,
@@ -122,6 +132,7 @@ func (t *Terminal) Init() error {
 		LL.Debug("Terminal.Init: Got terminal size after alternate screen: width=%d, height=%d", width, height)
 		t.width = width
 		t.height = height // Use actual height
+		t.cellPixelWidth, t.cellPixelHeight = getTerminalCellSize()
 		// Reinitialize buffers with correct size
 		t.frontBuffer = make([]string, t.height)
 		t.backBuffer = make([]string, t.height)
@@ -173,6 +184,12 @@ func (t *Terminal) Size() (width, height int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.width, t.height
+}
+
+func (t *Terminal) CellPixelSize() (width, height int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.cellPixelWidth, t.cellPixelHeight
 }
 
 // Clear clears the back buffer
@@ -285,6 +302,11 @@ func (t *Terminal) Show() {
 		}
 	}
 
+	if imageCommands := t.updateKittyImages(); imageCommands != "" {
+		output.WriteString(imageCommands)
+		hasChanges = true
+	}
+
 	// Always update cursor position and visibility
 	if t.cursorVisible {
 		// Set cursor style
@@ -393,6 +415,24 @@ func getTerminalSize() (width, height int, err error) {
 	return int(ws.Col), int(ws.Row), nil
 }
 
+const (
+	defaultCellPixelWidth  = 8
+	defaultCellPixelHeight = 16
+)
+
+func getTerminalCellSize() (width, height int) {
+	ws, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
+	if err != nil || ws.Col == 0 || ws.Row == 0 || ws.Xpixel == 0 || ws.Ypixel == 0 {
+		return defaultCellPixelWidth, defaultCellPixelHeight
+	}
+	width = int(ws.Xpixel) / int(ws.Col)
+	height = int(ws.Ypixel) / int(ws.Row)
+	if width < 1 || height < 1 {
+		return defaultCellPixelWidth, defaultCellPixelHeight
+	}
+	return width, height
+}
+
 // handleResize updates the terminal dimensions
 func (t *Terminal) handleResize() {
 	width, height, err := getTerminalSize()
@@ -404,6 +444,7 @@ func (t *Terminal) handleResize() {
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.cellPixelWidth, t.cellPixelHeight = getTerminalCellSize()
 
 	if width != t.width || height != t.height {
 		t.width = width

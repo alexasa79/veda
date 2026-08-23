@@ -11,37 +11,53 @@ type Cell struct {
 	Style ui.Style
 }
 
+type MockKittyImage struct {
+	Key     string
+	Path    string
+	X       int
+	Y       int
+	Columns int
+	Rows    int
+}
+
 // MockScreen implements Screen interface for testing.
 // It models the real Terminal's double-buffering: cells is the back buffer
 // (written by SetContent), displayed is what GetLine reads from, and
 // frontLines tracks what Show() last flushed (for differential rendering).
 type MockScreen struct {
-	width         int
-	height        int
-	cells         map[int]map[int]Cell // [y][x]Cell — back buffer
-	displayed     map[int]string       // what's "on screen" — GetLine reads this
-	frontLines    map[int]string       // what Show thinks is on screen — for diffing
-	cursorX       int
-	cursorY       int
-	cursorVisible bool
-	cursorStyle   ui.CursorStyle
-	events        []events.Event
-	eventIndex    int
-	defaultStyle  ui.Style
-	eventChan     chan events.Event
+	width           int
+	height          int
+	cells           map[int]map[int]Cell // [y][x]Cell — back buffer
+	displayed       map[int]string       // what's "on screen" — GetLine reads this
+	frontLines      map[int]string       // what Show thinks is on screen — for diffing
+	cursorX         int
+	cursorY         int
+	cursorVisible   bool
+	cursorStyle     ui.CursorStyle
+	events          []events.Event
+	eventIndex      int
+	defaultStyle    ui.Style
+	eventChan       chan events.Event
+	kittyImages     map[string]MockKittyImage
+	kittyEnabled    bool
+	cellPixelWidth  int
+	cellPixelHeight int
 }
 
 // NewMockScreen creates a new mock screen with the given dimensions
 func NewMockScreen(width, height int) *MockScreen {
 	return &MockScreen{
-		width:        width,
-		height:       height,
-		cells:        make(map[int]map[int]Cell),
-		displayed:    make(map[int]string),
-		frontLines:   make(map[int]string),
-		events:       make([]events.Event, 0),
-		defaultStyle: ui.StyleDefault,
-		eventChan:    make(chan events.Event, 100),
+		width:           width,
+		height:          height,
+		cells:           make(map[int]map[int]Cell),
+		displayed:       make(map[int]string),
+		frontLines:      make(map[int]string),
+		events:          make([]events.Event, 0),
+		defaultStyle:    ui.StyleDefault,
+		eventChan:       make(chan events.Event, 100),
+		kittyImages:     make(map[string]MockKittyImage),
+		cellPixelWidth:  8,
+		cellPixelHeight: 16,
 	}
 }
 
@@ -127,6 +143,39 @@ func (s *MockScreen) PollEvent() events.Event {
 // EventChannel returns the underlying event channel
 func (s *MockScreen) EventChannel() <-chan events.Event {
 	return s.eventChan
+}
+
+func (s *MockScreen) SupportsKittyImages() bool {
+	return s.kittyEnabled
+}
+
+func (s *MockScreen) CellPixelSize() (width, height int) {
+	return s.cellPixelWidth, s.cellPixelHeight
+}
+
+func (s *MockScreen) BeginKittyImageFrame() {
+	s.kittyImages = make(map[string]MockKittyImage)
+}
+
+func (s *MockScreen) DrawKittyImage(key, path string, x, y, columns, rows int) {
+	if !s.kittyEnabled {
+		return
+	}
+	s.kittyImages[key] = MockKittyImage{
+		Key: key, Path: path, X: x, Y: y, Columns: columns, Rows: rows,
+	}
+}
+
+func (s *MockScreen) EnableKittyImages() {
+	s.kittyEnabled = true
+}
+
+func (s *MockScreen) GetKittyImages() []MockKittyImage {
+	images := make([]MockKittyImage, 0, len(s.kittyImages))
+	for _, image := range s.kittyImages {
+		images = append(images, image)
+	}
+	return images
 }
 
 // Testing-specific methods

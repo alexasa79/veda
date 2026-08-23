@@ -421,7 +421,7 @@ This is a **bold** text.
 		// Enter cursor mode
 		te.TypeKeys("m")
 
-		// Add virtual cursor at position 0 (on '#')
+		// Add virtual cursor at the first rendered heading character.
 		te.PressKey(events.KeyEnter, 0)
 
 		// Move to "bold" and add another cursor
@@ -460,8 +460,8 @@ This is a **bold** text.
 		virtualCursorStyle := theme.GetStyle(theme.VirtualCursor)
 		virtualCursorBg := virtualCursorStyle.Bg
 
-		if char1 != '#' {
-			t.Errorf("Expected '#' at first virtual cursor position, got '%c'", char1)
+		if char1 != 'H' {
+			t.Errorf("Expected 'H' at first virtual cursor position, got '%c'", char1)
 		}
 		if style1.Bg != virtualCursorBg {
 			// Log more info about what's happening
@@ -528,28 +528,30 @@ This is a **bold** text.
 		virtualCursorBg := virtualCursorStyle.Bg
 
 		virtualCursors := te.GetVirtualCursors()
-		for i, vc := range virtualCursors {
-			char, style := te.mockScreen.GetCell(lineNumWidth+vc.X, vc.Y)
-			if style.Bg != virtualCursorBg {
-				t.Errorf("Virtual cursor %d at (%d,%d) doesn't have expected background. Got %v, expected %v, char '%c'",
-					i, vc.X, vc.Y, style.Bg, virtualCursorBg, char)
+		highlightedCells := 0
+		for y, row := range te.virtualCursorCells {
+			for x, highlighted := range row {
+				if !highlighted {
+					continue
+				}
+				highlightedCells++
+				char, style := te.mockScreen.GetCell(x, y)
+				if style.Bg != virtualCursorBg {
+					t.Errorf("Virtual cursor cell at (%d,%d) doesn't have expected background. Got %v, expected %v, char '%c'",
+						x, y, style.Bg, virtualCursorBg, char)
+				}
 			}
 
-			// Verify line number area doesn't have cursor styling
+			// Verify line number area doesn't have cursor styling.
 			for x := 0; x < lineNumWidth; x++ {
-				_, lineStyle := te.mockScreen.GetCell(x, vc.Y)
+				_, lineStyle := te.mockScreen.GetCell(x, y)
 				if lineStyle.Bg == virtualCursorBg {
-					t.Errorf("Line number area at (%d,%d) incorrectly has virtual cursor styling", x, vc.Y)
+					t.Errorf("Line number area at (%d,%d) incorrectly has virtual cursor styling", x, y)
 				}
 			}
 		}
-
-		// Log cursor positions for debugging
-		t.Logf("Virtual cursors added at:")
-		virtualCursors = te.GetVirtualCursors()
-		for i, vc := range virtualCursors {
-			char, _ := te.mockScreen.GetCell(lineNumWidth+vc.X, vc.Y)
-			t.Logf("  Cursor %d: (%d, %d) on character '%c'", i, vc.X, vc.Y, char)
+		if highlightedCells != len(virtualCursors) {
+			t.Errorf("Expected %d rendered virtual cursor cells, got %d", len(virtualCursors), highlightedCells)
 		}
 	})
 }
