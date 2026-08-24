@@ -180,6 +180,35 @@ func TestMarkdownPresentationRendersStandaloneKittyPNG(t *testing.T) {
 	}
 }
 
+func TestMarkdownPresentationCachesWrappedViewportAndImageSize(t *testing.T) {
+	content := "![Architecture](kitty-image-test.png)\nAfter"
+	te := newMarkdownPresentationEditor(t, 100, 20, content)
+	markdownPath, err := filepath.Abs("../../artifacts/kitty-image-test.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	te.CurrentBuffer().RealPath = markdownPath
+	te.mockScreen.EnableKittyImages()
+
+	first := te.CalculateWrappedLines()
+	cache := te.wrappedLinesCache
+	if cache == nil || len(first) < 2 {
+		t.Fatalf("wrapped viewport was not cached: %+v", first)
+	}
+	if len(te.markdownImageSizes) != 1 {
+		t.Fatalf("cached %d image sizes, want 1", len(te.markdownImageSizes))
+	}
+	second := te.CalculateWrappedLines()
+	if te.wrappedLinesCache != cache || &second[0] != &first[0] {
+		t.Fatal("unchanged viewport was recalculated")
+	}
+
+	te.ExecuteCommand("down")
+	if te.wrappedLinesCache != cache {
+		t.Fatal("cursor-only movement invalidated the wrapped viewport")
+	}
+}
+
 func TestFitMarkdownImageToCellsPreservesAspectRatio(t *testing.T) {
 	columns, rows := fitMarkdownImageToCells(1774, 887, 200, 12, 8, 16)
 	if columns != 48 || rows != 12 {

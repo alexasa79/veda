@@ -189,6 +189,8 @@ type Editor struct {
 
 	// Rendering state
 	renderingState           *RenderingState // Manages overlay/modal state
+	wrappedLinesCache        *wrappedLinesCacheEntry
+	markdownImageSizes       map[string]markdownImageSize
 	cursorWordHighlights     map[int][]wordRange
 	cursorWordLastSignature  string
 	cursorWordLastMove       time.Time

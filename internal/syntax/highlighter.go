@@ -95,11 +95,13 @@ type Token struct {
 
 // Highlighter manages syntax highlighting for different languages
 type Highlighter struct {
-	parser        *sitter.Parser
-	currentLang   string
-	currentTree   *sitter.Tree
-	currentSource []byte
-	tokenCache    map[int][]Token // Cache key: startByte
+	parser                    *sitter.Parser
+	currentLang               string
+	currentTree               *sitter.Tree
+	currentSource             []byte
+	tokenCache                map[int][]Token // Cache key: startByte
+	markdownPresentationIndex *markdownPresentationIndex
+	revision                  uint64
 }
 
 // NewHighlighter creates a new syntax highlighter
@@ -109,6 +111,16 @@ func NewHighlighter() *Highlighter {
 		parser:     parser,
 		tokenCache: make(map[int][]Token),
 	}
+}
+
+func (h *Highlighter) invalidateCaches() {
+	h.tokenCache = make(map[int][]Token)
+	h.markdownPresentationIndex = nil
+	h.revision++
+}
+
+func (h *Highlighter) Revision() uint64 {
+	return h.revision
 }
 
 // SetLanguageFromFile sets the language based on file extension.
@@ -131,10 +143,12 @@ func (h *Highlighter) SetLanguageFromFileAndContent(filename string, content []b
 			"bash_logout", ".bash_logout", "zshrc", ".zshrc":
 			h.parser.SetLanguage(bash.GetLanguage())
 			h.currentLang = "bash"
+			h.invalidateCaches()
 			return nil
 		case "Makefile", "makefile", "GNUmakefile", "gnumakefile":
 			h.parser.SetLanguage(tsmake.GetLanguage())
 			h.currentLang = "make"
+			h.invalidateCaches()
 			return nil
 		}
 	}
@@ -188,10 +202,11 @@ func (h *Highlighter) SetLanguageFromFileAndContent(filename string, content []b
 		h.currentLang = ""
 		h.currentTree = nil
 		h.currentSource = nil
-		h.tokenCache = make(map[int][]Token)
+		h.invalidateCaches()
 		return nil
 	}
 
+	h.invalidateCaches()
 	return nil
 }
 
@@ -275,14 +290,14 @@ func (h *Highlighter) SetLanguage(language string) error {
 		h.currentLang = ""
 		h.currentTree = nil
 		h.currentSource = nil
-		h.tokenCache = make(map[int][]Token)
+		h.invalidateCaches()
 		return fmt.Errorf("unknown language: %s", language)
 	}
 
 	// Clear the tree and cache when language changes
 	h.currentTree = nil
 	h.currentSource = nil
-	h.tokenCache = make(map[int][]Token)
+	h.invalidateCaches()
 
 	return nil
 }
@@ -301,8 +316,7 @@ func (h *Highlighter) Parse(source []byte) error {
 
 	h.currentTree = tree
 	h.currentSource = source
-	// Clear the token cache when source changes
-	h.tokenCache = make(map[int][]Token)
+	h.invalidateCaches()
 	return nil
 }
 
@@ -320,8 +334,7 @@ func (h *Highlighter) ParseFull(source []byte) error {
 
 	h.currentTree = tree
 	h.currentSource = source
-	// Clear the token cache when source changes
-	h.tokenCache = make(map[int][]Token)
+	h.invalidateCaches()
 	return nil
 }
 
@@ -396,8 +409,7 @@ func (h *Highlighter) ReparseIncremental(newSource []byte) error {
 
 	h.currentTree = tree
 	h.currentSource = newSource
-	// Clear token cache (could be optimized to changed ranges)
-	h.tokenCache = make(map[int][]Token)
+	h.invalidateCaches()
 	return nil
 }
 
@@ -480,7 +492,7 @@ func (h *Highlighter) ApplyEdit(startByte int, oldText, newText string) error {
 
 	h.currentTree = tree
 	h.currentSource = newSrc
-	h.tokenCache = make(map[int][]Token)
+	h.invalidateCaches()
 	return nil
 }
 
