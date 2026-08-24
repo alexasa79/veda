@@ -18,45 +18,178 @@ type MarkdownImage struct {
 	Destination string
 }
 
+type markdownLinePresentation struct {
+	concealRanges []ConcealRange
+	image         MarkdownImage
+	hasImage      bool
+}
+
+type markdownPresentationIndex struct {
+	lines      map[int]markdownLinePresentation
+	lineStarts []int
+	lineEnds   []int
+}
+
 // MarkdownImageForLine returns an image only when it is the line's sole
 // non-whitespace Markdown element.
 func (h *Highlighter) MarkdownImageForLine(lineStart, lineEnd int) (MarkdownImage, bool) {
+	presentation, ok := h.markdownPresentationForLine(lineStart, lineEnd)
+	if !ok {
+		return MarkdownImage{}, false
+	}
+	return presentation.image, presentation.hasImage
+}
+
+// MarkdownConcealRangesForLine returns the Markdown syntax ranges that should
+// not occupy screen cells in a rendered view. The returned ranges are sorted,
+// merged, and relative to lineStart.
+func (h *Highlighter) MarkdownConcealRangesForLine(lineStart, lineEnd int) []ConcealRange {
+	presentation, ok := h.markdownPresentationForLine(lineStart, lineEnd)
+	if !ok {
+		return nil
+	}
+	return presentation.concealRanges
+}
+
+func (h *Highlighter) markdownPresentationForLine(lineStart, lineEnd int) (markdownLinePresentation, bool) {
 	if h.currentLang != "markdown" || h.currentTree == nil || h.currentSource == nil ||
 		lineStart < 0 || lineEnd < lineStart || lineEnd > len(h.currentSource) {
-		return MarkdownImage{}, false
+		return markdownLinePresentation{}, false
+	}
+	h.ensureMarkdownPresentationIndex()
+	return h.markdownPresentationIndex.lines[lineStart], true
+}
+
+func (h *Highlighter) ensureMarkdownPresentationIndex() {
+	if h.markdownPresentationIndex != nil {
+		return
 	}
 
-	contentStart := lineStart
-	for contentStart < lineEnd && (h.currentSource[contentStart] == ' ' || h.currentSource[contentStart] == '\t') {
-		contentStart++
+	index := &markdownPresentationIndex{
+		lines:      make(map[int]markdownLinePresentation),
+		lineStarts: []int{0},
 	}
-	contentEnd := lineEnd
-	for contentEnd > contentStart && (h.currentSource[contentEnd-1] == ' ' || h.currentSource[contentEnd-1] == '\t') {
-		contentEnd--
+	for i, b := range h.currentSource {
+		if b == '\n' {
+			index.lineStarts = append(index.lineStarts, i+1)
+		}
+	}
+	index.lineEnds = make([]int, len(index.lineStarts))
+	for i := range index.lineStarts {
+		if i+1 < len(index.lineStarts) {
+			index.lineEnds[i] = index.lineStarts[i+1] - 1
+		} else {
+			index.lineEnds[i] = len(h.currentSource)
+		}
 	}
 
-	var imageNode *sitter.Node
-	var findImage func(*sitter.Node)
-	findImage = func(node *sitter.Node) {
-		if imageNode != nil || int(node.EndByte()) <= contentStart || int(node.StartByte()) >= contentEnd {
+	addRange := func(start, end int) {
+		if start >= end {
 			return
 		}
-		if node.Type() == "image" && int(node.StartByte()) == contentStart && int(node.EndByte()) == contentEnd {
-			imageNode = node
+		firstLine := index.lineIndexAt(start)
+		lastLine := index.lineIndexAt(end - 1)
+		for line := firstLine; line <= lastLine; line++ {
+			lineStart := index.lineStarts[line]
+			lineEnd := index.lineEnds[line]
+			clippedStart := start
+			if clippedStart < lineStart {
+				clippedStart = lineStart
+			}
+			clippedEnd := end
+			if clippedEnd > lineEnd {
+				clippedEnd = lineEnd
+			}
+			if clippedStart < clippedEnd {
+				presentation := index.lines[lineStart]
+				presentation.concealRanges = append(presentation.concealRanges, ConcealRange{
+					Start: clippedStart - lineStart,
+					End:   clippedEnd - lineStart,
+				})
+				index.lines[lineStart] = presentation
+			}
+		}
+	}
+
+	var walk func(*sitter.Node)
+	walk = func(node *sitter.Node) {
+		nodeType := node.Type()
+		if nodeType == "fenced_code_block" || nodeType == "indented_code_block" {
 			return
 		}
+		start := int(node.StartByte())
+		end := int(node.EndByte())
+		switch node.Type() {
+		case "emphasis_delimiter", "code_span_delimiter", "link_destination", "link_title":
+			addRange(start, end)
+		case "[", "]", "(", ")", "!":
+			if hasMarkdownLinkAncestor(node) && !h.isMarkdownTaskCheckbox(node) {
+				addRange(start, end)
+			}
+		case "#":
+			line := index.lineIndexAt(start)
+			lineStart := index.lineStarts[line]
+			if start == lineStart {
+				prefixEnd := markdownHeadingPrefixEnd(h.currentSource[lineStart:index.lineEnds[line]])
+				addRange(lineStart, lineStart+prefixEnd)
+			}
+		case ">":
+			line := index.lineIndexAt(start)
+			lineStart := index.lineStarts[line]
+			if start == lineStart {
+				prefixEnd := markdownBlockquotePrefixEnd(h.currentSource[lineStart:index.lineEnds[line]])
+				addRange(lineStart, lineStart+prefixEnd)
+			}
+		case "image":
+			line := index.lineIndexAt(start)
+			lineStart := index.lineStarts[line]
+			lineEnd := index.lineEnds[line]
+			contentStart := lineStart
+			for contentStart < lineEnd && (h.currentSource[contentStart] == ' ' || h.currentSource[contentStart] == '\t') {
+				contentStart++
+			}
+			contentEnd := lineEnd
+			for contentEnd > contentStart && (h.currentSource[contentEnd-1] == ' ' || h.currentSource[contentEnd-1] == '\t') {
+				contentEnd--
+			}
+			if start == contentStart && end == contentEnd {
+				image := h.readMarkdownImage(node)
+				if image.Destination != "" {
+					presentation := index.lines[lineStart]
+					presentation.image = image
+					presentation.hasImage = true
+					index.lines[lineStart] = presentation
+				}
+			}
+		}
+
 		for i := 0; i < int(node.ChildCount()); i++ {
-			findImage(node.Child(i))
+			walk(node.Child(i))
 		}
 	}
-	findImage(h.currentTree.RootNode())
-	if imageNode == nil {
-		return MarkdownImage{}, false
-	}
+	walk(h.currentTree.RootNode())
 
+	for lineStart, presentation := range index.lines {
+		presentation.concealRanges = mergeConcealRanges(presentation.concealRanges)
+		index.lines[lineStart] = presentation
+	}
+	h.markdownPresentationIndex = index
+}
+
+func (index *markdownPresentationIndex) lineIndexAt(position int) int {
+	line := sort.Search(len(index.lineStarts), func(i int) bool {
+		return index.lineStarts[i] > position
+	}) - 1
+	if line < 0 {
+		return 0
+	}
+	return line
+}
+
+func (h *Highlighter) readMarkdownImage(node *sitter.Node) MarkdownImage {
 	var image MarkdownImage
-	var readParts func(*sitter.Node)
-	readParts = func(node *sitter.Node) {
+	var walk func(*sitter.Node)
+	walk = func(node *sitter.Node) {
 		start := int(node.StartByte())
 		end := int(node.EndByte())
 		if start >= 0 && end <= len(h.currentSource) {
@@ -68,78 +201,11 @@ func (h *Highlighter) MarkdownImageForLine(lineStart, lineEnd int) (MarkdownImag
 			}
 		}
 		for i := 0; i < int(node.ChildCount()); i++ {
-			readParts(node.Child(i))
-		}
-	}
-	readParts(imageNode)
-	return image, image.Destination != ""
-}
-
-// MarkdownConcealRangesForLine returns the Markdown syntax ranges that should
-// not occupy screen cells in a rendered view. The returned ranges are sorted,
-// merged, and relative to lineStart.
-func (h *Highlighter) MarkdownConcealRangesForLine(lineStart, lineEnd int) []ConcealRange {
-	if h.currentLang != "markdown" || h.currentTree == nil || lineStart < 0 || lineEnd < lineStart {
-		return nil
-	}
-
-	var ranges []ConcealRange
-	addNode := func(node *sitter.Node) {
-		start := int(node.StartByte())
-		end := int(node.EndByte())
-		if start < lineStart {
-			start = lineStart
-		}
-		if end > lineEnd {
-			end = lineEnd
-		}
-		if start < end {
-			ranges = append(ranges, ConcealRange{Start: start - lineStart, End: end - lineStart})
-		}
-	}
-
-	var walk func(*sitter.Node)
-	walk = func(node *sitter.Node) {
-		if int(node.EndByte()) <= lineStart || int(node.StartByte()) >= lineEnd {
-			return
-		}
-
-		switch node.Type() {
-		case "emphasis_delimiter", "code_span_delimiter", "link_destination", "link_title":
-			addNode(node)
-		case "[", "]", "(", ")", "!":
-			if hasMarkdownLinkAncestor(node) && !h.isMarkdownTaskCheckbox(node) {
-				addNode(node)
-			}
-		}
-
-		for i := 0; i < int(node.ChildCount()); i++ {
 			walk(node.Child(i))
 		}
 	}
-	walk(h.currentTree.RootNode())
-
-	line := h.currentSource[lineStart:lineEnd]
-	for _, token := range h.GetTokensForLine(lineStart, lineEnd) {
-		if token.Start != 0 {
-			continue
-		}
-		switch token.TokenType {
-		case TokenTypeMarkdownH1, TokenTypeMarkdownH2, TokenTypeMarkdownH3,
-			TokenTypeMarkdownH4, TokenTypeMarkdownH5, TokenTypeMarkdownH6:
-			end := markdownHeadingPrefixEnd(line)
-			if end > 0 {
-				ranges = append(ranges, ConcealRange{Start: 0, End: end})
-			}
-		case TokenTypeMarkdownBlockquote:
-			end := markdownBlockquotePrefixEnd(line)
-			if end > 0 {
-				ranges = append(ranges, ConcealRange{Start: 0, End: end})
-			}
-		}
-	}
-
-	return mergeConcealRanges(ranges)
+	walk(node)
+	return image
 }
 
 func (h *Highlighter) isMarkdownTaskCheckbox(node *sitter.Node) bool {

@@ -3,7 +3,41 @@ package editor
 import (
 	"unicode/utf8"
 	"veda/internal/buffer"
+	"veda/internal/commands"
+	"veda/internal/syntax"
 )
+
+type wrappedLinesCacheKey struct {
+	buffer                    *buffer.Buffer
+	bufferGeneration          uint64
+	filePath                  string
+	realPath                  string
+	isInternal                bool
+	highlighter               *syntax.Highlighter
+	highlighterRevision       uint64
+	viewLine                  int
+	width                     int
+	gutterWidth               int
+	visibleHeight             int
+	mode                      commands.Mode
+	kittyImages               bool
+	cellPixelWidth            int
+	cellPixelHeight           int
+	pairedBuffer              *buffer.Buffer
+	pairedBufferGeneration    uint64
+	pairedFilePath            string
+	pairedRealPath            string
+	pairedIsInternal          bool
+	pairedHighlighter         *syntax.Highlighter
+	pairedHighlighterRevision uint64
+	pairedWidth               int
+	pairedGutterWidth         int
+}
+
+type wrappedLinesCacheEntry struct {
+	key   wrappedLinesCacheKey
+	lines []WrappedLine
+}
 
 // WrappedLine represents a single visual line that may be part of a wrapped logical line
 type WrappedLine struct {
@@ -193,13 +227,14 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 	t0 := e.perfTracker.Start()
 
 	// Handle empty windows
-	if e.CurrentBuffer() == nil {
+	currentBuf := e.CurrentBuffer()
+	if currentBuf == nil {
 		e.perfTracker.ReportSince("CalculateWrappedLines", t0)
 		return []WrappedLine{}
 	}
 
 	width := e.wrapScreenWidth()
-	gutterWidth := e.CurrentBuffer().LineNumberWidth
+	gutterWidth := currentBuf.LineNumberWidth
 
 	wc := NewWrapCalculator(width, gutterWidth)
 
@@ -209,9 +244,9 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 	var pairedWC *WrapCalculator
 	if e.activeWindow >= 0 && e.activeWindow < len(e.windows) && e.windows[e.activeWindow] != nil {
 		if dv, ok := e.windows[e.activeWindow].View.(*DiffBufferView); ok {
-			if e.CurrentBuffer() == dv.LeftBuffer {
+			if currentBuf == dv.LeftBuffer {
 				pairedBuf = dv.RightBuffer
-			} else if e.CurrentBuffer() == dv.RightBuffer {
+			} else if currentBuf == dv.RightBuffer {
 				pairedBuf = dv.LeftBuffer
 			}
 			if pairedBuf != nil {
@@ -225,18 +260,52 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		}
 	}
 
-	var wrappedLines []WrappedLine
 	visibleHeight := e.getVisibleHeight()
+	key := wrappedLinesCacheKey{
+		buffer:                    currentBuf,
+		bufferGeneration:          currentBuf.Generation,
+		filePath:                  currentBuf.FilePath,
+		realPath:                  currentBuf.RealPath,
+		isInternal:                currentBuf.IsInternal,
+		highlighter:               currentBuf.Highlighter,
+		highlighterRevision:       highlighterRevision(currentBuf),
+		viewLine:                  currentBuf.ViewIterator.LineNumber(),
+		width:                     width,
+		gutterWidth:               gutterWidth,
+		visibleHeight:             visibleHeight,
+		mode:                      e.mode,
+		pairedBuffer:              pairedBuf,
+		pairedHighlighterRevision: highlighterRevision(pairedBuf),
+	}
+	if pairedBuf != nil {
+		key.pairedBufferGeneration = pairedBuf.Generation
+		key.pairedFilePath = pairedBuf.FilePath
+		key.pairedRealPath = pairedBuf.RealPath
+		key.pairedIsInternal = pairedBuf.IsInternal
+		key.pairedHighlighter = pairedBuf.Highlighter
+		key.pairedWidth = pairedWC.screenWidth
+		key.pairedGutterWidth = pairedWC.gutterWidth
+	}
+	if images, ok := e.screen.(KittyImageScreen); ok {
+		key.kittyImages = images.SupportsKittyImages()
+		key.cellPixelWidth, key.cellPixelHeight = images.CellPixelSize()
+	}
+	if e.wrappedLinesCache != nil && e.wrappedLinesCache.key == key {
+		e.perfTracker.ReportSince("wrapping.CalculateWrappedLines", t0)
+		return e.wrappedLinesCache.lines
+	}
+
+	var wrappedLines []WrappedLine
 
 	// Start from the view iterator
-	iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), e.CurrentBuffer().ViewIterator.LineNumber())
+	iter := buffer.NewBufferIteratorAtLine(currentBuf, currentBuf.ViewIterator.LineNumber())
 	var pairedIter *buffer.BufferIterator
 	if pairedBuf != nil {
-		pairedIter = buffer.NewBufferIteratorAtLine(pairedBuf, e.CurrentBuffer().ViewIterator.LineNumber())
+		pairedIter = buffer.NewBufferIteratorAtLine(pairedBuf, currentBuf.ViewIterator.LineNumber())
 	}
 	visualLineCount := 0
 
-	startViewLine := e.CurrentBuffer().ViewIterator.LineNumber()
+	startViewLine := currentBuf.ViewIterator.LineNumber()
 	lastLogical := startViewLine - 1
 	// Process lines until we fill the visible area
 	for !iter.IsEOF() && visualLineCount < visibleHeight {
@@ -246,7 +315,7 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 
 		// For terminal/internal buffers, avoid editor-side wrapping to preserve UTF-8
 		var wrapped []WrappedLine
-		if e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal {
+		if currentBuf.IsInternal {
 			wrapped = []WrappedLine{{
 				LogicalLineNum: logicalLineNum,
 				VisualLineNum:  visualLineCount,
@@ -256,7 +325,7 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 				Text:           line,
 			}}
 		} else {
-			wrapped = e.wrapLineForDisplay(wc, e.CurrentBuffer(), line, iter.Position(), logicalLineNum)
+			wrapped = e.wrapLineForDisplay(wc, currentBuf, line, iter.Position(), logicalLineNum)
 		}
 
 		// Coordinated wrapping: pad to match the paired pane's wrap count
@@ -287,7 +356,7 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 	}
 
 	// Handle empty buffer case
-	if len(wrappedLines) == 0 && e.CurrentBuffer().Rope.Length() == 0 {
+	if len(wrappedLines) == 0 && currentBuf.Rope.Length() == 0 {
 		wrappedLines = append(wrappedLines, WrappedLine{
 			LogicalLineNum: 0,
 			VisualLineNum:  0,
@@ -300,8 +369,8 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 
 	// Render final empty line when buffer ends with a newline
 	// Using newline-as-boundary semantics: "hello\n" has two lines, second is empty
-	if visualLineCount < visibleHeight && e.CurrentBuffer().Rope.Length() > 0 {
-		lastByte := e.CurrentBuffer().Rope.ByteAt(e.CurrentBuffer().Rope.Length() - 1)
+	if visualLineCount < visibleHeight && currentBuf.Rope.Length() > 0 {
+		lastByte := currentBuf.Rope.ByteAt(currentBuf.Rope.Length() - 1)
 		if lastByte == '\n' {
 			// The empty line immediately after the last logical line
 			// Its logical line number is lastLogical+1, but if we didn't render any lines
@@ -320,9 +389,16 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		}
 	}
 
-	res := wrappedLines
+	e.wrappedLinesCache = &wrappedLinesCacheEntry{key: key, lines: wrappedLines}
 	e.perfTracker.ReportSince("wrapping.CalculateWrappedLines", t0)
-	return res
+	return wrappedLines
+}
+
+func highlighterRevision(buf *buffer.Buffer) uint64 {
+	if buf == nil || buf.Highlighter == nil {
+		return 0
+	}
+	return buf.Highlighter.Revision()
 }
 
 // GetCursorVisualPosition calculates the visual position of the cursor with line wrapping

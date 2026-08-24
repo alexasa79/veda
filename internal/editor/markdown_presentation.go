@@ -20,6 +20,11 @@ type markdownLineProjection struct {
 	SourceOffsets []int
 }
 
+type markdownImageSize struct {
+	width  int
+	height int
+}
+
 func (e *Editor) markdownPresentationEnabledForBuffer(buf *buffer.Buffer) bool {
 	return e.mode != commands.InsertMode && buf != nil && buf.Highlighter != nil &&
 		buf.Highlighter.GetCurrentLanguage() == "markdown" && buf.Highlighter.GetTree() != nil
@@ -54,7 +59,7 @@ func (e *Editor) wrapLineForDisplay(wc *WrapCalculator, buf *buffer.Buffer, line
 		if imagePath, ok := e.resolveMarkdownImagePath(buf, image.Destination); ok {
 			images := e.screen.(KittyImageScreen)
 			cellPixelWidth, cellPixelHeight := images.CellPixelSize()
-			if wrapped, ok := markdownImageWrappedLines(buf, line, lineNumber, imagePath, wc.availableWidth, cellPixelWidth, cellPixelHeight); ok {
+			if wrapped, ok := e.markdownImageWrappedLines(buf, line, lineNumber, imagePath, wc.availableWidth, cellPixelWidth, cellPixelHeight); ok {
 				return wrapped
 			}
 		}
@@ -116,17 +121,12 @@ func (e *Editor) resolveMarkdownImagePath(buf *buffer.Buffer, destination string
 
 const markdownImageMaxRows = 12
 
-func markdownImageWrappedLines(buf *buffer.Buffer, line string, lineNumber int, imagePath string, availableWidth, cellPixelWidth, cellPixelHeight int) ([]WrappedLine, bool) {
-	file, err := os.Open(imagePath)
-	if err != nil {
+func (e *Editor) markdownImageWrappedLines(buf *buffer.Buffer, line string, lineNumber int, imagePath string, availableWidth, cellPixelWidth, cellPixelHeight int) ([]WrappedLine, bool) {
+	size, ok := e.markdownImageSize(imagePath)
+	if !ok {
 		return nil, false
 	}
-	defer file.Close()
-	config, err := png.DecodeConfig(file)
-	if err != nil {
-		return nil, false
-	}
-	columns, rows := fitMarkdownImageToCells(config.Width, config.Height, availableWidth, markdownImageMaxRows, cellPixelWidth, cellPixelHeight)
+	columns, rows := fitMarkdownImageToCells(size.width, size.height, availableWidth, markdownImageMaxRows, cellPixelWidth, cellPixelHeight)
 
 	wrapped := make([]WrappedLine, rows)
 	for row := range wrapped {
@@ -145,6 +145,27 @@ func markdownImageWrappedLines(buf *buffer.Buffer, line string, lineNumber int, 
 	wrapped[0].KittyImageCols = columns
 	wrapped[0].KittyImageRows = rows
 	return wrapped, true
+}
+
+func (e *Editor) markdownImageSize(imagePath string) (markdownImageSize, bool) {
+	if size, ok := e.markdownImageSizes[imagePath]; ok {
+		return size, true
+	}
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return markdownImageSize{}, false
+	}
+	defer file.Close()
+	config, err := png.DecodeConfig(file)
+	if err != nil {
+		return markdownImageSize{}, false
+	}
+	if e.markdownImageSizes == nil {
+		e.markdownImageSizes = make(map[string]markdownImageSize)
+	}
+	size := markdownImageSize{width: config.Width, height: config.Height}
+	e.markdownImageSizes[imagePath] = size
+	return size, true
 }
 
 func fitMarkdownImageToCells(pixelWidth, pixelHeight, maxColumns, maxRows, cellPixelWidth, cellPixelHeight int) (columns, rows int) {

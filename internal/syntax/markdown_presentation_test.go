@@ -107,3 +107,35 @@ func TestMarkdownImageForLine(t *testing.T) {
 		})
 	}
 }
+
+func TestMarkdownPresentationIndexIsReusedUntilParseChanges(t *testing.T) {
+	h := NewHighlighter()
+	if err := h.SetLanguage("markdown"); err != nil {
+		t.Fatal(err)
+	}
+	content := strings.Repeat("Before **bold** after\n", 1000)
+	if err := h.ParseFull([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+
+	revision := h.Revision()
+	h.MarkdownConcealRangesForLine(0, len("Before **bold** after"))
+	index := h.markdownPresentationIndex
+	if index == nil {
+		t.Fatal("Markdown presentation index was not created")
+	}
+	h.MarkdownConcealRangesForLine(len("Before **bold** after\n"), 2*len("Before **bold** after\n")-1)
+	if h.markdownPresentationIndex != index {
+		t.Fatal("Markdown presentation index was rebuilt for another line")
+	}
+
+	if err := h.ParseFull([]byte("After *edit*")); err != nil {
+		t.Fatal(err)
+	}
+	if h.Revision() == revision {
+		t.Fatal("highlighter revision did not change after parsing")
+	}
+	if h.markdownPresentationIndex != nil {
+		t.Fatal("Markdown presentation index was retained after parsing")
+	}
+}
