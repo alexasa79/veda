@@ -47,6 +47,14 @@ func TestDetectWrapContext(t *testing.T) {
 			wantPrefix:  "  ",
 		},
 		{
+			name:        "markdown block quote",
+			lines:       []string{"> This is a quote"},
+			startLine:   0,
+			wantContext: wrapContextMarkdownQuote,
+			wantIndent:  "",
+			wantPrefix:  "> ",
+		},
+		{
 			name:        "C++ line comment",
 			lines:       []string{"    // This is a comment"},
 			startLine:   0,
@@ -263,6 +271,17 @@ func TestFindParagraphBounds(t *testing.T) {
 			wantStart:  1,
 			wantEnd:    1,
 		},
+		{
+			name: "markdown quote stops at ordinary text",
+			lines: []string{
+				"ordinary paragraph",
+				"> quoted paragraph",
+				"another ordinary paragraph",
+			},
+			cursorLine: 1,
+			wantStart:  1,
+			wantEnd:    1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -315,6 +334,24 @@ for our editor.`,
    very long and needs to be wrapped
    properly with the correct
    indentation.`,
+		},
+		{
+			name:      "markdown block quote",
+			input:     `> Very very very very super duper very excessively ver very very very very very very very very very long line.`,
+			cursorY:   0,
+			wrapWidth: 70,
+			want: `> Very very very very super duper very excessively ver very very very
+> very very very very very very long line.`,
+		},
+		{
+			name: "already wrapped markdown block quote",
+			input: `> This quoted paragraph is already split across multiple physical lines
+> and should keep exactly one quote marker on every newly wrapped line.`,
+			cursorY:   1,
+			wrapWidth: 50,
+			want: `> This quoted paragraph is already split across
+> multiple physical lines and should keep exactly
+> one quote marker on every newly wrapped line.`,
 		},
 		{
 			name:      "C++ comment",

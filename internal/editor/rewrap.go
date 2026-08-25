@@ -19,6 +19,7 @@ const (
 	wrapContextCLineComment
 	wrapContextPythonComment
 	wrapContextMarkdownHeading
+	wrapContextMarkdownQuote
 )
 
 type paragraphInfo struct {
@@ -46,6 +47,12 @@ func detectWrapContext(lines []string, startLine int) (wrapContext, string, stri
 		listPrefix := extractListPrefix(trimmed)
 		extraIndent := strings.Repeat(" ", len(listPrefix))
 		return wrapContextMarkdownList, strings.Repeat(" ", indent), extraIndent
+	}
+
+	// Check for markdown block quote
+	if isMarkdownQuoteLine(trimmed) {
+		indent := strings.Index(firstLine, ">")
+		return wrapContextMarkdownQuote, strings.Repeat(" ", indent), "> "
 	}
 
 	// Check for C-style line comment
@@ -127,6 +134,10 @@ func detectWrapContext(lines []string, startLine int) (wrapContext, string, stri
 	return wrapContextPlain, strings.Repeat(" ", indent), ""
 }
 
+func isMarkdownQuoteLine(line string) bool {
+	return strings.HasPrefix(strings.TrimSpace(line), ">")
+}
+
 func isMarkdownListItem(line string) bool {
 	// Check for numbered list (1. 2. etc)
 	if len(line) > 2 {
@@ -188,6 +199,11 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 			break
 		}
 
+		// Markdown block quotes and ordinary paragraphs are separate.
+		if isMarkdownQuoteLine(prevLine) != isMarkdownQuoteLine(currentLine) {
+			break
+		}
+
 		// Stop at markdown heading (line starting with #)
 		if strings.HasPrefix(prevLine, "#") {
 			break
@@ -210,10 +226,16 @@ func findParagraphBounds(lines []string, cursorLine int) (int, int) {
 	// Find end of paragraph (next empty line, markdown heading, or end of file)
 	for endLine < len(lines)-1 {
 		nextLine := strings.TrimSpace(lines[endLine+1])
+		currentLine := strings.TrimSpace(lines[endLine])
 		LL.Trace("findParagraphBounds: Checking line %d: '%s'", endLine+1, lines[endLine+1])
 
 		// Stop at empty line
 		if nextLine == "" {
+			break
+		}
+
+		// Markdown block quotes and ordinary paragraphs are separate.
+		if isMarkdownQuoteLine(nextLine) != isMarkdownQuoteLine(currentLine) {
 			break
 		}
 
@@ -396,6 +418,15 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 		}
 		// Re-detect indent/prefix at the new start line
 		_, indentation, prefix = detectWrapContext(lines, startLine)
+	} else if context == wrapContextMarkdownQuote {
+		startLine, endLine = cursorLine, cursorLine
+		for startLine > 0 && isMarkdownQuoteLine(lines[startLine-1]) {
+			startLine--
+		}
+		for endLine < len(lines)-1 && isMarkdownQuoteLine(lines[endLine+1]) {
+			endLine++
+		}
+		_, indentation, prefix = detectWrapContext(lines, startLine)
 	} else if context == wrapContextCBlockComment {
 		// Find exact block boundaries: up to '/*' and down to '*/'
 		openLine := cursorLine
@@ -463,6 +494,8 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 					listPrefix := extractListPrefix(trimmed)
 					trimmed = strings.TrimPrefix(trimmed, listPrefix)
 				}
+			case wrapContextMarkdownQuote:
+				trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
 			}
 			cursorOffsetInParagraph += len(trimmed) + 1 // +1 for space between words
 		}
@@ -502,6 +535,14 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 				if cursorX > prefixLen {
 					cursorOffsetInParagraph += cursorX - prefixLen
 				}
+			}
+		case wrapContextMarkdownQuote:
+			prefixLen := strings.Index(lines[cursorLine], ">") + 1
+			for prefixLen < len(lines[cursorLine]) && lines[cursorLine][prefixLen] == ' ' {
+				prefixLen++
+			}
+			if cursorX > prefixLen {
+				cursorOffsetInParagraph += cursorX - prefixLen
 			}
 		default:
 			// For plain text, calculate from the first non-space character
@@ -557,6 +598,8 @@ func (e *Editor) rewrapParagraphWithWidth(width int) error {
 				listPrefix := extractListPrefix(trimmed)
 				trimmed = strings.TrimPrefix(trimmed, listPrefix)
 			}
+		case wrapContextMarkdownQuote:
+			trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
 		}
 
 		LL.Trace("rewrapParagraphWithWidth: After processing, trimmed text: '%s'", trimmed)
