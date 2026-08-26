@@ -357,6 +357,16 @@ func (e *Editor) insertChar(ch rune) error {
 		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
 	}
 
+	// Auto-dedent bullet list items in markdown files
+	if !e.inPasteMode && ch == '-' && e.shouldAutoDedentMarkdownListBullet(lineNum, cursorX) {
+		if err := e.autoDedentMarkdownListBullet(lineNum); err != nil {
+			return err
+		}
+		cursorX = e.CurrentBuffer().CursorX
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), lineNum)
+		e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), viewLineNum)
+	}
+
 	// Create history entry for the single character
 	// Compute absolute start before modification for incremental syntax update
 	startByte := e.getAbsolutePosition()
@@ -2495,11 +2505,50 @@ func (e *Editor) findPrevMarkdownListItem(lineNum int) (int, string, bool) {
 	return 0, "", false
 }
 
+// shouldAutoDedentMarkdownListBullet checks if typing '-' would start a bullet
+// that should be auto-dedented to match the previous bullet item.
+// Called BEFORE '-' is inserted.
+func (e *Editor) shouldAutoDedentMarkdownListBullet(lineNum int, cursorX int) bool {
+	if !e.isMarkdownFile() {
+		return false
+	}
+
+	line := e.CurrentBuffer().CursorIterator.Line()
+	for i := 0; i < len(line); i++ {
+		if line[i] != ' ' && line[i] != '\t' {
+			return false
+		}
+	}
+
+	prevIndent, found := e.findPrevMarkdownBulletListItem(lineNum)
+	return found && cursorX > len(prevIndent)
+}
+
+// findPrevMarkdownBulletListItem scans backward for a line matching \s*-\s.
+func (e *Editor) findPrevMarkdownBulletListItem(lineNum int) (string, bool) {
+	for prev := lineNum - 1; prev >= 0; prev-- {
+		iter := buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), prev)
+		if iter.IsEOF() {
+			continue
+		}
+
+		prevLine := iter.Line()
+		marker := 0
+		for marker < len(prevLine) && (prevLine[marker] == ' ' || prevLine[marker] == '\t') {
+			marker++
+		}
+		if marker+1 < len(prevLine) && prevLine[marker] == '-' && prevLine[marker+1] == ' ' {
+			return prevLine[:marker], true
+		}
+	}
+
+	return "", false
+}
+
 // autoDedentMarkdownListNumber replaces leading whitespace on the current line
 // with the whitespace from the previous numbered list item.
 func (e *Editor) autoDedentMarkdownListNumber(lineNum int) error {
 	line := e.CurrentBuffer().CursorIterator.Line()
-	cursorX := e.CurrentBuffer().CursorX
 
 	// Find where digits start on current line
 	digitStart := 0
@@ -2514,12 +2563,32 @@ func (e *Editor) autoDedentMarkdownListNumber(lineNum int) error {
 		return nil
 	}
 
+	return e.autoDedentMarkdownListItem(lineNum, currentIndent, prevIndent, "auto-dedent markdown list number")
+}
+
+// autoDedentMarkdownListBullet replaces leading whitespace on the current line
+// with the whitespace from the previous bullet list item.
+func (e *Editor) autoDedentMarkdownListBullet(lineNum int) error {
+	line := e.CurrentBuffer().CursorIterator.Line()
+	cursorX := e.CurrentBuffer().CursorX
+
+	prevIndent, found := e.findPrevMarkdownBulletListItem(lineNum)
+	if !found {
+		return nil
+	}
+
+	return e.autoDedentMarkdownListItem(lineNum, line[:cursorX], prevIndent, "auto-dedent markdown list bullet")
+}
+
+func (e *Editor) autoDedentMarkdownListItem(lineNum int, currentIndent, prevIndent, description string) error {
+	cursorX := e.CurrentBuffer().CursorX
+
 	if currentIndent == prevIndent {
 		return nil // nothing to do
 	}
 
 	// Build composite entry: delete old indent, insert new indent
-	composite := buffer.NewCompositeEntry("auto-dedent markdown list number")
+	composite := buffer.NewCompositeEntry(description)
 	composite.Entries = append(composite.Entries, buffer.NewDeleteTextEntry(lineNum, 0, currentIndent))
 	if len(prevIndent) > 0 {
 		composite.Entries = append(composite.Entries, buffer.NewInsertTextEntry(lineNum, 0, prevIndent))
