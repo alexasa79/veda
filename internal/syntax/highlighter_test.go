@@ -1,6 +1,7 @@
 package syntax
 
 import (
+	"strings"
 	"testing"
 
 	sitter "github.com/smacker/go-tree-sitter"
@@ -184,6 +185,160 @@ func TestMarkdownHighlighting(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMarkdownFencedCodeHighlighting(t *testing.T) {
+	t.Run("supported language", func(t *testing.T) {
+		source := "```c\nprintf(\"Hello world\\n\");\n```"
+		h := NewHighlighter()
+		if err := h.SetLanguage("markdown"); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.ParseFull([]byte(source)); err != nil {
+			t.Fatal(err)
+		}
+
+		lineStart := strings.Index(source, "printf")
+		lineEnd := lineStart + len(`printf("Hello world\n");`)
+		tokens := h.GetTokensForLine(lineStart, lineEnd)
+		if !lineHasToken(source[lineStart:lineEnd], tokens, "printf", TokenTypeFunction) {
+			t.Fatalf("expected C function highlighting, got %v", tokens)
+		}
+	})
+
+	for _, test := range []struct {
+		name  string
+		fence string
+	}{
+		{name: "no language", fence: "```"},
+		{name: "unsupported language", fence: "```rust"},
+		{name: "ambiguous label", fence: "```c extra"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source := test.fence + "\nprintf(\"Hello world\\n\");\n```"
+			h := NewHighlighter()
+			if err := h.SetLanguage("markdown"); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.ParseFull([]byte(source)); err != nil {
+				t.Fatal(err)
+			}
+
+			if len(h.markdownCodeBlocks) != 0 {
+				t.Fatalf("expected generic Markdown highlighting for %q", test.fence)
+			}
+		})
+	}
+}
+
+func TestMarkdownFenceSupportsEveryHighlightedLanguage(t *testing.T) {
+	// Exact SetLanguage names become Markdown fence names automatically. This
+	// table records every language currently highlighted by Veda except Markdown.
+	languages := []struct {
+		language  string
+		code      string
+		tokenText string
+		tokenType TokenType
+	}{
+		{language: "javascript", code: "const value = 1;", tokenText: "const", tokenType: TokenTypeKeyword},
+		{language: "typescript", code: "const value: number = 1;", tokenText: "const", tokenType: TokenTypeKeyword},
+		{language: "tsx", code: "const view = <div />;", tokenText: "const", tokenType: TokenTypeKeyword},
+		{language: "go", code: "func main() {}", tokenText: "func", tokenType: TokenTypeKeyword},
+		{language: "c", code: "int main(void) {}", tokenText: "int", tokenType: TokenTypeType},
+		{language: "cpp", code: "class Thing {};", tokenText: "class", tokenType: TokenTypeKeyword},
+		{language: "fish", code: "if true; end", tokenText: "if", tokenType: TokenTypeKeyword},
+		{language: "bash", code: "if true; then echo ok; fi", tokenText: "if", tokenType: TokenTypeKeyword},
+		{language: "python", code: "def greet(): pass", tokenText: "def", tokenType: TokenTypePythonKeyword},
+		{language: "make", code: "all:", tokenText: "all", tokenType: TokenTypeConstant},
+		{language: "tlaplus", code: "VARIABLE value", tokenText: "VARIABLE", tokenType: TokenTypeKeyword},
+		{language: "latex", code: `\section{Title}`, tokenText: `\section`, tokenType: TokenTypeKeyword},
+	}
+
+	for _, test := range languages {
+		t.Run(test.language, func(t *testing.T) {
+			source := "```" + test.language + "\n" + test.code + "\n```"
+			h := NewHighlighter()
+			if err := h.SetLanguage("markdown"); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.ParseFull([]byte(source)); err != nil {
+				t.Fatal(err)
+			}
+
+			if len(h.markdownCodeBlocks) != 1 {
+				t.Fatalf("expected %q Markdown fence to be supported", test.language)
+			}
+			if got := h.markdownCodeBlocks[0].highlighter.GetCurrentLanguage(); got != test.language {
+				t.Fatalf("fence language = %q, want %q", got, test.language)
+			}
+
+			lineStart := strings.Index(source, test.code)
+			lineEnd := lineStart + len(test.code)
+			tokens := h.GetTokensForLine(lineStart, lineEnd)
+			if !lineHasToken(test.code, tokens, test.tokenText, test.tokenType) {
+				t.Fatalf("expected %q to have %s highlighting, got %v", test.tokenText, test.tokenType, tokens)
+			}
+		})
+	}
+}
+
+func TestMarkdownFenceAliasesUseSupportedLanguages(t *testing.T) {
+	for alias, language := range markdownFenceAliases {
+		t.Run(alias, func(t *testing.T) {
+			source := "```" + alias + "\ncode\n```"
+			h := NewHighlighter()
+			if err := h.SetLanguage("markdown"); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.ParseFull([]byte(source)); err != nil {
+				t.Fatal(err)
+			}
+
+			if len(h.markdownCodeBlocks) != 1 {
+				t.Fatalf("expected %q Markdown fence to be supported", alias)
+			}
+			if got := h.markdownCodeBlocks[0].highlighter.GetCurrentLanguage(); got != language {
+				t.Fatalf("fence language = %q, want %q", got, language)
+			}
+		})
+	}
+}
+
+func TestMarkdownFenceHighlightingUpdatesAfterEdit(t *testing.T) {
+	source := "```\nprintf(\"Hello world\\n\");\n```"
+	h := NewHighlighter()
+	if err := h.SetLanguage("markdown"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ParseFull([]byte(source)); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.markdownCodeBlocks) != 0 {
+		t.Fatal("unlabeled fence should use generic Markdown highlighting")
+	}
+
+	if err := h.ApplyEdit(3, "", "c"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.markdownCodeBlocks) != 1 {
+		t.Fatal("adding a supported fence label should enable language highlighting")
+	}
+
+	if err := h.ApplyEdit(3, "c", ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.markdownCodeBlocks) != 0 {
+		t.Fatal("removing a fence label should restore generic Markdown highlighting")
+	}
+}
+
+func lineHasToken(line string, tokens []Token, text string, tokenType TokenType) bool {
+	for _, token := range tokens {
+		if line[token.Start:token.End] == text && token.TokenType == tokenType {
+			return true
+		}
+	}
+	return false
 }
 
 func TestMarkdownTreeStructure(t *testing.T) {
