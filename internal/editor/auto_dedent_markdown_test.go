@@ -117,3 +117,30 @@ func TestAutoDedentMarkdownListNumber(t *testing.T) {
 		})
 	}
 }
+
+func TestAutoDedentMarkdownListBullet(t *testing.T) {
+	const initial = "- first\n- second\n  "
+	te := NewTestEditorWithContent(80, 24, initial)
+	te.CurrentBuffer().FilePath = "test.md"
+	te.ExecuteCommand("enter-insert-mode")
+	te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), 2)
+	te.CurrentBuffer().CursorX = 2
+
+	te.InsertChar('-')
+	te.ExecuteCommand("exit-insert-mode")
+
+	const expected = "- first\n- second\n-"
+	if actual := te.CurrentBuffer().Rope.String(); actual != expected {
+		t.Errorf("expected:\n%q\ngot:\n%q", expected, actual)
+	}
+
+	te.ExecuteCommand("undo")
+	if actual := te.CurrentBuffer().Rope.String(); actual != initial {
+		t.Errorf("undo expected:\n%q\ngot:\n%q", initial, actual)
+	}
+
+	te.ExecuteCommand("redo")
+	if actual := te.CurrentBuffer().Rope.String(); actual != expected {
+		t.Errorf("redo expected:\n%q\ngot:\n%q", expected, actual)
+	}
+}
