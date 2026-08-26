@@ -95,11 +95,12 @@ type Token struct {
 
 // Highlighter manages syntax highlighting for different languages
 type Highlighter struct {
-	parser        *sitter.Parser
-	currentLang   string
-	currentTree   *sitter.Tree
-	currentSource []byte
-	tokenCache    map[int][]Token // Cache key: startByte
+	parser             *sitter.Parser
+	currentLang        string
+	currentTree        *sitter.Tree
+	currentSource      []byte
+	tokenCache         map[int][]Token // Cache key: startByte
+	markdownCodeBlocks []markdownCodeBlock
 }
 
 // NewHighlighter creates a new syntax highlighter
@@ -230,6 +231,9 @@ func (h *Highlighter) GetCurrentLanguage() string {
 
 // SetLanguage sets the language directly by name
 func (h *Highlighter) SetLanguage(language string) error {
+	// Every non-Markdown name added here automatically becomes an exact Markdown
+	// fence label. Add common shorthand labels to markdownFenceAliases in
+	// markdown_fences.go.
 	switch language {
 	case "javascript":
 		h.parser.SetLanguage(javascript.GetLanguage())
@@ -283,6 +287,7 @@ func (h *Highlighter) SetLanguage(language string) error {
 	h.currentTree = nil
 	h.currentSource = nil
 	h.tokenCache = make(map[int][]Token)
+	h.markdownCodeBlocks = nil
 
 	return nil
 }
@@ -303,7 +308,7 @@ func (h *Highlighter) Parse(source []byte) error {
 	h.currentSource = source
 	// Clear the token cache when source changes
 	h.tokenCache = make(map[int][]Token)
-	return nil
+	return h.rebuildMarkdownCodeBlocks()
 }
 
 // ParseFull forces a full reparse without using the old tree
@@ -322,7 +327,7 @@ func (h *Highlighter) ParseFull(source []byte) error {
 	h.currentSource = source
 	// Clear the token cache when source changes
 	h.tokenCache = make(map[int][]Token)
-	return nil
+	return h.rebuildMarkdownCodeBlocks()
 }
 
 // ReparseIncremental computes a single contiguous edit between the current
@@ -398,7 +403,7 @@ func (h *Highlighter) ReparseIncremental(newSource []byte) error {
 	h.currentSource = newSource
 	// Clear token cache (could be optimized to changed ranges)
 	h.tokenCache = make(map[int][]Token)
-	return nil
+	return h.rebuildMarkdownCodeBlocks()
 }
 
 // ApplyEdit mutates the currentSource by replacing the span [startByte, startByte+len(oldText))
@@ -481,7 +486,7 @@ func (h *Highlighter) ApplyEdit(startByte int, oldText, newText string) error {
 	h.currentTree = tree
 	h.currentSource = newSrc
 	h.tokenCache = make(map[int][]Token)
-	return nil
+	return h.rebuildMarkdownCodeBlocks()
 }
 
 // byteIndexToPoint converts a byte index into (row, column) in bytes.
@@ -522,6 +527,16 @@ func (h *Highlighter) GetTree() *sitter.Tree {
 func (h *Highlighter) GetTokensForLine(lineStart, lineEnd int) []Token {
 	if h.currentTree == nil || h.currentLang == "" || h.currentSource == nil {
 		return nil
+	}
+	if h.currentLang == "markdown" {
+		for _, block := range h.markdownCodeBlocks {
+			if lineStart >= block.start && lineStart < block.end {
+				return block.highlighter.GetTokensForLine(lineStart-block.start, lineEnd-block.start)
+			}
+			if lineStart < block.start {
+				break
+			}
+		}
 	}
 
 	// Check cache first
