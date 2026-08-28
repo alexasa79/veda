@@ -120,7 +120,8 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 // SetLanguageFromFileAndContent sets the language based on file name first,
 // then falls back to shebang detection from content.
 func (h *Highlighter) SetLanguageFromFileAndContent(filename string, content []byte) error {
-	ext := strings.ToLower(filepath.Ext(filename))
+	rawExt := filepath.Ext(filename)
+	ext := strings.ToLower(rawExt)
 
 	// Check for shell scripts without extension (like "bashrc", "profile", etc)
 	baseName := filepath.Base(filename)
@@ -154,9 +155,14 @@ func (h *Highlighter) SetLanguageFromFileAndContent(filename string, content []b
 		h.parser.SetLanguage(golang.GetLanguage())
 		h.currentLang = "go"
 	case ".c", ".h", ".m":
-		h.parser.SetLanguage(c.GetLanguage())
-		h.currentLang = "c"
-	case ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx":
+		if rawExt == ".C" || rawExt == ".H" {
+			h.parser.SetLanguage(cpp.GetLanguage())
+			h.currentLang = "cpp"
+		} else {
+			h.parser.SetLanguage(c.GetLanguage())
+			h.currentLang = "c"
+		}
+	case ".cpp", ".cc", ".cxx", ".c++", ".hpp", ".hh", ".hxx":
 		h.parser.SetLanguage(cpp.GetLanguage())
 		h.currentLang = "cpp"
 	case ".md", ".markdown":

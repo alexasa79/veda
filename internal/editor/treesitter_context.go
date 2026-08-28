@@ -41,9 +41,10 @@ func getTreeSitterContext(buf *buffer.Buffer, highlighter *syntax.Highlighter, c
 	// Ascend and collect context-worthy ancestors
 	lines := make([]int, 0, maxLines)
 	seen := make(map[int]bool)
+	language := highlighter.GetCurrentLanguage()
 
 	for cur := n; cur != nil; cur = cur.Parent() {
-		if isContextNode(cur) {
+		if isContextNode(cur, language) {
 			lnum := -1
 			if isFunctionNode(cur) {
 				lnum = findFunctionDeclarationLine(buf, cur)
@@ -71,7 +72,7 @@ func getTreeSitterContext(buf *buffer.Buffer, highlighter *syntax.Highlighter, c
 }
 
 // findContextNodes finds all nodes that contain the cursor line and are context-worthy
-func findContextNodes(node *sitter.Node, cursorLine int, viewStartLine int, viewEndLine int) []*sitter.Node {
+func findContextNodes(node *sitter.Node, language string, cursorLine int, viewStartLine int, viewEndLine int) []*sitter.Node {
 	var result []*sitter.Node
 
 	nodeStartLine := int(node.StartPoint().Row)
@@ -80,7 +81,7 @@ func findContextNodes(node *sitter.Node, cursorLine int, viewStartLine int, view
 	// Check if this node contains the cursor line
 	if cursorLine >= nodeStartLine && cursorLine <= nodeEndLine {
 		// Check if this is a context-worthy node type
-		if isContextNode(node) {
+		if isContextNode(node, language) {
 			result = append(result, node)
 		}
 
@@ -88,7 +89,7 @@ func findContextNodes(node *sitter.Node, cursorLine int, viewStartLine int, view
 		childCount := int(node.ChildCount())
 		for i := 0; i < childCount; i++ {
 			child := node.Child(i)
-			childNodes := findContextNodes(child, cursorLine, viewStartLine, viewEndLine)
+			childNodes := findContextNodes(child, language, cursorLine, viewStartLine, viewEndLine)
 			result = append(result, childNodes...)
 		}
 	}
@@ -97,30 +98,27 @@ func findContextNodes(node *sitter.Node, cursorLine int, viewStartLine int, view
 }
 
 // isContextNode checks if a node type should be shown as context
-func isContextNode(node *sitter.Node) bool {
-	nodeType := node.Type()
-
-	// Context-worthy node types for different languages
-	contextTypes := map[string]bool{
-		// C/C++ context nodes
-		"function_definition": true,
-		"struct_specifier":    true,
-		"enum_specifier":      true,
-		"if_statement":        true,
-		"for_statement":       true,
-		"while_statement":     true,
-		"do_statement":        true,
-		"switch_statement":    true,
-		"compound_statement":  false, // Skip compound statements to avoid braces
-
-		// Go context nodes
-		"function_declaration": true,
-		"method_declaration":   true,
-		"type_declaration":     true,
-		"select_statement":     true,
+func isContextNode(node *sitter.Node, language string) bool {
+	switch node.Type() {
+	// Preserve the existing context-node behavior for every language.
+	case "function_definition", "struct_specifier", "enum_specifier",
+		"if_statement", "for_statement", "while_statement", "do_statement",
+		"switch_statement", "function_declaration", "method_declaration",
+		"type_declaration", "select_statement":
+		return true
 	}
 
-	return contextTypes[nodeType]
+	if language != "cpp" {
+		return false
+	}
+
+	switch node.Type() {
+	case "class_specifier", "namespace_definition", "for_range_loop",
+		"lambda_expression", "try_statement", "catch_clause", "template_declaration":
+		return true
+	}
+
+	return false
 }
 
 // isFunctionNode checks if a node is a function definition
