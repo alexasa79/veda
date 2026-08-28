@@ -23,6 +23,10 @@ type TerminalEmulator struct {
 	curY   int    // 0-based row
 	cells  []rune // row-major, len = width*height
 
+	// A character written in the final column does not wrap until the next
+	// printable character. Cursor movement such as CR cancels the pending wrap.
+	wrapPending bool
+
 	// Saved cursor
 	savedX int
 	savedY int
@@ -131,6 +135,7 @@ func (te *TerminalEmulator) Resize(cols, rows int) {
 	if te.curY >= te.height {
 		te.curY = te.height - 1
 	}
+	te.wrapPending = false
 	// Reset or clamp scroll region to new size
 	if te.topMargin < 0 {
 		te.topMargin = 0
@@ -156,23 +161,32 @@ func (te *TerminalEmulator) clampCursor() {
 	if te.curY >= te.height {
 		te.curY = te.height - 1
 	}
+	te.wrapPending = false
 }
 
 func (te *TerminalEmulator) clearLineMode(mode int) {
 	switch mode {
 	case 0:
 		for x := te.curX; x < te.width; x++ {
-			te.cells[te.index(x, te.curY)] = ' '
+			te.clearCell(x, te.curY)
 		}
 	case 1:
 		for x := 0; x <= te.curX; x++ {
-			te.cells[te.index(x, te.curY)] = ' '
+			te.clearCell(x, te.curY)
 		}
 	case 2:
 		for x := 0; x < te.width; x++ {
-			te.cells[te.index(x, te.curY)] = ' '
+			te.clearCell(x, te.curY)
 		}
 	}
+}
+
+func (te *TerminalEmulator) clearCell(x, y int) {
+	idx := te.index(x, y)
+	te.cells[idx] = ' '
+	te.fg[idx] = ui.ColorDefault
+	te.bg[idx] = ui.ColorDefault
+	te.attrs[idx] = ui.AttrNone
 }
 
 func (te *TerminalEmulator) clearDisplayMode(mode int) {
@@ -181,24 +195,25 @@ func (te *TerminalEmulator) clearDisplayMode(mode int) {
 		te.clearLineMode(0)
 		for y := te.curY + 1; y < te.height; y++ {
 			for x := 0; x < te.width; x++ {
-				te.cells[te.index(x, y)] = ' '
+				te.clearCell(x, y)
 			}
 		}
 	case 1:
 		for y := 0; y < te.curY; y++ {
 			for x := 0; x < te.width; x++ {
-				te.cells[te.index(x, y)] = ' '
+				te.clearCell(x, y)
 			}
 		}
 		te.clearLineMode(1)
 	case 2:
-		for i := range te.cells {
-			te.cells[i] = ' '
+		for y := 0; y < te.height; y++ {
+			te.clearRow(y)
 		}
 	}
 }
 
 func (te *TerminalEmulator) newline() {
+	te.wrapPending = false
 	// If at bottom margin, scroll the region up; otherwise move cursor down.
 	if te.curY == te.bottomMargin {
 		te.scrollRegionUp()
@@ -486,6 +501,7 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 							col = te.width
 						}
 						te.curY, te.curX = row-1, col-1
+						te.wrapPending = false
 					case 'A':
 						n := 1
 						if len(params) > 0 && params[0] > 0 {
@@ -526,6 +542,7 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 							col = te.width
 						}
 						te.curX = col - 1
+						te.wrapPending = false
 					case 'L':
 						// IL - Insert Line(s) within the scrolling region
 						count := 1
@@ -588,12 +605,14 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 						if len(params) > 0 {
 							mode = params[0]
 						}
+						te.wrapPending = false
 						te.clearLineMode(mode)
 					case 'J':
 						mode := 0
 						if len(params) > 0 {
 							mode = params[0]
 						}
+						te.wrapPending = false
 						te.clearDisplayMode(mode)
 					case 's':
 						te.savedX, te.savedY = te.curX, te.curY
@@ -630,6 +649,7 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 						if te.curX < 0 {
 							te.curX = 0
 						}
+						te.wrapPending = false
 					default:
 						// Instrumentation: log DEC private mode set/reset for DECCKM (application cursor keys)
 						// CSI ? 1 h -> set; CSI ? 1 l -> reset. We still ignore behavior here; just log.
@@ -726,10 +746,12 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 				i++ // Consume the 'E' character
 				continue
 			case 'c': // RIS: reset
-				for i2 := range te.cells {
-					te.cells[i2] = ' '
+				for y := 0; y < te.height; y++ {
+					te.clearRow(y)
 				}
 				te.curX, te.curY = 0, 0
+				te.wrapPending = false
+				te.curFg, te.curBg, te.curAttrs = ui.ColorDefault, ui.ColorDefault, ui.AttrNone
 				i++ // Consume the 'c' character
 				continue
 			default:
@@ -742,14 +764,17 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 			switch b {
 			case '\r':
 				te.curX = 0
+				te.wrapPending = false
 			case '\n':
 				// In bracketed paste mode, shells often output a visible return glyph; ignore printing of '⏎' runes from control-newlines.
 				te.newline()
 			case '\b':
+				te.wrapPending = false
 				if te.curX > 0 {
 					te.curX--
 				}
 			case '\t':
+				te.wrapPending = false
 				nextTab := (te.curX/8 + 1) * 8
 				if nextTab >= te.width {
 					nextTab = te.width - 1
@@ -774,10 +799,18 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 			i += size
 			continue
 		}
+		if te.wrapPending {
+			te.curX = 0
+			te.newline()
+		}
 		// Determine display width (handle common wide runes like emoji)
 		w := runeDisplayWidth(r)
 		if w < 1 {
 			w = 1
+		}
+		if te.curX+w > te.width {
+			te.curX = 0
+			te.newline()
 		}
 		// Place rune and styles; if double-width, mark next cell as styled space
 		idx := te.index(te.curX, te.curY)
@@ -794,10 +827,11 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 				te.attrs[idx2] = te.curAttrs
 			}
 		}
-		te.curX += w
-		if te.curX >= te.width {
-			te.curX = 0
-			te.newline()
+		if te.curX+w >= te.width {
+			te.curX = te.width - 1
+			te.wrapPending = true
+		} else {
+			te.curX += w
 		}
 		i += size
 	}
