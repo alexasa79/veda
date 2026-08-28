@@ -657,11 +657,17 @@ func (h *Highlighter) walkNode(node *sitter.Node, lineStart, lineEnd int, source
 	if h.currentLang == "markdown" {
 		nodeType := node.Type()
 		// These markdown nodes should be tokenized even if they have children
-		isMarkdownToken := nodeType == "emphasis" || nodeType == "strong_emphasis" ||
+		isEmphasis := nodeType == "emphasis" || nodeType == "strong_emphasis"
+		isMarkdownToken := isEmphasis ||
 			nodeType == "code_span" || nodeType == "strikethrough" ||
 			nodeType == "inline_link" || nodeType == "shortcut_link" ||
 			nodeType == "fenced_code_block" || nodeType == "indented_code_block" ||
 			nodeType == "link_destination"
+		if isEmphasis && !hasValidMarkdownEmphasisDelimiters(node, source) {
+			// The inline parser can pair underscores inside identifiers across
+			// lines. Ignore that emphasis node, but still visit nested code spans.
+			isMarkdownToken = false
+		}
 
 		if isMarkdownToken {
 			tokenType := h.mapNodeToTokenType(node, source)
