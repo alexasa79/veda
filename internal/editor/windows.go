@@ -358,11 +358,7 @@ func (e *Editor) recomputeWindowsLayout() {
 	if e.CurrentBuffer() != nil {
 		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.SessionID != "" {
 			cols, rows := e.getActiveWindowSizeForTerminal()
-			_ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)
-			ts.Cols, ts.Rows = cols, rows
-			if ts.term != nil {
-				ts.term.Resize(cols, rows)
-			}
+			e.resizeTerminalSession(ts, cols, rows)
 		}
 	}
 }

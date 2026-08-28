@@ -395,6 +395,9 @@ func (te *TerminalEmulator) WriteWithResponse(data []byte) []byte {
 							response = append(response, []byte("\x1b[?1;2c")...)
 						}
 					case 'm':
+						if priv {
+							break
+						}
 						// SGR: set graphics rendition
 						if len(params) == 0 {
 							params = []int{0}

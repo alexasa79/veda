@@ -1265,6 +1265,7 @@ func (e *Editor) handleEvent(ev events.Event) {
 				text, _ := m["data"].(string)
 				if bufPath != "" {
 					if b, ok := e.buffers[bufPath]; ok {
+						oldGutterWidth := b.LineNumberWidth
 						// For terminal buffers with an emulator, replace screen content instead of appending
 						wasRO := b.IsReadOnly
 						if b.IsInternal && b.IsReadOnly {
@@ -1296,6 +1297,10 @@ func (e *Editor) handleEvent(ev events.Event) {
 						// For terminal snapshots, align view to show the prompt row
 						if e.CurrentBuffer() == b {
 							if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
+								if b.LineNumberWidth != oldGutterWidth {
+									cols, rows := e.getActiveWindowSizeForTerminal()
+									e.resizeTerminalSession(ts, cols, rows)
+								}
 								curX, curY := ts.term.Cursor()
 								// Account for banner occupying the first buffer line
 								bannerOffset := 0
