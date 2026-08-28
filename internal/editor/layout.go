@@ -112,6 +112,19 @@ func (e *Editor) getActiveWindowSizeForTerminal() (int, int) {
 	return w, h
 }
 
+func (e *Editor) resizeTerminalSession(ts *TerminalSessionState, cols, rows int) {
+	if ts == nil || cols < 1 || rows < 1 || (ts.Cols == cols && ts.Rows == rows) {
+		return
+	}
+	if ts.SessionID != "" {
+		_ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)
+	}
+	ts.Cols, ts.Rows = cols, rows
+	if ts.term != nil {
+		ts.term.Resize(cols, rows)
+	}
+}
+
 // shouldShowContext determines if context should be shown
 func (e *Editor) shouldShowContext() bool {
 	if !e.showContext {
@@ -282,11 +295,7 @@ func (e *Editor) handleResize() {
 	if e.CurrentBuffer() != nil {
 		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.SessionID != "" {
 			cols, rows := e.getActiveWindowSizeForTerminal()
-			_ = e.proxyManager.ResizeTerminal(ts.WorkingDir, ts.SessionID, cols, rows)
-			ts.Cols, ts.Rows = cols, rows
-			if ts.term != nil {
-				ts.term.Resize(cols, rows)
-			}
+			e.resizeTerminalSession(ts, cols, rows)
 		}
 	}
 	e.screen.Clear()

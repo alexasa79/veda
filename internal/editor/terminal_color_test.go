@@ -106,6 +106,18 @@ func TestTerminalEmulatorDeviceAttributeResponses(t *testing.T) {
 	}
 }
 
+func TestTerminalEmulatorPrivateCSISequenceDoesNotSetTextAttributes(t *testing.T) {
+	te := NewTerminalEmulator(40, 3)
+	te.Write([]byte("\x1b[>4;1mplain"))
+
+	for x := range len("plain") {
+		_, _, attrs := te.StyleAt(x, 0)
+		if attrs != ui.AttrNone {
+			t.Fatalf("private CSI set attributes at column %d: %v", x, attrs)
+		}
+	}
+}
+
 func TestTerminalEmulatorDCSDoesNotRender(t *testing.T) {
 	te := NewTerminalEmulator(80, 3)
 	te.Write([]byte("before\x1bP+q696e646e\x1b\\after"))
