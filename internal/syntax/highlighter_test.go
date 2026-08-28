@@ -341,6 +341,88 @@ func lineHasToken(line string, tokens []Token, text string, tokenType TokenType)
 	return false
 }
 
+func TestMarkdownRejectsIntrawordUnderscoreEmphasisAcrossLines(t *testing.T) {
+	source := "1. RECORD_KIND_ALPHA_00 - this is a `sample_record_type_t` object.\n" +
+		"2. RECORD_KIND_BETA_00 - this is a `sample_link_type_t` object."
+	h := NewHighlighter()
+	if err := h.SetLanguage("markdown"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ParseFull([]byte(source)); err != nil {
+		t.Fatal(err)
+	}
+
+	lineEnd := strings.IndexByte(source, '\n')
+	line := source[:lineEnd]
+	tokens := h.GetTokensForLine(0, lineEnd)
+	if !lineHasToken(line, tokens, "`sample_record_type_t`", TokenTypeMarkdownCode) {
+		t.Fatalf("expected inline code highlighting, got %v", tokens)
+	}
+	for _, token := range tokens {
+		if token.TokenType == TokenTypeMarkdownItalic {
+			t.Fatalf("identifier underscore became emphasis: %q", line[token.Start:token.End])
+		}
+	}
+}
+
+func TestMarkdownAllowsUnderscoreEmphasisNextToPunctuation(t *testing.T) {
+	source := "**********_YYY_***********"
+	h := NewHighlighter()
+	if err := h.SetLanguage("markdown"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ParseFull([]byte(source)); err != nil {
+		t.Fatal(err)
+	}
+
+	node := findMarkdownNode(h.GetTree().RootNode(), []byte(source), "emphasis", "_YYY_")
+	if node == nil {
+		t.Fatalf("expected underscore emphasis node, tree is %s", h.GetTree().RootNode().String())
+	}
+	if !hasValidMarkdownEmphasisDelimiters(node, []byte(source)) {
+		t.Fatal("punctuation-delimited underscore emphasis was rejected")
+	}
+}
+
+func TestCommonMarkWhitespace(t *testing.T) {
+	tests := []struct {
+		name string
+		r    rune
+		want bool
+	}{
+		{name: "space", r: ' ', want: true},
+		{name: "tab", r: '\t', want: true},
+		{name: "line feed", r: '\n', want: true},
+		{name: "form feed", r: '\f', want: true},
+		{name: "carriage return", r: '\r', want: true},
+		{name: "non-breaking space", r: '\u00a0', want: true},
+		{name: "vertical tab", r: '\v', want: false},
+		{name: "next line", r: '\u0085', want: false},
+		{name: "line separator", r: '\u2028', want: false},
+		{name: "paragraph separator", r: '\u2029', want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := isCommonMarkWhitespace(test.r); got != test.want {
+				t.Fatalf("isCommonMarkWhitespace(%U) = %t, want %t", test.r, got, test.want)
+			}
+		})
+	}
+}
+
+func findMarkdownNode(node *sitter.Node, source []byte, nodeType, text string) *sitter.Node {
+	if node.Type() == nodeType && string(source[node.StartByte():node.EndByte()]) == text {
+		return node
+	}
+	for i := 0; i < int(node.ChildCount()); i++ {
+		if found := findMarkdownNode(node.Child(i), source, nodeType, text); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 func TestMarkdownTreeStructure(t *testing.T) {
 	highlighter := NewHighlighter()
 
