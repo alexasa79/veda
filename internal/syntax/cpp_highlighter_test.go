@@ -32,3 +32,18 @@ func TestCppFileExtensions(t *testing.T) {
 		})
 	}
 }
+
+func TestCppFinalAndOverrideAreKeywords(t *testing.T) {
+	code := "void run() final override;"
+	highlighter := NewHighlighter()
+	if err := highlighter.SetLanguage("cpp"); err != nil {
+		t.Fatal(err)
+	}
+
+	tokens := highlighter.GetTokensForString(code)
+	for _, keyword := range []string{"final", "override"} {
+		if !lineHasToken(code, tokens, keyword, TokenTypeKeyword) {
+			t.Errorf("%q is not highlighted as a keyword; tokens: %v", keyword, tokens)
+		}
+	}
+}
