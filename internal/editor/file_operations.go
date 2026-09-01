@@ -406,6 +406,12 @@ func (e *Editor) OpenPath(path string) {
 	LL.Info("Deferred opening of path: %s", path)
 }
 
+// OpenProjectChanges opens a directory and shows its project changes.
+func (e *Editor) OpenProjectChanges(path string) {
+	e.pendingProjectChanges = true
+	e.OpenPath(path)
+}
+
 // openFile loads a file's content into the editor buffer
 func (e *Editor) openFile(filePath string) {
 	LL.Debug("openFile: Called with filePath=%s", filePath)
