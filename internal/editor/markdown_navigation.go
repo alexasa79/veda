@@ -15,6 +15,8 @@ import (
 // markdownLinkRegex matches markdown links [text](url)
 var markdownLinkRegex = regexp.MustCompile(`\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]\(([^)]+)\)`)
 
+const markdownDiffSuffix = "#diff"
+
 // jumpToReference is a command wrapper that checks if we're in a references buffer or on a markdown link
 func (e *Editor) jumpToReference(args []string) error {
 	// Check if current buffer is a references buffer
@@ -90,6 +92,9 @@ func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 
 // openMarkdownLink opens a file from a markdown link, optionally jumping to a specific line
 func (e *Editor) openMarkdownLink(link string, lineNum int) error {
+	openDiff := strings.HasSuffix(link, markdownDiffSuffix)
+	link = strings.TrimSuffix(link, markdownDiffSuffix)
+
 	// Resolve the link relative to working directory and handle HOST:PATH
 	target := e.resolvePath(link)
 
@@ -105,6 +110,9 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 			e.CurrentBuffer().CursorX = 0
 			e.scrollToCenter()
 		}
+		if openDiff {
+			return e.StartDiffViewForCurrentBuffer()
+		}
 		return nil
 	}
 
@@ -115,7 +123,7 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 	host, _, isRemote := parsePathComponents(target)
 	operationID := "open-link-" + target
 	e.startAsyncOperation(operationID, "opening: "+target)
-	go func(tgt string, ln int, remote bool, h string, opID string) {
+	go func(tgt string, ln int, remote bool, h string, opID string, diff bool) {
 		defer e.endAsyncOperation(opID)
 
 		// Give immediate feedback while we resolve attributes; the proxy
@@ -165,9 +173,17 @@ func (e *Editor) openMarkdownLink(link string, lineNum int) error {
 		}
 		// Perform the jump on the main loop for safety
 		e.Post(func(ed *Editor) {
-			_ = ed.jumpToLocation(location)
+			if err := ed.jumpToLocation(location); err != nil {
+				ed.ShowError("Failed to open link: %v", err)
+				return
+			}
+			if diff {
+				if err := ed.StartDiffViewForCurrentBuffer(); err != nil {
+					ed.ShowError("Failed to open diff: %v", err)
+				}
+			}
 		})
-	}(target, lineNum, isRemote, host, operationID)
+	}(target, lineNum, isRemote, host, operationID, openDiff)
 
 	// We return immediately; completion is handled asynchronously.
 	return nil

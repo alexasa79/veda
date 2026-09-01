@@ -33,14 +33,7 @@ func (e *Editor) showProjectChanges(args []string) error {
 		if len(changes) == 0 {
 			content.WriteString("No changes found.\n")
 		} else {
-			totalFiles := len(changes)
-			totalAdded := 0
-			totalDeleted := 0
-			for _, change := range changes {
-				totalAdded += len(change.AddedLines)
-				totalDeleted += len(change.DeletedLines)
-			}
-			content.WriteString(fmt.Sprintf("Found changes in %d files: +%d -%d\n\n", totalFiles, totalAdded, totalDeleted))
+			content.WriteString(fmt.Sprintf("Found changes in %d files.\n\n", len(changes)))
 
 			for _, change := range changes {
 				statusChar := "?"
@@ -67,76 +60,47 @@ func (e *Editor) showProjectChanges(args []string) error {
 					parts := strings.Split(filename, "/")
 					filename = parts[len(parts)-1]
 				}
-				content.WriteString(fmt.Sprintf("[%s] [%s](%s) (+%d -%d)\n", statusIndicator, filename, change.File, len(change.AddedLines), len(change.DeletedLines)))
+				content.WriteString(fmt.Sprintf("## %s [%s]\n", filename, statusIndicator))
 
-				// Pre-fetch file changes to refine anchors
+				// Pre-fetch file changes to link the diff to the first changed line.
 				resolvedPath := e.resolvePath(change.File)
 				var fileChanges *proxy.FileChanges
 				if fc, err := e.proxyManager.GetFile(resolvedPath); err == nil {
 					fileChanges = &fc.Changes
 				}
 
-				for _, hunk := range change.Hunks {
-					var oldCount, newCount int
-					fmt.Sscanf(hunk.Header, "@@ -%d,%d +%d,%d @@", &hunk.OldStart, &oldCount, &hunk.NewStart, &newCount)
-					anchorLine := hunk.NewStart
-					minChanged := 0
-					maxChanged := 0
-					if fileChanges != nil {
-						inRange := func(v int) bool { return v >= hunk.NewStart && v < hunk.NewStart+newCount }
-						for _, v := range fileChanges.Added {
-							if inRange(v) {
-								if minChanged == 0 || v < minChanged {
-									minChanged = v
-								}
-								if v > maxChanged {
-									maxChanged = v
-								}
-							}
-						}
-						for _, v := range fileChanges.Modified {
-							if inRange(v) {
-								if minChanged == 0 || v < minChanged {
-									minChanged = v
-								}
-								if v > maxChanged {
-									maxChanged = v
-								}
-							}
-						}
-						if minChanged > 0 {
-							anchorLine = minChanged
-						}
-					}
-					hunkStart := anchorLine
-					hunkEnd := hunk.NewStart + newCount - 1
-					if maxChanged > 0 {
-						hunkEnd = maxChanged
-					}
-					hunkDesc := fmt.Sprintf("Lines %d-%d", hunkStart, hunkEnd)
-					if hunkStart == hunkEnd {
-						hunkDesc = fmt.Sprintf("Line %d", hunkStart)
-					}
-					content.WriteString(fmt.Sprintf("  • [%s](%s#L%d)", hunkDesc, change.File, anchorLine))
-					// Count adds/deletes within hunk
-					hunkAdded := 0
-					hunkDeleted := 0
-					for _, line := range change.AddedLines {
-						if line >= hunk.NewStart && line < hunk.NewStart+newCount {
-							hunkAdded++
-						}
-					}
-					for _, line := range change.DeletedLines {
-						if line >= hunk.OldStart && line < hunk.OldStart+oldCount {
-							hunkDeleted++
-						}
-					}
-					if hunkAdded > 0 || hunkDeleted > 0 {
-						content.WriteString(fmt.Sprintf(" (+%d -%d)", hunkAdded, hunkDeleted))
-					}
-					content.WriteString("\n")
+				anchorLine := 1
+				if len(change.Hunks) > 0 {
+					anchorLine = change.Hunks[0].NewStart
 				}
-				content.WriteString("\n")
+				if fileChanges != nil {
+					firstChangedLine := 0
+					for _, lines := range [][]int{fileChanges.Added, fileChanges.Modified} {
+						for _, line := range lines {
+							if line > 0 && (firstChangedLine == 0 || line < firstChangedLine) {
+								firstChangedLine = line
+							}
+						}
+					}
+					if firstChangedLine > 0 {
+						anchorLine = firstChangedLine
+					}
+				}
+				if anchorLine < 1 {
+					anchorLine = 1
+				}
+
+				content.WriteString(fmt.Sprintf("[Diff](%s#diff#L%d)\n", change.File, anchorLine))
+				content.WriteString(fmt.Sprintf("[File](%s)\n", change.File))
+				hunkLabel := "hunks"
+				if len(change.Hunks) == 1 {
+					hunkLabel = "hunk"
+				}
+				content.WriteString(fmt.Sprintf("%d %s, +%d -%d", len(change.Hunks), hunkLabel, len(change.AddedLines), len(change.DeletedLines)))
+				if fileChanges != nil && len(fileChanges.Modified) > 0 {
+					content.WriteString(fmt.Sprintf(", %d modified", len(fileChanges.Modified)))
+				}
+				content.WriteString("\n\n")
 			}
 		}
 

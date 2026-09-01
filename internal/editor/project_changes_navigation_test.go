@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"veda/internal/buffer"
 )
@@ -94,8 +95,18 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 	if te.CurrentBuffer() != pcBuf {
 		t.Fatalf("expected to be in *Project Changes* buffer after s C")
 	}
+	projectChangesText := pcBuf.Rope.String()
+	if !strings.Contains(projectChangesText, "## file1.txt [M]") || !strings.Contains(projectChangesText, "## file2.txt [M]") {
+		t.Fatalf("expected changed files to be markdown headers, got:\n%s", projectChangesText)
+	}
+	if strings.Count(projectChangesText, "[Diff](") != 2 || strings.Count(projectChangesText, "[File](") != 2 {
+		t.Fatalf("expected one diff link and one file link per changed file, got:\n%s", projectChangesText)
+	}
+	if !strings.Contains(projectChangesText, "2 hunks, +0 -0, 2 modified") || !strings.Contains(projectChangesText, "1 hunk, +1 -0") {
+		t.Fatalf("expected per-file change summaries, got:\n%s", projectChangesText)
+	}
 
-	// Collect the expected (path, line) targets by scanning the buffer content for hunk links
+	// Collect the first-change targets from each file's diff link.
 	type target struct {
 		path string
 		line int
@@ -111,8 +122,8 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 			targets = append(targets, target{path: p, line: ln})
 		}
 	}
-	if len(targets) == 0 {
-		t.Fatalf("no hunk links found in project changes buffer")
+	if len(targets) != 2 {
+		t.Fatalf("expected one diff target per changed file, got %d", len(targets))
 	}
 
 	// Visit each target with "g n" and verify we open the right file at the first actual changed line
@@ -163,5 +174,25 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 		if te.Editor.lastActiveSpecialBuffer != "*Project Changes*" {
 			t.Fatalf("lastActiveSpecialBuffer lost; expected *Project Changes*, got %s", te.Editor.lastActiveSpecialBuffer)
 		}
+	}
+
+	// Following a Diff link opens the diff view at that file's first change.
+	te.switchToBuffer(pcBuf)
+	for i := 0; i < pcBuf.LineCount; i++ {
+		it := buffer.NewBufferIteratorAtLine(pcBuf, i)
+		line := it.Line()
+		if strings.Contains(line, "[Diff](") {
+			pcBuf.CursorIterator = it
+			pcBuf.CursorX = strings.Index(line, "[Diff]") + 1
+			break
+		}
+	}
+	te.TypeKeys("\n")
+	te.WaitForAsyncOperations()
+	if !te.isDiffViewActive() {
+		t.Fatal("expected Diff link to open a diff view")
+	}
+	if te.CurrentBuffer().RealPath != targets[0].path {
+		t.Fatalf("expected diff view for %s, got %s", targets[0].path, te.CurrentBuffer().RealPath)
 	}
 }

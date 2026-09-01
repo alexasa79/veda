@@ -62,7 +62,7 @@ func TestProjectChangesListsStagedAddedFile(t *testing.T) {
 	if !strings.Contains(bufText, fmt.Sprintf("](%s)", addedPath)) {
 		t.Fatalf("expected Project Changes to list added.txt, but got:\n%s", bufText)
 	}
-	if !strings.Contains(bufText, "[A●] [added.txt]") {
+	if !strings.Contains(bufText, "## added.txt [A●]") {
 		t.Fatalf("expected Project Changes to mark added.txt as staged (A●), but got:\n%s", bufText)
 	}
 }
