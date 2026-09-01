@@ -5,6 +5,7 @@ import (
 	"testing"
 	"veda/internal/buffer"
 	"veda/internal/config"
+	"veda/internal/widgets"
 )
 
 func TestNavigationHistory(t *testing.T) {
@@ -42,47 +43,26 @@ func TestNavigationHistory(t *testing.T) {
 	}
 }
 
-func TestNavigationHistorySkipsReferencesBuffer(t *testing.T) {
-	te := NewTestEditorWithContent(80, 24, "test content")
+func TestNavigationHistoryRecordsInternalBuffer(t *testing.T) {
+	te := NewTestEditor(80, 24)
+	buf := buffer.NewBuffer("one\ntwo\nthree", "*References: test*", "", config.IndentTabs, 4)
+	buf.IsInternal = true
+	te.buffers[buf.FilePath] = buf
+	te.bufferOrder = append(te.bufferOrder, buf.FilePath)
+	te.switchToBuffer(buf)
+	te.SetCursorPosition(2, 1)
 
-	// First, push a normal file position
-	te.CurrentBuffer().FilePath = "main.go"
-	te.SetCursorPosition(5, 10)
 	te.pushNavigationHistory()
 
-	// Verify it was added
 	if len(te.navHistory) != 1 {
-		t.Errorf("Expected 1 entry in navigation history, got %d", len(te.navHistory))
+		t.Fatalf("expected internal buffer in navigation history, got %d entries", len(te.navHistory))
 	}
-
-	// Now set to references buffer and try to push
-	te.CurrentBuffer().FilePath = "*References: test*"
-	te.SetCursorPosition(3, 5)
-	te.pushNavigationHistory()
-
-	// Verify that references buffer was NOT added
-	if len(te.navHistory) != 1 {
-		t.Errorf("Expected navigation history to still have 1 entry (references should be skipped), got %d", len(te.navHistory))
+	entry := te.navHistory[0]
+	if entry.filePath != buf.FilePath {
+		t.Fatalf("expected history target %s, got %s", buf.FilePath, entry.filePath)
 	}
-
-	// Verify the original entry is still there
-	if te.navHistory[0].filePath != "main.go" {
-		t.Errorf("Expected first entry to still be main.go, got %s", te.navHistory[0].filePath)
-	}
-
-	// Try another normal file
-	te.CurrentBuffer().FilePath = "other.go"
-	te.SetCursorPosition(7, 12)
-	te.pushNavigationHistory()
-
-	// Now we should have 2 entries
-	if len(te.navHistory) != 2 {
-		t.Errorf("Expected 2 entries in navigation history, got %d", len(te.navHistory))
-	}
-
-	// Verify the new entry
-	if te.navHistory[1].filePath != "other.go" {
-		t.Errorf("Expected second entry to be other.go, got %s", te.navHistory[1].filePath)
+	if entry.fallbackFilePath != "" {
+		t.Fatalf("expected no file fallback for internal buffer, got %s", entry.fallbackFilePath)
 	}
 }
 
@@ -179,6 +159,92 @@ func TestGoBackEmptyHistory(t *testing.T) {
 	err := te.goBack(nil)
 	if err != nil {
 		t.Errorf("goBack with empty history returned error: %v", err)
+	}
+}
+
+func TestGoBack_ReopensClosedFileBuffer(t *testing.T) {
+	te := NewTestEditor(80, 24)
+	filePath := te.resolvePath("internal/editor/navigation.go")
+	fileBuf := buffer.NewBuffer("zero\none\ntwo\nthree\nfour\nfive", filePath, filePath, config.IndentTabs, 4)
+	te.buffers[filePath] = fileBuf
+	te.bufferOrder = append(te.bufferOrder, filePath)
+	te.switchToBuffer(fileBuf)
+	te.SetCursorPosition(0, 5)
+	te.pushNavigationHistory()
+
+	if err := te.closeBuffer(nil); err != nil {
+		t.Fatalf("close file buffer: %v", err)
+	}
+	if _, exists := te.buffers[filePath]; exists {
+		t.Fatal("expected file buffer to be closed")
+	}
+
+	if err := te.goBack(nil); err != nil {
+		t.Fatalf("go back: %v", err)
+	}
+	if te.CurrentBuffer() == fileBuf {
+		t.Fatal("expected closed file buffer to be reopened, not reused")
+	}
+	if te.CurrentBuffer().FilePath != filePath {
+		t.Fatalf("expected reopened file %s, got %s", filePath, te.CurrentBuffer().FilePath)
+	}
+	if te.CurrentBuffer().CursorIterator.LineNumber() != 5 {
+		t.Fatalf("expected cursor on line 5, got %d", te.CurrentBuffer().CursorIterator.LineNumber())
+	}
+}
+
+func TestGoBack_SkipsClosedInternalBuffer(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "zero\none\ntwo")
+	fileBuf := te.CurrentBuffer()
+	te.SetCursorPosition(0, 1)
+	te.pushNavigationHistory()
+
+	internal := buffer.NewBuffer("alpha\nbeta\ngamma", "*Project Changes*", "", config.IndentTabs, 4)
+	internal.IsInternal = true
+	te.buffers[internal.FilePath] = internal
+	te.bufferOrder = append(te.bufferOrder, internal.FilePath)
+	te.switchToBuffer(internal)
+	te.SetCursorPosition(0, 2)
+	te.pushNavigationHistory()
+
+	if err := te.closeBuffer(nil); err != nil {
+		t.Fatalf("close internal buffer: %v", err)
+	}
+	if _, exists := te.buffers[internal.FilePath]; exists {
+		t.Fatal("expected internal buffer to disappear")
+	}
+	te.SetCursorPosition(0, 0)
+
+	if err := te.goBack(nil); err != nil {
+		t.Fatalf("go back: %v", err)
+	}
+	if te.CurrentBuffer() != fileBuf {
+		t.Fatalf("expected stale internal entry to be skipped, got %s", te.CurrentBuffer().FilePath)
+	}
+	if te.CurrentBuffer().CursorIterator.LineNumber() != 1 {
+		t.Fatalf("expected previous file position on line 1, got %d", te.CurrentBuffer().CursorIterator.LineNumber())
+	}
+	if len(te.navHistory) != 0 {
+		t.Fatalf("expected stale entry to be discarded, got %d history entries", len(te.navHistory))
+	}
+}
+
+func TestNavigationHistoryIgnoresEphemeralOverlay(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "one\ntwo")
+	fileBuf := te.CurrentBuffer()
+	dialog := widgets.NewYesNoDialog(0, 0, 30, 6, "Question", "Continue?", te.config.Theme)
+	te.renderingState.SetOverlay(NewYesNoDialogOverlay(dialog))
+
+	te.pushNavigationHistory()
+
+	if len(te.navHistory) != 1 {
+		t.Fatalf("expected underlying buffer in history, got %d entries", len(te.navHistory))
+	}
+	if te.navHistory[0].filePath != fileBuf.FilePath {
+		t.Fatalf("expected underlying buffer %s, got %s", fileBuf.FilePath, te.navHistory[0].filePath)
+	}
+	if !te.renderingState.IsOverlayActive() {
+		t.Fatal("expected overlay to remain ephemeral UI state")
 	}
 }
 

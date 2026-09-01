@@ -78,30 +78,26 @@ func (e *Editor) findOpenBufferForFile(filePath string) *buffer.Buffer {
 
 // navigateToBufferTarget switches to the preferred buffer if open, otherwise
 // falls back to an open buffer for the same file or opens that file.
-// Returns true if the preferred buffer was selected.
-func (e *Editor) navigateToBufferTarget(preferredBufferPath, fallbackFilePath string) bool {
+// Returns whether the preferred buffer was selected and whether a target was found.
+func (e *Editor) navigateToBufferTarget(preferredBufferPath, fallbackFilePath string) (bool, bool) {
 	if preferredBufferPath != "" {
 		if buf, exists := e.buffers[preferredBufferPath]; exists && buf != nil {
 			e.switchToBuffer(buf)
-			return true
+			return true, true
 		}
 	}
 
-	targetFile := fallbackFilePath
-	if targetFile == "" {
-		targetFile = normalizeDiffPath(preferredBufferPath)
-	}
-	if targetFile == "" {
-		return false
+	if fallbackFilePath == "" {
+		return false, false
 	}
 
-	if buf := e.findOpenBufferForFile(targetFile); buf != nil {
+	if buf := e.findOpenBufferForFile(fallbackFilePath); buf != nil {
 		e.switchToBuffer(buf)
-		return false
+		return false, true
 	}
 
-	e.openFile(targetFile)
-	return false
+	e.openFile(fallbackFilePath)
+	return false, true
 }
 
 // pushNavigationHistory saves the current position to navigation history
@@ -110,21 +106,12 @@ func (e *Editor) pushNavigationHistory() {
 	if e.CurrentBuffer() == nil {
 		return
 	}
-	if !e.CurrentBuffer().HasFile() {
-		return
-	}
-
-	// Skip special buffers - don't add them to navigation history
-	if (strings.HasPrefix(e.CurrentBuffer().FilePath, "*References:") && strings.HasSuffix(e.CurrentBuffer().FilePath, "*")) ||
-		e.CurrentBuffer().FilePath == "*Diagnostics*" {
+	if e.CurrentBuffer().FilePath == "" {
 		return
 	}
 
 	preferredPath := e.CurrentBuffer().FilePath
 	fallbackPath := e.CurrentBuffer().RealPath
-	if fallbackPath == "" {
-		fallbackPath = normalizeDiffPath(preferredPath)
-	}
 
 	preferredCursorLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	preferredViewLine := e.CurrentBuffer().ViewIterator.LineNumber()
@@ -163,51 +150,52 @@ func (e *Editor) pushNavigationHistory() {
 
 // goBack navigates to the previous position in history
 func (e *Editor) goBack(args []string) error {
-	if len(e.navHistory) == 0 {
-		return nil
-	}
-
-	// Pop the last entry
-	lastIndex := len(e.navHistory) - 1
-	entry := e.navHistory[lastIndex]
-	e.navHistory = e.navHistory[:lastIndex]
-
 	// Save current position before jumping back
 	// (but don't add to history to avoid circular navigation)
 	e.saveCurrentBufferState()
 
-	usedPreferredBuffer := e.navigateToBufferTarget(entry.filePath, entry.fallbackFilePath)
-	if e.CurrentBuffer() == nil {
-		return nil
-	}
+	for len(e.navHistory) > 0 {
+		lastIndex := len(e.navHistory) - 1
+		entry := e.navHistory[lastIndex]
+		e.navHistory = e.navHistory[:lastIndex]
 
-	// Always restore cursor position from navigation entry
-	// This overrides any position from switchToBuffer
-	e.CurrentBuffer().CursorX = entry.cursorX
+		usedPreferredBuffer, found := e.navigateToBufferTarget(entry.filePath, entry.fallbackFilePath)
+		if !found {
+			continue
+		}
+		if e.CurrentBuffer() == nil {
+			return nil
+		}
 
-	// Restore cursor iterator to the saved line number
-	targetLine := entry.fallbackCursorLine
-	if usedPreferredBuffer {
-		targetLine = entry.cursorLineNumber
-	}
-	if targetLine < 0 {
-		targetLine = 0
-	}
-	e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
+		// Always restore cursor position from navigation entry
+		// This overrides any position from switchToBuffer
+		e.CurrentBuffer().CursorX = entry.cursorX
 
-	// Ensure cursor is within bounds
-	if !e.CurrentBuffer().CursorIterator.IsEOF() {
-		line := e.CurrentBuffer().CursorIterator.Line()
-		if e.CurrentBuffer().CursorX > len(line) {
-			e.CurrentBuffer().CursorX = len(line)
-			if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
-				e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
+		// Restore cursor iterator to the saved line number
+		targetLine := entry.fallbackCursorLine
+		if usedPreferredBuffer {
+			targetLine = entry.cursorLineNumber
+		}
+		if targetLine < 0 {
+			targetLine = 0
+		}
+		e.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), targetLine)
+
+		// Ensure cursor is within bounds
+		if !e.CurrentBuffer().CursorIterator.IsEOF() {
+			line := e.CurrentBuffer().CursorIterator.Line()
+			if e.CurrentBuffer().CursorX > len(line) {
+				e.CurrentBuffer().CursorX = len(line)
+				if e.CurrentBuffer().CursorX > 0 && e.mode == commands.NormalMode {
+					e.CurrentBuffer().CursorX-- // Don't go past last character in normal mode
+				}
 			}
 		}
-	}
 
-	// Position at the center of the screen for better visibility
-	e.scrollToCenter()
+		// Position at the center of the screen for better visibility
+		e.scrollToCenter()
+		return nil
+	}
 
 	return nil
 }
