@@ -1,11 +1,13 @@
 Veda - A terminal-based text editor
 
 USAGE:
-    vd [OPTIONS] [FILE]
+    vd [OPTIONS] [FILE|DIRECTORY]
 
 OPTIONS:
     -d          Enable debug logging
     -t          Enable trace logging
+    -c, --changes
+                Open the project changes buffer for DIRECTORY (default: .)
     -log PATH   Set log file path (default: /tmp/veda.log)
     -h, --help  Show this help message
 

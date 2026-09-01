@@ -180,10 +180,11 @@ type Editor struct {
 	lastActiveSpecialBuffer string                       // Last active special buffer (*References*, *Diagnostics*, *Project Changes*)
 
 	// Working directory
-	workingDirectory     string // Current working directory (can include HOST: prefix)
-	pendingDirectoryOpen bool   // Flag to show fuzzy list after editor starts
-	pendingPath          string // Path to open after editor starts
-	connectionStatus     string // Status message for ongoing connections
+	workingDirectory      string // Current working directory (can include HOST: prefix)
+	pendingDirectoryOpen  bool   // Flag to show fuzzy list after editor starts
+	pendingPath           string // Path to open after editor starts
+	pendingProjectChanges bool   // Show project changes after opening a directory
+	connectionStatus      string // Status message for ongoing connections
 
 	// Ex-command support
 	lastCommandArgs []string // Arguments from the last ex-command
@@ -1385,6 +1386,8 @@ func (e *Editor) handleEvent(ev events.Event) {
 			return
 		case "show-fuzzy-list":
 			e.ShowFuzzyListWidget()
+		case "show-project-changes":
+			_ = e.showProjectChanges(nil)
 		case "open-file":
 			if path, ok := ev.Data.(string); ok {
 				LL.Debug("handleEvent: Opening file: %s", path)
@@ -3519,6 +3522,8 @@ func (e *Editor) getLSPTargetForBuffer(buf *buffer.Buffer) (string, int, int, er
 func (e *Editor) handlePendingPath() {
 	path := e.pendingPath
 	e.pendingPath = "" // Clear it
+	showProjectChanges := e.pendingProjectChanges
+	e.pendingProjectChanges = false
 	LL.Debug("handlePendingPath: Processing path: %s", path)
 
 	// Parse the path to check if it's remote
@@ -3549,9 +3554,13 @@ func (e *Editor) handlePendingPath() {
 		e.workingDirectory = path
 		LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
 
-		// Send async event to show fuzzy list
-		LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
-		e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
+		if showProjectChanges {
+			LL.Debug("handlePendingPath: Sending show-project-changes event")
+			e.asyncEvents <- events.NewCustomEvent("show-project-changes", nil)
+		} else {
+			LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
+			e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)
+		}
 	} else {
 		// It's a file or doesn't exist - extract directory and open file
 		LL.Debug("handlePendingPath: Path is a file, will open it")

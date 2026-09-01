@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"strings"
 	"time"
 	"veda/internal/editor"
 	"veda/internal/log"
@@ -20,6 +21,9 @@ func main() {
 	traceFlag := flag.Bool("t", false, "Enable trace logging")
 	helpFlag := flag.Bool("h", false, "Show help message")
 	helpLongFlag := flag.Bool("help", false, "Show help message")
+	changesFlag := false
+	flag.BoolVar(&changesFlag, "c", false, "Open project changes")
+	flag.BoolVar(&changesFlag, "changes", false, "Open project changes")
 	cpuprofile := flag.String("cpuprofile", "", "Write CPU profile to file")
 
 	// Generate default log path with timestamp
@@ -36,7 +40,7 @@ func main() {
 		fmt.Print(helpText)
 	}
 
-	flag.Parse()
+	_ = flag.CommandLine.Parse(interspersedFlagArgs(flag.CommandLine, os.Args[1:]))
 
 	// Handle help flags
 	if *helpFlag || *helpLongFlag {
@@ -90,9 +94,15 @@ func main() {
 	}
 	// Do not defer Close; we need to close (exit alternate screen) before printing
 
-	// Check if a file was provided as command-line argument
+	// Check if a file or directory was provided as a command-line argument
 	args := flag.Args()
-	if len(args) > 0 {
+	if changesFlag {
+		path := "."
+		if len(args) > 0 {
+			path = args[0]
+		}
+		ed.OpenProjectChanges(path)
+	} else if len(args) > 0 {
 		path := args[0]
 		ed.OpenPath(path)
 	}
@@ -107,4 +117,49 @@ func main() {
 		}
 		os.Exit(code)
 	}
+}
+
+type boolFlag interface {
+	IsBoolFlag() bool
+}
+
+// interspersedFlagArgs moves flags before positional arguments so options can
+// appear on either side of the file or directory path.
+func interspersedFlagArgs(fs *flag.FlagSet, args []string) []string {
+	var options []string
+	var positionals []string
+	foundTerminator := false
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if foundTerminator || arg == "-" || !strings.HasPrefix(arg, "-") {
+			positionals = append(positionals, arg)
+			continue
+		}
+		if arg == "--" {
+			foundTerminator = true
+			continue
+		}
+
+		options = append(options, arg)
+		name := strings.TrimPrefix(arg, "-")
+		name = strings.TrimPrefix(name, "-")
+		name, _, hasValue := strings.Cut(name, "=")
+		registered := fs.Lookup(name)
+		isBoolean := false
+		if registered != nil {
+			if boolean, ok := registered.Value.(boolFlag); ok {
+				isBoolean = boolean.IsBoolFlag()
+			}
+		}
+		if registered != nil && !hasValue && !isBoolean && i+1 < len(args) {
+			i++
+			options = append(options, args[i])
+		}
+	}
+
+	if foundTerminator {
+		options = append(options, "--")
+	}
+	return append(options, positionals...)
 }
