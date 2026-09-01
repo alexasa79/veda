@@ -237,7 +237,7 @@ func parseProjectChangeLink(line string) (string, int, bool) {
 	target := line[start+1 : end]
 	// Expect optional #LNNN anchor
 	if i := strings.Index(target, "#L"); i >= 0 {
-		path := target[:i]
+		path := strings.TrimSuffix(target[:i], markdownDiffSuffix)
 		numStr := target[i+2:]
 		if n, err := strconv.Atoi(numStr); err == nil && n > 0 {
 			return path, n, true

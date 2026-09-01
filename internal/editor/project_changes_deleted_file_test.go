@@ -77,7 +77,7 @@ func TestProjectChangesListsAndSkipsDeletedFile(t *testing.T) {
 	deletedPath := canonicalTestPath(filepath.Join(repo, "deleted.txt"))
 	keptPath := canonicalTestPath(filepath.Join(repo, "kept.txt"))
 
-	if !strings.Contains(bufText, "[D●] [deleted.txt]") {
+	if !strings.Contains(bufText, "## deleted.txt [D●]") {
 		t.Fatalf("expected staged deletion for deleted.txt, got:\n%s", bufText)
 	}
 	if !strings.Contains(bufText, fmt.Sprintf("](%s)", keptPath)) {
@@ -158,7 +158,7 @@ func TestProjectChangesEnterOnDeletedFileShowsNotification(t *testing.T) {
 	bufText := pc.Rope.String()
 	deletedPath := canonicalTestPath(filepath.Join(repo, "deleted.txt"))
 
-	if !strings.Contains(bufText, "[D●] [deleted.txt]") {
+	if !strings.Contains(bufText, "## deleted.txt [D●]") {
 		t.Fatalf("expected staged deletion for deleted.txt, got:\n%s", bufText)
 	}
 
@@ -177,13 +177,11 @@ func TestProjectChangesEnterOnDeletedFileShowsNotification(t *testing.T) {
 	}
 
 	// Move cursor to the deleted file's link line and position on the link
-	// Line format: "[D●] [deleted.txt](/path/to/deleted.txt) (+0 -50)"
+	// Line format: "[File](/path/to/deleted.txt)"
 	// We need to position cursor within the link, not at line start
 	te.TypeKeys(":" + fmt.Sprint(delLine+1) + "\n")
-	// Move to the file link - use 'f[' to find the second '[' which starts the link
-	// Then move a few more characters into the link text
-	te.TypeKeys("f[")  // find first '['
-	te.TypeKeys(";")   // find next '[' (the link start)
+	// Move to the file link, then move a few more characters into the link text
+	te.TypeKeys("f[")
 	te.TypeKeys("lll") // move into the link text
 
 	// Clear any existing messages
