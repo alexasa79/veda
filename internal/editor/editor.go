@@ -126,7 +126,7 @@ type Editor struct {
 	pendingKeys     []string           // Accumulated keys for current operation
 	countPrefix     string             // Numeric prefix being built (e.g., "12" for 12j)
 	repeatCount     int                // Parsed count for command repetition
-	pendingCount    int                // Count for pending operations (dd, cc, etc.)
+	pendingCount    int                // Count for the pending operator and text object
 
 	// Search state
 	searchPattern       string         // Current search pattern
@@ -1786,7 +1786,9 @@ func (e *Editor) executeWithRepeatCount(command string) error {
 		// For dd/cc/yy, count means "delete/change/yank N lines" not "repeat operation N times"
 		// Store the count for the pending operation
 		e.pendingCount = count
-		e.lastCommandCount = count
+		// The resulting text object stores the operator count. Repeat that object
+		// once instead of applying the count a second time.
+		e.lastCommandCount = 1
 		return e.executeCommandForAllCursors(command, nil)
 	case "unindent-selection":
 		// In visual modes, apply unindent by count levels
