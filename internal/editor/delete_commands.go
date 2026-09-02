@@ -1,5 +1,7 @@
 package editor
 
+import "strconv"
+
 // startDeleteOperation begins a delete operation, waiting for a text object
 func (e *Editor) startDeleteOperation(args []string) error {
 	e.pendingOperator = DeleteOperator{}
@@ -49,6 +51,11 @@ func (e *Editor) handlePendingOperation(key string) error {
 	if e.pendingOperator == nil {
 		return nil
 	}
+
+	// Counts may appear before or after an operator. The leading count is
+	// already in pendingCount; multiply it by the count collected after the
+	// operator, matching Vim's behavior for commands such as 2d3w.
+	e.applyInfixCount()
 
 	// Add key to pending keys
 	e.pendingKeys = append(e.pendingKeys, key)
@@ -120,6 +127,21 @@ func (e *Editor) handlePendingOperation(key string) error {
 	}
 
 	return nil
+}
+
+func (e *Editor) applyInfixCount() {
+	if e.countPrefix == "" {
+		return
+	}
+
+	infixCount, err := strconv.Atoi(e.countPrefix)
+	if err == nil && infixCount > 0 {
+		if e.pendingCount <= 0 {
+			e.pendingCount = 1
+		}
+		e.pendingCount *= infixCount
+	}
+	e.countPrefix = ""
 }
 
 // getTextObjectForKey returns the appropriate text object for a key
@@ -223,6 +245,7 @@ func (e *Editor) clearPendingOperation() {
 	e.pendingModifier = ModifierNone
 	e.pendingKeys = nil
 	e.pendingCount = 0
+	e.countPrefix = ""
 	// Hide key hints when clearing pending operations
 	e.keyHintsPopup.Hide()
 }
