@@ -8,12 +8,8 @@ import (
 	"veda/internal/ui"
 )
 
-// TestMarkdownLinkRenderingModes tests that markdown links render differently in normal vs insert mode
-// TODO: Fix markdown link hiding to work with line wrapping. Currently only works without wrapping.
+// TestMarkdownLinkRenderingModes tests that markdown links render differently in normal vs insert mode.
 func TestMarkdownLinkRenderingModes(t *testing.T) {
-	t.Skip("Markdown link hiding with line wrapping not yet implemented")
-	// Note: Markdown link hiding currently only works without line wrapping
-	// These tests use wider screens to avoid wrapping
 	tests := []struct {
 		name               string
 		content            string
@@ -24,36 +20,36 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 		{
 			name:               "simple_link",
 			content:            "This is a [link](https://example.com) in text.",
-			expectedNormalMode: "1 This is a link in text.",
-			expectedInsertMode: "1 This is a [link](https://example.com) in text.",
+			expectedNormalMode: "This is a link in text.",
+			expectedInsertMode: "This is a [link](https://example.com) in text.",
 			width:              80,
 		},
 		{
 			name:               "multiple_links",
 			content:            "Check [Google](https://google.com) and [GitHub](https://github.com) for more.",
-			expectedNormalMode: "1 Check Google and GitHub for more.",
-			expectedInsertMode: "1 Check [Google](https://google.com) and [GitHub](https://github.com) for more.",
+			expectedNormalMode: "Check Google and GitHub for more.",
+			expectedInsertMode: "Check [Google](https://google.com) and [GitHub](https://github.com) for more.",
 			width:              100,
 		},
 		{
 			name:               "link_at_line_start",
 			content:            "[Home](https://home.com) is where the heart is.",
-			expectedNormalMode: "1 Home is where the heart is.",
-			expectedInsertMode: "1 [Home](https://home.com) is where the heart is.",
+			expectedNormalMode: "Home is where the heart is.",
+			expectedInsertMode: "[Home](https://home.com) is where the heart is.",
 			width:              80,
 		},
 		{
 			name:               "link_at_line_end",
 			content:            "Visit our [website](https://site.com)",
-			expectedNormalMode: "1 Visit our website",
-			expectedInsertMode: "1 Visit our [website](https://site.com)",
+			expectedNormalMode: "Visit our website",
+			expectedInsertMode: "Visit our [website](https://site.com)",
 			width:              80,
 		},
 		{
 			name:               "empty_link_text",
 			content:            "Empty [](https://example.com) link",
-			expectedNormalMode: "1 Empty  link",
-			expectedInsertMode: "1 Empty [](https://example.com) link",
+			expectedNormalMode: "Empty  link",
+			expectedInsertMode: "Empty [](https://example.com) link",
 			width:              80,
 		},
 	}
@@ -81,7 +77,7 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 				screen := te.mockScreen.GetContent()
 
 				// Check rendered output
-				actualLine := GetScreenLine(screen, 0)
+				actualLine := strings.TrimSpace(GetScreenLine(screen, 0)[te.CurrentBuffer().LineNumberWidth:])
 				if actualLine != tt.expectedNormalMode {
 					t.Errorf("Normal mode: expected %q, got %q", tt.expectedNormalMode, actualLine)
 				}
@@ -113,7 +109,7 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 				screen := te.mockScreen.GetContent()
 
 				// Check rendered output
-				actualLine := GetScreenLine(screen, 0)
+				actualLine := strings.TrimSpace(GetScreenLine(screen, 0)[te.CurrentBuffer().LineNumberWidth:])
 				if actualLine != tt.expectedInsertMode {
 					t.Errorf("Insert mode: expected %q, got %q", tt.expectedInsertMode, actualLine)
 				}
@@ -124,7 +120,6 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 
 // TestMarkdownLinkHighlighting tests that syntax highlighting works correctly with mode-aware rendering
 func TestMarkdownLinkHighlighting(t *testing.T) {
-	t.Skip("Markdown link hiding not working properly in tests")
 	content := "Visit [our site](https://example.com) for more info."
 
 	te := NewTestEditorWithContent(80, 10, content)
@@ -150,7 +145,7 @@ func TestMarkdownLinkHighlighting(t *testing.T) {
 	}
 
 	// Look for "our site" starting after "Visit "
-	visitEnd := 8 // "1 Visit " = 8 chars
+	visitEnd := te.CurrentBuffer().LineNumberWidth + len("Visit ")
 
 	// Check if the link text has the expected style (not default)
 	hasLinkStyle := false
@@ -168,7 +163,6 @@ func TestMarkdownLinkHighlighting(t *testing.T) {
 
 // TestMarkdownLinkCursorPositioning tests cursor positioning with mode-aware rendering
 func TestMarkdownLinkCursorPositioning(t *testing.T) {
-	t.Skip("Markdown link hiding not working properly in tests")
 	content := "Click [here](https://example.com) to continue."
 
 	te := NewTestEditorWithContent(80, 10, content)
@@ -190,27 +184,29 @@ func TestMarkdownLinkCursorPositioning(t *testing.T) {
 	te.CurrentBuffer().CursorX = 12
 
 	// Render and check cursor position
-	te.renderPane()
+	te.Editor.render()
 	screenX, _ := te.mockScreen.GetCursorPosition()
 
 	// In normal mode, the URL is hidden, so cursor should be adjusted
 	// "Click here" = 10 chars, + line number "1 " = 2 chars = 12
 	// But cursor at position 12 is past "here", so it should be at end of "here"
-	expectedX := 12 // "1 Click here"
+	expectedX := te.CurrentBuffer().LineNumberWidth + len("Click here")
 	if screenX != expectedX {
 		t.Errorf("Normal mode cursor X: expected %d, got %d", expectedX, screenX)
 	}
 
 	// Switch to insert mode
-	te.ExecuteCommand("insert")
+	if err := te.ExecuteCommand("enter-insert-mode"); err != nil {
+		t.Fatalf("enter-insert-mode failed: %v", err)
+	}
 
 	// Render again and check cursor position
-	te.renderPane()
+	te.Editor.render()
 	screenX, _ = te.mockScreen.GetCursorPosition()
 
 	// In insert mode, full text is shown, so cursor should be at original position
 	// "1 Click [here]" = 14 chars (line number + content up to cursor)
-	expectedX = 14
+	expectedX = te.CurrentBuffer().LineNumberWidth + 12
 	if screenX != expectedX {
 		t.Errorf("Insert mode cursor X: expected %d, got %d", expectedX, screenX)
 	}
@@ -218,7 +214,6 @@ func TestMarkdownLinkCursorPositioning(t *testing.T) {
 
 // TestMarkdownLinkEditing tests editing behavior with mode-aware rendering
 func TestMarkdownLinkEditing(t *testing.T) {
-	t.Skip("Markdown link hiding not working properly in tests")
 	content := "Check [this](https://example.com) out."
 
 	te := NewTestEditorWithContent(80, 10, content)
@@ -233,10 +228,12 @@ func TestMarkdownLinkEditing(t *testing.T) {
 	te.CurrentBuffer().Highlighter.ParseFull([]byte(content))
 
 	// Move cursor to the link text in normal mode
-	te.CurrentBuffer().CursorX = 7 // Position at 't' in "this"
+	te.CurrentBuffer().CursorX = 8 // Position after 't' in "this"
 
 	// Enter insert mode and add text
-	te.ExecuteCommand("insert")
+	if err := te.ExecuteCommand("enter-insert-mode"); err != nil {
+		t.Fatalf("enter-insert-mode failed: %v", err)
+	}
 	te.InsertChar('!')
 
 	// Buffer should now contain "Check [t!his](https://example.com) out."
@@ -247,15 +244,17 @@ func TestMarkdownLinkEditing(t *testing.T) {
 	}
 
 	// Exit insert mode
-	te.ExecuteCommand("normal_mode")
+	if err := te.ExecuteCommand("exit-insert-mode"); err != nil {
+		t.Fatalf("exit-insert-mode failed: %v", err)
+	}
 
 	// Render and check display
 	te.renderPane()
 	screen := te.mockScreen.GetContent()
 
 	// In normal mode, should show "Check t!his out."
-	expectedLine := "1 Check t!his out."
-	actualLine := GetScreenLine(screen, 0)
+	expectedLine := "Check t!his out."
+	actualLine := strings.TrimSpace(GetScreenLine(screen, 0)[te.CurrentBuffer().LineNumberWidth:])
 	if actualLine != expectedLine {
 		t.Errorf("Normal mode display: expected %q, got %q", expectedLine, actualLine)
 	}

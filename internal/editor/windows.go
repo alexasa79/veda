@@ -855,6 +855,7 @@ func (e *Editor) closeWindow(windowIndex int) error {
 			delete(e.buffers, path)
 			e.bufferOrder = removeFromSlice(e.bufferOrder, path)
 			delete(e.csvRenderCaches, closedBuf)
+			delete(e.markdownRenderCaches, closedBuf)
 		}
 	}
 

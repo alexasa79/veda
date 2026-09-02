@@ -53,17 +53,18 @@ type wordRange struct {
 type Editor struct {
 	screen Screen
 	// buffer field removed - use CurrentBuffer() accessor instead
-	config           *config.Config
-	mode             commands.Mode
-	temporaryNormal  bool // True when in temporary normal mode (Ctrl+O from insert)
-	commandLine      *widgets.CommandLineWidget
-	searchLine       *widgets.CommandLineWidget // For search mode (/)
-	proxyManager     *proxy.ProxyManager
-	commandRegistry  *commands.CommandRegistry
-	keyMapper        *commands.KeyMapper
-	perfTracker      *perf.TimeTracker
-	signatureAnchors map[*buffer.Buffer]*signatureAnchor
-	csvRenderCaches  map[*buffer.Buffer]csvRenderCache
+	config               *config.Config
+	mode                 commands.Mode
+	temporaryNormal      bool // True when in temporary normal mode (Ctrl+O from insert)
+	commandLine          *widgets.CommandLineWidget
+	searchLine           *widgets.CommandLineWidget // For search mode (/)
+	proxyManager         *proxy.ProxyManager
+	commandRegistry      *commands.CommandRegistry
+	keyMapper            *commands.KeyMapper
+	perfTracker          *perf.TimeTracker
+	signatureAnchors     map[*buffer.Buffer]*signatureAnchor
+	csvRenderCaches      map[*buffer.Buffer]csvRenderCache
+	markdownRenderCaches map[*buffer.Buffer]markdownRenderCache
 
 	// Buffer management
 	buffers        map[string]*buffer.Buffer // Map of file path to buffer
@@ -373,6 +374,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		terminalSessions:         make(map[string]*TerminalSessionState),
 		signatureAnchors:         make(map[*buffer.Buffer]*signatureAnchor),
 		csvRenderCaches:          make(map[*buffer.Buffer]csvRenderCache),
+		markdownRenderCaches:     make(map[*buffer.Buffer]markdownRenderCache),
 	}
 
 	// Initialize windows with a single empty window (always have a window)

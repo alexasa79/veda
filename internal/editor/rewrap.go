@@ -292,6 +292,10 @@ func wrapText(text string, width int, indent string, prefix string) []string {
 }
 
 func (e *Editor) rewrapParagraph() error {
+	if handled, err := e.formatMarkdownTableAtCursor(); handled || err != nil {
+		return err
+	}
+
 	// If no rulers configured, use default
 	if len(e.config.VerticalRulers) == 0 {
 		return e.rewrapParagraphWithWidth(defaultWrapWidth)

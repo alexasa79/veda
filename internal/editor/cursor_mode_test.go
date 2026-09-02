@@ -529,7 +529,11 @@ This is a **bold** text.
 
 		virtualCursors := te.GetVirtualCursors()
 		for i, vc := range virtualCursors {
-			char, style := te.mockScreen.GetCell(lineNumWidth+vc.X, vc.Y)
+			screenX := lineNumWidth + vc.X
+			if presentation := te.markdownPresentedLine(vc.Y); presentation != nil {
+				screenX = lineNumWidth + presentation.displayWidth(0, vc.X)
+			}
+			char, style := te.mockScreen.GetCell(screenX, vc.Y)
 			if style.Bg != virtualCursorBg {
 				t.Errorf("Virtual cursor %d at (%d,%d) doesn't have expected background. Got %v, expected %v, char '%c'",
 					i, vc.X, vc.Y, style.Bg, virtualCursorBg, char)
@@ -548,7 +552,11 @@ This is a **bold** text.
 		t.Logf("Virtual cursors added at:")
 		virtualCursors = te.GetVirtualCursors()
 		for i, vc := range virtualCursors {
-			char, _ := te.mockScreen.GetCell(lineNumWidth+vc.X, vc.Y)
+			screenX := lineNumWidth + vc.X
+			if presentation := te.markdownPresentedLine(vc.Y); presentation != nil {
+				screenX = lineNumWidth + presentation.displayWidth(0, vc.X)
+			}
+			char, _ := te.mockScreen.GetCell(screenX, vc.Y)
 			t.Logf("  Cursor %d: (%d, %d) on character '%c'", i, vc.X, vc.Y, char)
 		}
 	})
