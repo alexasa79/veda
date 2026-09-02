@@ -255,8 +255,11 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 				Text:           line,
 			}}
 		} else {
-			// Wrap this line normally
-			wrapped = wc.WrapLine(line, logicalLineNum)
+			if presentation := e.markdownPresentedLine(logicalLineNum); presentation != nil {
+				wrapped = presentation.wrap(wc, logicalLineNum)
+			} else {
+				wrapped = wc.WrapLine(line, logicalLineNum)
+			}
 		}
 
 		// Coordinated wrapping: pad to match the paired pane's wrap count
@@ -346,6 +349,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 
 	cursorLogicalLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	cursorX := e.CurrentBuffer().CursorX
+	presentation := e.markdownPresentedLine(cursorLogicalLine)
 
 	// Find which wrapped line contains the cursor
 	for i, wl := range wrappedLines {
@@ -354,8 +358,12 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			if cursorX >= wl.StartChar && cursorX < wl.EndChar {
 				visualLine = i
 				// Calculate visual column accounting for tabs
-				lineSegment := wl.Text[:cursorX-wl.StartChar]
-				visualCol = e.visualWidth(lineSegment) + e.CurrentBuffer().LineNumberWidth
+				if presentation != nil {
+					visualCol = presentation.displayWidth(wl.StartChar, cursorX) + e.CurrentBuffer().LineNumberWidth
+				} else {
+					lineSegment := wl.Text[:cursorX-wl.StartChar]
+					visualCol = e.visualWidth(lineSegment) + e.CurrentBuffer().LineNumberWidth
+				}
 				return
 			}
 			// Special case for cursor exactly at the end of a wrapped segment
@@ -365,7 +373,11 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 				if isLastSegment {
 					// Cursor at end of line
 					// Calculate visual column accounting for tabs
-					visualCol = e.visualWidth(wl.Text) + e.CurrentBuffer().LineNumberWidth
+					if presentation != nil {
+						visualCol = presentation.displayWidth(wl.StartChar, wl.EndChar) + e.CurrentBuffer().LineNumberWidth
+					} else {
+						visualCol = e.visualWidth(wl.Text) + e.CurrentBuffer().LineNumberWidth
+					}
 					width := e.wrapScreenWidth()
 					if visualCol == width {
 						return i + 1, e.CurrentBuffer().LineNumberWidth
@@ -409,7 +421,11 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			// Place cursor at end of this wrapped line
 			visualLine = i
 			// Calculate visual column accounting for tabs
-			visualCol = e.visualWidth(wl.Text) + e.CurrentBuffer().LineNumberWidth
+			if presentation != nil {
+				visualCol = presentation.displayWidth(wl.StartChar, wl.EndChar) + e.CurrentBuffer().LineNumberWidth
+			} else {
+				visualCol = e.visualWidth(wl.Text) + e.CurrentBuffer().LineNumberWidth
+			}
 			LL.Trace("GetCursorVisualPosition: found logical line at i=%d, placing at EOL visualCol=%d", i, visualCol)
 			return
 		}
@@ -454,6 +470,9 @@ func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, cha
 	textCol := visualCol - e.CurrentBuffer().LineNumberWidth
 	if textCol < 0 {
 		textCol = 0
+	}
+	if presentation := e.markdownPresentedLine(logicalLine); presentation != nil {
+		return logicalLine, presentation.sourceOffsetAtDisplayColumn(wl.StartChar, wl.EndChar, textCol)
 	}
 
 	// Get the text segment for this wrapped line

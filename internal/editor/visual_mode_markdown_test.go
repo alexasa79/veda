@@ -131,9 +131,8 @@ func TestVisualModeMarkdownRendering(t *testing.T) {
 		normalModeLine := te.mockScreen.GetLine(0)
 		t.Logf("Normal mode: %q", normalModeLine)
 
-		// The link should show full syntax in all modes now (we no longer hide URLs)
-		if !strings.Contains(normalModeLine, "](https://") {
-			t.Errorf("Normal mode should show full markdown link syntax")
+		if !strings.Contains(normalModeLine, "This is a test link here.") || strings.Contains(normalModeLine, "https://") {
+			t.Errorf("normal mode should show only Markdown link text")
 		}
 
 		// Enter insert mode

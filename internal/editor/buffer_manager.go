@@ -423,6 +423,7 @@ func (e *Editor) closeBuffer(args []string) error {
 		// Drop any per-buffer virtual cursors for this buffer
 		delete(e.virtualCursorsByBuffer, cur)
 		delete(e.csvRenderCaches, cur)
+		delete(e.markdownRenderCaches, cur)
 	}
 
 	return nil

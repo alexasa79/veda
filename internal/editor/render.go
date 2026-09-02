@@ -169,7 +169,11 @@ func (e *Editor) buildVirtualCursorCells(wrappedLines []WrappedLine, contentStar
 
 		column := lineNumberWidth
 		if highlightAfterEnd {
-			column += e.visualWidth(lineText)
+			if presentation := e.markdownPresentedLine(vc.Y); presentation != nil {
+				column += presentation.displayWidth(0, len(lineText))
+			} else {
+				column += e.visualWidth(lineText)
+			}
 		} else {
 			segmentStart := wl.StartChar
 			if renderPos < segmentStart {
@@ -178,8 +182,12 @@ func (e *Editor) buildVirtualCursorCells(wrappedLines []WrappedLine, contentStar
 			if renderPos > len(lineText) {
 				renderPos = len(lineText)
 			}
-			segmentText := lineText[segmentStart:renderPos]
-			column += e.visualWidth(segmentText)
+			if presentation := e.markdownPresentedLine(vc.Y); presentation != nil {
+				column += presentation.displayWidth(segmentStart, renderPos)
+			} else {
+				segmentText := lineText[segmentStart:renderPos]
+				column += e.visualWidth(segmentText)
+			}
 		}
 
 		if column < 0 || column >= width {
@@ -356,8 +364,6 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		lineStartPos = lineStartIter.Position()
 	}
 
-	// Convert to slice of runes for position tracking
-	runes := []rune(text)
 	// Fetch diagnostic for this line (1-based)
 	var diagForLine *proxy.Diagnostic
 	var hasDiag bool
@@ -368,7 +374,25 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		}
 	}
 
-	for i, r := range runes {
+	runeIndex := 0
+	for byteOffset, sourceRune := range text {
+		i := runeIndex
+		runeIndex++
+		r := sourceRune
+		isTableGrid := false
+		if lineNum >= 0 && e.CurrentBuffer() != nil && x >= e.CurrentBuffer().LineNumberWidth {
+			presentation := e.markdownPresentedLine(lineNum)
+			if presentation != nil {
+				sourceByte := segmentStart + byteOffset
+				var visible bool
+				r, visible = presentation.presentedRune(sourceByte, sourceRune)
+				if !visible {
+					charPos++
+					continue
+				}
+				isTableGrid = presentation.tableGrid[sourceByte]
+			}
+		}
 		// Check if this character is part of a search match
 		// searchMatches contains positions relative to the line, not absolute positions
 		charPosInLine := segmentStart + i
@@ -390,7 +414,12 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			inSpellCheck = e.isInSpellCheckRange(lineNum)
 		}
 
-		currentStyle := style
+		runeStyle := style
+		if isTableGrid {
+			gridStyle := e.config.Theme.GetStyle(e.config.Theme.MarkdownTable)
+			runeStyle = runeStyle.Foreground(gridStyle.Fg).Attributes(gridStyle.Attrs)
+		}
+		currentStyle := runeStyle
 
 		// Determine if this position is within a diagnostic range for this line
 		useDiagStyle := false
@@ -439,30 +468,30 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 
 		if inFlash {
 			// Flash takes highest precedence
-			currentStyle = theme.ApplyBackgroundStyle(style, flashStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, flashStyle)
 		} else if inSpellCheck {
 			// Spell check highlight (shows region being checked)
-			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, selectionStyle)
 		} else if inSelection {
 			// Selection takes precedence over search
-			currentStyle = theme.ApplyBackgroundStyle(style, selectionStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, selectionStyle)
 		} else if useMatchStyle {
 			// Matching bracket/quote highlight
 			matchStyle := e.config.Theme.GetStyle(e.config.Theme.MatchHighlight)
-			currentStyle = theme.ApplyBackgroundStyle(style, matchStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, matchStyle)
 		} else if hasVirtualCursor {
 			// Virtual cursor gets a distinct background color
 			virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
-			currentStyle = theme.ApplyBackgroundStyle(style, virtualCursorStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, virtualCursorStyle)
 		} else if useDiagStyle {
 			// Apply diagnostic background for error/warning range
-			currentStyle = theme.ApplyBackgroundStyle(style, diagStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, diagStyle)
 		} else if useSearchStyle {
 			// Use search highlight style but preserve the foreground color
-			currentStyle = theme.ApplyBackgroundStyle(style, searchStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, searchStyle)
 		} else if inCurrentWord {
 			// Mild highlight for the word under the active cursor
-			currentStyle = theme.ApplyBackgroundStyle(style, currentWordStyle)
+			currentStyle = theme.ApplyBackgroundStyle(runeStyle, currentWordStyle)
 		}
 
 		// Check if we should visualize this character
@@ -494,7 +523,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		} else {
 			// Normal character
 			e.screen.SetContent(screenX, y, r, nil, currentStyle)
-			screenX++
+			screenX += wrapRuneWidth(r)
 		}
 		charPos++
 	}
