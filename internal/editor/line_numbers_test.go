@@ -77,8 +77,24 @@ func extractRenderedLineNumber(te *TestEditor, row int) string {
 	return strings.TrimSpace(builder.String())
 }
 
-func TestRelativeLineNumbersAroundCursor(t *testing.T) {
+func TestAbsoluteLineNumbersAroundCursor(t *testing.T) {
 	te := NewTestEditorWithContent(80, 24, "a\nb\nc\nd")
+	te.Editor.render()
+
+	if got := extractRenderedLineNumber(te, 0); got != "1" {
+		t.Fatalf("cursor line should show absolute number 1, got %q", got)
+	}
+	if got := extractRenderedLineNumber(te, 1); got != "2" {
+		t.Fatalf("line below cursor should show absolute number 2, got %q", got)
+	}
+	if got := extractRenderedLineNumber(te, 2); got != "3" {
+		t.Fatalf("two lines below cursor should show absolute number 3, got %q", got)
+	}
+}
+
+func TestRelativeLineNumbersWhenEnabled(t *testing.T) {
+	te := NewTestEditorWithContent(80, 24, "a\nb\nc\nd")
+	te.config.RelativeLineNumbers = true
 	te.Editor.render()
 
 	if got := extractRenderedLineNumber(te, 0); got != "1" {
@@ -97,6 +113,7 @@ func TestTerminalBuffersKeepAbsoluteLineNumbers(t *testing.T) {
 	term := NewTerminalEmulator(80, 10)
 	term.Write([]byte("first\nsecond\nthird\n"))
 	setupTerminalBufferForTest(te, 80, 10, term.Render(), term)
+	te.config.RelativeLineNumbers = true
 	te.Editor.render()
 
 	if got := extractRenderedLineNumber(te, 0); got != "1" {

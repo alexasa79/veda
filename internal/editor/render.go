@@ -1321,7 +1321,7 @@ func (e *Editor) renderPane() {
 		currentIsDiffBuffer = len(buf.DiffHints) > 0
 	}
 
-	useRelativeLineNumbers := cursorLine >= 0 && !isTerminalBuffer && !currentIsDiffBuffer
+	useRelativeLineNumbers := e.config.RelativeLineNumbers && cursorLine >= 0 && !isTerminalBuffer && !currentIsDiffBuffer
 
 	// Step timer to break down drawEditor phases
 	tStep := e.perfTracker.Start()

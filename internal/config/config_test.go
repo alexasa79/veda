@@ -19,6 +19,7 @@ func TestConfigSaveLoad(t *testing.T) {
 	cfg.DefaultIndentWidth = 2
 	cfg.DefaultIndentType = IndentTabs
 	cfg.VerticalRulers = []int{100, 120}
+	cfg.RelativeLineNumbers = true
 
 	// We need to manually save since ConfigPath() uses the real home dir
 	// So we'll test the serialization logic directly
@@ -28,11 +29,12 @@ func TestConfigSaveLoad(t *testing.T) {
 	}
 
 	cf := ConfigFile{
-		Theme:          cfg.Theme.Name,
-		ScrollOffset:   cfg.ScrollOffset,
-		IndentType:     indentType,
-		IndentWidth:    cfg.DefaultIndentWidth,
-		VerticalRulers: cfg.VerticalRulers,
+		Theme:               cfg.Theme.Name,
+		ScrollOffset:        cfg.ScrollOffset,
+		IndentType:          indentType,
+		IndentWidth:         cfg.DefaultIndentWidth,
+		VerticalRulers:      cfg.VerticalRulers,
+		RelativeLineNumbers: cfg.RelativeLineNumbers,
 	}
 
 	// Create directory and save
@@ -76,6 +78,9 @@ func TestConfigSaveLoad(t *testing.T) {
 	if len(loadedCf.VerticalRulers) != 2 || loadedCf.VerticalRulers[0] != 100 || loadedCf.VerticalRulers[1] != 120 {
 		t.Errorf("Expected vertical rulers [100, 120], got %v", loadedCf.VerticalRulers)
 	}
+	if !loadedCf.RelativeLineNumbers {
+		t.Error("Expected relative line numbers to be enabled")
+	}
 }
 
 func TestConfigLoadNonExistent(t *testing.T) {
@@ -98,6 +103,31 @@ func TestConfigLoadNonExistent(t *testing.T) {
 	}
 	if cfg.Theme.Name != "monokai" {
 		t.Errorf("Expected default theme 'monokai', got '%s'", cfg.Theme.Name)
+	}
+	if cfg.RelativeLineNumbers {
+		t.Error("Expected relative line numbers to be disabled by default")
+	}
+}
+
+func TestConfigLoadRelativeLineNumbers(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	t.Setenv("USERPROFILE", tempHome)
+
+	configDir := filepath.Join(tempHome, ".config", "veda")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.json"), []byte(`{"relative_line_numbers":true}`), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	cfg := New()
+	if err := cfg.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+	if !cfg.RelativeLineNumbers {
+		t.Error("Expected relative line numbers to be enabled")
 	}
 }
 

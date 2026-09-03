@@ -170,26 +170,8 @@ func TestLineWrapping_MultipleLines(t *testing.T) {
 		return digits + strings.Repeat(" ", padding)
 	}
 
-	cursorLine := te.CurrentBuffer().CursorIterator.LineNumber()
-	useRelative := cursorLine >= 0
-	if te.CurrentBuffer().IsInternal {
-		if ts := te.terminalSessions[te.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
-			useRelative = false
-		}
-	}
-	if len(te.CurrentBuffer().DiffHints) > 0 {
-		useRelative = false
-	}
 	displayNumber := func(logicalLine int) int {
-		n := logicalLine + 1
-		if useRelative && logicalLine != cursorLine {
-			diff := logicalLine - cursorLine
-			if diff < 0 {
-				diff = -diff
-			}
-			n = diff
-		}
-		return n
+		return logicalLine + 1
 	}
 	wrappedGutter := strings.Repeat(" ", te.CurrentBuffer().LineNumberWidth)
 	AssertScreenLine(t, screen, 0, numGutter(displayNumber(0))+"Short line")
