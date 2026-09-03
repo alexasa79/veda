@@ -40,7 +40,7 @@ make test   # run all tests (can take a while)
 
 Useful flags: `-d` (debug logging), `-log <path>` (log location),
 `-cpuprofile <file>`. Configuration lives in `~/.config/veda/config.json`
-(theme, indent settings).
+(theme, indent settings, and `relative_line_numbers`, which defaults to `false`).
 
 ## Editing basics
 

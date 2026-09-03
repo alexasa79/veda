@@ -18,11 +18,12 @@ const (
 
 // ConfigFile represents the JSON structure saved to disk
 type ConfigFile struct {
-	Theme          string `json:"theme,omitempty"`
-	ScrollOffset   int    `json:"scroll_offset,omitempty"`
-	IndentType     string `json:"indent_type,omitempty"`
-	IndentWidth    int    `json:"indent_width,omitempty"`
-	VerticalRulers []int  `json:"vertical_rulers,omitempty"`
+	Theme               string `json:"theme,omitempty"`
+	ScrollOffset        int    `json:"scroll_offset,omitempty"`
+	IndentType          string `json:"indent_type,omitempty"`
+	IndentWidth         int    `json:"indent_width,omitempty"`
+	VerticalRulers      []int  `json:"vertical_rulers,omitempty"`
+	RelativeLineNumbers bool   `json:"relative_line_numbers,omitempty"`
 }
 
 type Config struct {
@@ -35,15 +36,18 @@ type Config struct {
 
 	// Vertical ruler positions
 	VerticalRulers []int
+
+	RelativeLineNumbers bool
 }
 
 func New() *Config {
 	return &Config{
-		ScrollOffset:       10,
-		Theme:              theme.NewTheme(),
-		DefaultIndentType:  IndentSpaces,
-		DefaultIndentWidth: 4,
-		VerticalRulers:     []int{80, 100, 120},
+		ScrollOffset:        10,
+		Theme:               theme.NewTheme(),
+		DefaultIndentType:   IndentSpaces,
+		DefaultIndentWidth:  4,
+		VerticalRulers:      []int{80, 100, 120},
+		RelativeLineNumbers: false,
 	}
 }
 
@@ -105,6 +109,8 @@ func (c *Config) Load() error {
 		c.VerticalRulers = cf.VerticalRulers
 	}
 
+	c.RelativeLineNumbers = cf.RelativeLineNumbers
+
 	return nil
 }
 
@@ -128,11 +134,12 @@ func (c *Config) Save() error {
 	}
 
 	cf := ConfigFile{
-		Theme:          c.Theme.Name,
-		ScrollOffset:   c.ScrollOffset,
-		IndentType:     indentType,
-		IndentWidth:    c.DefaultIndentWidth,
-		VerticalRulers: c.VerticalRulers,
+		Theme:               c.Theme.Name,
+		ScrollOffset:        c.ScrollOffset,
+		IndentType:          indentType,
+		IndentWidth:         c.DefaultIndentWidth,
+		VerticalRulers:      c.VerticalRulers,
+		RelativeLineNumbers: c.RelativeLineNumbers,
 	}
 
 	data, err := json.MarshalIndent(cf, "", "  ")
