@@ -224,6 +224,8 @@ func (e *Editor) setupDefaultBindings() {
 	// Calculator operations
 	e.registerKeyBinding(commands.NormalMode, "- -", "calculate-append")
 	e.registerKeyBinding(commands.NormalMode, "- =", "calculate-replace")
+	e.registerKeyBinding(commands.InsertMode, "alt+-", "calculate-append")
+	e.registerKeyBinding(commands.InsertMode, "alt+=", "calculate-replace")
 
 	// Info
 	e.registerKeyBinding(commands.NormalMode, "ctrl+g", "show-file-info")

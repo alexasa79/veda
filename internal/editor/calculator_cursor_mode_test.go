@@ -2,6 +2,8 @@ package editor
 
 import (
 	"testing"
+	"veda/internal/commands"
+	"veda/internal/events"
 )
 
 // Ensure calculator includes the last character in Normal mode (cursor ON char)
@@ -37,5 +39,35 @@ func TestCalculatorExpressionEndPositionByMode(t *testing.T) {
 	got2 := te.CurrentBuffer().Rope.String()
 	if got2 != "3*4 → 12" {
 		t.Fatalf("insert mode end position: expected '3*4 → 12', got %q", got2)
+	}
+}
+
+func TestCalculatorInsertModeKeyBindings(t *testing.T) {
+	tests := []struct {
+		name string
+		key  rune
+		want string
+	}{
+		{name: "append", key: '-', want: "3*4 → 12"},
+		{name: "replace", key: '=', want: "12"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			te := NewTestEditorWithContent(80, 24, "3*4")
+			te.ExecuteCommand("enter-insert-mode")
+			te.CurrentBuffer().CursorX = 3
+
+			te.handleEvent(&events.KeyEvent{
+				Key:       events.KeyRune,
+				Rune:      tt.key,
+				Modifiers: events.ModAlt,
+			})
+
+			AssertBufferEquals(t, te, tt.want)
+			if te.mode != commands.InsertMode {
+				t.Fatalf("expected to remain in insert mode, got %s", te.mode)
+			}
+		})
 	}
 }
