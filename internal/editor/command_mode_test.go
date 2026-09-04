@@ -6,6 +6,25 @@ import (
 	"veda/internal/events"
 )
 
+func TestCommandModeQuitEmptyEditor(t *testing.T) {
+	mockScreen := NewMockScreen(80, 24)
+	editor, err := NewWithScreen(mockScreen)
+	if err != nil {
+		t.Fatalf("create editor: %v", err)
+	}
+	te := &TestEditor{Editor: editor, mockScreen: mockScreen}
+
+	if te.CurrentBuffer() != nil {
+		t.Fatal("expected editor to start without a buffer")
+	}
+
+	te.TypeKeys(":q\n")
+
+	if !te.shouldExit {
+		t.Fatal("expected :q to quit an editor with no open buffers")
+	}
+}
+
 func TestCommandModeLineJump(t *testing.T) {
 	// Create test editor with multiple lines
 	content := `Line 1
