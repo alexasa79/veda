@@ -8,6 +8,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - Keep your explanations simple. Speak in plain language. Give examples.
 - Keep your answers short and to the point.
 - Do not commit the code to git without explicit request.
+- Before every commit, run `make test`. Do not commit unless all tests pass. A regression test and its corresponding fix must be included in the same commit; never commit a revision with a known failing test.
 - Do not make changes to the code without explicit request.
 - For safety guards, prefer asserting the condition cannot happen using utils.Assert instead of adding alternate code paths.
 - Invariants are checked by a single, quick runInvariants function on every command; it covers the global always-true set for the active window/buffer, and any additional invariant checks should be dedicated functions.
