@@ -42,31 +42,35 @@ func TestCalculatorExpressionEndPositionByMode(t *testing.T) {
 	}
 }
 
-func TestCalculatorInsertModeKeyBindings(t *testing.T) {
+func TestCalculatorKeyBindings(t *testing.T) {
 	tests := []struct {
-		name string
-		key  rune
-		want string
+		name    string
+		mode    commands.Mode
+		cursorX int
+		key     events.Key
+		want    string
 	}{
-		{name: "append", key: '-', want: "3*4 → 12"},
-		{name: "replace", key: '=', want: "12"},
+		{name: "append in normal mode", mode: commands.NormalMode, cursorX: 2, key: events.KeyCtrlE, want: "3*4 → 12"},
+		{name: "replace in normal mode", mode: commands.NormalMode, cursorX: 2, key: events.KeyCtrlQ, want: "12"},
+		{name: "append in insert mode", mode: commands.InsertMode, cursorX: 3, key: events.KeyCtrlE, want: "3*4 → 12"},
+		{name: "replace in insert mode", mode: commands.InsertMode, cursorX: 3, key: events.KeyCtrlQ, want: "12"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			te := NewTestEditorWithContent(80, 24, "3*4")
-			te.ExecuteCommand("enter-insert-mode")
-			te.CurrentBuffer().CursorX = 3
+			if tt.mode == commands.InsertMode {
+				te.ExecuteCommand("enter-insert-mode")
+			}
+			te.CurrentBuffer().CursorX = tt.cursorX
 
 			te.handleEvent(&events.KeyEvent{
-				Key:       events.KeyRune,
-				Rune:      tt.key,
-				Modifiers: events.ModAlt,
+				Key: tt.key,
 			})
 
 			AssertBufferEquals(t, te, tt.want)
-			if te.mode != commands.InsertMode {
-				t.Fatalf("expected to remain in insert mode, got %s", te.mode)
+			if te.mode != tt.mode {
+				t.Fatalf("expected to remain in %s mode, got %s", tt.mode, te.mode)
 			}
 		})
 	}
