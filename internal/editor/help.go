@@ -133,6 +133,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("= Calculator =\n")
 	helpText.WriteString("- -          - Calculate expression and append result (e.g., 2+2 → 4)\n")
 	helpText.WriteString("- =          - Calculate expression and replace with result\n")
+	helpText.WriteString("Alt+-        - From insert mode: calculate and append result\n")
+	helpText.WriteString("Alt+=        - From insert mode: calculate and replace with result\n")
 	helpText.WriteString("Ctrl+O - -   - Use from insert mode to calculate without leaving insert\n")
 	helpText.WriteString("Ctrl+O - =   - Use from insert mode to replace without leaving insert\n")
 	helpText.WriteString("Supports: +, -, *, /, ** (power), parentheses\n")
