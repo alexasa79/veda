@@ -66,6 +66,10 @@ func buildMarkdownRenderCache(buf *buffer.Buffer) markdownRenderCache {
 			}
 		}
 		line.applyTableGlyphs(tableLine)
+		if row, ok := parseMarkdownTableRow(line.source); ok && row.continues {
+			end := len(strings.TrimRight(line.source, " \t"))
+			line.hide(end-2, len(line.source))
+		}
 	}
 
 	return markdownRenderCache{generation: buf.Generation, lines: lines}
@@ -95,43 +99,29 @@ func (line *markdownPresentedLine) hide(start, end int) {
 
 type markdownTablePresentationLine struct {
 	separator bool
+	top       bool
 	bottom    bool
 }
 
 func markdownTablePresentationLines(lines []string) map[int]markdownTablePresentationLine {
 	result := make(map[int]markdownTablePresentationLine)
-	for delimiterLine := 1; delimiterLine < len(lines); delimiterLine++ {
-		delimiter, ok := parseMarkdownTableRow(lines[delimiterLine])
+	for lineNum := 0; lineNum < len(lines); lineNum++ {
+		table, ok := markdownTableAtDelimiter(lines, lineNum)
 		if !ok {
 			continue
 		}
-		alignments, ok := parseMarkdownTableDelimiter(delimiter)
-		if !ok || len(alignments) < 2 {
-			continue
-		}
-		header, ok := parseMarkdownTableRow(lines[delimiterLine-1])
-		if !ok || len(header.cells) != len(delimiter.cells) {
-			continue
-		}
-
-		columns := len(header.cells)
-		result[delimiterLine-1] = markdownTablePresentationLine{}
-		result[delimiterLine] = markdownTablePresentationLine{separator: true}
-		endLine := delimiterLine
-		for endLine+1 < len(lines) {
-			row, ok := parseMarkdownTableRow(lines[endLine+1])
-			if !ok {
-				break
+		if table.valid {
+			for rowIndex, row := range table.rows {
+				_, separator := markdownTableRowSeparator(row, len(table.alignments))
+				separator = separator && !row.continues && (rowIndex == 0 || !table.rows[rowIndex-1].continues)
+				result[table.startLine+rowIndex] = markdownTablePresentationLine{
+					separator: separator,
+					top:       separator && rowIndex == 0,
+					bottom:    separator && table.startLine+rowIndex == table.endLine,
+				}
 			}
-			endLine++
-			_, separator := markdownTableRowSeparator(row, columns)
-			result[endLine] = markdownTablePresentationLine{separator: separator}
 		}
-		if last := result[endLine]; last.separator {
-			last.bottom = true
-			result[endLine] = last
-		}
-		delimiterLine = endLine
+		lineNum = table.endLine
 	}
 	return result
 }
@@ -155,7 +145,16 @@ func (line *markdownPresentedLine) applyTableGlyphs(tableLine markdownTablePrese
 	for pos := contentStart; pos < contentEnd; {
 		_, size := utf8.DecodeRuneInString(line.source[pos:])
 		if pipeSet[pos] {
-			if tableLine.bottom {
+			if tableLine.top {
+				switch pos {
+				case contentStart:
+					line.replacements[pos] = '┏'
+				case contentEnd - 1:
+					line.replacements[pos] = '┓'
+				default:
+					line.replacements[pos] = '┳'
+				}
+			} else if tableLine.bottom {
 				switch pos {
 				case contentStart:
 					line.replacements[pos] = '┗'

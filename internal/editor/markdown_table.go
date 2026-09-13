@@ -24,8 +24,9 @@ type markdownTableCell struct {
 }
 
 type markdownTableRow struct {
-	indent string
-	cells  []markdownTableCell
+	indent    string
+	cells     []markdownTableCell
+	continues bool
 }
 
 type markdownTable struct {
@@ -39,6 +40,10 @@ type markdownTable struct {
 func parseMarkdownTableRow(line string) (markdownTableRow, bool) {
 	contentStart := len(line) - len(strings.TrimLeft(line, " \t"))
 	contentEnd := len(strings.TrimRight(line, " \t"))
+	continues := strings.HasSuffix(line[:contentEnd], "| \\")
+	if continues {
+		contentEnd -= 2
+	}
 	if contentStart >= contentEnd {
 		return markdownTableRow{}, false
 	}
@@ -70,7 +75,7 @@ func parseMarkdownTableRow(line string) (markdownTableRow, bool) {
 		return markdownTableRow{}, false
 	}
 
-	return markdownTableRow{indent: line[:contentStart], cells: cells}, true
+	return markdownTableRow{indent: line[:contentStart], cells: cells, continues: continues}, true
 }
 
 func newMarkdownTableCell(line string, start, end int) markdownTableCell {
@@ -175,67 +180,71 @@ func parseMarkdownTableDelimiter(row markdownTableRow) ([]markdownTableAlignment
 	return alignments, true
 }
 
+// markdownTableAtDelimiter accepts a delimiter with an optional header above it.
+func markdownTableAtDelimiter(lines []string, delimiterLine int) (markdownTable, bool) {
+	delimiter, ok := parseMarkdownTableRow(lines[delimiterLine])
+	if !ok {
+		return markdownTable{}, false
+	}
+	alignments, ok := parseMarkdownTableDelimiter(delimiter)
+	if !ok || len(alignments) < 2 || delimiter.continues {
+		return markdownTable{}, false
+	}
+	table := markdownTable{
+		startLine:  delimiterLine,
+		endLine:    delimiterLine,
+		rows:       []markdownTableRow{delimiter},
+		alignments: alignments,
+		valid:      true,
+	}
+	if delimiterLine > 0 {
+		if header, ok := parseMarkdownTableRow(lines[delimiterLine-1]); ok {
+			if header.continues {
+				return markdownTable{}, false
+			}
+			table.startLine--
+			table.rows = append([]markdownTableRow{header}, table.rows...)
+			table.valid = len(header.cells) == len(alignments)
+			for table.startLine > 0 {
+				previous, ok := parseMarkdownTableRow(lines[table.startLine-1])
+				if !ok || !previous.continues {
+					break
+				}
+				table.startLine--
+				table.rows = append([]markdownTableRow{previous}, table.rows...)
+				table.valid = table.valid && len(previous.cells) == len(alignments)
+			}
+		}
+	}
+	for table.endLine+1 < len(lines) {
+		row, ok := parseMarkdownTableRow(lines[table.endLine+1])
+		if !ok {
+			break
+		}
+		table.rows = append(table.rows, row)
+		table.endLine++
+		if len(row.cells) > len(alignments) {
+			table.valid = false
+		}
+	}
+	return table, true
+}
+
 func findMarkdownTable(lines []string, cursorLine int) (markdownTable, bool) {
-	for delimiterLine := 1; delimiterLine < len(lines); delimiterLine++ {
-		delimiter, ok := parseMarkdownTableRow(lines[delimiterLine])
+	for line := 0; line < len(lines); line++ {
+		table, ok := markdownTableAtDelimiter(lines, line)
 		if !ok {
 			continue
 		}
-		alignments, ok := parseMarkdownTableDelimiter(delimiter)
-		if !ok || len(alignments) < 2 {
-			continue
+		if cursorLine >= table.startLine && cursorLine <= table.endLine {
+			return table, true
 		}
-		header, ok := parseMarkdownTableRow(lines[delimiterLine-1])
-		if !ok {
-			continue
-		}
-
-		rows := []markdownTableRow{header, delimiter}
-		endLine := delimiterLine
-		for endLine+1 < len(lines) {
-			row, ok := parseMarkdownTableRow(lines[endLine+1])
-			if !ok {
-				break
-			}
-			rows = append(rows, row)
-			endLine++
-		}
-		startLine := delimiterLine - 1
-		if cursorLine < startLine || cursorLine > endLine {
-			continue
-		}
-
-		valid := len(header.cells) == len(delimiter.cells)
-		for _, row := range rows[2:] {
-			if len(row.cells) > len(header.cells) {
-				valid = false
-			}
-		}
-		return markdownTable{
-			startLine:  startLine,
-			endLine:    endLine,
-			rows:       rows,
-			alignments: alignments,
-			valid:      valid,
-		}, true
+		line = table.endLine
 	}
 	return markdownTable{}, false
 }
 
-func formatMarkdownTable(table markdownTable) ([]string, [][]int) {
-	widths := make([]int, len(table.rows[0].cells))
-	for column, alignment := range table.alignments {
-		widths[column] = markdownTableMinimumWidth(alignment)
-	}
-	for rowIndex, row := range table.rows {
-		if _, separator := markdownTableRowSeparator(row, len(widths)); rowIndex == 1 || separator {
-			continue
-		}
-		for column, cell := range row.cells {
-			widths[column] = max(widths[column], markdownTableTextWidth(cell.text))
-		}
-	}
-
+func formatMarkdownTable(table markdownTable, widths []int) ([]string, [][]int) {
 	lines := make([]string, len(table.rows))
 	contentStarts := make([][]int, len(table.rows))
 	indent := table.rows[0].indent
@@ -245,18 +254,15 @@ func formatMarkdownTable(table markdownTable) ([]string, [][]int) {
 		line.WriteString("|")
 		contentStarts[rowIndex] = make([]int, len(widths))
 		separatorAlignments, separator := markdownTableRowSeparator(row, len(widths))
+		separator = separator && !row.continues && (rowIndex == 0 || !table.rows[rowIndex-1].continues)
 		for column := range widths {
 			text := ""
 			if column < len(row.cells) {
 				text = row.cells[column].text
 			}
 			leftPadding := 0
-			if rowIndex == 1 || separator {
-				alignment := table.alignments[column]
-				if separator {
-					alignment = separatorAlignments[column]
-				}
-				text = markdownTableDelimiter(widths[column], alignment)
+			if separator {
+				text = markdownTableDelimiter(widths[column], separatorAlignments[column])
 			} else {
 				padding := widths[column] - markdownTableTextWidth(text)
 				switch table.alignments[column] {
@@ -272,6 +278,9 @@ func formatMarkdownTable(table markdownTable) ([]string, [][]int) {
 			line.WriteString(text)
 			line.WriteString(strings.Repeat(" ", widths[column]-markdownTableTextWidth(text)-leftPadding))
 			line.WriteString(" |")
+		}
+		if row.continues {
+			line.WriteString(" \\")
 		}
 		lines[rowIndex] = line.String()
 	}
@@ -318,24 +327,7 @@ func markdownTableTextWidth(text string) int {
 	return width
 }
 
-func markdownTableCursorX(row markdownTableRow, oldX int, newStarts []int, newLine string) int {
-	for column, cell := range row.cells {
-		if oldX > cell.segmentEnd {
-			continue
-		}
-		offset := oldX - cell.contentStart
-		if offset < 0 {
-			offset = 0
-		}
-		if offset > len(cell.text) {
-			offset = len(cell.text)
-		}
-		return min(newStarts[column]+offset, len(newLine))
-	}
-	return min(oldX, len(newLine))
-}
-
-func (e *Editor) formatMarkdownTableAtCursor() (bool, error) {
+func (e *Editor) formatMarkdownTableAtCursor(width int) (bool, error) {
 	if e.CurrentBuffer() == nil || !e.isMarkdownFile() {
 		return false, nil
 	}
@@ -354,14 +346,12 @@ func (e *Editor) formatMarkdownTableAtCursor() (bool, error) {
 		return true, nil
 	}
 
-	newLines, newStarts := formatMarkdownTable(table)
+	newLines, newCursorY, newCursorX := wrapMarkdownTable(table, width, cursorLine-table.startLine, buf.CursorX)
 	oldLines := append([]string(nil), lines[table.startLine:table.endLine+1]...)
 	if strings.Join(oldLines, "\n") == strings.Join(newLines, "\n") {
 		return true, nil
 	}
 
-	rowIndex := cursorLine - table.startLine
-	newCursorX := markdownTableCursorX(table.rows[rowIndex], buf.CursorX, newStarts[rowIndex], newLines[rowIndex])
 	viewLine := buf.ViewIterator.LineNumber()
 	entry := &markdownTableHistoryEntry{
 		startLine:  table.startLine,
@@ -370,10 +360,29 @@ func (e *Editor) formatMarkdownTableAtCursor() (bool, error) {
 		oldCursorX: buf.CursorX,
 		oldCursorY: cursorLine,
 		newCursorX: newCursorX,
-		newCursorY: cursorLine,
+		newCursorY: table.startLine + newCursorY,
 	}
+	// The editor restores cursor lines from composite snapshots on undo/redo.
+	composite := buffer.NewCompositeEntry(entry.Description())
+	composite.Add(entry)
+	oldVirtual := e.GetVirtualCursors()
+	newVirtual := append([]VirtualCursor(nil), oldVirtual...)
+	pre := make([]buffer.CursorPos, len(oldVirtual))
+	post := make([]buffer.CursorPos, len(oldVirtual))
+	for i, cursor := range oldVirtual {
+		pre[i] = buffer.CursorPos{Line: cursor.Y, Char: cursor.X}
+		if cursor.Y >= table.startLine && cursor.Y <= table.endLine {
+			_, y, x := wrapMarkdownTable(table, width, cursor.Y-table.startLine, cursor.X)
+			newVirtual[i] = VirtualCursor{Y: table.startLine + y, X: x}
+		} else if cursor.Y > table.endLine {
+			newVirtual[i].Y += len(newLines) - len(oldLines)
+		}
+		post[i] = buffer.CursorPos{Line: newVirtual[i].Y, Char: newVirtual[i].X}
+	}
+	composite.SetPreCursors(buffer.CursorPos{Line: cursorLine, Char: buf.CursorX}, pre)
+	composite.SetPostCursors(buffer.CursorPos{Line: entry.newCursorY, Char: newCursorX}, post)
 	if buf.History != nil {
-		executed, err := buf.History.Execute(buf, entry)
+		executed, err := buf.History.Execute(buf, composite)
 		if err != nil {
 			return true, err
 		}
@@ -384,6 +393,7 @@ func (e *Editor) formatMarkdownTableAtCursor() (bool, error) {
 		return true, err
 	}
 
+	e.setVirtualCursorsFor(buf, newVirtual)
 	buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, min(viewLine, buf.LineCount-1))
 	if !e.inPasteMode {
 		e.updateSyntaxHighlighting()
