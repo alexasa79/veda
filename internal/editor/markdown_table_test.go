@@ -28,6 +28,7 @@ func TestRewrapFormatsMarkdownTable(t *testing.T) {
 		"| True order flow        |          n/a |         n/a |     n/a |     n/a |      n/a |",
 	}, "\n")
 	te := newMarkdownTableTestEditor(content)
+	te.config.VerticalRulers = []int{100}
 	te.SetCursorPosition(4, 3)
 
 	if err := te.ExecuteCommand("rewrap-paragraph"); err != nil {
