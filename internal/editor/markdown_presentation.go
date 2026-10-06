@@ -13,10 +13,9 @@ type markdownRenderCache struct {
 }
 
 type markdownPresentedLine struct {
-	source       string
-	hidden       []bool
-	replacements map[int]rune
-	tableGrid    map[int]bool
+	source string
+	hidden []bool
+	table  *markdownTableDisplay
 }
 
 func (e *Editor) markdownPresentationActive() bool {
@@ -47,30 +46,13 @@ func buildMarkdownRenderCache(buf *buffer.Buffer) markdownRenderCache {
 		source := buffer.NewBufferIteratorAtLine(buf, lineNum).Line()
 		sourceLines[lineNum] = source
 		lines[lineNum] = markdownPresentedLine{
-			source:       source,
-			hidden:       make([]bool, len(source)),
-			replacements: make(map[int]rune),
-			tableGrid:    make(map[int]bool),
+			source: source,
+			hidden: make([]bool, len(source)),
 		}
 		lines[lineNum].hideLinkMarkup()
 	}
 
-	for lineNum, tableLine := range markdownTablePresentationLines(sourceLines) {
-		line := &lines[lineNum]
-		// Keep table widths stable when a link hides its markup. The hidden source
-		// cells become spaces inside tables instead of collapsing the column.
-		for i, hidden := range line.hidden {
-			if hidden {
-				line.hidden[i] = false
-				line.replacements[i] = ' '
-			}
-		}
-		line.applyTableGlyphs(tableLine)
-		if row, ok := parseMarkdownTableRow(line.source); ok && row.continues {
-			end := len(strings.TrimRight(line.source, " \t"))
-			line.hide(end-2, len(line.source))
-		}
-	}
+	alignMarkdownTables(sourceLines, lines)
 
 	return markdownRenderCache{generation: buf.Generation, lines: lines}
 }
@@ -97,96 +79,9 @@ func (line *markdownPresentedLine) hide(start, end int) {
 	}
 }
 
-type markdownTablePresentationLine struct {
-	separator bool
-	top       bool
-	bottom    bool
-}
-
-func markdownTablePresentationLines(lines []string) map[int]markdownTablePresentationLine {
-	result := make(map[int]markdownTablePresentationLine)
-	for lineNum := 0; lineNum < len(lines); lineNum++ {
-		table, ok := markdownTableAtDelimiter(lines, lineNum)
-		if !ok {
-			continue
-		}
-		if table.valid {
-			for rowIndex, row := range table.rows {
-				_, separator := markdownTableRowSeparator(row, len(table.alignments))
-				separator = separator && !row.continues && (rowIndex == 0 || !table.rows[rowIndex-1].continues)
-				result[table.startLine+rowIndex] = markdownTablePresentationLine{
-					separator: separator,
-					top:       separator && rowIndex == 0,
-					bottom:    separator && table.startLine+rowIndex == table.endLine,
-				}
-			}
-		}
-		lineNum = table.endLine
-	}
-	return result
-}
-
-func (line *markdownPresentedLine) applyTableGlyphs(tableLine markdownTablePresentationLine) {
-	pipes := markdownTablePipes(line.source, 0)
-	if !tableLine.separator {
-		for _, pipe := range pipes {
-			line.replacements[pipe] = '┃'
-			line.tableGrid[pipe] = true
-		}
-		return
-	}
-
-	contentStart := len(line.source) - len(strings.TrimLeft(line.source, " \t"))
-	contentEnd := len(strings.TrimRight(line.source, " \t"))
-	pipeSet := make(map[int]bool, len(pipes))
-	for _, pipe := range pipes {
-		pipeSet[pipe] = true
-	}
-	for pos := contentStart; pos < contentEnd; {
-		_, size := utf8.DecodeRuneInString(line.source[pos:])
-		if pipeSet[pos] {
-			if tableLine.top {
-				switch pos {
-				case contentStart:
-					line.replacements[pos] = '┏'
-				case contentEnd - 1:
-					line.replacements[pos] = '┓'
-				default:
-					line.replacements[pos] = '┳'
-				}
-			} else if tableLine.bottom {
-				switch pos {
-				case contentStart:
-					line.replacements[pos] = '┗'
-				case contentEnd - 1:
-					line.replacements[pos] = '┛'
-				default:
-					line.replacements[pos] = '┻'
-				}
-			} else {
-				switch pos {
-				case contentStart:
-					line.replacements[pos] = '┣'
-				case contentEnd - 1:
-					line.replacements[pos] = '┫'
-				default:
-					line.replacements[pos] = '╋'
-				}
-			}
-		} else {
-			line.replacements[pos] = '━'
-		}
-		line.tableGrid[pos] = true
-		pos += size
-	}
-}
-
 func (line *markdownPresentedLine) presentedRune(sourceByte int, sourceRune rune) (rune, bool) {
 	if sourceByte >= 0 && sourceByte < len(line.hidden) && line.hidden[sourceByte] {
 		return 0, false
-	}
-	if replacement, ok := line.replacements[sourceByte]; ok {
-		return replacement, true
 	}
 	return sourceRune, true
 }
@@ -194,6 +89,12 @@ func (line *markdownPresentedLine) presentedRune(sourceByte int, sourceRune rune
 func (line *markdownPresentedLine) displayWidth(start, end int) int {
 	start = max(0, start)
 	end = min(end, len(line.source))
+	if line.table != nil {
+		if start == 0 {
+			return line.table.columns[end]
+		}
+		return line.table.columns[end] - line.table.columns[start]
+	}
 	width := 0
 	for pos := start; pos < end; {
 		r, size := utf8.DecodeRuneInString(line.source[pos:])
@@ -208,6 +109,14 @@ func (line *markdownPresentedLine) displayWidth(start, end int) int {
 func (line *markdownPresentedLine) sourceOffsetAtDisplayColumn(start, end, target int) int {
 	start = max(0, start)
 	end = min(end, len(line.source))
+	if line.table != nil {
+		for _, glyph := range line.table.glyphs {
+			if target < glyph.column+wrapRuneWidth(glyph.r) {
+				return glyph.source
+			}
+		}
+		return end
+	}
 	width := 0
 	for pos := start; pos < end; {
 		r, size := utf8.DecodeRuneInString(line.source[pos:])
@@ -250,6 +159,9 @@ func (line *markdownPresentedLine) displayAndBoundaries() (string, map[int]int) 
 }
 
 func (line *markdownPresentedLine) wrap(wc *WrapCalculator, logicalLineNum int) []WrappedLine {
+	if line.table != nil {
+		return []WrappedLine{{LogicalLineNum: logicalLineNum, StartChar: 0, EndChar: len(line.source), IsFirstLine: true, Text: line.source}}
+	}
 	display, boundaries := line.displayAndBoundaries()
 	if display == "" {
 		return []WrappedLine{{

@@ -190,7 +190,10 @@ func (e *Editor) buildVirtualCursorCells(wrappedLines []WrappedLine, contentStar
 			}
 		}
 
-		if column < 0 || column >= width {
+		if presentation := e.markdownPresentedLine(vc.Y); presentation != nil {
+			column -= e.markdownTableOffset(presentation)
+		}
+		if column < lineNumberWidth || column >= width {
 			continue
 		}
 
@@ -374,29 +377,31 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		}
 	}
 
-	runeIndex := 0
-	for byteOffset, sourceRune := range text {
-		i := runeIndex
-		runeIndex++
-		r := sourceRune
-		isTableGrid := false
-		if lineNum >= 0 && e.CurrentBuffer() != nil && x >= e.CurrentBuffer().LineNumberWidth {
-			presentation := e.markdownPresentedLine(lineNum)
-			if presentation != nil {
-				sourceByte := segmentStart + byteOffset
-				var visible bool
-				r, visible = presentation.presentedRune(sourceByte, sourceRune)
-				if !visible {
-					charPos++
-					continue
-				}
-				isTableGrid = presentation.tableGrid[sourceByte]
+	var presentation *markdownPresentedLine
+	if lineNum >= 0 && e.CurrentBuffer() != nil && x >= e.CurrentBuffer().LineNumberWidth {
+		presentation = e.markdownPresentedLine(lineNum)
+	}
+	tableOffset := 0
+	if presentation != nil {
+		tableOffset = e.markdownTableOffset(presentation)
+	}
+	consumed := 0
+	for glyph := range presentation.renderedRunes(text, segmentStart) {
+		i := glyph.source - segmentStart
+		r := glyph.r
+		isTableGrid := glyph.grid
+		charPos = textOffset + i
+		if presentation != nil && presentation.table != nil {
+			consumed += wrapRuneWidth(r)
+			screenX = e.CurrentBuffer().LineNumberWidth + glyph.column - tableOffset
+			if screenX < e.CurrentBuffer().LineNumberWidth || screenX+wrapRuneWidth(r) > e.wrapScreenWidth() {
+				continue
 			}
 		}
 		// Check if this character is part of a search match
 		// searchMatches contains positions relative to the line, not absolute positions
 		charPosInLine := segmentStart + i
-		useSearchStyle := e.isInSearchMatchInLine(charPosInLine, searchMatches)
+		useSearchStyle := !glyph.synthetic && e.isInSearchMatchInLine(charPosInLine, searchMatches)
 		// Check if this character is part of the selection
 		// Only apply selection style if we're not drawing line numbers (x parameter is 0 for line numbers)
 		inSelection := hasSelection && charPos >= selStart && charPos < selEnd && x > 0
@@ -526,6 +531,9 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			screenX += wrapRuneWidth(r)
 		}
 		charPos++
+	}
+	if presentation != nil && presentation.table != nil {
+		return consumed
 	}
 	return screenX - x
 }

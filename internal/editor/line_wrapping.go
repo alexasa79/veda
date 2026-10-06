@@ -359,7 +359,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 				visualLine = i
 				// Calculate visual column accounting for tabs
 				if presentation != nil {
-					visualCol = presentation.displayWidth(wl.StartChar, cursorX) + e.CurrentBuffer().LineNumberWidth
+					visualCol = presentation.displayWidth(wl.StartChar, cursorX) + e.CurrentBuffer().LineNumberWidth - e.markdownTableOffset(presentation)
 				} else {
 					lineSegment := wl.Text[:cursorX-wl.StartChar]
 					visualCol = e.visualWidth(lineSegment) + e.CurrentBuffer().LineNumberWidth
@@ -374,7 +374,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 					// Cursor at end of line
 					// Calculate visual column accounting for tabs
 					if presentation != nil {
-						visualCol = presentation.displayWidth(wl.StartChar, wl.EndChar) + e.CurrentBuffer().LineNumberWidth
+						visualCol = presentation.displayWidth(wl.StartChar, wl.EndChar) + e.CurrentBuffer().LineNumberWidth - e.markdownTableOffset(presentation)
 					} else {
 						visualCol = e.visualWidth(wl.Text) + e.CurrentBuffer().LineNumberWidth
 					}
@@ -422,7 +422,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			visualLine = i
 			// Calculate visual column accounting for tabs
 			if presentation != nil {
-				visualCol = presentation.displayWidth(wl.StartChar, wl.EndChar) + e.CurrentBuffer().LineNumberWidth
+				visualCol = presentation.displayWidth(wl.StartChar, wl.EndChar) + e.CurrentBuffer().LineNumberWidth - e.markdownTableOffset(presentation)
 			} else {
 				visualCol = e.visualWidth(wl.Text) + e.CurrentBuffer().LineNumberWidth
 			}
@@ -472,7 +472,7 @@ func (e *Editor) MapVisualToLogical(visualLine, visualCol int) (logicalLine, cha
 		textCol = 0
 	}
 	if presentation := e.markdownPresentedLine(logicalLine); presentation != nil {
-		return logicalLine, presentation.sourceOffsetAtDisplayColumn(wl.StartChar, wl.EndChar, textCol)
+		return logicalLine, presentation.sourceOffsetAtDisplayColumn(wl.StartChar, wl.EndChar, textCol+e.markdownTableOffset(presentation))
 	}
 
 	// Get the text segment for this wrapped line
