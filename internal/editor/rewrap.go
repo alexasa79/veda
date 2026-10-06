@@ -292,22 +292,13 @@ func wrapText(text string, width int, indent string, prefix string) []string {
 }
 
 func (e *Editor) rewrapParagraph() error {
-	if handled, err := e.formatMarkdownTableAtCursor(); handled || err != nil {
-		return err
-	}
-
-	// If no rulers configured, use default
-	if len(e.config.VerticalRulers) == 0 {
-		return e.rewrapParagraphWithWidth(defaultWrapWidth)
-	}
-
 	// Get current cursor position
 	currentLine := e.CurrentBuffer().CursorIterator.LineNumber()
 	currentChar := e.CurrentBuffer().CursorX
 
 	// Determine the ruler index to use
 	var rulerIndex int
-	if currentLine == e.lastRewrapLine && currentChar == e.lastRewrapChar {
+	if len(e.config.VerticalRulers) > 0 && currentLine == e.lastRewrapLine && currentChar == e.lastRewrapChar {
 		// Same position as last rewrap - cycle to next ruler
 		rulerIndex = (e.lastRewrapIndex + 1) % len(e.config.VerticalRulers)
 	} else {
@@ -316,11 +307,20 @@ func (e *Editor) rewrapParagraph() error {
 	}
 
 	// Get the width from the ruler at this index
-	width := e.config.VerticalRulers[rulerIndex]
+	width := defaultWrapWidth
+	if len(e.config.VerticalRulers) > 0 {
+		width = e.config.VerticalRulers[rulerIndex]
+	}
 
 	// Perform the rewrap
-	if err := e.rewrapParagraphWithWidth(width); err != nil {
+	handled, err := e.formatMarkdownTableAtCursor(width)
+	if err != nil {
 		return err
+	}
+	if !handled {
+		if err := e.rewrapParagraphWithWidth(width); err != nil {
+			return err
+		}
 	}
 
 	// Update tracking AFTER rewrap to the new cursor position so a repeated
