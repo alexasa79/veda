@@ -58,6 +58,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("V            - Enter visual line mode for line selection\n")
 	helpText.WriteString("J            - Join current line with next line\n")
 	helpText.WriteString("Alt+Q        - Rewrap paragraph or Markdown table (repeat for rulers)\n")
+	helpText.WriteString("Markdown tables align automatically outside insert mode; wide tables scroll with the cursor.\n")
 	helpText.WriteString("               Tables may start with a separator, without a header.\n")
 	helpText.WriteString("               Wrapped rows use a trailing backslash, hidden in normal mode.\n")
 	helpText.WriteString("               Words, links and inline code stay whole; they may exceed a ruler.\n")

@@ -122,7 +122,11 @@ func (e *Editor) scroll() {
 			for {
 				nRows := 1
 				if !isInternal {
-					nRows = len(wc.WrapLine(mIter.Line(), mIter.LineNumber()))
+					if presentation := e.markdownPresentedLine(mIter.LineNumber()); presentation != nil {
+						nRows = len(presentation.wrap(wc, mIter.LineNumber()))
+					} else {
+						nRows = len(wc.WrapLine(mIter.Line(), mIter.LineNumber()))
+					}
 				}
 				accum += nRows
 				if accum >= visibleHeight {
@@ -210,6 +214,9 @@ func (e *Editor) ScrollToShowAtBottom() {
 	for {
 		lineText := iter.Line()
 		wrapped := wc.WrapLine(lineText, iter.LineNumber())
+		if presentation := e.markdownPresentedLine(iter.LineNumber()); presentation != nil {
+			wrapped = presentation.wrap(wc, iter.LineNumber())
+		}
 		visualRows += len(wrapped)
 
 		if visualRows >= visibleHeight || iter.LineNumber() == 0 {
