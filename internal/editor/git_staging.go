@@ -10,6 +10,9 @@ import (
 
 // toggleStageHunk stages or unstages the current git hunk
 func (e *Editor) toggleStageHunk(args []string) error {
+	if e.readOnlyDiff() {
+		return fmt.Errorf("cannot stage a read-only comparison")
+	}
 	buf := e.CurrentBuffer()
 	if buf == nil {
 		return fmt.Errorf("no buffer")
@@ -161,6 +164,9 @@ func (e *Editor) toggleStageHunk(args []string) error {
 
 // toggleStageLine stages or unstages the current line
 func (e *Editor) toggleStageLine(args []string) error {
+	if e.readOnlyDiff() {
+		return fmt.Errorf("cannot stage a read-only comparison")
+	}
 	buf := e.CurrentBuffer()
 	if buf == nil {
 		return fmt.Errorf("no buffer")

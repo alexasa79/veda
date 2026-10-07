@@ -28,9 +28,10 @@ import uuid
 import struct
 import time
 import argparse
+from urllib.parse import urlparse, quote
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.48"
+PROXY_VERSION = "1.0.52"
 
 # Set up logging directory
 from datetime import datetime
@@ -1424,6 +1425,8 @@ class VedaProxy:
             'get_completions': self.get_completions,
             'get_diagnostics': self.get_diagnostics,
             'get_project_changes': self.get_project_changes,
+            'review_pr': self.review_pr,
+            'checkout_pr': self.checkout_pr,
             'get_git_file_version': self.get_git_file_version,
             'run_git_blame': self.run_git_blame,
             'get_git_commit_info': self.get_git_commit_info,
@@ -2367,6 +2370,170 @@ class VedaProxy:
             logger.error(f"Failed to notify file change: {e}")
             return {"error": str(e)}
     
+    @log_proxy_method
+    def checkout_pr(self, working_dir: str, reference: str, head: str, open_files: List[str]) -> Dict[str, Any]:
+        """Checkout in place, including pinned nested submodules; never stash or force."""
+        result = {'success': False, 'root': '', 'files': []}
+        deadline = time.monotonic() + 240
+
+        def run(*args):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError('PR checkout timed out')
+            proc = self._run_shell_command(list(args), cwd=working_dir, timeout=min(60, remaining))
+            if proc.returncode != 0:
+                raise ValueError(proc.stderr.strip() or ' '.join(args[:2]) + ' failed')
+            return proc.stdout.strip()
+
+        try:
+            if not re.fullmatch(r'[0-9a-f]{40}', head):
+                raise ValueError('Invalid PR commit ID')
+            parsed = urlparse(reference)
+            if parsed.scheme != 'https' or not re.fullmatch(r'/[^/]+/[^/]+/pull/[1-9][0-9]*', parsed.path):
+                raise ValueError('Invalid PR URL')
+            root = Path(run('git', 'rev-parse', '--show-toplevel')).resolve()
+            working_dir = str(root)
+            repo_url = json.loads(run('gh', 'repo', 'view', '--json', 'url'))['url']
+            if repo_url.rstrip('/').lower() != reference.rsplit('/pull/', 1)[0].lower():
+                raise ValueError('The PR belongs to a different repository; open its project first')
+            # Respect the project's submodule ignore settings for build artifacts.
+            # Non-forced checkout/update still reject conflicting local changes.
+            if run('git', 'status', '--porcelain', '--untracked-files=normal'):
+                raise ValueError('Commit or move local changes before PR checkout (including submodules)')
+
+            # From this point, even a failure may have changed files. Return reload
+            # data on failure as well; never claim the previous checkout is intact.
+            result['root'] = str(root)
+            self.lsp.stop_all_servers()
+            self.lsp.pending_file_opens.clear()
+            self.lsp.file_versions.clear()
+            self.lsp.diagnostics.clear()
+            self.lsp.lsp_errors.clear()
+            run('gh', 'pr', 'checkout', reference)
+            if run('git', 'rev-parse', 'HEAD') != head:
+                raise ValueError('PR changed during checkout; reopen it to load the new revision')
+            run('git', 'submodule', 'sync', '--recursive')
+            run('git', 'submodule', 'update', '--init', '--recursive', '--checkout')
+            if run('git', 'status', '--porcelain', '--untracked-files=normal'):
+                raise ValueError('Checkout contains local changes; resolve them before reviewing')
+            result['success'] = True
+        except Exception as e:
+            result['error'] = str(e)
+            if result['root']:
+                result['error'] += ' (checkout may have changed; open buffers have been refreshed)'
+        finally:
+            if result['root']:
+                for name in open_files:
+                    path = Path(name).expanduser().absolute()
+                    if not path.is_relative_to(root):
+                        continue
+                    entry = {'path': name, 'content': '', 'error': ''}
+                    try:
+                        entry['content'] = path.read_text(encoding='utf-8')
+                    except Exception as e:
+                        entry['error'] = str(e)
+                    result['files'].append(entry)
+        return result
+
+    @log_proxy_method
+    def review_pr(self, working_dir: str, query: Dict[str, Any]) -> Dict[str, Any]:
+        """Read PR metadata and immutable file snapshots using the user's gh login."""
+        try:
+            def gh(*args):
+                result = self._run_shell_command(['gh', *args], cwd=working_dir, timeout=60)
+                if result.returncode != 0:
+                    raise ValueError(result.stderr.strip() or 'GitHub CLI failed')
+                return json.loads(result.stdout)
+
+            action = query['action']
+            if action == 'list':
+                fields = 'number,title,url,author'
+                requested = gh('pr', 'list', '--state', 'open', '--limit', '1000',
+                               '--search', 'review-requested:@me', '--json', fields)
+                assigned = gh('pr', 'list', '--state', 'open', '--limit', '1000',
+                              '--assignee', '@me', '--json', fields)
+                return {'success': True, 'requested': requested, 'assigned': assigned}
+
+            reference = query.get('reference') or query.get('url', '')
+            if re.fullmatch(r'[1-9][0-9]*', reference):
+                repo_url = gh('repo', 'view', '--json', 'url')['url']
+                reference = repo_url.rstrip('/') + '/pull/' + reference
+            parsed = urlparse(reference)
+            match = re.fullmatch(r'/([^/]+)/([^/]+)/pull/([1-9][0-9]*)/?', parsed.path)
+            if parsed.scheme != 'https' or not parsed.hostname or not match or parsed.username or parsed.port:
+                raise ValueError('Enter a positive PR number or an HTTPS PR URL')
+            owner, repo, number = match.groups()
+            endpoint = 'repos/' + quote(owner, safe='') + '/' + quote(repo, safe='')
+
+            def api(path):
+                return gh('api', '--hostname', parsed.hostname, endpoint + path)
+
+            if action == 'view':
+                pr = api('/pulls/' + number)
+                base, head = pr['base']['sha'], pr['head']['sha']
+                comparison = api('/compare/' + base + '...' + head + '?per_page=1')
+                files = []
+                for page in range(1, 31):
+                    batch = api('/pulls/' + number + '/files?per_page=100&page=' + str(page))
+                    files.extend(batch)
+                    if len(batch) < 100:
+                        break
+                latest = api('/pulls/' + number)
+                if latest['head']['sha'] != head or latest['base']['sha'] != base:
+                    raise ValueError('PR changed while loading; open it again to refresh')
+                if len(files) != pr['changed_files']:
+                    raise ValueError('GitHub did not return the complete file list (maximum 3000 files)')
+                fields = ('filename', 'previous_filename', 'status', 'additions', 'deletions')
+                files = [{k: f[k] for k in fields if k in f} for f in files]
+                return {'success': True,
+                        'pr': {'number': pr['number'], 'title': pr['title'], 'body': pr['body'] or '',
+                               'url': pr['html_url'], 'author': pr['user']},
+                        'base': comparison['merge_base_commit']['sha'], 'head': head, 'files': files}
+
+            if action == 'file':
+                base, head = query['base'], query['head']
+                if not all(re.fullmatch(r'[0-9a-f]{40}', sha) for sha in (base, head)):
+                    raise ValueError('Invalid PR commit ID')
+
+                root_result = self._run_shell_command(['git', 'rev-parse', '--show-toplevel'], cwd=working_dir, timeout=60)
+                head_result = self._run_shell_command(['git', 'rev-parse', 'HEAD'], cwd=working_dir, timeout=60)
+                if root_result.returncode or head_result.returncode or head_result.stdout.strip() != head:
+                    raise ValueError('The checkout no longer matches this PR; reopen the PR before navigating')
+                root = Path(root_result.stdout.strip()).resolve()
+                working_file = (root / query['path']).resolve()
+                if not working_file.is_relative_to(root):
+                    raise ValueError('PR file is outside the project')
+
+                def content(path, sha):
+                    entry = api('/contents/' + quote(path, safe='/') + '?ref=' + sha)
+                    if isinstance(entry, dict) and (entry.get('type') == 'submodule' or entry.get('submodule_git_url')):
+                        return ('Subproject commit ' + entry['sha'] + '\n').encode('utf-8')
+                    if not isinstance(entry, dict) or entry.get('type') != 'file':
+                        raise ValueError('This entry is not a regular file')
+                    if entry.get('encoding') != 'base64':
+                        raise ValueError('GitHub cannot return this file as text (it may be too large)')
+                    return base64.b64decode(entry['content'])
+
+                status = query['status']
+                left = b'' if status == 'added' else content(query.get('old_path') or query['path'], base)
+                right = b'' if status == 'removed' else content(query['path'], head)
+                navigation_path = ''
+                if status != 'removed' and working_file.is_file():
+                    if working_file.read_bytes() != right:
+                        raise ValueError('Working file differs from the PR snapshot; save or resolve local changes first')
+                    navigation_path = str(working_file)
+                try:
+                    if b'\x00' in left or b'\x00' in right:
+                        raise UnicodeError()
+                    return {'success': True, 'left': left.decode('utf-8'), 'right': right.decode('utf-8'), 'navigation_path': navigation_path}
+                except UnicodeError:
+                    return {'success': True, 'binary': True}
+            raise ValueError('Unknown PR review action')
+        except FileNotFoundError:
+            return {'success': False, 'error': 'Install gh and run gh auth login on the project host'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     @log_proxy_method
     def get_project_changes(self, working_dir: str = None) -> Dict[str, Any]:
         """

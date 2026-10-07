@@ -28,6 +28,21 @@ func TestInterspersedFlagArgs(t *testing.T) {
 			want: []string{"-log", "veda.log", "-c", "host:/project"},
 		},
 		{
+			name: "PR flag before path",
+			args: []string{"-p", "host:/project"},
+			want: []string{"-p", "host:/project"},
+		},
+		{
+			name: "PR flag after path",
+			args: []string{"host:/project", "--prs"},
+			want: []string{"--prs", "host:/project"},
+		},
+		{
+			name: "PR flag without path",
+			args: []string{"-p"},
+			want: []string{"-p"},
+		},
+		{
 			name: "terminator preserves trailing arguments",
 			args: []string{"host:/project", "--", "-c"},
 			want: []string{"--", "host:/project", "-c"},
@@ -38,6 +53,8 @@ func TestInterspersedFlagArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := flag.NewFlagSet("test", flag.ContinueOnError)
 			fs.Bool("c", false, "")
+			fs.Bool("p", false, "")
+			fs.Bool("prs", false, "")
 			fs.String("log", "", "")
 			got := interspersedFlagArgs(fs, tt.args)
 			if !reflect.DeepEqual(got, tt.want) {

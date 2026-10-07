@@ -289,6 +289,11 @@ func (e *Editor) createSecondWindow() {
 }
 
 // diffCurrentBuffer command handler for opening diff view
+func (e *Editor) readOnlyDiff() bool {
+	v := e.findDiffViewForBuffer(e.CurrentBuffer())
+	return v != nil && v.LeftBuffer.IsReadOnly && v.RightBuffer.IsReadOnly
+}
+
 func (e *Editor) diffCurrentBuffer(args []string) error {
 	return e.StartDiffViewForCurrentBuffer()
 }

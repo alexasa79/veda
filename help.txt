@@ -8,10 +8,14 @@ OPTIONS:
     -t          Enable trace logging
     -c, --changes
                 Open the project changes buffer for DIRECTORY (default: .)
+    -p, --prs   Open PRs requesting your review or assigned to you for DIRECTORY
+                (default: .); requires authenticated gh on the project host
     -log PATH   Set log file path (default: /tmp/veda.log)
     -h, --help  Show this help message
 
 NOTE:
+    --changes and --prs cannot be used together.
+
     In-editor help is comprehensive and always up-to-date. After launching Veda:
       :help       - Overview, modes, key bindings, commands
       :help-keys  - Auto-generated list of all key bindings

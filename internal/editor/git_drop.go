@@ -9,6 +9,9 @@ import (
 
 // dropChangeHunk reverts the current git hunk back to HEAD
 func (e *Editor) dropChangeHunk(args []string) error {
+	if e.readOnlyDiff() {
+		return fmt.Errorf("cannot drop changes in a read-only comparison")
+	}
 	buf := e.CurrentBuffer()
 	if buf == nil {
 		return fmt.Errorf("no buffer")
@@ -138,6 +141,9 @@ func (e *Editor) dropChangeHunk(args []string) error {
 
 // dropChangeLine reverts the current line change back to HEAD
 func (e *Editor) dropChangeLine(args []string) error {
+	if e.readOnlyDiff() {
+		return fmt.Errorf("cannot drop changes in a read-only comparison")
+	}
 	buf := e.CurrentBuffer()
 	if buf == nil {
 		return fmt.Errorf("no buffer")

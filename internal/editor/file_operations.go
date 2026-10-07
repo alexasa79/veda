@@ -408,7 +408,13 @@ func (e *Editor) OpenPath(path string) {
 
 // OpenProjectChanges opens a directory and shows its project changes.
 func (e *Editor) OpenProjectChanges(path string) {
-	e.pendingProjectChanges = true
+	e.pendingDirectoryCommand = "show-project-changes"
+	e.OpenPath(path)
+}
+
+// OpenPullRequests opens a directory and shows PRs assigned to or awaiting the user.
+func (e *Editor) OpenPullRequests(path string) {
+	e.pendingDirectoryCommand = "review-prs"
 	e.OpenPath(path)
 }
 
@@ -961,6 +967,9 @@ func (e *Editor) listDocumentSymbolsCmd(args []string) error {
 
 // writeFile writes the current buffer to disk asynchronously with spinner
 func (e *Editor) writeFile(args []string) error {
+	if e.readOnlyDiff() {
+		return fmt.Errorf("cannot save a read-only comparison")
+	}
 	// Capture the target buffer at invocation time; the current buffer may change later.
 	buf := e.CurrentBuffer()
 	if buf == nil {
@@ -1186,6 +1195,9 @@ func (e *Editor) showRecoveryDialog(filePath string) bool {
 
 // performAutoSave performs auto-save for a specific file
 func (e *Editor) performAutoSave(filePath string) {
+	if _, checkingOut := e.asyncOperations[prCheckoutOperation]; checkingOut {
+		return
+	}
 	if e.autoSaveManager == nil {
 		return
 	}

@@ -10,10 +10,6 @@ import (
 )
 
 func TestTwoWindowSyntaxHighlightingBug(t *testing.T) {
-	tempHome := t.TempDir()
-	t.Setenv("HOME", tempHome)
-	t.Setenv("USERPROFILE", tempHome)
-
 	t.Run("syntax highlighting stays correct when editing with two windows", func(t *testing.T) {
 		// Create first Go file content
 		file1Content := `package main
