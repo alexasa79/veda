@@ -243,9 +243,9 @@ func (e *Editor) CalculateWrappedLines() []WrappedLine {
 		lastLogical = logicalLineNum
 		line := iter.Line()
 
-		// For terminal/internal buffers, avoid editor-side wrapping to preserve UTF-8
+		// Terminal sessions handle their own wrapping, regardless of editor mode.
 		var wrapped []WrappedLine
-		if e.CurrentBuffer() != nil && e.CurrentBuffer().IsInternal {
+		if ts := e.terminalSessions[e.CurrentBuffer().FilePath]; ts != nil && ts.term != nil {
 			wrapped = []WrappedLine{{
 				LogicalLineNum: logicalLineNum,
 				VisualLineNum:  visualLineCount,
