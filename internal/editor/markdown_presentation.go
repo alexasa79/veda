@@ -20,7 +20,10 @@ type markdownPresentedLine struct {
 
 func (e *Editor) markdownPresentationActive() bool {
 	buf := e.CurrentBuffer()
-	return buf != nil && !buf.IsInternal && len(buf.DiffHints) == 0 && e.mode != commands.InsertMode && e.isMarkdownFile()
+	if buf == nil || len(buf.DiffHints) != 0 || e.mode == commands.InsertMode {
+		return false
+	}
+	return strings.HasPrefix(buf.FilePath, prLinkPrefix) || (!buf.IsInternal && e.isMarkdownFile())
 }
 
 func (e *Editor) markdownPresentedLine(lineNum int) *markdownPresentedLine {

@@ -89,6 +89,9 @@ type Buffer struct {
 	IsReadOnly bool // Whether this buffer is read-only
 	IsInternal bool // Whether this is an internal buffer (not tied to a file)
 
+	// Internal Markdown pages can display short links while retaining full targets.
+	MarkdownLinkTargets map[string]string
+
 	// LSP notification callback
 	OnContentChange func() // Called when buffer content changes, for LSP notifications
 

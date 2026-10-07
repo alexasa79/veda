@@ -1,6 +1,9 @@
 package buffer
 
-import "unicode"
+import (
+	"fmt"
+	"unicode"
+)
 
 // HistoryEntry represents an undoable buffer operation
 type HistoryEntry interface {
@@ -69,6 +72,9 @@ func (h *History) SnapshotRedo(n int) []string {
 // Execute adds an entry to history and executes it
 // Returns the entry that was added to history (might be nil if in insert mode)
 func (h *History) Execute(buf *Buffer, entry HistoryEntry) (HistoryEntry, error) {
+	if buf.IsReadOnly {
+		return nil, fmt.Errorf("buffer is read-only")
+	}
 	// If we're in insert mode, add to composite entry
 	if h.inInsertMode && h.currentComposite != nil {
 		h.currentComposite.Add(entry)
@@ -97,6 +103,9 @@ func (h *History) Execute(buf *Buffer, entry HistoryEntry) (HistoryEntry, error)
 
 // Undo performs undo operation
 func (h *History) Undo(buf *Buffer) error {
+	if buf.IsReadOnly {
+		return fmt.Errorf("buffer is read-only")
+	}
 	if len(h.undoStack) == 0 {
 		return nil // Nothing to undo
 	}
@@ -145,6 +154,9 @@ func (h *History) Undo(buf *Buffer) error {
 
 // Redo performs redo operation
 func (h *History) Redo(buf *Buffer) error {
+	if buf.IsReadOnly {
+		return fmt.Errorf("buffer is read-only")
+	}
 	if len(h.redoStack) == 0 {
 		return nil // Nothing to redo
 	}

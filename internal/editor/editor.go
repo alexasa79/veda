@@ -181,11 +181,11 @@ type Editor struct {
 	lastActiveSpecialBuffer string                       // Last active special buffer (*References*, *Diagnostics*, *Project Changes*)
 
 	// Working directory
-	workingDirectory      string // Current working directory (can include HOST: prefix)
-	pendingDirectoryOpen  bool   // Flag to show fuzzy list after editor starts
-	pendingPath           string // Path to open after editor starts
-	pendingProjectChanges bool   // Show project changes after opening a directory
-	connectionStatus      string // Status message for ongoing connections
+	workingDirectory        string // Current working directory (can include HOST: prefix)
+	pendingDirectoryOpen    bool   // Flag to show fuzzy list after editor starts
+	pendingPath             string // Path to open after editor starts
+	pendingDirectoryCommand string // Command to run instead of the file picker after opening a directory
+	connectionStatus        string // Status message for ongoing connections
 
 	// Ex-command support
 	lastCommandArgs []string // Arguments from the last ex-command
@@ -206,11 +206,11 @@ type Editor struct {
 	registerTargetForYank  rune            // if non-zero, next yank stores into this register instead of clipboard
 
 	// Async operation tracking
-	asyncOperations map[string]bool // Track active async operations by ID
-	spinnerIndex    int             // Current spinner animation frame
-	lastSpinnerTime time.Time       // Last time spinner was updated
-	spinnerRunning  bool            // True while spinner tick goroutine is active
-	spinnerStop     chan struct{}   // Stop channel for spinner tick goroutine
+	asyncOperations map[string]string // Active operation ID to status message
+	spinnerIndex    int               // Current spinner animation frame
+	lastSpinnerTime time.Time         // Last time spinner was updated
+	spinnerRunning  bool              // True while spinner tick goroutine is active
+	spinnerStop     chan struct{}     // Stop channel for spinner tick goroutine
 
 	// Completion menu
 	completionMenu *widgets.CompletionMenu // Completion menu widget
@@ -354,7 +354,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		whitespaceStyle:          newWhitespaceStyle(config.Theme.GetStyle(config.Theme.Whitespace)),
 		cursorWordHighlightDelay: 200 * time.Millisecond,
 		workingDirectory:         ".", // Default to current directory
-		asyncOperations:          make(map[string]bool),
+		asyncOperations:          make(map[string]string),
 		spinnerStop:              make(chan struct{}),
 		lastSpinnerTime:          time.Now(),
 		connectionStatus:         "",
@@ -892,6 +892,13 @@ func (e *Editor) render() {
 
 // handleEvent processes a single event in normal (non-overlay) mode
 func (e *Editor) handleEvent(ev events.Event) {
+	if _, checkingOut := e.asyncOperations[prCheckoutOperation]; checkingOut {
+		switch ev.(type) {
+		case *events.KeyEvent, *events.PasteEvent, *events.MouseEvent:
+			e.ShowInfo("Checking out PR and submodules; editing will resume when it completes")
+			return
+		}
+	}
 	switch ev := ev.(type) {
 	case *events.PasteEvent:
 		if ev.Start {
@@ -3341,12 +3348,6 @@ func (e *Editor) notifyLSPFileChange() {
 }
 
 func (e *Editor) goToDefinition(args []string) error {
-	// Only works if we have a file open
-	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
-		e.errorManager.ShowError("No file open")
-		return fmt.Errorf("no file open")
-	}
-
 	filePath, line, character, err := e.getLSPTargetForBuffer(e.CurrentBuffer())
 	if err != nil {
 		e.errorManager.ShowError("%v", err)
@@ -3382,14 +3383,8 @@ func (e *Editor) goToDefinition(args []string) error {
 	targetPath := strings.TrimPrefix(location.URI, "file://")
 
 	// If we're working with a remote file, preserve the host prefix
-	if strings.Contains(e.CurrentBuffer().FilePath, ":") {
-		// Extract host from current buffer path
-		parts := strings.SplitN(e.CurrentBuffer().FilePath, ":", 2)
-		if len(parts) == 2 {
-			host := parts[0]
-			// Add host prefix to the file path from LSP
-			targetPath = host + ":" + targetPath
-		}
+	if host, _, remote := parsePathComponents(filePath); remote {
+		targetPath = host + ":" + targetPath
 	}
 
 	LL.Debug("goToDefinition: location URI=%s, filePath=%s, current buffer=%s", location.URI, targetPath, e.CurrentBuffer().FilePath)
@@ -3444,10 +3439,6 @@ func (e *Editor) goToDefinition(args []string) error {
 // goToDefinitionNewWindow opens the definition in a new right-hand window
 func (e *Editor) goToDefinitionNewWindow(args []string) error {
 	// Use the same lookup as goToDefinition, but open in a new window if target differs
-	if !e.CurrentBuffer().HasFile() {
-		e.errorManager.ShowError("No file open")
-		return fmt.Errorf("no file open")
-	}
 	filePath, line, character, err := e.getLSPTargetForBuffer(e.CurrentBuffer())
 	if err != nil {
 		e.errorManager.ShowError("%v", err)
@@ -3467,11 +3458,8 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
 		return fmt.Errorf("unsupported URI scheme: %s", loc.URI)
 	}
 	targetPath := strings.TrimPrefix(loc.URI, "file://")
-	if strings.Contains(e.CurrentBuffer().FilePath, ":") {
-		parts := strings.SplitN(e.CurrentBuffer().FilePath, ":", 2)
-		if len(parts) == 2 {
-			targetPath = parts[0] + ":" + targetPath
-		}
+	if host, _, remote := parsePathComponents(filePath); remote {
+		targetPath = host + ":" + targetPath
 	}
 
 	// Always create a new window at the far right and open the file there
@@ -3488,6 +3476,12 @@ func (e *Editor) goToDefinitionNewWindow(args []string) error {
 func (e *Editor) getLSPTargetForBuffer(buf *buffer.Buffer) (string, int, int, error) {
 	if buf == nil {
 		return "", 0, 0, fmt.Errorf("no buffer")
+	}
+	if !buf.HasFile() {
+		if e.isDiffBuffer(buf) {
+			return "", 0, 0, fmt.Errorf("no checked-out file for this comparison; reopen the PR or select a file present in the checkout")
+		}
+		return "", 0, 0, fmt.Errorf("no file open")
 	}
 
 	line := buf.CursorIterator.LineNumber()
@@ -3528,8 +3522,8 @@ func (e *Editor) getLSPTargetForBuffer(buf *buffer.Buffer) (string, int, int, er
 func (e *Editor) handlePendingPath() {
 	path := e.pendingPath
 	e.pendingPath = "" // Clear it
-	showProjectChanges := e.pendingProjectChanges
-	e.pendingProjectChanges = false
+	directoryCommand := e.pendingDirectoryCommand
+	e.pendingDirectoryCommand = ""
 	LL.Debug("handlePendingPath: Processing path: %s", path)
 
 	// Parse the path to check if it's remote
@@ -3560,9 +3554,12 @@ func (e *Editor) handlePendingPath() {
 		e.workingDirectory = path
 		LL.Debug("handlePendingPath: Opening directory: %s", e.workingDirectory)
 
-		if showProjectChanges {
-			LL.Debug("handlePendingPath: Sending show-project-changes event")
-			e.asyncEvents <- events.NewCustomEvent("show-project-changes", nil)
+		if directoryCommand != "" {
+			e.Post(func(ed *Editor) {
+				if err := ed.commandRegistry.Execute(directoryCommand, nil); err != nil {
+					ed.ShowError("%v", err)
+				}
+			})
 		} else {
 			LL.Debug("handlePendingPath: Sending show-fuzzy-list event")
 			e.asyncEvents <- events.NewCustomEvent("show-fuzzy-list", nil)

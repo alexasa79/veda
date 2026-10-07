@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.48"
+const ProxyVersion = "1.0.52"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -1416,6 +1416,10 @@ func base64StdDecode(s string) ([]byte, error) { return base64.StdEncoding.Decod
 
 // sendRequestWithTimeout sends a JSON RPC request and waits for response with timeout
 func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]interface{}, error) {
+	return c.sendRequestWithDuration(request, ProxyRequestTimeout)
+}
+
+func (c *Client) sendRequestWithDuration(request JSONRPCRequest, timeout time.Duration) (map[string]interface{}, error) {
 	// Ensure reader is running exactly once
 	c.readerOnce.Do(func() {
 		if c.pending == nil {
@@ -1453,7 +1457,7 @@ func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]inte
 		return nil, fmt.Errorf("failed to send request: %w", writeErr)
 	}
 
-	timer := time.NewTimer(ProxyRequestTimeout)
+	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
 	select {
@@ -1471,7 +1475,7 @@ func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]inte
 		c.pendingMu.Lock()
 		delete(c.pending, request.ID)
 		c.pendingMu.Unlock()
-		return nil, fmt.Errorf("proxy request timeout after %v", ProxyRequestTimeout)
+		return nil, fmt.Errorf("proxy request timeout after %v", timeout)
 	}
 }
 

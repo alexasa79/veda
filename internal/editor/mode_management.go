@@ -315,7 +315,8 @@ func (e *Editor) executeCommand() {
 	}
 
 	// Check if this is a variable assignment (VAR=VALUE)
-	if strings.Contains(command, "=") && !strings.HasPrefix(command, " ") {
+	assignmentName, _, isAssignment := strings.Cut(command, "=")
+	if isAssignment && len(strings.Fields(assignmentName)) == 1 && !strings.HasPrefix(command, " ") {
 		e.handleVariableAssignment(command)
 		return
 	}
@@ -547,6 +548,9 @@ func (e *Editor) switchToInsertMode() {
 
 // enterInsertMode switches the editor to insert mode
 func (e *Editor) enterInsertMode(args []string) error {
+	if b := e.CurrentBuffer(); b != nil && b.IsReadOnly && e.terminalSessions[b.FilePath] == nil {
+		return fmt.Errorf("buffer is read-only")
+	}
 	e.switchToInsertMode()
 	// If we switched to TerminalMode for terminal buffers, do not start an insert session
 	if e.mode == commands.TerminalMode {

@@ -153,6 +153,7 @@ type DiffBufferView struct {
 	RightBuffer *buffer.Buffer // current working copy
 	ActivePane  int            // 0=left, 1=right
 	RealPath    string         // original file path
+	Name        string         // optional display name for snapshot comparisons
 }
 
 func (v *DiffBufferView) ActiveBuffer() *buffer.Buffer {
@@ -178,6 +179,9 @@ func (v *DiffBufferView) IsDiff() bool {
 }
 
 func (v *DiffBufferView) DisplayName() string {
+	if v.Name != "" {
+		return v.Name
+	}
 	return v.RealPath + " [diff]"
 }
 

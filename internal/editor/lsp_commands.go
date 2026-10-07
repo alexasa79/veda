@@ -11,21 +11,17 @@ import (
 
 // findReferences finds all references to the symbol under cursor
 func (e *Editor) findReferences(args []string) error {
-	// Only works if we have a file open
-	if !e.CurrentBuffer().HasFile() {
-		return fmt.Errorf("no file open")
+	filePath, line, character, err := e.getLSPTargetForBuffer(e.CurrentBuffer())
+	if err != nil {
+		return err
 	}
-
-	// Get cursor position (LSP uses 0-based line numbers)
-	line := e.CurrentBuffer().CursorIterator.LineNumber()
-	character := e.CurrentBuffer().CursorX
 
 	LL.Debug("findReferences: file=%s, line=%d, character=%d", e.CurrentBuffer().FilePath, line, character)
 
 	// We'll reuse a single references buffer if it already exists
 
 	// Get references from LSP
-	locations, err := e.proxyManager.FindReferences(e.CurrentBuffer().FilePath, line, character, true)
+	locations, err := e.proxyManager.FindReferences(filePath, line, character, true)
 	if err != nil {
 		LL.Debug("findReferences failed: %v", err)
 		return err
@@ -46,7 +42,7 @@ func (e *Editor) findReferences(args []string) error {
 	symbolName := e.getSymbolAtCursor()
 
 	// Save source file path before switching buffers
-	sourceFilePath := e.CurrentBuffer().FilePath
+	sourceFilePath := filePath
 
 	// Create references buffer content in markdown format
 	content := e.formatReferencesAsMarkdown(locations, sourceFilePath, line, character)

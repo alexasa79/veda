@@ -7,7 +7,7 @@ import (
 
 // startAsyncOperation registers a new async operation
 func (e *Editor) startAsyncOperation(id string, reason string) {
-	e.asyncOperations[id] = true
+	e.asyncOperations[id] = reason
 	LL.Debug("Starting spinner for operation '%s': %s", id, reason)
 	// Ensure spinner tick goroutine is running
 	if !e.spinnerRunning {
@@ -45,6 +45,20 @@ func (e *Editor) endAsyncOperation(id string) {
 // hasAsyncOperations returns true if any async operations are in progress
 func (e *Editor) hasAsyncOperations() bool {
 	return len(e.asyncOperations) > 0
+}
+
+// Keep the displayed operation stable when several requests are active.
+func (e *Editor) asyncOperationReason() string {
+	if reason, ok := e.asyncOperations[prCheckoutOperation]; ok {
+		return reason
+	}
+	var first, reason string
+	for id, message := range e.asyncOperations {
+		if reason == "" || id < first {
+			first, reason = id, message
+		}
+	}
+	return reason
 }
 
 // getSpinnerChar returns the current spinner character and advances the animation

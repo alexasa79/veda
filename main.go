@@ -24,6 +24,9 @@ func main() {
 	changesFlag := false
 	flag.BoolVar(&changesFlag, "c", false, "Open project changes")
 	flag.BoolVar(&changesFlag, "changes", false, "Open project changes")
+	prsFlag := false
+	flag.BoolVar(&prsFlag, "p", false, "Open pull requests")
+	flag.BoolVar(&prsFlag, "prs", false, "Open pull requests")
 	cpuprofile := flag.String("cpuprofile", "", "Write CPU profile to file")
 
 	// Generate default log path with timestamp
@@ -46,6 +49,10 @@ func main() {
 	if *helpFlag || *helpLongFlag {
 		fmt.Print(helpText)
 		os.Exit(0)
+	}
+	if changesFlag && prsFlag {
+		fmt.Fprintln(os.Stderr, "choose either --changes or --prs")
+		os.Exit(1)
 	}
 
 	// Set up CPU profiling if requested
@@ -96,12 +103,16 @@ func main() {
 
 	// Check if a file or directory was provided as a command-line argument
 	args := flag.Args()
-	if changesFlag {
+	if changesFlag || prsFlag {
 		path := "."
 		if len(args) > 0 {
 			path = args[0]
 		}
-		ed.OpenProjectChanges(path)
+		if prsFlag {
+			ed.OpenPullRequests(path)
+		} else {
+			ed.OpenProjectChanges(path)
+		}
 	} else if len(args) > 0 {
 		path := args[0]
 		ed.OpenPath(path)

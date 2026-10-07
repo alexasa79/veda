@@ -92,6 +92,14 @@ func (e *Editor) getMarkdownLinkAtCursor() (string, int) {
 
 // openMarkdownLink opens a file from a markdown link, optionally jumping to a specific line
 func (e *Editor) openMarkdownLink(link string, lineNum int) error {
+	if buf := e.CurrentBuffer(); buf != nil {
+		if target, ok := buf.MarkdownLinkTargets[link]; ok {
+			link = target
+		}
+	}
+	if strings.HasPrefix(link, prLinkPrefix) {
+		return e.openPRLink(link)
+	}
 	openDiff := strings.HasSuffix(link, markdownDiffSuffix)
 	link = strings.TrimSuffix(link, markdownDiffSuffix)
 

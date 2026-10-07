@@ -198,6 +198,8 @@ func (e *Editor) registerCommands() {
 
 	// Project changes commands
 	e.commandRegistry.Register("show-project-changes", e.showProjectChanges, false, false)
+	e.commandRegistry.Register("review-prs", e.reviewPRs, false, false)
+	e.commandRegistry.Register("review-pr", e.reviewPR, false, false)
 
 	// Diff commands
 	e.commandRegistry.Register("diff-current-buffer", e.diffCurrentBuffer, false, true)

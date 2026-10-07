@@ -1977,6 +1977,10 @@ func (e *Editor) drawStatusBar() {
 
 		// Add connection status and spinner handling
 		if e.connectionStatus != "" || e.hasAsyncOperations() {
+			message := e.asyncOperationReason()
+			if message == "" {
+				message = e.connectionStatus
+			}
 			// Consider certain phrases as "in-progress" and show spinner styling for those only.
 			// Terminal states like "Disconnected" render without a spinner.
 			showSpinner := e.hasAsyncOperations()
@@ -1992,15 +1996,15 @@ func (e *Editor) drawStatusBar() {
 
 			x += e.drawText(x, statusBarY, statusBarStyle, "  ", 0, nil, -1, 0, -1) // Spacing
 
-			if e.connectionStatus != "" {
+			if message != "" {
 				if showSpinner {
 					spinnerStyle := statusBarStyle
 					spinnerStyle.Fg, spinnerStyle.Bg = spinnerStyle.Bg, spinnerStyle.Fg
-					statusText := fmt.Sprintf(" %s %s ", e.getSpinnerChar(), e.connectionStatus)
+					statusText := fmt.Sprintf(" %s %s ", e.getSpinnerChar(), message)
 					x += e.drawText(x, statusBarY, spinnerStyle, statusText, 0, nil, -1, 0, -1)
 				} else {
 					// Render plain status without spinner
-					statusText := fmt.Sprintf(" %s ", e.connectionStatus)
+					statusText := fmt.Sprintf(" %s ", message)
 					x += e.drawText(x, statusBarY, statusBarStyle, statusText, 0, nil, -1, 0, -1)
 				}
 			} else if showSpinner {
