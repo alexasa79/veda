@@ -30,8 +30,10 @@ func main() {
 
 		// Create test editor with first file
 		te := NewTestEditorWithContent(120, 30, file1Content)
+		t.Cleanup(te.Close)
 		te.minActiveWindowWidth = 0 // Disable minimum width for equal window distribution
-		te.CurrentBuffer().FilePath = "test1.go"
+		// Set Go highlighting explicitly below without starting a language server.
+		te.CurrentBuffer().FilePath = "test1.txt"
 
 		// Initialize syntax highlighting for first file (per-buffer)
 		te.CurrentBuffer().Highlighter = syntax.NewHighlighter()
@@ -79,7 +81,7 @@ func TestFunction() {
 }`
 
 		// Create a new buffer and window to simulate Shift+Enter behavior
-		secondBuffer := buffer.NewBuffer(file2Content, "test2.go", "test2.go", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
+		secondBuffer := buffer.NewBuffer(file2Content, "test2.txt", "test2.txt", te.config.DefaultIndentType, te.config.DefaultIndentWidth)
 
 		// Set up the buffer properly
 		secondBuffer.ViewIterator = buffer.NewBufferIterator(secondBuffer)
@@ -87,8 +89,8 @@ func TestFunction() {
 		secondBuffer.OnContentChange = func() {
 			te.updateSearchMatchesOnContentChange()
 		}
-		te.buffers["test2.go"] = secondBuffer
-		te.bufferOrder = append(te.bufferOrder, "test2.go")
+		te.buffers["test2.txt"] = secondBuffer
+		te.bufferOrder = append(te.bufferOrder, "test2.txt")
 
 		// Ensure the first window has the correct buffer reference (the original buffer)
 		originalBuffer := te.CurrentBuffer()
@@ -116,7 +118,7 @@ func TestFunction() {
 		// Force render after setting up second window
 		te.render()
 
-		// Now we have two windows: Window 0 (test1.go) and Window 1 (test2.go)
+		// Now we have two windows: Window 0 (test1.txt) and Window 1 (test2.txt)
 		// We're currently in Window 1 (right window with second file)
 
 		// Verify syntax highlighting works in the second file initially

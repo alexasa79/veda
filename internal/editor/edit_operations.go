@@ -2286,6 +2286,7 @@ func (e *Editor) adjustIndentForOpeningBrace(lineNum int) error {
 // autoDedentCurrentLine removes one level of indentation from the current line
 func (e *Editor) autoDedentCurrentLine(lineNum int) error {
 	// Get current line
+	lineStart := e.CurrentBuffer().CursorIterator.Position()
 	line := e.CurrentBuffer().CursorIterator.Line()
 	indentInfo := e.CurrentBuffer().GetLineIndentInfo(line)
 
@@ -2380,6 +2381,8 @@ func (e *Editor) autoDedentCurrentLine(lineNum int) error {
 		}
 	}
 
+	// Keep the highlighter in sync before insertChar applies the closing brace.
+	e.updateSyntaxApplyEdit(lineStart, deletedText, "")
 	return nil
 }
 
