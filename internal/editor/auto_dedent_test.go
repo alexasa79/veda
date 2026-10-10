@@ -1,8 +1,82 @@
 package editor
 
 import (
+	"reflect"
+	"strings"
 	"testing"
+	"veda/internal/buffer"
+	"veda/internal/config"
+	"veda/internal/syntax"
 )
+
+func TestAutoDedentPreservesSyntaxInInsertMode(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		indent string
+		tabs   bool
+		nested bool
+	}{
+		{name: "spaces", indent: "    "},
+		{name: "tabs", indent: "\t", tabs: true},
+		{name: "nested spaces", indent: "    ", nested: true},
+		{name: "nested tabs", indent: "\t", tabs: true, nested: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prefix := "void render_item(void) {\n"
+			indent := tc.indent
+			suffix := "\n\nstruct cache_entry {\n    int value;\n};\n"
+			if tc.nested {
+				prefix += tc.indent + "if (1) {\n"
+				indent += tc.indent
+				suffix = "\n}" + suffix
+			}
+			te := NewTestEditorWithContent(80, 24, prefix+indent+suffix)
+			buf := te.CurrentBuffer()
+			buf.FilePath = "dedent.c"
+			buf.Indentation.Type = config.IndentSpaces
+			buf.Indentation.Width = 4
+			if tc.tabs {
+				buf.Indentation.Type = config.IndentTabs
+			}
+			if err := buf.Highlighter.SetLanguageFromFile(buf.FilePath); err != nil {
+				t.Fatal(err)
+			}
+			if err := buf.Highlighter.ParseFull([]byte(buf.Rope.String())); err != nil {
+				t.Fatal(err)
+			}
+			buf.Highlighter.PreloadTokenCache(0, buf.LineCount-1)
+			te.SetCursorPosition(len(indent), strings.Count(prefix, "\n"))
+			if err := te.ExecuteCommand("enter-insert-mode"); err != nil {
+				t.Fatal(err)
+			}
+			if err := te.InsertChar('}'); err != nil {
+				t.Fatal(err)
+			}
+
+			want := prefix + strings.TrimPrefix(indent, tc.indent) + "}" + suffix
+			if got := te.GetBufferContent(); got != want {
+				t.Fatalf("content after dedent: got %q, want %q", got, want)
+			}
+
+			// Check before Escape, which reparses the buffer and hides the bug.
+			fresh := syntax.NewHighlighter()
+			if err := fresh.SetLanguageFromFile(buf.FilePath); err != nil {
+				t.Fatal(err)
+			}
+			if err := fresh.ParseFull([]byte(want)); err != nil {
+				t.Fatal(err)
+			}
+			for line := 0; line < buf.LineCount; line++ {
+				iter := buffer.NewBufferIteratorAtLine(buf, line)
+				got := buf.Highlighter.GetTokensForLine(iter.Position(), iter.LineEnd())
+				expected := fresh.GetTokensForLine(iter.Position(), iter.LineEnd())
+				if !reflect.DeepEqual(got, expected) {
+					t.Errorf("line %d %q: got tokens %+v, want %+v", line+1, iter.Line(), got, expected)
+				}
+			}
+		})
+	}
+}
 
 func TestAutoDedentClosingBrace(t *testing.T) {
 	tests := []struct {
