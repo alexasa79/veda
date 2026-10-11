@@ -3061,6 +3061,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 				e.CurrentBuffer().ViewIterator = buffer.NewBufferIteratorAtLine(e.CurrentBuffer(), savedViewLine)
 			}
 
+			e.updateSyntaxHighlighting()
 			return nil
 		}
 
@@ -3257,6 +3258,7 @@ func (e *Editor) repeatLastChange(args []string) error {
 		e.updateCursorState()
 	}
 
+	e.updateSyntaxHighlighting()
 	return nil
 }
 
