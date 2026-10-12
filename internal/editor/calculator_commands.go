@@ -50,6 +50,26 @@ func snapshotVirtualCursors(vcs []VirtualCursor) []buffer.CursorPos {
 	return out
 }
 
+func (e *Editor) replaceCalculatedLine(lineNum int, oldLine, newLine string, before, after buffer.CursorPos) error {
+	entry := buffer.NewCompositeEntry("Replace line with calculation")
+	entry.SetPreCursors(before, nil)
+	entry.SetPostCursors(after, nil)
+	if oldLine != "" {
+		entry.Add(buffer.NewDeleteTextEntry(lineNum, 0, oldLine))
+	}
+	entry.Add(buffer.NewInsertTextEntry(lineNum, 0, newLine))
+
+	history := e.CurrentBuffer().History
+	if history == nil {
+		return entry.Execute(e.CurrentBuffer())
+	}
+	executed, err := history.Execute(e.CurrentBuffer(), entry)
+	if executed != nil {
+		e.setLastChange(executed)
+	}
+	return err
+}
+
 // calculateAppend evaluates the mathematical expression before each cursor and appends the result
 func (e *Editor) calculateAppend(args []string) error {
 	buf := e.CurrentBuffer()
@@ -109,34 +129,14 @@ func (e *Editor) calculateAppend(args []string) error {
 
 		anySuccess = true
 
-		if history != nil {
-			if compositeActive && !snapshotSet {
-				history.SetActiveCompositeCursors(primaryBefore, virtualBefore)
-				snapshotSet = true
-			}
-			if len(line) > 0 {
-				del := buffer.NewDeleteTextEntry(tgt.line, 0, line)
-				if _, err := history.Execute(buf, del); err != nil {
-					return err
-				}
-			}
-			ins := buffer.NewInsertTextEntry(tgt.line, 0, newLine)
-			if executed, err := history.Execute(buf, ins); err != nil {
-				return err
-			} else if executed != nil {
-				e.setLastChange(executed)
-			}
-		} else {
-			if len(line) > 0 {
-				del := buffer.NewDeleteTextEntry(tgt.line, 0, line)
-				if err := del.Execute(buf); err != nil {
-					return err
-				}
-			}
-			ins := buffer.NewInsertTextEntry(tgt.line, 0, newLine)
-			if err := ins.Execute(buf); err != nil {
-				return err
-			}
+		if history != nil && compositeActive && !snapshotSet {
+			history.SetActiveCompositeCursors(primaryBefore, virtualBefore)
+			snapshotSet = true
+		}
+		before := buffer.CursorPos{Line: tgt.line, Char: tgt.originalX}
+		after := buffer.CursorPos{Line: tgt.line, Char: len(newLine)}
+		if err := e.replaceCalculatedLine(tgt.line, line, newLine, before, after); err != nil {
+			return err
 		}
 
 		if tgt.isPrimary {
@@ -185,8 +185,8 @@ func (e *Editor) calculateReplace(args []string) error {
 		compositeActive = true
 	}
 
-	var applyAt func(lineNum, endPos int) (int, error)
-	applyAt = func(lineNum, endPos int) (int, error) {
+	var applyAt func(lineNum, endPos, originalX int) (int, error)
+	applyAt = func(lineNum, endPos, originalX int) (int, error) {
 		it := buffer.NewBufferIteratorAtLine(buf, lineNum)
 		line := it.Line()
 		if endPos > len(line) {
@@ -200,33 +200,14 @@ func (e *Editor) calculateReplace(args []string) error {
 			history.SetActiveCompositeCursors(primaryBefore, virtualBefore)
 			snapshotSet = true
 		}
-		if len(line) > 0 {
-			del := buffer.NewDeleteTextEntry(lineNum, 0, line)
-			if history != nil {
-				if _, err := history.Execute(buf, del); err != nil {
-					return 0, err
-				}
-			} else {
-				if err := del.Execute(buf); err != nil {
-					return 0, err
-				}
-			}
-		}
-		ins := buffer.NewInsertTextEntry(lineNum, 0, newLine)
-		if history != nil {
-			if executed, err := history.Execute(buf, ins); err != nil {
-				return 0, err
-			} else if executed != nil {
-				e.setLastChange(executed)
-			}
-		} else {
-			if err := ins.Execute(buf); err != nil {
-				return 0, err
-			}
-		}
 		adjX := newCursorX
 		if e.mode != commands.InsertMode && adjX > 0 {
 			adjX--
+		}
+		before := buffer.CursorPos{Line: lineNum, Char: originalX}
+		after := buffer.CursorPos{Line: lineNum, Char: adjX}
+		if err := e.replaceCalculatedLine(lineNum, line, newLine, before, after); err != nil {
+			return 0, err
 		}
 		if buf.CursorIterator.LineNumber() == lineNum {
 			buf.CursorX = adjX
@@ -255,7 +236,7 @@ func (e *Editor) calculateReplace(args []string) error {
 		if e.mode != commands.InsertMode && endPos < len(line) {
 			endPos++
 		}
-		newX, err := applyAt(tgt.line, endPos)
+		newX, err := applyAt(tgt.line, endPos, tgt.originalX)
 		if err != nil {
 			e.ShowError("No valid expression found")
 			continue

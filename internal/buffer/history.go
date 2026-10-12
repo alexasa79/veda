@@ -482,6 +482,9 @@ func entryTextKinds(entry HistoryEntry) (hasWhitespace bool, hasNonWhitespace bo
 		return classifyText(e.Text)
 	case *DeleteTextEntry:
 		return classifyText(e.Text)
+	case *CompositeEntry:
+		// A grouped command is an undo boundary within an insert session.
+		return true, true
 	default:
 		return false, false
 	}
