@@ -823,6 +823,15 @@ func (e *Editor) listProjectSymbolsCmd(args []string) error {
 	return nil
 }
 
+func documentSymbolDisplayName(sym proxy.DocumentSymbol) string {
+	name := sym.Name
+	if sym.ContainerName != "" && !strings.HasPrefix(name, sym.ContainerName+"::") {
+		name = sym.ContainerName + "::" + name
+	}
+	iconInfo := utils.GetSymbolIconInfo(sym.Kind)
+	return fmt.Sprintf("%s %s (line %d)", iconInfo.Icon, name, sym.Range.Start.Line+1)
+}
+
 // showDocumentSymbolsList shows a fuzzy list of symbols in the current document
 func (e *Editor) showDocumentSymbolsList() {
 	LL.Debug("showDocumentSymbolsList called")
@@ -902,10 +911,7 @@ func (e *Editor) showDocumentSymbolsList() {
 					newSymbolMap := make(map[string]int)
 
 					for i, sym := range response.DocumentSymbols {
-						// Get symbol icon based on kind
-						iconInfo := utils.GetSymbolIconInfo(sym.Kind)
-						// Format: icon symbol_name (line N)
-						displayName := fmt.Sprintf("%s %s (line %d)", iconInfo.Icon, sym.Name, sym.Range.Start.Line+1)
+						displayName := documentSymbolDisplayName(sym)
 						displayNames = append(displayNames, displayName)
 						newSymbolMap[displayName] = i
 					}
