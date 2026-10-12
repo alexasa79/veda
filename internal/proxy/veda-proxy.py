@@ -31,7 +31,7 @@ import argparse
 from urllib.parse import urlparse, quote
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.52"
+PROXY_VERSION = "1.0.53"
 
 # Set up logging directory
 from datetime import datetime
