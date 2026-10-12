@@ -1893,6 +1893,9 @@ func (e *Editor) executeCommandForAllCursors(command string, args []string) erro
 	if e.CurrentBuffer() == nil {
 		return nil // No buffer, no cursors to execute command on
 	}
+	if command == "delete-character-insert" {
+		return e.deleteCharacterInsertForAllCursors(args)
+	}
 
 	// Save view position and primary cursor position
 	viewLineNum := e.CurrentBuffer().ViewIterator.LineNumber()
