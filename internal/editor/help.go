@@ -195,7 +195,7 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString(":term [cmd]  - Open a terminal (local or remote based on working dir)\n")
 	helpText.WriteString(":help-keys   - Show all key bindings\n")
 	helpText.WriteString(":diagnostics - Show project diagnostics/errors\n")
-	helpText.WriteString(":show-project-changes - Show all git changes in project\n")
+	helpText.WriteString(":show-project-changes - Show all git changes in project and initialized submodules\n")
 	helpText.WriteString(":review-prs (s P) - List open PRs requesting your review or assigned to you\n")
 	helpText.WriteString("vd -p [directory] (or --prs) - Start with the PR list instead of the file picker\n")
 	helpText.WriteString(":review-pr [number or URL] - Review a PR; prompts when omitted\n")

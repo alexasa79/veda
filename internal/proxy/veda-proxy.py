@@ -31,7 +31,7 @@ import argparse
 from urllib.parse import urlparse, quote
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.53"
+PROXY_VERSION = "1.0.55"
 
 # Set up logging directory
 from datetime import datetime
@@ -2537,7 +2537,7 @@ class VedaProxy:
     @log_proxy_method
     def get_project_changes(self, working_dir: str = None) -> Dict[str, Any]:
         """
-        Get all changed files in the project with their diff information.
+        Get changed files in the project and initialized submodules recursively.
         """
         try:
             # Use provided working directory or current directory
@@ -2549,6 +2549,7 @@ class VedaProxy:
             if git_root_result.returncode != 0:
                 return {'success': False, 'error': 'Not a git repository'}
             git_root = Path(git_root_result.stdout.strip())
+            cwd = git_root
 
             def to_absolute_path(path_str: str) -> str:
                 """Convert git-reported paths to absolute paths anchored at git root."""
@@ -2629,6 +2630,7 @@ class VedaProxy:
                         diff_info = self._parse_git_diff(result.stdout)
                         changes.append({
                             'file': to_absolute_path(filepath),
+                            'relative_path': filepath,
                             'status': info['status'],
                             'staged': info['staged'],
                             'added_lines': diff_info.get('added', []),
@@ -2638,6 +2640,27 @@ class VedaProxy:
                 except Exception as e:
                     logger.error(f"Error processing {filepath}: {e}")
             
+            # Gitlinks identify submodules, including ones with ignored dirt.
+            # An uninitialized submodule has no .git entry; do not enter it,
+            # since Git would resolve it back to the parent repository.
+            result = self._run_shell_command(['git', 'ls-files', '--stage', '-z'], cwd=cwd)
+            if result.returncode != 0:
+                return {'success': False, 'error': result.stderr.strip()}
+            submodules = set()
+            for entry in result.stdout.split('\0'):
+                if entry.startswith('160000 '):
+                    submodules.add(entry.split('\t', 1)[1])
+            for path in sorted(submodules):
+                submodule = git_root / path
+                if not (submodule / '.git').exists():
+                    continue
+                result = self.get_project_changes(str(submodule))
+                if not result['success']:
+                    return result
+                for change in result['changes']:
+                    change['relative_path'] = str(Path(path) / change['relative_path'])
+                changes.extend(result['changes'])
+
             return {'success': True, 'changes': changes}
             
         except Exception as e:
