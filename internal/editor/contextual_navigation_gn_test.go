@@ -6,7 +6,41 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"veda/internal/buffer"
+	"veda/internal/config"
+	"veda/internal/proxy"
 )
+
+func TestGnDiffChangeAfterDeletedLine(t *testing.T) {
+	previous := "top\ndeleted\nanchor1\nanchor2\nanchor3\nold\ntail"
+	current := "top\nanchor1\nanchor2\nanchor3\nnew\ntail"
+	te := NewTestEditorWithContent(120, 30, current)
+	original := te.CurrentBuffer()
+	original.GitChanges = &proxy.FileChanges{Deleted: []int{2}, Modified: []int{5}}
+
+	diff := computeDiff(previous, current)
+	head := buffer.NewBuffer(createBufferContent(diff.LeftLines), "jump.txt@HEAD", "jump.txt@HEAD", config.IndentTabs, 4)
+	head.IsReadOnly = true
+	head.DiffHints = diff.LeftLines
+	right := buffer.NewBuffer(createBufferContent(diff.RightLines), "jump.txt@current", "jump.txt@current", config.IndentTabs, 4)
+	right.DiffHints = diff.RightLines
+	// Production diff setup shares the original file's GitChanges with @current.
+	right.GitChanges = original.GitChanges
+	te.SetupDiffView(head, right, "jump.txt")
+
+	// The deletion adds a filler row: file line 5 is now diff row 6.
+	if !right.DiffHints[1].IsFillerLine || right.DiffHints[4].LineType != buffer.DiffLineContext ||
+		right.DiffHints[5].LineType != buffer.DiffLineModified || right.DiffHints[5].RightLine != 4 {
+		t.Fatal("expected a filler row before the modification at diff row 6")
+	}
+	te.goToLine(2) // Start after the deleted hunk.
+	te.TypeKeys("g n")
+
+	_, row := te.GetCursorPosition()
+	if row != 5 {
+		t.Fatalf("g n should land on changed diff row 6 (file line 5), got diff row %d with content %q", row+1, right.CursorIterator.Line())
+	}
+}
 
 // TestGnFileGitChangesExact ensures that "g n" jumps exactly to the first line
 // of each changed hunk in the current file (not a few lines before).
