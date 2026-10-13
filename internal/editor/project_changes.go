@@ -36,32 +36,6 @@ func (e *Editor) showProjectChanges(args []string) error {
 			content.WriteString(fmt.Sprintf("Found changes in %d files.\n\n", len(changes)))
 
 			for _, change := range changes {
-				statusChar := "?"
-				switch change.Status {
-				case "modified", "M":
-					statusChar = "M"
-				case "added", "A":
-					statusChar = "A"
-				case "deleted", "D":
-					statusChar = "D"
-				case "renamed", "R":
-					statusChar = "R"
-				}
-				stagedMark := ""
-				if change.Staged {
-					stagedMark = "●"
-				}
-				statusIndicator := statusChar
-				if stagedMark != "" {
-					statusIndicator = statusChar + stagedMark
-				}
-				filename := change.File
-				if strings.Contains(filename, "/") {
-					parts := strings.Split(filename, "/")
-					filename = parts[len(parts)-1]
-				}
-				content.WriteString(fmt.Sprintf("## %s [%s]\n", filename, statusIndicator))
-
 				// Pre-fetch file changes to link the diff to the first changed line.
 				resolvedPath := e.resolvePath(change.File)
 				var fileChanges *proxy.FileChanges
@@ -90,17 +64,16 @@ func (e *Editor) showProjectChanges(args []string) error {
 					anchorLine = 1
 				}
 
-				content.WriteString(fmt.Sprintf("[Diff](%s#diff#L%d)\n", change.File, anchorLine))
-				content.WriteString(fmt.Sprintf("[File](%s)\n", change.File))
-				hunkLabel := "hunks"
-				if len(change.Hunks) == 1 {
-					hunkLabel = "hunk"
+				modified := 0
+				if fileChanges != nil {
+					modified = len(fileChanges.Modified)
 				}
-				content.WriteString(fmt.Sprintf("%d %s, +%d -%d", len(change.Hunks), hunkLabel, len(change.AddedLines), len(change.DeletedLines)))
-				if fileChanges != nil && len(fileChanges.Modified) > 0 {
-					content.WriteString(fmt.Sprintf(", %d modified", len(fileChanges.Modified)))
-				}
-				content.WriteString("\n\n")
+				writeChangeRow(&content, changeRow{
+					Path:     change.RelativePath,
+					DiffLink: fmt.Sprintf("%s#diff#L%d", change.File, anchorLine),
+					FileLink: change.File, Status: change.Status, Staged: change.Staged,
+					Added: len(change.AddedLines), Deleted: len(change.DeletedLines), Modified: modified,
+				})
 			}
 		}
 

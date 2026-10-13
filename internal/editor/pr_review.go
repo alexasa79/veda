@@ -135,12 +135,6 @@ func (e *Editor) loadPRReview(dir string, q proxy.PRReviewRequest, reuse bool) e
 	return nil
 }
 
-// Keep externally supplied titles and paths on one Markdown line, outside link syntax.
-func prLabel(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	return strings.NewReplacer("[", "［", "]", "］", "*", "∗", "`", "'", "\\", "/").Replace(s)
-}
-
 func formatPRReview(dir string, q proxy.PRReviewRequest, result *proxy.PRReviewResult) (string, string) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "[Refresh](%s&refresh=1)\n\n", prLink(dir, q))
@@ -156,7 +150,7 @@ func formatPRReview(dir string, q proxy.PRReviewRequest, result *proxy.PRReviewR
 			}
 			for _, pr := range group.prs {
 				link := prLink(dir, proxy.PRReviewRequest{Action: "view", Reference: pr.URL})
-				fmt.Fprintf(&b, "[#%d %s](%s) — %s\n\n", pr.Number, prLabel(pr.Title), link, prLabel(pr.Author.Login))
+				fmt.Fprintf(&b, "[#%d %s](%s) — %s\n\n", pr.Number, markdownLineLabel(pr.Title), link, markdownLineLabel(pr.Author.Login))
 			}
 			if len(group.prs) == 1000 {
 				b.WriteString("Showing the first 1000 PRs.\n\n")
@@ -166,7 +160,7 @@ func formatPRReview(dir string, q proxy.PRReviewRequest, result *proxy.PRReviewR
 		return "*Pull Requests*", b.String()
 	}
 	pr := result.PR
-	fmt.Fprintf(&b, "# PR #%d: %s\n\nAuthor: %s\n\n%s\n\n", pr.Number, prLabel(pr.Title), prLabel(pr.Author.Login), pr.URL)
+	fmt.Fprintf(&b, "# PR #%d: %s\n\nAuthor: %s\n\n%s\n\n", pr.Number, markdownLineLabel(pr.Title), markdownLineLabel(pr.Author.Login), pr.URL)
 	fmt.Fprintf(&b, "Base: %s\nHead: %s\n\n", result.Base, result.Head)
 	if pr.Body != "" {
 		b.WriteString(pr.Body + "\n\n")
@@ -178,13 +172,12 @@ func formatPRReview(dir string, q proxy.PRReviewRequest, result *proxy.PRReviewR
 			label = f.OldPath + " → " + f.Path
 		}
 		link := prLink(dir, proxy.PRReviewRequest{Action: "file", URL: pr.URL, Base: result.Base, Head: result.Head, Path: f.Path, OldPath: f.OldPath, Status: f.Status})
-		status := map[string]string{"modified": "M", "added": "A", "removed": "D", "renamed": "R", "copied": "C"}[f.Status]
-		if status == "" {
-			status = f.Status
-		}
-		fmt.Fprintf(&b, "[%s](%s) +%d -%d [%s]\n", prLabel(label), link, f.Additions, f.Deletions, status)
+		writeChangeRow(&b, changeRow{
+			Path: label, DiffLink: link, Status: f.Status,
+			Added: f.Additions, Deleted: f.Deletions,
+		})
 	}
-	return fmt.Sprintf("*PR #%d: %s*", pr.Number, prLabel(pr.Title)), b.String()
+	return fmt.Sprintf("*PR #%d: %s*", pr.Number, markdownLineLabel(pr.Title)), b.String()
 }
 
 func (e *Editor) showPRMarkdown(key, name, content string) {

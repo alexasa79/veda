@@ -96,13 +96,26 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 		t.Fatalf("expected to be in *Project Changes* buffer after s C")
 	}
 	projectChangesText := pcBuf.Rope.String()
-	if !strings.Contains(projectChangesText, "## file1.txt [M]") || !strings.Contains(projectChangesText, "## file2.txt [M]") {
-		t.Fatalf("expected changed files to be markdown headers, got:\n%s", projectChangesText)
+	rows := 0
+	for _, line := range strings.Split(projectChangesText, "\n") {
+		if !strings.Contains(line, "#diff#L") {
+			continue
+		}
+		rows++
+		if !strings.Contains(line, "[File](") || !strings.Contains(line, " +") || !strings.Contains(line, "[M]") || !strings.Contains(line, ".txt") {
+			t.Fatalf("expected file, status, both links, and summary on one line, got: %s", line)
+		}
 	}
-	if strings.Count(projectChangesText, "[Diff](") != 2 || strings.Count(projectChangesText, "[File](") != 2 {
+	if rows != 2 || strings.Contains(projectChangesText, "## ") || len(strings.Split(strings.TrimSpace(projectChangesText), "\n")) != 6 {
+		t.Fatalf("expected two consecutive file rows below the summary, got:\n%s", projectChangesText)
+	}
+	if !strings.Contains(projectChangesText, "[file1.txt](") || !strings.Contains(projectChangesText, "[file2.txt](") {
+		t.Fatalf("expected changed file names and statuses, got:\n%s", projectChangesText)
+	}
+	if strings.Count(projectChangesText, "#diff#L") != 2 || strings.Count(projectChangesText, "[File](") != 2 {
 		t.Fatalf("expected one diff link and one file link per changed file, got:\n%s", projectChangesText)
 	}
-	if !strings.Contains(projectChangesText, "2 hunks, +0 -0, 2 modified") || !strings.Contains(projectChangesText, "1 hunk, +1 -0") {
+	if !strings.Contains(projectChangesText, "+0 -0, 2 modified [M]") || !strings.Contains(projectChangesText, "+1 -0 [M]") {
 		t.Fatalf("expected per-file change summaries, got:\n%s", projectChangesText)
 	}
 
@@ -181,9 +194,9 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 	for i := 0; i < pcBuf.LineCount; i++ {
 		it := buffer.NewBufferIteratorAtLine(pcBuf, i)
 		line := it.Line()
-		if strings.Contains(line, "[Diff](") {
+		if strings.Contains(line, "#diff#L") {
 			pcBuf.CursorIterator = it
-			pcBuf.CursorX = strings.Index(line, "[Diff]") + 1
+			pcBuf.CursorX = strings.Index(line, "[") + 1
 			break
 		}
 	}

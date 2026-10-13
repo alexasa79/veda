@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.53"
+const ProxyVersion = "1.0.55"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -997,6 +997,7 @@ type Diagnostic struct {
 
 // ProjectChange represents a changed file in the project
 type ProjectChange struct {
+	RelativePath string `json:"relative_path"`
 	File         string `json:"file"`
 	Status       string `json:"status"`
 	Staged       bool   `json:"staged"`
@@ -2823,6 +2824,7 @@ func (c *Client) GetProjectChanges(workingDir string) ([]ProjectChange, error) {
 					if changeMap, ok := change.(map[string]interface{}); ok {
 						pc := ProjectChange{
 							File:         getString(changeMap, "file"),
+							RelativePath: getString(changeMap, "relative_path"),
 							Status:       getString(changeMap, "status"),
 							Staged:       getBool(changeMap, "staged"),
 							AddedLines:   getIntSlice(changeMap, "added_lines"),
