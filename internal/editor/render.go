@@ -265,6 +265,15 @@ func (e *Editor) drawGutterGitIndicator(wl WrappedLine, lineNum, digitsWidth, li
 		}
 	}
 
+	// Git and the displayed diff can align repeated lines differently.
+	// Match change markers to the displayed diff, keeping Git's staged state.
+	if diffLines := e.CurrentBuffer().DiffHints; wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
+		dl := diffLines[wl.LogicalLineNum]
+		isAdded = !dl.IsFillerLine && dl.LineType == buffer.DiffLineAdded
+		isModified = !dl.IsFillerLine && dl.LineType == buffer.DiffLineModified
+		isDeleted = !dl.IsFillerLine && dl.LineType == buffer.DiffLineDeleted
+	}
+
 	// Left indicator: added/modified/deleted (any change vs HEAD)
 	// Right indicator: staged (in index). Draw both if applicable.
 	_, lnBg, _ := lineNumberStyle.Decompose()
