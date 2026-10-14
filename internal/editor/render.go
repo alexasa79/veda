@@ -1517,13 +1517,15 @@ func (e *Editor) renderPane() {
 				if wl.LogicalLineNum >= 0 && wl.LogicalLineNum < len(diffLines) {
 					dl := diffLines[wl.LogicalLineNum]
 					// For @current side: use RightLine; for @HEAD no indicators will be drawn anyway
-					if dl.RightLine >= 0 {
+					if dl.IsFillerLine {
+						usedLineNum = 0 // Alignment rows do not correspond to file lines.
+					} else if dl.RightLine >= 0 {
 						usedLineNum = dl.RightLine + 1
 					}
 				}
 			}
 			// Draw git indicators only for buffers backed by a real file (skip @HEAD)
-			if e.CurrentBuffer() != nil && e.CurrentBuffer().HasFile() {
+			if usedLineNum > 0 && e.CurrentBuffer().HasFile() {
 				// Draw git change indicators in the first gutter column
 				e.drawGutterGitIndicator(wl, usedLineNum, digitsWidth, lineNumberWidth, screenY, lineNumberFillStyle)
 				// Draw diagnostics in the second gutter column
