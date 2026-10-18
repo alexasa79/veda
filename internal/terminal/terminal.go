@@ -35,9 +35,10 @@ type Terminal struct {
 	cursorStyle   CursorStyle
 
 	// Terminal state
-	oldTermios *unix.Termios
-	isRawMode  bool
-	tty        *os.File // Direct terminal device
+	oldTermios       *unix.Termios
+	isRawMode        bool
+	tty              *os.File              // Direct terminal device
+	keyboardProtocol keyboardProtocolState // Protected by mu
 
 	// Input handling
 	inputChan chan events.Event
@@ -116,6 +117,7 @@ func (t *Terminal) Init() error {
 	// Switch to alternate screen buffer, clear screen and hide cursor initially
 	// Also enable bracketed paste mode (CSI ? 2004 h)
 	fmt.Fprint(t.tty, "\033[?1049h\033[2J\033[H\033[?25l\033[?2004h")
+	t.queryKeyboardProtocol()
 
 	// Update terminal size after switching to alternate screen
 	if width, height, err := getTerminalSize(); err == nil {
@@ -150,6 +152,7 @@ func (t *Terminal) Close() {
 
 	// Stop input handler
 	close(t.stopChan)
+	t.restoreKeyboardProtocol()
 
 	// Disable bracketed paste mode (CSI ? 2004 l), show cursor and switch back to main screen buffer
 	fmt.Fprint(t.tty, "\033[?2004l\033[?25h\033[?1049l")

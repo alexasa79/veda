@@ -113,7 +113,8 @@ func (e *Editor) showHelp(args []string) error {
 	helpText.WriteString("Space w right - Move buffer to right window\n")
 	helpText.WriteString("Space w c    - Move buffer to center window\n")
 	helpText.WriteString("Space w x    - Close current window\n")
-	helpText.WriteString("Space w f    - Toggle fullscreen for active window\n\n")
+	helpText.WriteString("Space w f    - Toggle fullscreen for active window\n")
+	helpText.WriteString("Space w z    - Toggle zen mode (center active window)\n")
 	helpText.WriteString("Ctrl+M       - Toggle zen mode (hide other windows)\n\n")
 
 	helpText.WriteString("= Code Navigation =\n")
