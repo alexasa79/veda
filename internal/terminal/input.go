@@ -4,10 +4,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
-	"unicode"
 	"veda/internal/events"
 )
 
@@ -181,9 +179,12 @@ var keyCodes = []keyCode{
 
 // inputHandler reads from stdin and parses input events
 func (t *Terminal) inputHandler() {
+	t.readInput(os.Stdin)
+}
+
+func (t *Terminal) readInput(input io.Reader) {
 	buf := make([]byte, 128)
 	var pending []byte
-	var lastReadTime time.Time
 
 	for {
 		// Use a goroutine to handle blocking read with cancellation
@@ -192,29 +193,34 @@ func (t *Terminal) inputHandler() {
 		var err error
 
 		go func() {
-			n, err = os.Stdin.Read(buf)
+			n, err = input.Read(buf)
 			close(readDone)
 		}()
 
+		var escapeTimeout <-chan time.Time
+		if len(pending) == 1 && pending[0] == '\x1b' {
+			escapeTimeout = time.After(50 * time.Millisecond)
+		}
 		select {
 		case <-t.stopChan:
 			return
+		case <-escapeTimeout:
+			t.inputChan <- events.NewKeyEvent(events.KeyEscape, 0, events.ModNone)
+			pending = nil
+			// Keep waiting on the same read, rather than starting a second one.
+			select {
+			case <-t.stopChan:
+				return
+			case <-readDone:
+			}
 		case <-readDone:
-			if err != nil && err != io.EOF {
-				continue
-			}
-
-			if n > 0 {
-				pending = append(pending, buf[:n]...)
-				lastReadTime = time.Now()
-				t.parseInput(&pending)
-			} else if len(pending) > 0 {
-				// No new data, but we have pending bytes
-				// If it's been more than 50ms since last read, process what we have
-				if time.Since(lastReadTime) > 50*time.Millisecond {
-					t.parseInput(&pending)
-				}
-			}
+		}
+		if n > 0 {
+			pending = append(pending, buf[:n]...)
+			t.parseInput(&pending)
+		}
+		if err == io.EOF {
+			return
 		}
 	}
 }
@@ -222,6 +228,11 @@ func (t *Terminal) inputHandler() {
 // parseInput processes the input buffer and generates events
 func (t *Terminal) parseInput(buf *[]byte) {
 	for len(*buf) > 0 {
+		// A lone ESC may be the first byte of a protocol reply or key sequence.
+		// inputHandler emits a legacy Escape after a short timeout.
+		if len(*buf) == 1 && (*buf)[0] == '\x1b' {
+			return
+		}
 		// Check for bracketed paste sequences first
 		pasteMatched, pasteNeedMore := t.matchBracketedPaste(buf)
 		if pasteMatched {
@@ -428,8 +439,11 @@ func (t *Terminal) matchKeyCodeWithAlt(buf *[]byte) (bool, int) {
 // matchKeyCode tries to match the buffer against known key codes
 // Returns (matched, needMoreData)
 func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
-	// Handle kitty CSI-u extended keyboard sequences (ESC [ code ; mod u)
-	if matched, needMore := t.matchCSIuSequence(buf); matched || needMore {
+	// Terminal replies must not become keyboard input.
+	if matched, needMore := t.matchKeyboardResponse(buf); matched || needMore {
+		return matched, needMore
+	}
+	if matched, needMore := t.matchCSIKeySequence(buf); matched || needMore {
 		return matched, needMore
 	}
 
@@ -460,124 +474,6 @@ func (t *Terminal) matchKeyCode(buf *[]byte) (bool, bool) {
 	}
 
 	return false, false
-}
-
-// matchCSIuSequence decodes kitty extended keyboard sequences (CSI ... u)
-func (t *Terminal) matchCSIuSequence(buf *[]byte) (bool, bool) {
-	data := *buf
-	if len(data) < 3 || data[0] != '\x1b' || data[1] != '[' {
-		return false, false
-	}
-
-	i := 2
-	startCode := i
-	for i < len(data) && data[i] >= '0' && data[i] <= '9' {
-		i++
-	}
-	if i == startCode {
-		return false, false
-	}
-	if i >= len(data) {
-		return false, true
-	}
-	if data[i] != ';' {
-		return false, false
-	}
-	codeStr := string(data[startCode:i])
-	i++
-	if i >= len(data) {
-		return false, true
-	}
-	startMod := i
-	for i < len(data) && data[i] >= '0' && data[i] <= '9' {
-		i++
-	}
-	if i == startMod {
-		return false, false
-	}
-	if i >= len(data) {
-		return false, true
-	}
-	if data[i] != 'u' {
-		return false, false
-	}
-	modStr := string(data[startMod:i])
-	i++
-
-	codePoint, err := strconv.Atoi(codeStr)
-	if err != nil {
-		return false, false
-	}
-	modCode, err := strconv.Atoi(modStr)
-	if err != nil {
-		return false, false
-	}
-
-	modFlags := modCode - 1
-	if modFlags < 0 {
-		modFlags = 0
-	}
-
-	var key events.Key
-	var ch rune
-	var mod events.ModMask
-
-	ch = rune(codePoint)
-
-	// Map Ctrl+letter combos to KeyCtrl* constants to align with existing bindings
-	if modFlags&4 != 0 {
-		lower := unicode.ToLower(ch)
-		if lower >= 'a' && lower <= 'z' {
-			offset := int(lower - 'a')
-			key = events.Key(int(events.KeyCtrlA) + offset)
-			ch = 0
-			modFlags &^= 4
-		} else if codePoint == 13 {
-			key = events.KeyCtrlM
-			ch = 0
-			modFlags &^= 4
-		}
-	}
-
-	if key == 0 {
-		switch codePoint {
-		case 9:
-			key = events.KeyTab
-		case 13:
-			key = events.KeyEnter
-		case 27:
-			key = events.KeyEscape
-		default:
-			key = events.KeyRune
-		}
-	}
-
-	if key == events.KeyRune {
-		// Preserve rune; uppercase if Shift modifier present
-		if modFlags&1 == 0 {
-			ch = unicode.ToLower(ch)
-		}
-	} else if ch != 0 {
-		ch = 0
-	}
-
-	if modFlags&1 != 0 {
-		mod |= events.ModShift
-	}
-	if modFlags&2 != 0 {
-		mod |= events.ModAlt
-	}
-	if modFlags&4 != 0 {
-		mod |= events.ModCtrl
-	}
-	if modFlags&(8|16|32) != 0 {
-		mod |= events.ModMeta
-	}
-
-	event := events.NewKeyEvent(key, ch, mod)
-	t.inputChan <- event
-	*buf = data[i:]
-	return true, false
 }
 
 // resizeHandler watches for terminal resize events
