@@ -261,7 +261,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 	win.addBufferToWindow(headBuffer)
 	win.addBufferToWindow(currentBuffer)
 	e.switchToBuffer(currentBuffer)
-	e.preserveDiffCursorVisualLine(cursorVisualLine)
+	e.preserveCursorVisualLine(cursorVisualLine)
 
 	// Sync cursors between panes
 	diffView.SyncCursors()
