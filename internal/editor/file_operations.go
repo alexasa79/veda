@@ -1364,6 +1364,11 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 	// Save cursor position
 	cursorLine := buf.CursorIterator.LineNumber()
 	cursorX := buf.CursorX
+	cursorViewOffset := cursorLine - buf.ViewIterator.LineNumber()
+	cursorVisualLine := -1
+	if e.CurrentBuffer() == buf {
+		cursorVisualLine, _ = e.GetCursorVisualPosition()
+	}
 
 	// Create new buffer with reloaded content
 	newBuf := buffer.NewBuffer(content, path, path, buf.Indentation.Type, buf.Indentation.Width)
@@ -1381,6 +1386,7 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 		cursorX = lineLength
 	}
 	newBuf.CursorX = cursorX
+	newBuf.ViewIterator = buffer.NewBufferIteratorAtLine(newBuf, max(0, cursorLine-cursorViewOffset))
 
 	// Copy buffer settings
 	newBuf.IsReadOnly = buf.IsReadOnly
@@ -1430,6 +1436,9 @@ func (e *Editor) handleFileReloaded(data map[string]interface{}) {
 
 	// Re-parse syntax highlighting
 	e.updateSyntaxHighlighting()
+	if cursorVisualLine >= 0 {
+		e.preserveCursorVisualLine(cursorVisualLine)
+	}
 
 	// If a diff view is open for this file, refresh the aligned diff buffers
 	if path != "" {

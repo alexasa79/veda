@@ -3,7 +3,33 @@ package editor
 import (
 	"veda/internal/buffer"
 	"veda/internal/commands"
+	"veda/internal/utils"
 )
+
+// preserveCursorVisualLine chooses the view top that keeps the cursor closest
+// to its previous terminal row, accounting for wrapped lines.
+func (e *Editor) preserveCursorVisualLine(targetVisualLine int) {
+	buf := e.CurrentBuffer()
+	utils.Assert(buf != nil, "buffer is nil")
+
+	cursorLine := buf.CursorIterator.LineNumber()
+	bestViewLine := cursorLine
+	bestDistance := -1
+	for viewLine := cursorLine; viewLine >= 0; viewLine-- {
+		buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, viewLine)
+		visualLine, _ := e.GetCursorVisualPosition()
+		distance := abs(visualLine - targetVisualLine)
+		if bestDistance < 0 || distance < bestDistance {
+			bestViewLine = viewLine
+			bestDistance = distance
+		}
+		if visualLine >= targetVisualLine {
+			break
+		}
+	}
+
+	buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, bestViewLine)
+}
 
 // scroll ensures the cursor is visible within the viewport with appropriate margins
 func (e *Editor) scroll() {

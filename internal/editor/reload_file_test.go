@@ -1,11 +1,62 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 	"veda/internal/buffer"
 	"veda/internal/config"
 	"veda/internal/proxy"
 )
+
+func TestReloadFilePreservesCursorScreenRow(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		beforeWrap bool
+		afterWrap  bool
+		lineCount  int
+		wantRow    int
+	}{
+		{name: "scrolled file", lineCount: 100, wantRow: 10},
+		{name: "new wrapped line", afterWrap: true, lineCount: 100, wantRow: 10},
+		{name: "removed wrapping", beforeWrap: true, lineCount: 100, wantRow: 12},
+		{name: "shorter file", lineCount: 45, wantRow: 10},
+		{name: "near beginning", lineCount: 5, wantRow: 4},
+		{name: "empty file", lineCount: 1, wantRow: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lines := strings.Split(strings.Repeat("line\n", 99)+"line", "\n")
+			if tc.beforeWrap {
+				lines[42] = strings.Repeat("x", 180)
+			}
+			te := NewTestEditor(80, 24)
+			buf := buffer.NewBuffer(strings.Join(lines, "\n"), "test.txt", "test.txt", config.IndentTabs, 4)
+			te.buffers[buf.FilePath] = buf
+			te.SetCurrentBuffer(buf)
+			buf.ViewIterator = buffer.NewBufferIteratorAtLine(buf, 40)
+			buf.CursorIterator = buffer.NewBufferIteratorAtLine(buf, 50)
+			buf.CursorX = 2
+			te.render()
+
+			lines[42] = "line"
+			if tc.afterWrap {
+				lines[42] = strings.Repeat("x", 180)
+			}
+			content := strings.Join(lines[:tc.lineCount], "\n")
+			if tc.lineCount == 1 {
+				content = ""
+			}
+			te.handleFileReloaded(map[string]interface{}{"path": buf.FilePath, "content": content})
+			te.scroll()
+			te.render()
+
+			_, row := te.GetScreenCursorPosition()
+			if row != tc.wantRow {
+				t.Errorf("cursor screen row = %d, want %d", row, tc.wantRow)
+			}
+			AssertCursorAt(t, te, min(2, len(te.CurrentBuffer().CursorIterator.Line())), min(50, tc.lineCount-1))
+		})
+	}
+}
 
 func TestReloadFileNoFile(t *testing.T) {
 	// Test reload when no file is open
