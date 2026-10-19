@@ -50,7 +50,7 @@ func TestDropLine_SimpleModified(t *testing.T) {
 	delete(te.buffers, old)
 
 	// Prime git changes
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestDropLine_SimpleModified(t *testing.T) {
 	}
 
 	// Refresh from disk and verify content reverts to base
-	fc2, err := te.Editor.proxyManager.GetFile(path)
+	fc2, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile after drop: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestDropHunk_ContiguousBlock(t *testing.T) {
 	te.buffers[path] = te.CurrentBuffer()
 	delete(te.buffers, old)
 
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestDropHunk_ContiguousBlock(t *testing.T) {
 		t.Fatalf("drop-change-hunk failed: %v", err)
 	}
 
-	fc2, err := te.Editor.proxyManager.GetFile(path)
+	fc2, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile after drop: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestDiffAutoRefreshAfterDrop(t *testing.T) {
 	}
 
 	// Simulate file-reloaded event payload to trigger in-place diff refresh
-	fc2, err := te.Editor.proxyManager.GetFile(path)
+	fc2, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile after drop: %v", err)
 	}

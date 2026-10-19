@@ -155,7 +155,7 @@ func (e *Editor) toggleStageHunk(args []string) error {
 		e.updateGitChangesForRealPath(realPath, changes)
 	} else {
 		// Fallback: force refresh from proxy
-		if fc, err2 := e.proxyManager.GetFile(realPath); err2 == nil {
+		if fc, err2 := e.proxyManager.GetFile(realPath, true); err2 == nil {
 			e.updateGitChangesForRealPath(realPath, &fc.Changes)
 		}
 	}
@@ -252,7 +252,7 @@ func (e *Editor) toggleStageLine(args []string) error {
 	if changes != nil {
 		e.updateGitChangesForRealPath(realPath, changes)
 	} else {
-		if fc, err2 := e.proxyManager.GetFile(realPath); err2 == nil {
+		if fc, err2 := e.proxyManager.GetFile(realPath, true); err2 == nil {
 			e.updateGitChangesForRealPath(realPath, &fc.Changes)
 		}
 	}

@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.55"
+const ProxyVersion = "1.0.56"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -421,7 +421,8 @@ func (pm *ProxyManager) Close() error {
 }
 
 // GetFile reads the contents of a file (supports HOST:PATH format)
-func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
+// startLSP also registers the file with its language server when true.
+func (pm *ProxyManager) GetFile(path string, startLSP bool) (*FileContent, error) {
 	startTime := time.Now()
 
 	client, actualPath, err := pm.getClient(path)
@@ -431,14 +432,14 @@ func (pm *ProxyManager) GetFile(path string) (*FileContent, error) {
 
 	LL.Debug("ProxyManager.GetFile: path=%s, actualPath=%s", path, actualPath)
 
-	fileContent, err := client.GetFile(actualPath)
+	fileContent, err := client.GetFile(actualPath, startLSP)
 	if shouldReconnect(err) {
 		host, _, _ := parseRemotePath(path)
 		pm.reportStatus("Disconnected")
 		if _, rerr := pm.reconnect(host); rerr == nil {
 			// Retry once with a fresh client
 			if client2, _, gerr := pm.getClient(path); gerr == nil {
-				fileContent, err = client2.GetFile(actualPath)
+				fileContent, err = client2.GetFile(actualPath, startLSP)
 			}
 		}
 	}
@@ -1882,13 +1883,14 @@ func parseRemotePath(path string) (string, string, bool) {
 }
 
 // GetFile reads the contents of a file and returns git change information
-func (c *Client) GetFile(path string) (*FileContent, error) {
+// startLSP also registers the file with its language server when true.
+func (c *Client) GetFile(path string, startLSP bool) (*FileContent, error) {
 	LL.Debug("Client.GetFile: path=%s", path)
 
 	id := c.getNextRequestID()
 	request := JSONRPCRequest{
 		Method: "get_file",
-		Params: map[string]interface{}{"path": path},
+		Params: map[string]interface{}{"path": path, "start_lsp": startLSP},
 		ID:     id,
 	}
 

@@ -439,7 +439,7 @@ func (e *Editor) openFile(filePath string) {
 	}
 
 	// Read file content using proxy
-	fileContent, err := e.proxyManager.GetFile(resolvedPath)
+	fileContent, err := e.proxyManager.GetFile(resolvedPath, true)
 	var content string
 	var changes *proxy.FileChanges
 	var branch string
@@ -1329,7 +1329,7 @@ func (e *Editor) performReload(filePath string) {
 		defer e.endAsyncOperation(operationID)
 
 		// Read file content using proxy
-		fileContent, err := e.proxyManager.GetFile(filePath)
+		fileContent, err := e.proxyManager.GetFile(filePath, true)
 		if err != nil {
 			e.ShowError("Failed to reload file: %v", err)
 			return

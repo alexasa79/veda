@@ -66,7 +66,7 @@ func baz() {
 	}
 
 	// Open the file via proxy to trigger LSP startup
-	_, err = pm.GetFile(testFilePath)
+	_, err = pm.GetFile(testFilePath, true)
 	if err != nil {
 		t.Fatalf("Failed to open test file via proxy: %v", err)
 	}

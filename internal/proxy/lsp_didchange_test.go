@@ -66,7 +66,7 @@ func TestLSPDidChangeSimple(t *testing.T) {
 	t.Log("Opening file to initialize LSP...")
 
 	// Get the file through proxy (this might trigger LSP)
-	_, err = pm.GetFile(testFile)
+	_, err = pm.GetFile(testFile, true)
 	if err != nil {
 		t.Fatalf("Failed to read test file: %v", err)
 	}

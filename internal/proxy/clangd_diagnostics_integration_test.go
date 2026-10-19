@@ -29,7 +29,7 @@ func TestClangdDiagnosticsForBrokenCFile(t *testing.T) {
 	}
 
 	// Open the file via the proxy to trigger LSP server startup and didOpen
-	if _, err := pm.GetFile(testFile); err != nil {
+	if _, err := pm.GetFile(testFile, true); err != nil {
 		// If clangd is unavailable in this environment, skip gracefully
 		if strings.Contains(strings.ToLower(err.Error()), "clangd") || strings.Contains(err.Error(), "not found") {
 			t.Skipf("clangd not available through proxy: %v", err)
@@ -70,7 +70,7 @@ func TestClangdDiagnosticsForBrokenCFile(t *testing.T) {
 
 	if !found {
 		// Try one final time via get_file translated diagnostics
-		if fc, err := pm.GetFile(testFile); err == nil && len(fc.Diagnostics) > 0 {
+		if fc, err := pm.GetFile(testFile, true); err == nil && len(fc.Diagnostics) > 0 {
 			t.Logf("Recovered via get_file: got %d translated diagnostics", len(fc.Diagnostics))
 		} else {
 			if lastErr != nil {
@@ -81,7 +81,7 @@ func TestClangdDiagnosticsForBrokenCFile(t *testing.T) {
 	}
 
 	// Optional: verify that a subsequent GetFile returns translated diagnostics too
-	if fc, err := pm.GetFile(testFile); err == nil {
+	if fc, err := pm.GetFile(testFile, true); err == nil {
 		if len(fc.Diagnostics) == 0 {
 			t.Log("Note: no translated diagnostics via get_file yet; publish timing may vary")
 		} else {

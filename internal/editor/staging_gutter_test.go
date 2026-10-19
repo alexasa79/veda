@@ -52,7 +52,7 @@ func TestLineStagingGutter(t *testing.T) {
 	delete(te.buffers, oldKey)
 
 	// Load git changes via proxy directly (setup step)
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestLineStagingGutter_ModifiedAfterLineShift(t *testing.T) {
 	te.buffers[path] = te.CurrentBuffer()
 	delete(te.buffers, oldKey)
 
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -363,7 +363,7 @@ func TestHunkStaging_MultiLineReplaceLargeFile(t *testing.T) {
 	delete(te.buffers, oldKey)
 
 	// Load initial git changes for the buffer
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestHunkStaging_MultiLineReplaceLargeFile(t *testing.T) {
 	te.TypeKeys("g h")
 
 	// Refresh from git to verify
-	fc2, err := te.Editor.proxyManager.GetFile(path)
+	fc2, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile after staging: %v", err)
 	}
@@ -478,7 +478,7 @@ func TestHunkStaging_PartialSelectionWithinReplaceLargeFile(t *testing.T) {
 	delete(te.buffers, oldKey)
 
 	// Load git changes via proxy to initialize buffer state
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestHunkStaging_PartialSelectionWithinReplaceLargeFile(t *testing.T) {
 	te.TypeKeys(":" + fmt.Sprint(addLine1) + "\n")
 	te.TypeKeys("g space")
 	// Refresh from git to verify
-	fc2, err := te.Editor.proxyManager.GetFile(path)
+	fc2, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile after staging: %v", err)
 	}
@@ -576,7 +576,7 @@ func TestHunkStaging_PureInsertionLargeFile(t *testing.T) {
 	delete(te.buffers, oldKey)
 
 	// Load changes and stage the inserted line via keybinding
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -669,7 +669,7 @@ func TestUnstageLines_SymmetryLargeFile(t *testing.T) {
 	delete(te.buffers, oldKey)
 
 	// Load changes
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}

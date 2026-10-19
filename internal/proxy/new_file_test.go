@@ -27,7 +27,7 @@ func TestCreateNewFile(t *testing.T) {
 
 	// Step 1: Attempt to open the non-existent file
 	t.Logf("Attempting to open non-existent file: %s", testFile)
-	fileContent, err := pm.GetFile(testFile)
+	fileContent, err := pm.GetFile(testFile, true)
 	if err != nil {
 		t.Fatalf("GetFile should not fail for non-existent file: %v", err)
 	}

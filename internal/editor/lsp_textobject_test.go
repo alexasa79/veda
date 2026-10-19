@@ -38,7 +38,7 @@ func TestLSPTextObjects(t *testing.T) {
 	t.Logf("Using test file: %s", testFile)
 
 	// Open the file via the proxy to trigger LSP server startup and didOpen
-	_, err = pm.GetFile(testFile)
+	_, err = pm.GetFile(testFile, true)
 	if err != nil {
 		t.Fatalf("Failed to open test file via proxy: %v", err)
 	}
@@ -65,7 +65,7 @@ func main() {
 		time.Sleep(500 * time.Millisecond)
 
 		// Open file via proxy to get LSP data
-		fileContent, err := pm.GetFile(blockTestFile)
+		fileContent, err := pm.GetFile(blockTestFile, true)
 		if err != nil {
 			t.Fatalf("Failed to open block test file: %v", err)
 		}
@@ -130,7 +130,7 @@ func main() {
 		time.Sleep(500 * time.Millisecond)
 
 		// Open file via proxy to get LSP data
-		fileContent, err := pm.GetFile(blockTestFile)
+		fileContent, err := pm.GetFile(blockTestFile, true)
 		if err != nil {
 			t.Fatalf("Failed to open block test file: %v", err)
 		}
@@ -167,7 +167,7 @@ func main() {
 
 	t.Run("daf deletes around function", func(t *testing.T) {
 		// Open file via proxy to get LSP data
-		fileContent, err := pm.GetFile(functionTestFile)
+		fileContent, err := pm.GetFile(functionTestFile, true)
 		if err != nil {
 			t.Fatalf("Failed to open function test file: %v", err)
 		}
@@ -223,7 +223,7 @@ func calculate(x, y int) int {
 		time.Sleep(500 * time.Millisecond)
 
 		// Open file via proxy to get LSP data
-		fileContent, err := pm.GetFile(functionTestFile)
+		fileContent, err := pm.GetFile(functionTestFile, true)
 		if err != nil {
 			t.Fatalf("Failed to open function test file: %v", err)
 		}

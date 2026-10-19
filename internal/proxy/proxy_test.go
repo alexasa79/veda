@@ -19,7 +19,7 @@ func TestProxyManager(t *testing.T) {
 	// Test local file access
 	t.Run("LocalFile", func(t *testing.T) {
 		// Try to read a known file (this test file)
-		content, err := pm.GetFile("proxy_test.go")
+		content, err := pm.GetFile("proxy_test.go", true)
 		if err != nil {
 			t.Errorf("Failed to read local file: %v", err)
 		}
@@ -30,7 +30,7 @@ func TestProxyManager(t *testing.T) {
 
 	// Test remote path detection (should fail with "not yet implemented")
 	t.Run("RemotePath", func(t *testing.T) {
-		_, err := pm.GetFile("testhost:/tmp/test.txt")
+		_, err := pm.GetFile("testhost:/tmp/test.txt", true)
 		if err == nil {
 			t.Error("Expected error for remote path, got nil")
 		}

@@ -31,7 +31,7 @@ import argparse
 from urllib.parse import urlparse, quote
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.55"
+PROXY_VERSION = "1.0.56"
 
 # Set up logging directory
 from datetime import datetime
@@ -1873,12 +1873,13 @@ class VedaProxy:
         return entries
 
     @log_proxy_method
-    def get_file(self, path: str) -> Dict[str, str]:
+    def get_file(self, path: str, start_lsp: bool = True) -> Dict[str, str]:
         """
         Read the contents of a file.
         
         Args:
             path: Absolute file path to read
+            start_lsp: Start LSP and register the file as opened when true
             
         Returns:
             Dictionary with 'content' key containing the file contents
@@ -1907,7 +1908,7 @@ class VedaProxy:
             
             # Notify LSP server about the opened file
             language = self.lsp.get_language_for_file(str(file_path))
-            if language:
+            if start_lsp and language:
                 # Start LSP server asynchronously if needed
                 if language not in self.lsp.servers:
                     logger.info(f"Starting LSP server for {language} asynchronously when opening {path}")

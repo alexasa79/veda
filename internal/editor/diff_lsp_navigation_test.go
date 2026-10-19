@@ -81,7 +81,7 @@ func main() {
 		t.Fatalf("write modified main.go: %v", err)
 	}
 
-	if _, err := pm.GetFile(filePath); err != nil {
+	if _, err := pm.GetFile(filePath, true); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "gopls") || strings.Contains(err.Error(), "not found") {
 			t.Skipf("gopls not available through proxy: %v", err)
 		}

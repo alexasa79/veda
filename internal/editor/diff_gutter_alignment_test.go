@@ -32,7 +32,7 @@ func TestDiffGutterContextHasNoChangeMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	te := NewTestEditorWithContent(120, 24, after)
-	fc, err := te.proxyManager.GetFile(path)
+	fc, err := te.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -102,7 +102,7 @@ func TestGnFileGitChangesExact(t *testing.T) {
 	delete(te.buffers, oldKey)
 
 	// Load git changes into buffer
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
