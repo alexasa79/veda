@@ -30,7 +30,7 @@ func TestBashLSPGoToDefinition(t *testing.T) {
 	}
 
 	// Read the file through the proxy to trigger LSP server start
-	fileResult, err := pm.GetFile(testFile)
+	fileResult, err := pm.GetFile(testFile, true)
 	if err != nil {
 		t.Fatalf("Failed to read test file: %v", err)
 	}

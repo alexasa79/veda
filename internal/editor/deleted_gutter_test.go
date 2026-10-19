@@ -54,7 +54,7 @@ func TestDeletedLinesGutter(t *testing.T) {
 	delete(te.buffers, oldKey)
 
 	// Load git changes via proxy and attach to buffer
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestDeletedMultiLineHunkGutter(t *testing.T) {
 	te.buffers[path] = te.CurrentBuffer()
 	delete(te.buffers, oldKey)
 
-	fc, err := te.Editor.proxyManager.GetFile(path)
+	fc, err := te.Editor.proxyManager.GetFile(path, true)
 	if err != nil {
 		t.Fatalf("GetFile: %v", err)
 	}

@@ -51,7 +51,7 @@ int main(void) {
 		t.Fatalf("Failed to write good content: %v", err)
 	}
 
-	fc, err := pm.GetFile(filePath)
+	fc, err := pm.GetFile(filePath, true)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "clangd") || strings.Contains(err.Error(), "not found") {
 			t.Skipf("clangd not available through proxy: %v", err)

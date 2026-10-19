@@ -73,7 +73,7 @@ print(result)
 	})
 
 	// Open the file - should return immediately, no LSP error in response
-	fc, err := pm.GetFile(filePath)
+	fc, err := pm.GetFile(filePath, true)
 	if err != nil {
 		t.Fatalf("GetFile failed: %v", err)
 	}
@@ -193,7 +193,7 @@ print(result)
 	})
 
 	// Open the file - should return immediately
-	fc, err := pm.GetFile(filePath)
+	fc, err := pm.GetFile(filePath, true)
 	if err != nil {
 		t.Fatalf("GetFile failed: %v", err)
 	}

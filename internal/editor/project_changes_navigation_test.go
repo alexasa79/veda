@@ -157,7 +157,7 @@ func TestProjectChangesGnNavigation(t *testing.T) {
 			t.Fatalf("after g n #%d, expected path %s, got %s", idx, expectedPath, buf.FilePath)
 		}
 		// Cursor should be at the first actual changed line at or after the hunk start
-		fc, err := te.Editor.proxyManager.GetFile(expectedPath)
+		fc, err := te.Editor.proxyManager.GetFile(expectedPath, true)
 		if err != nil {
 			t.Fatalf("GetFile for %s: %v", expectedPath, err)
 		}

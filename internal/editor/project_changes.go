@@ -39,7 +39,7 @@ func (e *Editor) showProjectChanges(args []string) error {
 				// Pre-fetch file changes to link the diff to the first changed line.
 				resolvedPath := e.resolvePath(change.File)
 				var fileChanges *proxy.FileChanges
-				if fc, err := e.proxyManager.GetFile(resolvedPath); err == nil {
+				if fc, err := e.proxyManager.GetFile(resolvedPath, false); err == nil {
 					fileChanges = &fc.Changes
 				}
 

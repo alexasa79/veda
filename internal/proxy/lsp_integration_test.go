@@ -43,7 +43,7 @@ func TestLSPDidChangeIntegration(t *testing.T) {
 	t.Logf("Using test file: %s", testFile)
 
 	// Read the original content
-	originalContent, err := pm.GetFile(testFile)
+	originalContent, err := pm.GetFile(testFile, true)
 	if err != nil {
 		t.Fatalf("Failed to read test file: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestLSPDidChangeWithGoProject(t *testing.T) {
 	testFile := filepath.Join(cwd, "../../main.go")
 
 	// Read original content
-	originalContent, err := pm.GetFile(testFile)
+	originalContent, err := pm.GetFile(testFile, true)
 	if err != nil {
 		t.Fatalf("Failed to read test file: %v", err)
 	}
