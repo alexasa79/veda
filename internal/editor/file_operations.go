@@ -135,9 +135,12 @@ func (e *Editor) sendDirectoryListingRequestFiltered(contentUpdateChan chan []st
 
 // shouldSkipFile checks if a file should be filtered out
 func shouldSkipFile(file proxy.FileInfo) bool {
-	// Filter out hidden files and directories (starting with .)
+	// Filter out hidden files and directories, except .gitignore files.
 	pathComponents := strings.Split(file.Path, "/")
-	for _, component := range pathComponents {
+	for i, component := range pathComponents {
+		if i == len(pathComponents)-1 && component == ".gitignore" {
+			continue
+		}
 		if len(component) > 0 && component[0] == '.' {
 			return true
 		}

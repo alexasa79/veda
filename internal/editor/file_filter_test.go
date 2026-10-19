@@ -14,10 +14,34 @@ func TestShouldSkipFile(t *testing.T) {
 	}{
 		// Hidden files
 		{
-			name:     "hidden file",
+			name:     "gitignore file",
 			fileInfo: proxy.FileInfo{Path: "/home/user/.gitignore", Type: "file"},
+			expected: false,
+			reason:   "Should include .gitignore by default",
+		},
+		{
+			name:     "nested gitignore file",
+			fileInfo: proxy.FileInfo{Path: "/home/user/src/.gitignore", Type: "file"},
+			expected: false,
+			reason:   "Should include .gitignore in subdirectories",
+		},
+		{
+			name:     "hidden file",
+			fileInfo: proxy.FileInfo{Path: "/home/user/.env", Type: "file"},
 			expected: true,
 			reason:   "Should skip hidden files",
+		},
+		{
+			name:     "gitignore in hidden directory",
+			fileInfo: proxy.FileInfo{Path: "/home/user/.config/.gitignore", Type: "file"},
+			expected: true,
+			reason:   "Should skip .gitignore in hidden directories",
+		},
+		{
+			name:     "gitignore directory",
+			fileInfo: proxy.FileInfo{Path: "/home/user/.gitignore", Type: "directory"},
+			expected: true,
+			reason:   "Should skip directories even when named .gitignore",
 		},
 		{
 			name:     "file in hidden directory",
