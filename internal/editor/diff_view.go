@@ -53,11 +53,11 @@ func NewDiffSession(previousContent, currentContent, filePath string) *DiffSessi
 	// Create syntax highlighters for both buffers
 	if filePath != "" {
 		ds.HighlighterA = syntax.NewHighlighter()
-		ds.HighlighterA.SetLanguageFromFile(filePath)
+		ds.HighlighterA.SetLanguageFromFileAndContent(filePath, []byte(previousContent))
 		ds.HighlighterA.ParseFull([]byte(previousContent))
 
 		ds.HighlighterB = syntax.NewHighlighter()
-		ds.HighlighterB.SetLanguageFromFile(filePath)
+		ds.HighlighterB.SetLanguageFromFileAndContent(filePath, []byte(currentContent))
 		ds.HighlighterB.ParseFull([]byte(currentContent))
 	}
 
@@ -183,7 +183,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 
 	// Always update or create the highlighter with the new content
 	headHighlighter := syntax.NewHighlighter()
-	headHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
+	headHighlighter.SetLanguageFromFileAndContent(filePath, []byte(alignedHeadContent))
 	headHighlighter.ParseFull([]byte(alignedHeadContent))
 	headBuffer.Highlighter = headHighlighter
 
@@ -221,7 +221,7 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 
 	// Always update or create the highlighter with the new content
 	currentHighlighter := syntax.NewHighlighter()
-	currentHighlighter.SetLanguageFromFile(filePath) // Use original file path for language detection
+	currentHighlighter.SetLanguageFromFileAndContent(filePath, []byte(alignedCurrentContent))
 	currentHighlighter.ParseFull([]byte(alignedCurrentContent))
 	currentBuffer.Highlighter = currentHighlighter
 
@@ -984,12 +984,12 @@ func (e *Editor) refreshDiffBuffersForRealPath(path string, currentContent strin
 
 	// Update highlighters
 	headHL := syntax.NewHighlighter()
-	headHL.SetLanguageFromFile(path)
+	headHL.SetLanguageFromFileAndContent(path, []byte(alignedHead))
 	headHL.ParseFull([]byte(alignedHead))
 	headBuf.Highlighter = headHL
 
 	curHL := syntax.NewHighlighter()
-	curHL.SetLanguageFromFile(path)
+	curHL.SetLanguageFromFileAndContent(path, []byte(alignedCur))
 	curHL.ParseFull([]byte(alignedCur))
 	curBuf.Highlighter = curHL
 
