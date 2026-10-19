@@ -2711,12 +2711,12 @@ func NewVSCodeTheme() *Theme {
 
 		LineNumber: StyleDef{
 			Foreground: "#5a5a5a",
-			Background: "#1f1f1f",
+			Background: "#292929",
 		},
 
 		CurrentLineNumber: StyleDef{
 			Foreground: "#bbbbbb[B]",
-			Background: "#222222",
+			Background: "#333333",
 		},
 
 		CurrentLine: StyleDef{
