@@ -117,8 +117,8 @@ func (h *Highlighter) SetLanguageFromFile(filename string) error {
 	return h.SetLanguageFromFileAndContent(filename, nil)
 }
 
-// SetLanguageFromFileAndContent sets the language based on file name first,
-// then falls back to shebang detection from content.
+// SetLanguageFromFileAndContent uses the file name and content to detect the language.
+// Header contents distinguish C from C++; unknown extensions use shebang detection.
 func (h *Highlighter) SetLanguageFromFileAndContent(filename string, content []byte) error {
 	rawExt := filepath.Ext(filename)
 	ext := strings.ToLower(rawExt)
@@ -155,6 +155,9 @@ func (h *Highlighter) SetLanguageFromFileAndContent(filename string, content []b
 		h.parser.SetLanguage(golang.GetLanguage())
 		h.currentLang = "go"
 	case ".c", ".h", ".m":
+		if rawExt == ".h" {
+			return h.SetLanguage(headerLanguage(content))
+		}
 		if rawExt == ".C" || rawExt == ".H" {
 			h.parser.SetLanguage(cpp.GetLanguage())
 			h.currentLang = "cpp"

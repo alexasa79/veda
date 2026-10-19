@@ -225,12 +225,12 @@ func (e *Editor) updateSyntaxHighlighting() {
 	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		return
 	}
+	content := e.CurrentBuffer().Rope.String()
 	// Update the buffer's own highlighter in place
 	if e.CurrentBuffer().Highlighter == nil {
 		e.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-		_ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
+		_ = e.CurrentBuffer().Highlighter.SetLanguageFromFileAndContent(e.CurrentBuffer().FilePath, []byte(content))
 	}
-	content := e.CurrentBuffer().Rope.String()
 	_ = e.CurrentBuffer().Highlighter.ReparseIncremental([]byte(content))
 }
 
@@ -242,10 +242,11 @@ func (e *Editor) updateSyntaxApplyEdit(startByte int, oldText, newText string) {
 		return
 	}
 	if e.CurrentBuffer().Highlighter == nil {
+		content := []byte(e.CurrentBuffer().Rope.String())
 		e.CurrentBuffer().Highlighter = syntax.NewHighlighter()
-		_ = e.CurrentBuffer().Highlighter.SetLanguageFromFile(e.CurrentBuffer().FilePath)
+		_ = e.CurrentBuffer().Highlighter.SetLanguageFromFileAndContent(e.CurrentBuffer().FilePath, content)
 		// Initialize the tree from full content; subsequent calls can be incremental
-		_ = e.CurrentBuffer().Highlighter.ParseFull([]byte(e.CurrentBuffer().Rope.String()))
+		_ = e.CurrentBuffer().Highlighter.ParseFull(content)
 		return
 	}
 	_ = e.CurrentBuffer().Highlighter.ApplyEdit(startByte, oldText, newText)

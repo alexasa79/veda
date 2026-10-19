@@ -248,7 +248,7 @@ func (e *Editor) openPRDiff(key string, q proxy.PRReviewRequest, diff *buffer.Di
 		b.IsReadOnly, b.IsInternal = true, true
 		b.DiffHints = lines
 		b.Highlighter = syntax.NewHighlighter()
-		b.Highlighter.SetLanguageFromFile(q.Path)
+		b.Highlighter.SetLanguageFromFileAndContent(q.Path, []byte(b.Rope.String()))
 		b.Highlighter.ParseFull([]byte(b.Rope.String()))
 		e.buffers[b.FilePath] = b
 		e.bufferOrder = append(e.bufferOrder, b.FilePath)
