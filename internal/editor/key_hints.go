@@ -69,7 +69,7 @@ func (e *Editor) getCommandDescriptions() map[string]string {
 		"new-buffer":                "new buffer",
 		"show-project-changes":      "project changes",
 		"review-prs":                "review PRs",
-		"diff-current-buffer":       "diff current buffer",
+		"diff-current-buffer":       "toggle diff",
 
 		// Search commands
 		"find-next":                "find next",

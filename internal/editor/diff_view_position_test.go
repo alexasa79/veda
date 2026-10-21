@@ -71,4 +71,29 @@ func TestStartDiffViewPreservesCursorScreenLine(t *testing.T) {
 	if sourceLine != 65 {
 		t.Fatalf("cursor moved from source line 65 to %d", sourceLine)
 	}
+	for i := 0; i < 3; i++ {
+		te.TypeKeys("sc")
+		if te.CurrentBuffer() != buf {
+			t.Fatal("s c did not return to the working file")
+		}
+		AssertCursorAt(t, te, 0, 65)
+		te.TypeKeys("sc")
+		view, ok := win.View.(*DiffBufferView)
+		if !ok {
+			t.Fatal("s c did not reopen the diff")
+		}
+		line, err := view.ResolveDiffLine(te.CurrentBuffer().CursorIterator.LineNumber())
+		if err != nil || line != 65 {
+			t.Fatalf("diff cursor line = %d, error = %v", line, err)
+		}
+		count := 0
+		for _, view := range win.Views {
+			if view.IsDiff() {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("repeated toggles left %d diff views", count)
+		}
+	}
 }
