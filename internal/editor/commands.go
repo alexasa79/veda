@@ -116,6 +116,7 @@ func (e *Editor) registerCommands() {
 	e.commandRegistry.Register("go-to-definition-new-window", e.goToDefinitionNewWindow, false, true)
 
 	// Git commands
+	e.commandRegistry.Register("toggle-change-preview", e.toggleChangePreview, false, false)
 	e.commandRegistry.Register("git-blame-line", e.gitBlameCurrentLine, false, false)
 	e.commandRegistry.Register("git-show-commit", e.gitShowCommit, false, false)
 	e.commandRegistry.Register("git-show-commit-new-window", e.gitShowCommitNewWindow, false, false)

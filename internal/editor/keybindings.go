@@ -152,6 +152,7 @@ func (e *Editor) setupDefaultBindings() {
 	e.registerKeyBinding(commands.NormalMode, "g r", "find-references")
 	e.registerKeyBinding(commands.NormalMode, "g e", "diagnostics")
 	e.registerKeyBinding(commands.NormalMode, "s c", "diff-current-buffer")
+	e.registerKeyBinding(commands.NormalMode, "s p", "toggle-change-preview")
 	e.registerKeyBinding(commands.NormalMode, "s C", "show-project-changes")
 	e.registerKeyBinding(commands.NormalMode, "s P", "review-prs")
 

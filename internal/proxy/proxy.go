@@ -29,7 +29,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.56"
+const ProxyVersion = "1.0.57"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -978,13 +978,22 @@ type FileContent struct {
 
 // FileChanges represents git changes in a file
 type FileChanges struct {
-	Added    []int `json:"added"`
-	Deleted  []int `json:"deleted"`
-	Modified []int `json:"modified"`
+	Added []int `json:"added"`
+	// Deleted repeats the current-line anchor once per removed line, preserving counts.
+	Deleted      []int         `json:"deleted"`
+	Modified     []int         `json:"modified"`
+	DeletedHunks []DeletedHunk `json:"deleted_hunks"`
 	// Staged changes (subset of above that are staged)
 	StagedAdded    []int `json:"staged_added"`
 	StagedDeleted  []int `json:"staged_deleted"`
 	StagedModified []int `json:"staged_modified"`
+}
+
+// DeletedHunk attaches removed HEAD text to the next surviving working-file
+// line (1-based). At EOF the editor clamps it to the last buffer line.
+type DeletedHunk struct {
+	Line  int      `json:"line"`
+	Lines []string `json:"lines"`
 }
 
 // Diagnostic represents a single diagnostic item from LSP normalized for the editor
@@ -2712,6 +2721,21 @@ func parseFileChanges(changesData interface{}) *FileChanges {
 	}
 
 	changes := &FileChanges{}
+	if hunks, ok := data["deleted_hunks"].([]interface{}); ok {
+		for _, item := range hunks {
+			if hunk, ok := item.(map[string]interface{}); ok {
+				deleted := DeletedHunk{Line: getInt(hunk, "line")}
+				if lines, ok := hunk["lines"].([]interface{}); ok {
+					for _, line := range lines {
+						if text, ok := line.(string); ok {
+							deleted.Lines = append(deleted.Lines, text)
+						}
+					}
+				}
+				changes.DeletedHunks = append(changes.DeletedHunks, deleted)
+			}
+		}
+	}
 
 	// Parse unstaged changes
 	if added, ok := data["added"].([]interface{}); ok {
