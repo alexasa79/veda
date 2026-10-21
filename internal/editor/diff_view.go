@@ -244,14 +244,15 @@ func (e *Editor) StartDiffViewForCurrentBuffer() error {
 		RealPath:    filePath,
 	}
 
-	// Remove the SingleBufferView for the original file from Views
-	// (the DiffBufferView replaces it).
-	for i, v := range win.Views {
-		if sv, ok := v.(*SingleBufferView); ok && sv.Buf != nil && sv.Buf.FilePath == filePath {
-			win.Views = append(win.Views[:i], win.Views[i+1:]...)
-			break
+	// Replace any existing view for this file so repeated toggles do not
+	// accumulate duplicate diff views.
+	views := win.Views[:0]
+	for _, v := range win.Views {
+		if v.ViewPath() != filePath {
+			views = append(views, v)
 		}
 	}
+	win.Views = views
 
 	// Add the DiffBufferView to Views
 	win.Views = append(win.Views, diffView)
@@ -288,14 +289,9 @@ func (e *Editor) createSecondWindow() {
 	e.recomputeWindowsLayout()
 }
 
-// diffCurrentBuffer command handler for opening diff view
 func (e *Editor) readOnlyDiff() bool {
 	v := e.findDiffViewForBuffer(e.CurrentBuffer())
 	return v != nil && v.LeftBuffer.IsReadOnly && v.RightBuffer.IsReadOnly
-}
-
-func (e *Editor) diffCurrentBuffer(args []string) error {
-	return e.StartDiffViewForCurrentBuffer()
 }
 
 // isDiffBuffer checks if a buffer is part of a diff pair
