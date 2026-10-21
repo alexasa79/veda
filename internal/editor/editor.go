@@ -191,7 +191,8 @@ type Editor struct {
 	lastCommandArgs []string // Arguments from the last ex-command
 
 	// Rendering state
-	renderingState           *RenderingState // Manages overlay/modal state
+	renderingState           *RenderingState     // Manages overlay/modal state
+	changePreview            *changePreviewState // Non-modal, global HEAD preview
 	cursorWordHighlights     map[int][]wordRange
 	cursorWordLastSignature  string
 	cursorWordLastMove       time.Time

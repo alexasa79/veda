@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"veda/internal/buffer"
 )
 
 // TestDeletedLinesGutter verifies that when lines are deleted from a file
@@ -84,8 +85,29 @@ func TestDeletedLinesGutter(t *testing.T) {
 	if r := readLeftGutterRune(3); r == ' ' || r == 0 {
 		t.Fatalf("expected deletion indicator at line 3; got %q", r)
 	}
-	if r := readLeftGutterRune(8); r == ' ' || r == 0 {
-		t.Fatalf("expected deletion indicator at line 8; got %q", r)
+	if r := readLeftGutterRune(7); r == ' ' || r == 0 {
+		t.Fatalf("expected deletion indicator at current line 7; got %q", r)
+	}
+	if r := readLeftGutterRune(8); r != ' ' && r != 0 {
+		t.Fatalf("unexpected deletion indicator at old line 8: %q", r)
+	}
+	// Every minus sign must preview the exact block reported by Git, without
+	// waiting for the preview's separate comparison to load.
+	te.changePreview = &changePreviewState{}
+	for line, removed := range map[int]string{3: "line3", 7: "line8"} {
+		te.CurrentBuffer().CursorIterator = buffer.NewBufferIteratorAtLine(te.CurrentBuffer(), line-1)
+		te.render()
+		_, titleY := previewTitle(te.mockScreen)
+		if titleY < 0 {
+			t.Fatalf("minus at line %d has no preview", line)
+		}
+		found := false
+		for y := titleY + 1; y < 25; y++ {
+			found = found || strings.Contains(te.mockScreen.GetLine(y), removed)
+		}
+		if !found {
+			t.Fatalf("minus at line %d did not preview %q", line, removed)
+		}
 	}
 }
 

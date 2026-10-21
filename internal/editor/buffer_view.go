@@ -145,6 +145,9 @@ func (v *SingleBufferView) Render(e *Editor, win *Window, sub Screen) {
 	win.ViewLine = vl
 	win.CursorLine = cl
 	win.CursorX = cx
+	if win == e.windows[e.activeWindow] {
+		e.drawChangePreview(win, sub)
+	}
 }
 
 // DiffBufferView renders two buffers side-by-side in a single window.

@@ -31,7 +31,7 @@ import argparse
 from urllib.parse import urlparse, quote
 
 # Proxy version must match the Go client's ProxyVersion constant.
-PROXY_VERSION = "1.0.56"
+PROXY_VERSION = "1.0.57"
 
 # Set up logging directory
 from datetime import datetime
@@ -3249,6 +3249,7 @@ class VedaProxy:
         """
         changes = {
             'added': [], 'deleted': [], 'modified': [],
+            'deleted_hunks': [],
             'staged_added': [], 'staged_deleted': [], 'staged_modified': []
         }
         
@@ -3278,9 +3279,11 @@ class VedaProxy:
                 all_changes = self._parse_git_diff(result_all.stdout)
                 changes['added'] = all_changes.get('added', [])
                 changes['deleted'] = all_changes.get('deleted', [])
+                changes['deleted_hunks'] = all_changes.get('deleted_hunks', [])
                 changes['modified'] = all_changes.get('modified', [])
             else:
                 # Fallback: combine staged and unstaged
+                changes['deleted_hunks'] = unstaged.get('deleted_hunks', []) or staged.get('deleted_hunks', [])
                 for key in ['added', 'deleted', 'modified']:
                     changes[key] = sorted(list(set(
                         staged.get(key, []) + unstaged.get(key, [])
@@ -3296,6 +3299,7 @@ class VedaProxy:
         """
         added_lines = []
         deleted_lines = []
+        deleted_hunks = []
         modified_lines = []
         hunks = []
 
@@ -3304,9 +3308,10 @@ class VedaProxy:
 
         run_added = []
         run_deleted = []
+        run_deleted_text = []
 
         def flush_run() -> None:
-            nonlocal run_added, run_deleted
+            nonlocal run_added, run_deleted, run_deleted_text
             if not run_added and not run_deleted:
                 return
             if run_added and run_deleted:
@@ -3314,18 +3319,25 @@ class VedaProxy:
             else:
                 added_lines.extend(run_added)
                 deleted_lines.extend(run_deleted)
+                if run_deleted:
+                    deleted_hunks.append({'line': run_deleted[0], 'lines': run_deleted_text})
             run_added = []
             run_deleted = []
+            run_deleted_text = []
 
+        in_hunk = False
         for line in diff_output.split('\n'):
             # Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
             hunk_match = re.match(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
             if hunk_match:
                 flush_run()
+                in_hunk = True
                 old_start = int(hunk_match.group(1))
                 new_start = int(hunk_match.group(3))
                 current_old_line = old_start
                 current_new_line = new_start
+                if hunk_match.group(4) == '0':
+                    current_new_line += 1
 
                 # Store hunk info
                 hunks.append({
@@ -3335,14 +3347,17 @@ class VedaProxy:
                 })
                 continue
 
+            if not in_hunk:
+                continue
             # Process diff lines
-            if line.startswith('+') and not line.startswith('+++'):
+            if line.startswith('+'):
                 # Added line
                 run_added.append(current_new_line)
                 current_new_line += 1
-            elif line.startswith('-') and not line.startswith('---'):
+            elif line.startswith('-'):
                 # Deleted line (mark it at the next line position)
-                run_deleted.append(current_old_line)
+                run_deleted.append(current_new_line)
+                run_deleted_text.append(line[1:])
                 current_old_line += 1
             elif line.startswith(' '):
                 # Unchanged line
@@ -3354,6 +3369,7 @@ class VedaProxy:
         return {
             'added': sorted(list(set(added_lines))),
             'deleted': sorted(deleted_lines),
+            'deleted_hunks': deleted_hunks,
             'modified': sorted(list(set(modified_lines))),
             'hunks': hunks
         }
