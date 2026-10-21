@@ -1335,6 +1335,11 @@ func (e *Editor) performReload(filePath string) {
 			return
 		}
 
+		// Update LSP before publishing the reload so navigation uses the new text.
+		if err := e.proxyManager.NotifyFileChange(filePath, fileContent.Content); err != nil {
+			LL.Error("Failed to notify LSP after reloading %s: %v", filePath, err)
+		}
+
 		// Send reload event to main thread
 		e.asyncEvents <- events.NewCustomEvent("file-reloaded", map[string]interface{}{
 			"path":        filePath,
