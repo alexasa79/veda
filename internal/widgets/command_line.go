@@ -82,6 +82,9 @@ func (cl *CommandLineWidget) SetWidth(width int) {
 	cl.editor.SetWidth(width)
 }
 
+// History returns a copy suitable for transfer to a replacement editor.
+func (cl *CommandLineWidget) History() []string { return append([]string(nil), cl.history...) }
+
 // AddToHistory adds a command to the history
 func (cl *CommandLineWidget) AddToHistory(command string) {
 	// Remove leading colon if present

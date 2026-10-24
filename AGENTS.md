@@ -43,9 +43,53 @@ make clean
 
 ## Architecture
 
+### Session parent and reloadable editor
+
+One `vd` executable runs two Go processes. `main.go` selects the worker when
+`VEDA_WORKER=1`; otherwise it starts the persistent session parent.
+
+- **Parent**: `internal/session/supervisor.go` owns the real terminal, input,
+  terminal clipboard access, and proxy processes. `internal/proxy/relay.go` forwards worker
+  requests to the parent's existing proxy clients.
+- **Worker**: `internal/editor/` owns editing, buffers, undo history, windows,
+  and rendering logic. `internal/session/screen.go` sends batched screen updates
+  to the parent and receives input. Both processes use the same on-disk binary.
+- **Communication**: inherited Unix socket pairs, with FD 3 for proxy requests
+  and notifications and FD 4 for session control, screen updates, and input.
+  There is no shared library or separately installed worker executable.
+- **Reload**: after `make`, `:reload` pauses input and background work, waits for
+  pending saves, and transfers a snapshot to a new worker. The old worker stays
+  alive until its replacement restores the snapshot and produces its first frame.
+  A failed replacement resumes the old worker. Proxy connections and remote
+  terminal sessions remain owned by the parent throughout.
+- **State**: `internal/editor/session.go`, `session_entries.go`, and
+  `internal/buffer/session.go` serialize durable state. When adding durable editor
+  state, undo entries, or repeat objects, update the snapshot and codecs as needed.
+  Recreate pointers, callbacks, iterators, and syntax trees in the new worker.
+  Restore the selected theme by name using the new worker's theme definitions.
+  Restart autosave for modified file buffers only after the parent accepts the
+  first frame, along with terminal polling. Test both successful and failed reloads.
+  Snapshots stay in memory and do not provide recovery after a crash.
+- **Restart rules**: compatible worker changes can use `:reload`. Changes to the
+  parent supervisor, real terminal handling, or parent proxy relay require saving,
+  quitting, and starting `vd` again. Rebuilding does not replace the running parent.
+  Parent implementation changes are not automatically detected.
+- **Compatibility**: bump `internal/session.Version` for incompatible wire
+  changes and `sessionVersion` in `internal/editor/session.go` for incompatible
+  snapshots. The worker checks the parent's session and proxy versions; a snapshot
+  mismatch also rejects reload. Keep both proxy version constants in sync as
+  described below. Incompatible changes require a full restart.
+- **Agent workflow**: say whether a change takes effect with `:reload` or needs a
+  full restart. Keep the parent small. Exercise reload through the mock-screen
+  subprocess tests in `internal/session/`; do not launch the interactive editor.
+
+To locate the processes, run `ps -axo pid,ppid,comm` and find `vd`. The worker's
+PPID is the session parent's PID. The parent PID stays fixed across reloads;
+the worker PID changes. A replacement briefly adds a third Go process.
+
 ### Core Components
-1. **Go Editor Core** (`main.go`, `internal/editor/`): Terminal UI using tcell/v2
-   - `editor.go`: Main editor struct and core functionality (1,219 lines)
+1. **Go Editor Worker** (`main.go`, `internal/editor/`): Editing and rendering through the `Screen` interface
+   - `editor.go`: Main editor struct and core functionality
    - `edit_operations.go`: Text editing operations (insertChar, backspace, delete, etc.)
    - `search.go`: Search and find functionality
    - `scroll.go`: Viewport scrolling operations
@@ -53,15 +97,15 @@ make clean
    - `layout.go`: Layout calculations and screen area management
    - `async_operations.go`: Async operation tracking and spinner animations
    - `command_execution.go`: Command completion functionality
-2. **Python Proxy** (`veda-proxy.py`): JSON-RPC service for file operations and LSP server management, automatically started by the editor
+2. **Python Proxy** (`internal/proxy/veda-proxy.py`): JSON-RPC service for file operations and LSP server management, owned by the session parent
 3. **Buffer System** (`internal/buffer/`): Rope data structure for efficient text operations
 4. **Widget System** (`internal/widgets/`): UI components including dual-pane file browser and command line editor
 5. **LSP Integration** (`LSPManager` in proxy): Manages language servers for code intelligence features
 
 ### Key Design Patterns
 - **Modal Editing**: Vim-like modes (Normal, Insert, Command)
-- **Event-Driven UI**: tcell like event loop handles keyboard/mouse input
-- **IPC Communication**: JSON-RPC between Go and Python over stdin/stdout
+- **Event-Driven UI**: Screen events and async events drive the editor's event loop
+- **IPC Communication**: JSON over inherited sockets between the Go processes; JSON-RPC between the parent and Python proxies over stdin/stdout
 - **Component-Based UI**: Widgets manage their own rendering and input handling
 - **Single-Line Status Bar**: Minimal status bar showing mode, filename, and cursor position
 
@@ -242,7 +286,7 @@ Some tests require LSP servers to be installed and available on the test machine
   - Python: `PROXY_VERSION` constant in `internal/proxy/veda-proxy.py`
 - Every time you change either `proxy.go` or `veda-proxy.py`, increment both versions to a new value and keep them identical.
 - Startup behavior for remote hosts:
-  - On opening a remote path, the editor attempts to start `/tmp/veda-proxy.py` over SSH without copying first.
+  - On opening a remote path, the parent attempts to start `~/.cache/veda/veda-proxy.py` over SSH without copying first.
   - The Python proxy prints a JSON hello line with its version as the first stdout message.
   - If the version does not match the Go `ProxyVersion`, the editor kills the proxy, copies the embedded Python script to the remote host, and restarts it.
   - If the proxy script is missing on the remote host, the editor copies it and proceeds as above.

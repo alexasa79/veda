@@ -42,6 +42,47 @@ Useful flags: `-d` (debug logging), `-log <path>` (log location),
 `-cpuprofile <file>`. Configuration lives in `~/.config/veda/config.json`
 (theme, indent settings, and `relative_line_numbers`, which defaults to `false`).
 
+## Reloading after a build
+
+Run `make`, then enter `:reload` in the running editor. Veda loads the rebuilt
+executable and restores buffers, unsaved text, undo/redo, windows, cursors,
+registers, file listings, and embedded terminals. The parent process keeps the
+terminal and proxy connections open. If the replacement fails to start or restore
+the session, the current editor resumes.
+
+The selected theme uses the new binary's color definitions. Pending autosaves
+resume after reload, including for buffers that are not currently visible.
+
+Reload waits for pending saves and requires other background operations to finish.
+Changes to the parent process or to the session/proxy protocol require a full
+restart. The session snapshot stays in memory; this is not recovery after a crash.
+When CPU profiling is enabled, replacement workers append their PID to the profile
+filename so they do not overwrite the original worker's profile.
+
+The same `vd` executable runs as a persistent parent and an editor worker:
+
+| Process | Owns | Main source files |
+| --- | --- | --- |
+| Session parent | Real terminal, input, terminal clipboard access, proxy connections | `internal/session/supervisor.go`, `internal/terminal/`, `internal/proxy/relay.go` |
+| Editor worker | Editing, rendering logic, buffers, windows, undo history | `internal/editor/`, `internal/session/screen.go` |
+
+They communicate over inherited Unix sockets. `:reload` starts a new worker from
+the rebuilt executable; the parent continues running its existing code. For a
+parent change, save your work, quit, and start `vd` again. Compatible parent code
+changes do not trigger an automatic warning. Incompatible session or proxy
+versions reject reload and leave the old editor running.
+
+Find both processes in Activity Monitor by searching for `vd`, or run:
+
+```bash
+ps -axo pid,ppid,comm | rg '(^|/|[[:space:]])vd$'
+```
+
+The worker's PPID identifies the parent. After `:reload`, the worker has a new PID
+and the parent keeps its PID. During handoff, both workers briefly coexist.
+Developer guidance and snapshot compatibility rules are in
+[AGENTS.md](AGENTS.md#session-parent-and-reloadable-editor).
+
 ## Editing basics
 
 Veda follows vim conventions with a few deliberate differences.

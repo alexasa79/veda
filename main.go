@@ -8,8 +8,11 @@ import (
 	"runtime/pprof"
 	"strings"
 	"time"
+	"veda/internal/clipboard"
 	"veda/internal/editor"
 	"veda/internal/log"
+	"veda/internal/proxy"
+	"veda/internal/session"
 )
 
 //go:embed help.txt
@@ -36,6 +39,9 @@ func main() {
 	os.MkdirAll(cacheDir, 0755)
 	timestamp := time.Now().Format("20060102_150405")
 	defaultLogPath := fmt.Sprintf("%s/logs/veda_%s.log", cacheDir, timestamp)
+	if path := os.Getenv("VEDA_SESSION_LOG"); path != "" {
+		defaultLogPath = path
+	}
 	logFile := flag.String("log", defaultLogPath, "Path to log file")
 
 	// Set custom usage function
@@ -56,8 +62,12 @@ func main() {
 	}
 
 	// Set up CPU profiling if requested
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
+	if *cpuprofile != "" && os.Getenv("VEDA_WORKER") == "1" {
+		profilePath := *cpuprofile
+		if os.Getenv("VEDA_RELOAD") == "1" {
+			profilePath = fmt.Sprintf("%s.%d", profilePath, os.Getpid())
+		}
+		f, err := os.Create(profilePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to create CPU profile: %v\n", err)
 			os.Exit(1)
@@ -73,10 +83,10 @@ func main() {
 		defer func() {
 			pprof.StopCPUProfile()
 			f.Close()
-			fmt.Fprintf(os.Stderr, "CPU profile written to %s\n", *cpuprofile)
+			fmt.Fprintf(os.Stderr, "CPU profile written to %s\n", profilePath)
 		}()
 
-		fmt.Fprintf(os.Stderr, "CPU profiling enabled, writing to %s\n", *cpuprofile)
+		fmt.Fprintf(os.Stderr, "CPU profiling enabled, writing to %s\n", profilePath)
 	}
 
 	// Set up logging
@@ -94,8 +104,43 @@ func main() {
 		}
 	}
 
-	ed, err := editor.New()
+	if os.Getenv("VEDA_WORKER") != "1" {
+		_ = os.Setenv("VEDA_SESSION_LOG", *logFile)
+		screen, err := editor.NewTerminalScreen()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		manager, err := proxy.NewProxyManager()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		executable, err := os.Executable()
+		if err != nil {
+			manager.Close()
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		code, err := session.Run(screen, manager, executable, os.Args[1:])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		if code != 0 {
+			os.Exit(code)
+		}
+		return
+	}
+	worker, err := session.OpenWorker()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer worker.Close()
+	clipboard.SetTerminalClipboard(worker)
+	ed, err := editor.NewWithScreen(worker)
+	if err != nil {
+		worker.ReportError(err)
 		fmt.Fprintf(os.Stderr, "failed to create editor: %v", err)
 		os.Exit(1)
 	}
@@ -103,7 +148,13 @@ func main() {
 
 	// Check if a file or directory was provided as a command-line argument
 	args := flag.Args()
-	if changesFlag || prsFlag {
+	if len(worker.State) != 0 {
+		if err := ed.RestoreSession(worker.State); err != nil {
+			worker.ReportError(err)
+			ed.Close()
+			return
+		}
+	} else if changesFlag || prsFlag {
 		path := "."
 		if len(args) > 0 {
 			path = args[0]
@@ -118,7 +169,29 @@ func main() {
 		ed.OpenPath(path)
 	}
 
-	ed.Run()
+	ed.EnableReload(worker.Pause)
+	if err := worker.Ready(); err != nil {
+		ed.Close()
+		return
+	}
+	for {
+		ed.Run()
+		if !ed.ReloadRequested() {
+			break
+		}
+		data, err := ed.PrepareReload()
+		if err != nil {
+			worker.CancelReload()
+			ed.ResumeAfterReload(err.Error())
+			continue
+		}
+		committed, reason := worker.Reload(data)
+		if committed {
+			ed.Close()
+			return
+		}
+		ed.ResumeAfterReload(reason)
+	}
 	// Close the editor (exit alternate screen) before printing any error
 	ed.Close()
 	// Honor editor-requested exit code (e.g., remote connect failure)
