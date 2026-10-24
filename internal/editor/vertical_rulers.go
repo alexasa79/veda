@@ -10,6 +10,7 @@ func (e *Editor) setTextCell(x, y int, ch rune, combining []rune, style ui.Style
 			if column == ruler {
 				ch = '│'
 				style = style.Foreground(e.config.Theme.GetStyle(e.config.Theme.VerticalRuler).Fg)
+				style.Attrs |= ui.AttrDim
 				break
 			}
 		}
