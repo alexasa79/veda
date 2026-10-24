@@ -101,3 +101,18 @@ func TestVerticalRulersUseForeground(t *testing.T) {
 		})
 	}
 }
+
+func TestAllThemesHaveDistinctGutterBackgrounds(t *testing.T) {
+	for _, name := range GetThemeNames() {
+		t.Run(name, func(t *testing.T) {
+			theme := GetThemeByName(name)
+			_, background, _ := theme.GetStyle(theme.Normal).Decompose()
+			for _, gutter := range []StyleDef{theme.LineNumber, theme.CurrentLineNumber} {
+				_, gutterBackground, _ := theme.GetStyle(gutter).Decompose()
+				if gutter.Background == "" || gutterBackground == background {
+					t.Errorf("gutter background %q must differ from normal background %q", gutter.Background, theme.Normal.Background)
+				}
+			}
+		})
+	}
+}
