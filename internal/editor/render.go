@@ -347,6 +347,10 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	whitespaceStyle := e.whitespaceStyle.style
 	screenX := x
 	charPos := textOffset
+	setContent := e.screen.SetContent
+	if lineNum >= 0 && e.CurrentBuffer() != nil && x >= e.CurrentBuffer().LineNumberWidth {
+		setContent = e.setTextCell
+	}
 
 	// Get selection range once for efficiency
 	selStart, selEnd, hasSelection := e.getSelectionRange()
@@ -375,6 +379,11 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 	tableOffset := 0
 	if presentation != nil {
 		tableOffset = e.markdownTableOffset(presentation)
+	}
+	functionHeaders := e.functionHeaderRanges(x, lineNum, textOffset, textOffset+len(text), style)
+	var functionHeaderBg ui.Color
+	if len(functionHeaders) > 0 {
+		functionHeaderBg = e.config.Theme.FunctionHeaderBackground()
 	}
 	consumed := 0
 	for glyph := range presentation.renderedRunes(text, segmentStart) {
@@ -411,6 +420,12 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 		}
 
 		runeStyle := style
+		for _, header := range functionHeaders {
+			if charPos >= header.Start && charPos < header.End {
+				runeStyle = runeStyle.Background(functionHeaderBg)
+				break
+			}
+		}
 		if isTableGrid {
 			gridStyle := e.config.Theme.GetStyle(e.config.Theme.MarkdownTable)
 			runeStyle = runeStyle.Foreground(gridStyle.Fg).Attributes(gridStyle.Attrs)
@@ -458,10 +473,6 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			useMatchStyle = true
 		}
 
-		// Note: Do not apply vertical ruler background on characters themselves.
-		// Ruler background is rendered in background fill phases to avoid per-character
-		// style variation within tokens (important for multi-window consistency tests).
-
 		if inFlash {
 			// Flash takes highest precedence
 			currentStyle = theme.ApplyBackgroundStyle(runeStyle, flashStyle)
@@ -501,13 +512,13 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			screenX++
 			// Fill the rest with spaces using current style
 			for j := 1; j < 4; j++ {
-				e.screen.SetContent(screenX, y, ' ', nil, currentStyle)
+				setContent(screenX, y, ' ', nil, currentStyle)
 				screenX++
 			}
 		} else if r == '\t' {
 			// Tab without visualization
 			for j := 0; j < 4; j++ {
-				e.screen.SetContent(screenX, y, ' ', nil, currentStyle)
+				setContent(screenX, y, ' ', nil, currentStyle)
 				screenX++
 			}
 		} else if r == ' ' && trailingStart >= 0 && absolutePos >= trailingStart && e.whitespaceStyle.showTrailingSpaces {
@@ -518,7 +529,7 @@ func (e *Editor) drawText(x, y int, style ui.Style, text string, textOffset int,
 			screenX++
 		} else {
 			// Normal character
-			e.screen.SetContent(screenX, y, r, nil, currentStyle)
+			setContent(screenX, y, r, nil, currentStyle)
 			screenX += wrapRuneWidth(r)
 		}
 		charPos++
@@ -665,6 +676,12 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 
 	// Get the absolute offset of the start of this line
 	lineStartOffset := iter.Position()
+	if !hasBg {
+		lineBg, hasBg = e.functionHeaderLineBackground(startX, lineIndex, lineStartOffset, originalLine, normalStyle)
+		if hasBg {
+			normalStyle = normalStyle.Background(lineBg)
+		}
+	}
 
 	// Find trailing spaces position for the whole line BEFORE any modifications
 	trailingStart := -1
@@ -777,7 +794,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				}
 
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+				e.setTextCell(i, screenY, ' ', nil, fillStyle)
 			}
 		}
 	} else {
@@ -788,7 +805,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 		for i := x; i < width; i++ {
 			if e.hasVirtualCursorCell(i, screenY) {
 				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+				e.setTextCell(i, screenY, ' ', nil, fillStyle)
 			}
 		}
 	}
@@ -819,11 +836,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 				tokenText := originalLine[token.Start:endPos]
 
 				tokenStyle := e.config.Theme.GetStyle(syntax.GetStyleForToken(token.TokenType, e.config.Theme))
-				if bgOverride != nil {
-					// Override background with the provided override
-					tokenStyle = tokenStyle.Background(*bgOverride)
-				} else if isCurrentLine {
-					// Override background for current line
+				if hasBg {
 					tokenStyle = tokenStyle.Background(lineBg)
 				}
 
@@ -857,7 +870,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 				fillStyle = theme.ApplyBackgroundStyle(baseStyle, virtualCursorStyle)
 			}
 
-			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			e.setTextCell(i, screenY, ' ', nil, fillStyle)
 		}
 	} else {
 		// Even if no background fill, we still need to render virtual cursors beyond end of line
@@ -868,7 +881,7 @@ func (e *Editor) drawLineInternal(iter *buffer.BufferIterator, startX int, scree
 			// Render virtual cursor if needed
 			if e.hasVirtualCursorCell(i, screenY) {
 				fillStyle := theme.ApplyBackgroundStyle(baseStyle, virtualCursorStyle)
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+				e.setTextCell(i, screenY, ' ', nil, fillStyle)
 			}
 		}
 	}
@@ -945,6 +958,12 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 	}
 	if segEnd > lineLen {
 		segEnd = lineLen
+	}
+	if !hasBg {
+		lineBg, hasBg = e.functionHeaderLineBackground(startX, lineIndex, lineStartOffset+segStart, originalLine[segStart:segEnd], normalStyle)
+		if hasBg {
+			normalStyle = normalStyle.Background(lineBg)
+		}
 	}
 
 	// Find trailing spaces position for the whole line
@@ -1044,7 +1063,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				}
 
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+				e.setTextCell(i, screenY, ' ', nil, fillStyle)
 			}
 		} else {
 			// Even if no background fill, we still need to render virtual cursors beyond end of line
@@ -1054,7 +1073,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 			for i := x; i < width; i++ {
 				if e.hasVirtualCursorCell(i, screenY) {
 					fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-					e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+					e.setTextCell(i, screenY, ' ', nil, fillStyle)
 				}
 			}
 		}
@@ -1082,7 +1101,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 					fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 				}
 
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+				e.setTextCell(i, screenY, ' ', nil, fillStyle)
 			}
 		} else {
 			// Even if no background fill, we still need to render virtual cursors beyond end of line
@@ -1092,7 +1111,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 			for i := x; i < width; i++ {
 				if e.hasVirtualCursorCell(i, screenY) {
 					fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-					e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+					e.setTextCell(i, screenY, ' ', nil, fillStyle)
 				}
 			}
 		}
@@ -1156,7 +1175,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 				} else if diffBg != nil {
 					// Full-line diff highlighting takes precedence over current line highlighting
 					tokenStyle = tokenStyle.Background(*diffBg)
-				} else if isCurrentLine {
+				} else if hasBg {
 					tokenStyle = tokenStyle.Background(lineBg)
 				}
 
@@ -1180,24 +1199,13 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 	// Fill rest of line if we have background
 	if hasBg {
 		width, _ := e.screen.Size()
-		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		virtualCursorStyle := e.config.Theme.GetStyle(e.config.Theme.VirtualCursor)
 
 		for i := x; i < width; i++ {
 			fillStyle := normalStyle
 
-			// Apply diff background if available (takes precedence over rulers)
 			if diffBg != nil {
 				fillStyle = normalStyle.Background(*diffBg)
-			} else {
-				// Only apply ruler styling if we don't have diff highlighting
-				textColumn := i - e.CurrentBuffer().LineNumberWidth
-				for _, rulerPos := range e.config.VerticalRulers {
-					if textColumn == rulerPos {
-						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-						break
-					}
-				}
 			}
 
 			if lineIndex >= 0 {
@@ -1231,7 +1239,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 				fillStyle = theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
 			}
 
-			e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+			e.setTextCell(i, screenY, ' ', nil, fillStyle)
 		}
 	} else {
 		// Even if no background fill, we still need to render virtual cursors beyond end of line
@@ -1241,7 +1249,7 @@ func (e *Editor) drawWrappedLine(iter *buffer.BufferIterator, wl WrappedLine, to
 		for i := x; i < width; i++ {
 			if e.hasVirtualCursorCell(i, screenY) {
 				fillStyle := theme.ApplyBackgroundStyle(normalStyle, virtualCursorStyle)
-				e.screen.SetContent(i, screenY, ' ', nil, fillStyle)
+				e.setTextCell(i, screenY, ' ', nil, fillStyle)
 			}
 		}
 	}
@@ -1390,24 +1398,17 @@ func (e *Editor) renderPane() {
 		}
 
 		// First, fill the entire line with the appropriate background
-		rulerStyle := e.config.Theme.GetStyle(e.config.Theme.VerticalRuler)
 		lineBgFill := e.perfTracker.Start()
 		for x := 0; x < width; x++ {
 			fillStyle := normalStyle
 			if diffFillStyle != nil {
-				// Diff highlighting takes precedence over rulers
 				fillStyle = *diffFillStyle
-			} else {
-				// Only apply ruler styling if we don't have diff highlighting
-				textColumn := x - e.CurrentBuffer().LineNumberWidth
-				for _, rulerPos := range e.config.VerticalRulers {
-					if textColumn == rulerPos {
-						fillStyle = theme.ApplyBackgroundStyle(normalStyle, rulerStyle)
-						break
-					}
-				}
 			}
-			e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
+			if isTerminalBuffer {
+				e.screen.SetContent(x, screenY, ' ', nil, fillStyle)
+			} else {
+				e.setTextCell(x, screenY, ' ', nil, fillStyle)
+			}
 		}
 		_ = e.perfTracker.ReportSince("drawEditor.fillLineBg", lineBgFill)
 
@@ -1582,13 +1583,16 @@ func (e *Editor) renderPane() {
 	// (right window) after a full-screen draw. Paint the entire line background
 	// first, then overlay the tildes in the gutter to match typical editor UX.
 	visibleHeight := e.getVisibleHeight()
-	// No vertical ruler application in this background pass to avoid token style skew
 	for i := len(wrappedLines); i < visibleHeight; i++ {
 		screenY := contentStartY + i
-		// Fill the whole line with normal background only (no per-column rulers here)
+		// Fill the whole line with normal background.
 		remFill := e.perfTracker.Start()
 		for x := 0; x < width; x++ {
-			e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
+			if isTerminalBuffer {
+				e.screen.SetContent(x, screenY, ' ', nil, normalStyle)
+			} else {
+				e.setTextCell(x, screenY, ' ', nil, normalStyle)
+			}
 		}
 		_ = e.perfTracker.ReportSince("drawEditor.fillRemainderBg", remFill)
 		// Draw the tildes in the gutter area

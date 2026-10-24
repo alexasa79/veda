@@ -266,8 +266,8 @@ func NewMonokaiTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#24241e",
+			Foreground: "#3d494c",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{
@@ -627,8 +627,8 @@ func NewDraculaTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#21222c",
+			Foreground: "#56648e",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{
@@ -980,8 +980,8 @@ func NewNordTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#292e39",
+			Foreground: "#464f62",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{
@@ -1333,8 +1333,8 @@ func NewOneDarkTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#22252c",
+			Foreground: "#444a5a",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{
@@ -1686,8 +1686,8 @@ func NewTenderTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#323232",
+			Foreground: "#3e3e3e",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{
@@ -2044,8 +2044,8 @@ func NewKodaTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#272727",
+			Foreground: "#434a4e",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{
@@ -2402,8 +2402,8 @@ func NewTokyoNightTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#1b1e2d",
+			Foreground: "#363d59",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{
@@ -2760,8 +2760,8 @@ func NewVSCodeTheme() *Theme {
 		},
 
 		VerticalRuler: StyleDef{
-			Foreground: "",
-			Background: "#222222",
+			Foreground: "#4e4e4e",
+			Background: "",
 		},
 
 		VirtualCursor: StyleDef{

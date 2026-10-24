@@ -8,7 +8,16 @@ import (
 )
 
 func markdownPresentationScreenLine(te *TestEditor, row int) string {
-	line := GetScreenLine(te.mockScreen.GetContent(), row)
+	// Compare document text independently of ruler decorations.
+	cells := make(map[int]Cell)
+	rulerFg := te.config.Theme.GetStyle(te.config.Theme.VerticalRuler).Fg
+	for x, cell := range te.mockScreen.GetContent()[row] {
+		if cell.Rune == '│' && cell.Style.Fg == rulerFg {
+			cell.Rune = ' '
+		}
+		cells[x] = cell
+	}
+	line := GetScreenLine(map[int]map[int]Cell{row: cells}, row)
 	gutter := te.CurrentBuffer().LineNumberWidth
 	if len(line) <= gutter {
 		return ""

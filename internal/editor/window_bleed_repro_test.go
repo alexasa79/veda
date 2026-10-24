@@ -83,6 +83,7 @@ func TestRightWindowBottomShouldBeEmpty_Repro(t *testing.T) {
 	// Use a moderately large screen; right window will get at least the
 	// configured minimum active width, left will shrink.
 	te := NewTestEditorWithContent(120, 30, buildLargeContent(200))
+	te.config.VerticalRulers = nil
 	// Ensure the sole window uses the editor buffer we just created.
 	te.windows[0].setActiveBuffer(te.CurrentBuffer())
 
