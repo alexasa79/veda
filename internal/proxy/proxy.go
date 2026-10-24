@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,7 +30,7 @@ const ProxyRequestTimeout = 10 * time.Second
 // ProxyVersion must match the version reported by the Python proxy script.
 // IMPORTANT: Increment this every time you change either this Go file
 // or the Python proxy implementation (veda-proxy.py). See CLAUDE.md.
-const ProxyVersion = "1.0.57"
+const ProxyVersion = "1.0.58"
 
 // StatusCallback is a function that receives status updates during connection
 type StatusCallback func(status string)
@@ -46,7 +47,9 @@ type LSPStatusCallback func(language, status, errorMsg string, extensions []stri
 
 // ProxyManager manages multiple proxy instances for different hosts
 type ProxyManager struct {
-	clients map[string]*Client // key is hostname, empty string for local
+	relay          *Client
+	notificationMu sync.Mutex
+	clients        map[string]*Client // key is hostname, empty string for local
 	// mu protects access to the clients map and related state.
 	// Do not hold mu while performing network I/O or long-running operations.
 	mu                 sync.Mutex
@@ -64,6 +67,9 @@ func NewProxyManager() (*ProxyManager, error) {
 // NewProxyManagerWithArgs creates a new proxy manager with custom proxy arguments.
 // This is primarily used for testing to override LSP server commands.
 func NewProxyManagerWithArgs(proxyArgs []string) (*ProxyManager, error) {
+	if os.Getenv("VEDA_WORKER") == "1" {
+		return newRelayManager(os.NewFile(3, "veda-proxy-relay"))
+	}
 	pm := &ProxyManager{
 		clients: make(map[string]*Client),
 	}
@@ -131,6 +137,14 @@ func (pm *ProxyManager) handleLSPStatusUpdate(language, status, errorMsg string,
 // getClient returns the appropriate client for the given path
 func (pm *ProxyManager) getClient(path string) (*Client, string, error) {
 	host, actualPath, isRemote := parseRemotePath(path)
+	if pm.relay != nil {
+		if !isRemote {
+			host, actualPath = "", path
+		}
+		return &Client{forward: func(req JSONRPCRequest, timeout time.Duration) (map[string]interface{}, error) {
+			return pm.relay.sendRequestWithDuration(JSONRPCRequest{ID: pm.relay.getNextRequestID(), Method: "request", Params: map[string]interface{}{"host": host, "request": req, "timeout": int64(timeout)}}, timeout+time.Second)
+		}}, actualPath, nil
+	}
 
 	LL.Debug("getClient: path=%s, host=%s, actualPath=%s, isRemote=%v", path, host, actualPath, isRemote)
 
@@ -410,6 +424,9 @@ func (pm *ProxyManager) checkRemoteConnectivity(host string, timeout time.Durati
 
 // Close shuts down all proxy instances
 func (pm *ProxyManager) Close() error {
+	if pm.relay != nil {
+		return pm.relay.transport.Close()
+	}
 	var lastErr error
 	for host, client := range pm.clients {
 		if err := client.Close(); err != nil {
@@ -898,6 +915,10 @@ var proxyScriptPath string
 
 // init extracts the embedded proxy script to ~/.cache/veda/ for local execution
 func init() {
+	// Only the session parent owns or installs proxy processes.
+	if os.Getenv("VEDA_WORKER") == "1" {
+		return
+	}
 	// Get the home directory
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -1078,10 +1099,12 @@ type ProjectSymbol struct {
 
 // Client represents a proxy client
 type Client struct {
-	cmd     *exec.Cmd
-	stdin   *bufio.Writer
-	stdout  *bufio.Scanner
-	manager *ProxyManager // Reference back to manager for notifications
+	forward   func(JSONRPCRequest, time.Duration) (map[string]interface{}, error)
+	transport io.ReadWriteCloser
+	cmd       *exec.Cmd
+	stdin     *bufio.Writer
+	stdout    *bufio.Scanner
+	manager   *ProxyManager // Reference back to manager for notifications
 
 	// Request ID and writer access must be synchronized
 	mu        sync.Mutex // Protects requestID and stdin writes
@@ -1186,6 +1209,9 @@ func shouldReconnect(err error) bool {
 
 // reconnect drops and recreates a client for a host ("" for local)
 func (pm *ProxyManager) reconnect(host string) (*Client, error) {
+	if pm.relay != nil {
+		return nil, fmt.Errorf("session relay disconnected")
+	}
 	pm.mu.Lock()
 	old := pm.clients[host]
 	delete(pm.clients, host)
@@ -1432,6 +1458,9 @@ func (c *Client) sendRequestWithTimeout(request JSONRPCRequest) (map[string]inte
 }
 
 func (c *Client) sendRequestWithDuration(request JSONRPCRequest, timeout time.Duration) (map[string]interface{}, error) {
+	if c.forward != nil {
+		return c.forward(request, timeout)
+	}
 	// Ensure reader is running exactly once
 	c.readerOnce.Do(func() {
 		if c.pending == nil {
@@ -1579,6 +1608,10 @@ func (c *Client) readerLoop() {
 
 // handleNotification processes notifications from the proxy (messages without id)
 func (c *Client) handleNotification(msg map[string]interface{}) {
+	if c.manager != nil {
+		c.manager.notificationMu.Lock()
+		defer c.manager.notificationMu.Unlock()
+	}
 	method, ok := msg["method"].(string)
 	if !ok {
 		LL.Debug("Notification missing method field")
@@ -1586,6 +1619,12 @@ func (c *Client) handleNotification(msg map[string]interface{}) {
 	}
 
 	switch method {
+	case "session_status":
+		params, _ := msg["params"].(map[string]interface{})
+		c.manager.reportStatus(getString(params, "status"))
+	case "session_message":
+		params, _ := msg["params"].(map[string]interface{})
+		c.manager.reportMessage(getString(params, "level"), getString(params, "message"))
 	case "diagnostics":
 		c.handleDiagnosticNotification(msg)
 	case "lsp_status":

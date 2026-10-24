@@ -98,6 +98,7 @@ func (e *Editor) registerCommands() {
 	// File commands
 	e.commandRegistry.Register("open-file", e.openFileCmd, false, false)
 	e.commandRegistry.Register("reload-file", e.reloadFile, false, false)
+	e.commandRegistry.Register("reload", e.reloadEditor, false, false)
 	e.commandRegistry.Register("q", e.closeBuffer, false, true)      // Close current buffer
 	e.commandRegistry.Register("q!", e.actuallyQuit, false, false)   // Force quit
 	e.commandRegistry.Register("qa", e.actuallyQuit, false, false)   // Force quit (shortcut for :Q)
@@ -334,22 +335,6 @@ func (e *Editor) openTerminalCmd(args []string) error {
 		})
 		// Begin polling for output
 		e.startTerminalPolling(newBuf.FilePath)
-		// Force an early ReadTerminal to populate emulator promptly (no synthetic input)
-		go func(bufPath, wd, sid string) {
-			data, _, _, err := e.proxyManager.ReadTerminal(wd, sid, 65536)
-			if err == nil && len(data) > 0 {
-				if ts := e.terminalSessions[bufPath]; ts != nil && ts.term != nil {
-					response := ts.term.WriteWithResponse(data)
-					if len(response) > 0 {
-						_ = e.proxyManager.WriteTerminal(wd, sid, response)
-					}
-					e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
-						"buffer": bufPath,
-						"data":   ts.term.Render(),
-					})
-				}
-			}
-		}(newBuf.FilePath, e.workingDirectory, sessionID)
 		// Avoid sending ANSI DSR queries which can echo visibly in some shells
 	}
 	// Enter terminal mode (keys will be forwarded in editor key loop)
@@ -371,8 +356,15 @@ func (e *Editor) startTerminalPolling(bufferPath string) {
 	if ts == nil {
 		return
 	}
+	e.terminalPollWG.Add(1)
 	go func() {
+		defer e.terminalPollWG.Done()
 		for {
+			select {
+			case <-e.terminalPollStop:
+				return
+			default:
+			}
 			data, closed, exitCode, err := e.proxyManager.ReadTerminal(ts.WorkingDir, ts.SessionID, 65536)
 			if err != nil {
 				return
@@ -385,15 +377,15 @@ func (e *Editor) startTerminalPolling(bufferPath string) {
 						_ = e.proxyManager.WriteTerminal(ts.WorkingDir, ts.SessionID, response)
 					}
 					rendered := ts.term.Render()
-					e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+					e.postTerminalEvent(events.NewCustomEvent("terminal-output", map[string]interface{}{
 						"buffer": bufferPath,
 						"data":   rendered,
-					})
+					}))
 				} else {
-					e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+					e.postTerminalEvent(events.NewCustomEvent("terminal-output", map[string]interface{}{
 						"buffer": bufferPath,
 						"data":   string(data),
-					})
+					}))
 				}
 			}
 			if closed {
@@ -428,14 +420,14 @@ func (e *Editor) startTerminalPolling(bufferPath string) {
 				} else {
 					rendered = exitMsg
 				}
-				e.asyncEvents <- events.NewCustomEvent("terminal-output", map[string]interface{}{
+				e.postTerminalEvent(events.NewCustomEvent("terminal-output", map[string]interface{}{
 					"buffer": bufferPath,
 					"data":   rendered,
-				})
+				}))
 				// Also switch the editor out of TerminalMode so user returns to Normal
-				e.asyncEvents <- events.NewCustomEvent("terminal-closed", map[string]interface{}{
+				e.postTerminalEvent(events.NewCustomEvent("terminal-closed", map[string]interface{}{
 					"buffer": bufferPath,
-				})
+				}))
 				return
 			}
 			// Poll interval

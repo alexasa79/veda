@@ -51,7 +51,14 @@ type wordRange struct {
 
 // Editor represents the state of the text editor.
 type Editor struct {
-	screen Screen
+	sessionMu              sync.Mutex
+	beginReload            func() error
+	reloadRequested        bool
+	resumeNotifications    func()
+	terminalPollStop       chan struct{}
+	terminalPollWG         sync.WaitGroup
+	startRestoredResources bool
+	screen                 Screen
 	// buffer field removed - use CurrentBuffer() accessor instead
 	config               *config.Config
 	mode                 commands.Mode
@@ -373,6 +380,7 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		minActiveWindowWidth:     110,
 		lspExtensionStatus:       make(map[string]string),
 		terminalSessions:         make(map[string]*TerminalSessionState),
+		terminalPollStop:         make(chan struct{}),
 		signatureAnchors:         make(map[*buffer.Buffer]*signatureAnchor),
 		csvRenderCaches:          make(map[*buffer.Buffer]csvRenderCache),
 		markdownRenderCaches:     make(map[*buffer.Buffer]markdownRenderCache),
@@ -407,10 +415,16 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 		// Connection-status only (spinner text, etc.)
 		editor.connectionStatus = status
 		// Wake main loop so the status/spinner updates without keypress
-		editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil)
+		select {
+		case editor.asyncEvents <- events.NewCustomEvent("spinner-tick", nil):
+		default:
+		}
 		// If status becomes empty (completion), force a final render wake
 		if status == "" {
-			editor.asyncEvents <- events.NewCustomEvent("render", nil)
+			select {
+			case editor.asyncEvents <- events.NewCustomEvent("render", nil):
+			default:
+			}
 		}
 	})
 
@@ -439,7 +453,10 @@ func NewWithScreen(screen Screen) (*Editor, error) {
 			LL.Debug("Updated diagnostics for %s: %d diagnostics", path, len(diagnostics))
 
 			// Wake the main loop to trigger a redraw
-			editor.asyncEvents <- events.NewCustomEvent("render", nil)
+			select {
+			case editor.asyncEvents <- events.NewCustomEvent("render", nil):
+			default:
+			}
 		}
 	})
 
@@ -582,6 +599,20 @@ func (e *Editor) Run() {
 
 	// Initial draw
 	e.render()
+	if e.startRestoredResources {
+		e.startRestoredResources = false
+		// The first render waits for the parent to accept this worker.
+		for _, b := range e.buffers {
+			if b.IsModified && b.HasFile() {
+				e.autoSaveManager.MarkDirty(b.FilePath)
+			}
+		}
+		for path, ts := range e.terminalSessions {
+			if !ts.Closed {
+				e.startTerminalPolling(path)
+			}
+		}
+	}
 
 	// Check if we have a pending path to open
 	if e.pendingPath != "" {
@@ -1259,6 +1290,9 @@ func (e *Editor) handleEvent(ev events.Event) {
 	case *events.CustomEvent:
 		LL.Debug("handleEvent: Received CustomEvent type=%s", ev.Type)
 		switch ev.Type {
+		case "session-disconnected":
+			e.exitCode, e.shouldExit = 1, true
+			return
 		case "render":
 			e.render()
 			return
@@ -2143,6 +2177,11 @@ func (e *Editor) syncCurrentVirtualCursors() {
 
 // Close finalizes the screen and proxy client.
 func (e *Editor) Close() {
+	e.stopTerminalPolling()
+	if e.resumeNotifications != nil {
+		e.resumeNotifications()
+		e.resumeNotifications = nil
+	}
 	// Stop the performance tracker
 	if e.perfTracker != nil {
 		e.perfTracker.Stop()
@@ -2649,6 +2688,8 @@ func (e *Editor) requestFoldingRanges(filePath string) {
 	// Launch goroutine to fetch folding ranges
 	go func() {
 		ranges, err := e.proxyManager.GetFoldingRanges(filePath)
+		e.sessionMu.Lock()
+		defer e.sessionMu.Unlock()
 
 		// Update the buffer directly if it still exists
 		if b, exists := e.buffers[filePath]; exists && b == buf {

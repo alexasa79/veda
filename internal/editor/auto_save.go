@@ -11,6 +11,7 @@ import (
 
 // AutoSaveManager handles local auto-save functionality to protect against data loss
 type AutoSaveManager struct {
+	callbacks     sync.WaitGroup
 	autoSaveDir   string
 	minEditDelay  time.Duration
 	lastSaveTimes map[string]time.Time // Maps file paths to last save times
@@ -88,7 +89,11 @@ func (asm *AutoSaveManager) scheduleAutoSaveLocked(filePath string, dirtyTime ti
 
 	var timer *time.Timer
 	timer = time.AfterFunc(delay, func() {
-		asm.handleAutoSaveTimer(filePath, dirtyTime, timer)
+		// Scheduling holds the write lock until timer has been assigned.
+		asm.mutex.RLock()
+		firedTimer := timer
+		asm.mutex.RUnlock()
+		asm.handleAutoSaveTimer(filePath, dirtyTime, firedTimer)
 	})
 
 	asm.timers[filePath] = timer
@@ -271,8 +276,12 @@ func (asm *AutoSaveManager) CleanupAutoSave(filePath string) {
 func (asm *AutoSaveManager) requestAutoSave(filePath string) {
 	asm.mutex.RLock()
 	callback := asm.saveCallback
+	if callback != nil {
+		asm.callbacks.Add(1)
+	}
 	asm.mutex.RUnlock()
 	if callback != nil {
+		defer asm.callbacks.Done()
 		callback(filePath)
 	}
 }
@@ -287,7 +296,6 @@ func (asm *AutoSaveManager) SetSaveCallback(callback func(string)) {
 // Stop stops the auto-save manager
 func (asm *AutoSaveManager) Stop() {
 	asm.mutex.Lock()
-	defer asm.mutex.Unlock()
 
 	for path, timer := range asm.timers {
 		timer.Stop()
@@ -295,6 +303,8 @@ func (asm *AutoSaveManager) Stop() {
 	}
 
 	asm.saveCallback = nil
+	asm.mutex.Unlock()
+	asm.callbacks.Wait()
 }
 
 // GetAutoSaveInfo returns information about auto-save files
