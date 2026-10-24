@@ -96,6 +96,13 @@ Servers used: `gopls` (Go), `clangd` (C/C++), `pylsp` (Python),
 `typescript-language-server` (JS/TS), `bash-language-server` (Bash). Install
 whichever you need; Veda tells you if one is missing.
 
+Function headers have a subtle blue background tint blended with the active
+theme. Header rows form a band across the window's text area, including multiline
+signatures and their opening brace. Syntax colors and the gutter are preserved.
+One-line functions, including their bodies, form a full-width band. Multiline
+function bodies keep their normal background. Cursor, search, selection, and
+changed diff backgrounds take precedence.
+
 ## Git
 
 - `g h` stages or unstages the hunk under the cursor; `g space` does the same

@@ -74,10 +74,8 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 
 				// Render the editor
 				te.renderPane()
-				screen := te.mockScreen.GetContent()
-
 				// Check rendered output
-				actualLine := strings.TrimSpace(GetScreenLine(screen, 0)[te.CurrentBuffer().LineNumberWidth:])
+				actualLine := strings.TrimSpace(markdownPresentationScreenLine(te, 0))
 				if actualLine != tt.expectedNormalMode {
 					t.Errorf("Normal mode: expected %q, got %q", tt.expectedNormalMode, actualLine)
 				}
@@ -106,10 +104,8 @@ func TestMarkdownLinkRenderingModes(t *testing.T) {
 
 				// Render the editor
 				te.renderPane()
-				screen := te.mockScreen.GetContent()
-
 				// Check rendered output
-				actualLine := strings.TrimSpace(GetScreenLine(screen, 0)[te.CurrentBuffer().LineNumberWidth:])
+				actualLine := strings.TrimSpace(markdownPresentationScreenLine(te, 0))
 				if actualLine != tt.expectedInsertMode {
 					t.Errorf("Insert mode: expected %q, got %q", tt.expectedInsertMode, actualLine)
 				}

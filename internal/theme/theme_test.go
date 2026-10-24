@@ -90,3 +90,14 @@ func TestAllThemesHaveRequiredStyles(t *testing.T) {
 		})
 	}
 }
+
+func TestVerticalRulersUseForeground(t *testing.T) {
+	for _, name := range GetThemeNames() {
+		t.Run(name, func(t *testing.T) {
+			theme := GetThemeByName(name)
+			if theme.VerticalRuler.Foreground == "" || theme.VerticalRuler.Background != "" {
+				t.Fatal("rulers must define a foreground without changing the background")
+			}
+		})
+	}
+}
