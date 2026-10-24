@@ -1637,7 +1637,7 @@ func NewTenderTheme() *Theme {
 
 		LineNumber: StyleDef{
 			Foreground: "#444444",
-			Background: "#282828",
+			Background: "#323232",
 		},
 
 		CurrentLineNumber: StyleDef{
@@ -1995,7 +1995,7 @@ func NewKodaTheme() *Theme {
 
 		LineNumber: StyleDef{
 			Foreground: "#50585d",
-			Background: "#101010",
+			Background: "#272727",
 		},
 
 		CurrentLineNumber: StyleDef{
@@ -2353,7 +2353,7 @@ func NewTokyoNightTheme() *Theme {
 
 		LineNumber: StyleDef{
 			Foreground: "#3b4261",
-			Background: "#24283b",
+			Background: "#292e42",
 		},
 
 		CurrentLineNumber: StyleDef{
