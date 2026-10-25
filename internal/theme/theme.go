@@ -2835,7 +2835,7 @@ func NewVSCodeTheme() *Theme {
 		},
 
 		SyntaxKeyword: StyleDef{
-			Foreground: "#c586c0",
+			Foreground: "#c586c0[B]",
 			Background: "#1f1f1f",
 		},
 
