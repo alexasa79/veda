@@ -1602,12 +1602,10 @@ func (e *Editor) renderPane() {
 	}
 }
 
-func (e *Editor) prepareCursorWordHighlights(wrappedLines []WrappedLine) {
-	// Reset highlights for this draw pass
-	e.cursorWordHighlights = nil
-
+// Track cursor inactivity once per frame, before rendering swaps buffers for each pane.
+func (e *Editor) updateCursorWordHighlightTimer() {
 	buf := e.CurrentBuffer()
-	if buf == nil || buf.CursorIterator == nil || len(wrappedLines) == 0 {
+	if buf == nil || buf.CursorIterator == nil {
 		return
 	}
 
@@ -1653,10 +1651,26 @@ func (e *Editor) prepareCursorWordHighlights(wrappedLines []WrappedLine) {
 			})
 		}
 	}
+}
 
-	if now.Sub(e.cursorWordLastMove) < delay {
+func (e *Editor) prepareCursorWordHighlights(wrappedLines []WrappedLine) {
+	// Reset highlights for this draw pass.
+	e.cursorWordHighlights = nil
+
+	buf := e.CurrentBuffer()
+	if buf == nil || buf.CursorIterator == nil || len(wrappedLines) == 0 {
 		return
 	}
+
+	delay := e.cursorWordHighlightDelay
+	if delay <= 0 {
+		delay = 180 * time.Millisecond
+	}
+	if e.cursorWordLastMove.IsZero() || time.Since(e.cursorWordLastMove) < delay {
+		return
+	}
+	cursorLine := buf.CursorIterator.LineNumber()
+	cursorCol := buf.CursorX
 
 	visibleLines := make(map[int]struct{})
 	for _, wl := range wrappedLines {
