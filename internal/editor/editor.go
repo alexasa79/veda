@@ -753,6 +753,8 @@ func (e *Editor) render() {
 		}
 	}
 
+	e.updateCursorWordHighlightTimer()
+
 	if e.zenMode {
 		normalStyle := e.config.Theme.GetStyle(e.config.Theme.Normal)
 		screenW, screenH := e.screen.Size()
