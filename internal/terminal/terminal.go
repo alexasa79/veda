@@ -280,9 +280,10 @@ func (t *Terminal) Show() {
 		if t.backBuffer[y] != t.frontBuffer[y] {
 			// Position cursor at beginning of line
 			fmt.Fprintf(&output, "\033[%d;1H", y+1)
+			// Clear before drawing: after a full-width row the cursor remains
+			// in its last column, where clearing would erase the final character.
+			output.WriteString(ClearToEOL)
 			output.WriteString(t.backBuffer[y])
-			// Clear to end of line in case the new line is shorter
-			output.WriteString("\033[K")
 			t.frontBuffer[y] = t.backBuffer[y]
 			hasChanges = true
 		}

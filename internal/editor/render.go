@@ -2207,7 +2207,7 @@ func (e *Editor) drawStatusBar() {
 				x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", totalLines), 0, nil, -1, 0, -1)
 				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(":%d", visualCol), 0, nil, -1, 0, -1)
 				x += e.drawText(x, statusBarY, subduedStyle, fmt.Sprintf("/%d", lineLength), 0, nil, -1, 0, -1)
-				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d]  ", e.getAbsolutePosition()), 0, nil, -1, 0, -1)
+				x += e.drawText(x, statusBarY, statusBarStyle, fmt.Sprintf(" [%d] ", e.getAbsolutePosition()), 0, nil, -1, 0, -1)
 			}
 			x += e.drawText(x, statusBarY, statusBarStyle, timeInfo, 0, nil, -1, 0, -1)
 		}
