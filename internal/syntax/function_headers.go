@@ -66,6 +66,19 @@ func (h *Highlighter) functionHeader(node *sitter.Node) (ByteRange, bool) {
 	default:
 		return ByteRange{}, false
 	}
+	if h.GetCurrentLanguage() == "cpp" && node.Type() == "function_definition" {
+		// C++ has no nested function definitions, but the parser can mistake
+		// a loop macro followed by a block for one. Local class methods are valid.
+	scope:
+		for parent := node.Parent(); parent != nil; parent = parent.Parent() {
+			switch parent.Type() {
+			case "class_specifier", "struct_specifier", "union_specifier":
+				break scope
+			case "compound_statement":
+				return ByteRange{}, false
+			}
+		}
+	}
 	body := node.ChildByFieldName("body")
 	if body == nil || body.IsMissing() {
 		return ByteRange{}, false

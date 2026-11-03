@@ -30,6 +30,10 @@ func TestFunctionHeaderRanges(t *testing.T) {
 		{"nested lambda", "sample.cc", "void run() { auto work = []() { return 7; }; }\n", []string{"void run() { auto work = []() { return 7; }; }"}},
 		{"nested lambda multiline parent", "sample.cc", "void run() {\n  auto work = []() { return 7; };\n}\n", []string{"void run() {", "[]() { return 7; }"}},
 		{"declaration only", "sample.cc", "int measure();\nint value = measure();\n", nil},
+		{"c loop macro", "sample.c", "void visit_items(void)\n{\n  array_each(items, i, item)\n  {\n    consume(item);\n  }\n}\n", []string{"void visit_items(void)\n{"}},
+		{"cpp loop macro", "sample.cc", "void visit_items() {\n  array_each(items, i, item) /* each item */\n  {\n    consume(item);\n  }\n}\n", []string{"void visit_items() {"}},
+		{"cpp nested loop macros", "sample.cc", "void visit_items() {\n  array_each(items, i, item)\n  {\n    array_each(item, j, value) {\n      consume(value);\n    }\n  }\n}\n", []string{"void visit_items() {"}},
+		{"cpp local class", "sample.cc", "void run() {\n  struct Local {\n    Local() {}\n    int size() { return 7; }\n  };\n}\n", []string{"void run() {", "Local() {}", "int size() { return 7; }"}},
 		{"comment and string", "sample.cc", "// int measure() { return 7; }\nconst char* text = \"void run() {}\";\n", nil},
 	}
 	for _, tt := range tests {
@@ -46,7 +50,7 @@ func TestFunctionHeaderRanges(t *testing.T) {
 				headers = append(headers, tt.source[span.Start:span.End])
 			}
 			if !reflect.DeepEqual(headers, tt.headers) {
-				t.Fatalf("headers = %q; want %q", headers, tt.headers)
+				t.Fatalf("headers = %q; want %q\ntree: %s", headers, tt.headers, h.currentTree.RootNode())
 			}
 			for offset := range []byte(tt.source) {
 				want := false
