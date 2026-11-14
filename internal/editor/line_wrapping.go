@@ -353,7 +353,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 
 	// Find which wrapped line contains the cursor
 	for i, wl := range wrappedLines {
-		if wl.LogicalLineNum == cursorLogicalLine {
+		if wl.LogicalLineNum == cursorLogicalLine && !isWrapPadding(wl) {
 			// Check if cursor is in this wrapped segment
 			if cursorX >= wl.StartChar && cursorX < wl.EndChar {
 				visualLine = i
@@ -368,8 +368,8 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 			}
 			// Special case for cursor exactly at the end of a wrapped segment
 			if cursorX == wl.EndChar {
-				// Check if this is the last segment of this logical line
-				isLastSegment := i == len(wrappedLines)-1 || wrappedLines[i+1].LogicalLineNum != cursorLogicalLine
+				// Padding aligns the panes but is not another text segment.
+				isLastSegment := i == len(wrappedLines)-1 || wrappedLines[i+1].LogicalLineNum != cursorLogicalLine || isWrapPadding(wrappedLines[i+1])
 				if isLastSegment {
 					// Cursor at end of line
 					// Calculate visual column accounting for tabs
@@ -380,7 +380,12 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 					}
 					width := e.wrapScreenWidth()
 					if visualCol == width {
-						return i + 1, e.CurrentBuffer().LineNumberWidth
+						if i+1 < len(wrappedLines) && isWrapPadding(wrappedLines[i+1]) {
+							// Keep a full-width end position on text, not diff padding.
+							visualCol = width - 1
+						} else {
+							return i + 1, e.CurrentBuffer().LineNumberWidth
+						}
 					}
 					visualLine = i
 					return
@@ -417,7 +422,7 @@ func (e *Editor) GetCursorVisualPosition() (visualLine, visualCol int) {
 	// Fallbacks
 	for i := len(wrappedLines) - 1; i >= 0; i-- {
 		wl := wrappedLines[i]
-		if wl.LogicalLineNum == cursorLogicalLine {
+		if wl.LogicalLineNum == cursorLogicalLine && !isWrapPadding(wl) {
 			// Place cursor at end of this wrapped line
 			visualLine = i
 			// Calculate visual column accounting for tabs
