@@ -85,6 +85,9 @@ func (e *Editor) showProjectChanges(args []string) error {
 			bufferName := "*Project Changes*"
 			if buf, exists := ed.buffers[bufferName]; exists {
 				buf.Rope = buffer.NewRopeFromString(final)
+				buf.Generation++
+				buf.MarkModified()
+				buf.MarkSaved()
 				buf.CursorX = 0
 				buf.ViewIterator = buffer.NewBufferIterator(buf)
 				buf.CursorIterator = buffer.NewBufferIterator(buf)

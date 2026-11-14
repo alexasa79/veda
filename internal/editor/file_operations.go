@@ -1274,8 +1274,12 @@ func (e *Editor) markBufferDirty() {
 	}
 }
 
-// reloadFile reloads the current file from disk
+// reloadFile reloads the current file or regenerates project changes.
 func (e *Editor) reloadFile(args []string) error {
+	if buf := e.CurrentBuffer(); buf != nil && buf.FilePath == "*Project Changes*" {
+		return e.showProjectChanges(args)
+	}
+
 	// Check if we have a file open
 	if e.CurrentBuffer() == nil || !e.CurrentBuffer().HasFile() {
 		e.ShowError("No file to reload")
